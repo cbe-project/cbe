@@ -1,0 +1,97 @@
+build {
+	core init timer
+	server/ram_block
+	server/aes_cbc_block
+
+	app/block_tester
+}
+
+create_boot_directory
+
+install_config {
+<config>
+	<parent-provides>
+		<service name="ROM"/>
+		<service name="RAM"/>
+		<service name="IRQ"/>
+		<service name="IO_MEM"/>
+		<service name="IO_PORT"/>
+		<service name="PD"/>
+		<service name="RM"/>
+		<service name="CPU"/>
+		<service name="LOG"/>
+	</parent-provides>
+
+	<default-route>
+		<any-service> <parent/> <any-child/> </any-service>
+	</default-route>
+
+	<default caps="100"/>
+
+	<start name="timer">
+		<resource name="RAM" quantum="1M"/>
+		<provides><service name="Timer"/></provides>
+	</start>
+
+	<start name="ram_block">
+		<resource name="RAM" quantum="1G"/>
+		<provides><service name="Block"/></provides>
+		<config size="900M" block_size="512"/>
+	</start>
+
+	<start name="aes_cbc_block">
+		<resource name="RAM" quantum="4M"/>
+		<provides><service name="Block"/></provides>
+		<config verbose="yes" key="All your base are belong to us"/>
+		<route>
+			<service name="Block"> <child name="ram_block"/> </service>
+			<any-service> <parent/> </any-service>
+		</route>
+	</start>
+
+	<start name="block_tester">
+		<resource name="RAM" quantum="32M"/>
+		<config verbose="no" report="no" log="yes" stop_on_error="no">
+			<tests>
+<!--
+				<replay bulk="no">
+					<request type="read" lba="128" count="2"/>
+					<request type="read" lba="128" count="1"/>
+					<request type="read" lba="128" count="1"/>
+					<request type="read" lba="128" count="1"/>
+					<request type="read" lba="128" count="1"/>
+					<request type="read" lba="128" count="32"/>
+					<request type="write" lba="128" count="1"/>
+					<request type="write" lba="129" count="2"/>
+				</replay>
+				<sequential length="8M" size="4K" synchronous="yes"/>
+				<sequential length="8M" size="8K" synchronous="yes"/>
+				<sequential length="8M" size="16K"/>
+				<sequential length="8M" size="64K"/>
+-->
+				<sequential length="8M" size="128K"/>
+<!--
+				<sequential length="8M" size="4K" synchronous="yes" write="yes"/>
+				<sequential length="8M" size="64K" write="yes" synchronous="yes"/>
+-->
+			</tests>
+		</config>
+		<route>
+			<service name="Block"> <child name="aes_cbc_block"/> </service>
+			<any-service> <parent/> <any-child/> </any-service>
+		</route>
+	</start>
+</config>}
+
+exec echo -n "Not for the public"  > [run_dir]/genode/plaintext
+exec echo -n "Better kept private" > [run_dir]/genode/key
+
+build_boot_image {
+	core init timer ram_block aes_cbc_block block_tester
+	ld.lib.so spark.lib.so libsparkcrypto.lib.so
+}
+
+append qemu_args " -m 2G -nographic "
+
+
+run_genode_until {.*child "block_tester" exited with exit value 0.*\n} 360
