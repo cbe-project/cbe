@@ -13,15 +13,18 @@
 
 /* Genode includes */
 #include <base/allocator_avl.h>
+#include <base/attached_ram_dataspace.h>
 #include <base/component.h>
 #include <base/heap.h>
-#include <base/attached_ram_dataspace.h>
 #include <block/request_stream.h>
 #include <root/root.h>
+#include <util/bit_allocator.h>
+
+/* cbe include */
+#include <cbe/types.h>
 
 /* local includes */
 #include <util.h>
-#include <cbe/types.h>
 
 
 namespace Cbe {
@@ -37,14 +40,16 @@ struct Cbe::Block_session_component : Rpc_object<Block::Session>,
 {
 	Entrypoint &_ep;
 
-	static constexpr size_t NUM_BLOCKS = 16;
+	Block::sector_t _block_count;
 
 	Block_session_component(Region_map               &rm,
 	                        Dataspace_capability      ds,
 	                        Entrypoint               &ep,
-	                        Signal_context_capability sigh)
+	                        Signal_context_capability sigh,
+	                        Block::sector_t           block_count)
 	:
-		Request_stream(rm, ds, ep, sigh, BLOCK_SIZE), _ep(ep)
+		Request_stream(rm, ds, ep, sigh, BLOCK_SIZE), _ep(ep),
+		_block_count(block_count)
 	{
 		_ep.manage(*this);
 	}
@@ -53,7 +58,7 @@ struct Cbe::Block_session_component : Rpc_object<Block::Session>,
 
 	void info(Block::sector_t *count, size_t *block_size, Operations *ops) override
 	{
-		*count      = NUM_BLOCKS;
+		*count      = _block_count;
 		*block_size = Cbe::BLOCK_SIZE;
 		*ops        = Operations();
 
@@ -115,7 +120,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 		Cbe::Virtual_block_address _max_vba { 0 };
 
-		using Pool        = Module::Request_pool<MAX_REQS>;
+		using Pool        = Module::Request_pool;
 		using Splitter    = Module::Splitter;
 		using Translation = Module::Translation<Cbe::Type_i_node>;
 		using Cache       = Module::Cache<MAX_PRIM, CACHE_ENTRIES>;
@@ -128,6 +133,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Crypto   _crypto       { "All your base are belong to us  " };
 		Block_io _io           { _block };
 		Constructible<Translation> _trans { };
+		Bit_allocator<MAX_REQS> _tag_alloc { };
 
 		Block_data* _data_for_primitive(Block::Request_stream::Payload const &payload,
 		                                Pool const &pool, Primitive const p)
@@ -179,7 +185,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						return Block_session_component::Response::REJECTED;
 					}
 
-					if (!_request_pool.acceptable()) {
+					if (!_request_pool.request_acceptable()) {
 						return Block_session_component::Response::RETRY;
 					}
 
@@ -190,6 +196,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					}
 
 					Number_of_primitives const num = _splitter.number_of_primitives(request);
+					request.tag = _tag_alloc.alloc();
 					_request_pool.submit_request(request, num);
 
 					progress |= true;
@@ -198,24 +205,29 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 				block_session.try_acknowledge([&] (Block_session_component::Ack &ack) {
 
-					if (_request_pool.peek_completed_request()) {
-						Block::Request request = _request_pool.take_completed_request();
-						ack.submit(request);
+					Block::Request const &req = _request_pool.peek_completed_request();
+					if (!req.operation_defined()) { return; }
 
-						progress |= true;
-					}
+					_request_pool.drop_completed_request(req);
+					_tag_alloc.free(req.tag);
+					ack.submit(req);
+
+					progress |= true;
 				});
 
 				/*******************************
 				 ** Put request into splitter **
 				 *******************************/
 
-				while (_request_pool.peek_request_pending()) {
+				while (true) {
+
+					Block::Request const &req = _request_pool.peek_pending_request();
+					if (!req.operation_defined()) { break; }
 
 					if (!_splitter.request_acceptable()) { break; }
 
-					Pool::Primitive p = _request_pool.take_pending_request();
-					_splitter.submit_request(p.request, p.tag);
+					_request_pool.drop_pending_request(req);
+					_splitter.submit_request(req);
 
 					progress |= true;
 				}
@@ -226,9 +238,10 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 				while (_splitter.peek_generated_primitive().valid()) {
 
-					Cbe::Primitive p = _splitter.take_generated_primitive();
-
 					if (!_trans->acceptable()) { break; }
+
+					Cbe::Primitive p = _splitter.peek_generated_primitive();
+					_splitter.drop_generated_primitive(p);
 
 					_trans->submit_primitive(p);
 
@@ -408,7 +421,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 			_block_ds.construct(_env.ram(), _env.rm(), ds_size);
 			_block_session.construct(_env.rm(), _block_ds->cap(), _env.ep(),
-			                         _request_handler);
+			                         _request_handler, _max_vba + 1);
 
 			_block.tx_channel()->sigh_ack_avail(_request_handler);
 			_block.tx_channel()->sigh_ready_to_submit(_request_handler);
