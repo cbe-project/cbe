@@ -16,7 +16,6 @@ is
 	type Uint8_Type    is mod 2**8  with Size => 1 * 8;
 	type Uint32_Type   is mod 2**32 with Size => 4 * 8;
 	type Uint64_Type   is mod 2**64 with Size => 8 * 8;
-	type Byte_Type     is mod 2**8  with Size => 1 * 8;
 	type CXX_Bool_Type is range 0..1 with Size => Uint8_Type'Size;
 	type CXX_Size_Type is new Uint64_Type;
 

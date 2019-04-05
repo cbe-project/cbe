@@ -124,13 +124,13 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		using Splitter    = Module::Splitter;
 		using Translation = Module::Translation<Cbe::Type_i_node>;
 		using Cache       = Module::Cache<MAX_PRIM, CACHE_ENTRIES>;
-		using Crypto      = Module::Crypto<MAX_PRIM>;
+		using Crypto      = Module::Crypto;
 		using Block_io    = Module::Block_io<MAX_PRIM, BLOCK_SIZE>;
 
 		Pool     _request_pool { };
 		Splitter _splitter     { };
 		Cache    _cache        { };
-		Crypto   _crypto       { "All your base are belong to us  " };
+		Crypto   _crypto       { "All your base are belong to us  ", sizeof(Crypto), sizeof(Cbe::Block_data), sizeof(Primitive)};
 		Block_io _io           { _block };
 		Constructible<Translation> _trans { };
 		Bit_allocator<MAX_REQS> _tag_alloc { };
@@ -273,21 +273,21 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 				while (_trans->peek_completed_primitive()) {
 
-					Cbe::Primitive p = _trans->take_completed_primitive();
+					Cbe::Primitive prim = _trans->take_completed_primitive();
 
-					if (!_crypto.acceptable()) { break; }
+					if (!_crypto.primitive_acceptable()) { break; }
 
-					_trans->discard_completed_primitive(p);
+					_trans->discard_completed_primitive(prim);
 
 					block_session.with_payload([&] (Block::Request_stream::Payload const &payload) {
 
-						Block_data *data_ptr = _data_for_primitive(payload, _request_pool, p);
+						Block_data *data_ptr = _data_for_primitive(payload, _request_pool, prim);
 						if (data_ptr == nullptr) {
 							Genode::error("BUG: data_ptr is nullptr");
 							Genode::sleep_forever();
 						}
 
-						_crypto.submit_primitive(p, *data_ptr);
+						_crypto.submit_primitive(prim, *data_ptr);
 					});
 
 					progress |= true;
@@ -316,25 +316,29 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 ** Crypto handling **
 				 *********************/
 
-				progress |= _crypto.execute();
+				_crypto.execute();
+				progress |= _crypto.execute_progress();
 
-				while (_crypto.peek_completed_primitive().valid()) {
+				while (1) {
+					Cbe::Primitive prim = _crypto.peek_completed_primitive();
+					if (!prim.valid()) { break; }
 
-					Cbe::Primitive p = _crypto.take_completed_primitive();
-					_request_pool.mark_completed_primitive(p);
+					_crypto.drop_completed_primitive(prim);
+					_request_pool.mark_completed_primitive(prim);
 
 					progress |= true;
 				}
 
-				while (_crypto.peek_generated_primitive().valid()) {
+				while (1) {
 
+					Cbe::Primitive prim = _crypto.peek_generated_primitive();
+					if (!prim.valid())     { break; }
 					if (!_io.acceptable()) { break; }
 
-					Cbe::Primitive   p    = _crypto.take_generated_primitive();
-					Cbe::Block_data &data = _crypto.take_generated_data(p);
-					_crypto.discard_generated_primitive(p);
+					Cbe::Block_data cipher_data = _crypto.peek_generated_cipher_data(prim);
+					_crypto.drop_generated_primitive(prim);
 
-					_io.submit_primitive(CRYPTO_TAG, p, data);
+					_io.submit_primitive(CRYPTO_TAG, prim, cipher_data);
 
 					progress |= true;
 				}
@@ -440,6 +444,11 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			_block_ds.destruct();
 		}
 };
+
+
+extern "C" void print_size(Genode::size_t sz) {
+	Genode::log(sz);
+}
 
 
 Genode::Env *__genode_env;

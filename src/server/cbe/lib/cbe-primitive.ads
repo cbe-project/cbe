@@ -48,34 +48,34 @@ is
 				Index       (Valid_Object'Result) = Idx    and
 				Request."="(Tag(Valid_Object'Result), Tg)));
 
-
-	---------------
-	-- Accessors --
-	---------------
-
-	function Valid(Obj : Object_Type)
-	return Boolean;
-
-	function Operation(Obj : Object_Type)
-	return Request.Operation_Type
-	with Pre => (Valid(Obj));
-
-	function Success(Obj : Object_Type)
-	return Request.Success_Type
-	with Pre => (Valid(Obj));
-
-	function Tag(Obj : Object_Type)
-	return Request.Tag_Type
-	with Pre => (Valid(Obj));
-
-	function Block_Number(Obj : Object_Type)
-	return Request.Block_Number_Type
-	with Pre => (Valid(Obj));
+	--
+	-- Equal
+	--
+	function Equal(
+		Obj_1 : Object_Type;
+		Obj_2 : Object_Type)
+	return Boolean
+	with
+		Pre => Valid(Obj_1) and Valid(Obj_2);
 
 
-	function Index(Obj : Object_Type)
-	return Index_Type
-	with Pre => (Valid(Obj));
+	--------------------
+	-- Read Accessors --
+	--------------------
+
+	function Valid       (Obj : Object_Type) return Boolean;
+	function Operation   (Obj : Object_Type) return Request.Operation_Type    with Pre => (Valid(Obj));
+	function Success     (Obj : Object_Type) return Request.Success_Type      with Pre => (Valid(Obj));
+	function Tag         (Obj : Object_Type) return Request.Tag_Type          with Pre => (Valid(Obj));
+	function Block_Number(Obj : Object_Type) return Request.Block_Number_Type with Pre => (Valid(Obj));
+	function Index       (Obj : Object_Type) return Index_Type                with Pre => (Valid(Obj));
+
+
+	---------------------
+	-- Write Accessors --
+	---------------------
+
+	procedure Success(Obj : in out Object_Type; Value : Request.Success_Type) with Pre => (Valid(Obj));
 
 private
 

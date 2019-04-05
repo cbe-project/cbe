@@ -42,10 +42,22 @@ is
 		Block_Number => Blk_Nr,
 		Index        => Idx);
 
+	--
+	-- Equal
+	--
+	function Equal(
+		Obj_1 : Object_Type;
+		Obj_2 : Object_Type)
+	return Boolean
+	is (
+		Obj_1.Block_Number = Obj_2.Block_Number and
+		Obj_1.Index        = Obj_2.Index        and
+		Obj_1.Operation    = Obj_2.Operation);
 
-	---------------
-	-- Accessors --
-	---------------
+
+	--------------------
+	-- Read Accessors --
+	--------------------
 
 	function Valid       (Obj : Object_Type) return Boolean                   is (Obj.Valid);
 	function Operation   (Obj : Object_Type) return Request.Operation_Type    is (Obj.Operation);
@@ -53,5 +65,12 @@ is
 	function Tag         (Obj : Object_Type) return Request.Tag_Type          is (Obj.Tag);
 	function Block_Number(Obj : Object_Type) return Request.Block_Number_Type is (Obj.Block_Number);
 	function Index       (Obj : Object_Type) return Index_Type                is (Obj.Index);
+
+
+	---------------------
+	-- Write Accessors --
+	---------------------
+
+	procedure Success(Obj : in out Object_Type; Value : Request.Success_Type) is begin Obj.Success := Value; end Success;
 
 end CBE.Primitive;

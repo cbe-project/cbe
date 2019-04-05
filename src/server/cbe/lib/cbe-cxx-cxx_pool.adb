@@ -10,7 +10,6 @@ pragma Ada_2012;
 
 with CBE.Request;
 with CBE.Primitive;
-with GNAT.IO; use GNAT.IO;
 
 package body CBE.CXX.CXX_Pool
 with Spark_Mode

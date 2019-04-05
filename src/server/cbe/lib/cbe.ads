@@ -15,4 +15,8 @@ is
 
 	type Number_Of_Primitives_Type is mod 2**64;
 
+	type Byte_Type is range 0..255 with Size => 8;
+
+	type Block_Data_Type is array (0..4095) of Byte_Type;
+
 end CBE;
