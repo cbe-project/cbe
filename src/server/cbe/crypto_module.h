@@ -27,9 +27,9 @@ namespace Cbe { namespace Module {
 struct Cbe::Module::Crypto : Spark::Object<8264>
 {
 	Crypto(char const *key /* must be 32b total */,
-	       Genode::size_t obj_sz,
-	       Genode::size_t data_sz,
-	       Genode::size_t prim_sz);
+	       Genode::size_t obj_sz  = sizeof (Crypto),
+	       Genode::size_t data_sz = sizeof (Cbe::Block_data),
+	       Genode::size_t prim_sz = sizeof (Primitive));
 
 	/**
 	 * Check if the module can accept a new primitive
