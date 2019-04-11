@@ -1,14 +1,9 @@
 /*
- * \brief  CBE C++ prototype
- * \author Josef Soentgen
- * \date   2019-01-21
- */
-
-/*
- * Copyright (C) 2019 Genode Labs GmbH
+ * Copyright (C) 2019 Genode Labs GmbH, Componolit GmbH, secunet AG
  *
- * This file is part of the Genode OS framework, which is distributed
- * under the terms of the GNU Affero General Public License version 3.
+ * This file is part of the Consistent Block Encrypter project, which is
+ * distributed under the terms of the GNU Affero General Public License
+ * version 3.
  */
 
 /* Genode includes */

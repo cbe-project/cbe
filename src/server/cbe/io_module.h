@@ -1,17 +1,9 @@
 /*
- * \brief  CBE C++ prototype I/O module
- * \author Josef Soentgen
- * \date   2019-01-21
+ * Copyright (C) 2019 Genode Labs GmbH, Componolit GmbH, secunet AG
  *
- * The I/O module uses a Block::Connection to send block I/O requests to
- * the Block back end.
- */
-
-/*
- * Copyright (C) 2019 Genode Labs GmbH
- *
- * This file is part of the Genode OS framework, which is distributed
- * under the terms of the GNU Affero General Public License version 3.
+ * This file is part of the Consistent Block Encrypter project, which is
+ * distributed under the terms of the GNU Affero General Public License
+ * version 3.
  */
 
 #ifndef _CBE_IO_MODULE_H_

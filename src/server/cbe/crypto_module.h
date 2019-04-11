@@ -1,18 +1,9 @@
 /*
- * \brief  CBE C++ prototype crypto module
- * \author Josef Soentgen
- * \date   2019-01-21
+ * Copyright (C) 2019 Genode Labs GmbH, Componolit GmbH, secunet AG
  *
- * The crypto module is used to encrypt or decrypt a given Block_data
- * sized data chunk. The crypto stuff is provided by the Aes_cbc_4k
- * SPARK library.
- */
-
-/*
- * Copyright (C) 2019 Genode Labs GmbH
- *
- * This file is part of the Genode OS framework, which is distributed
- * under the terms of the GNU Affero General Public License version 3.
+ * This file is part of the Consistent Block Encrypter project, which is
+ * distributed under the terms of the GNU Affero General Public License
+ * version 3.
  */
 
 #ifndef _CBE_CRYPTO_MODULE_H_

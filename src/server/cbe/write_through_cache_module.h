@@ -1,19 +1,9 @@
 /*
- * \brief  CBE C++ prototype cache module
- * \author Josef Soentgen
- * \date   2019-01-28
+ * Copyright (C) 2019 Genode Labs GmbH, Componolit GmbH, secunet AG
  *
- * The cache module caches a number of Block_data copies. It implements
- * a write-through policy, i.e., a write to cache entry goes straight to
- * the backing store and invalides the entry. A subsequent read operation
- * will populate the cache again.
- */
-
-/*
- * Copyright (C) 2019 Genode Labs GmbH
- *
- * This file is part of the Genode OS framework, which is distributed
- * under the terms of the GNU Affero General Public License version 3.
+ * This file is part of the Consistent Block Encrypter project, which is
+ * distributed under the terms of the GNU Affero General Public License
+ * version 3.
  */
 
 #ifndef _CBE_WRITE_THROUGH_CACHE_MODULE_H_

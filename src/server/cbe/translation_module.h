@@ -1,18 +1,9 @@
 /*
- * \brief  CBE C++ prototype translation module
- * \author Josef Soentgen
- * \date   2019-10-13
+ * Copyright (C) 2019 Genode Labs GmbH, Componolit GmbH, secunet AG
  *
- * The translation module translates a virtual block address into a
- * physical block address as used to reference a block on the storage
- * back end.
- */
-
-/*
- * Copyright (C) 2019 Genode Labs GmbH
- *
- * This file is part of the Genode OS framework, which is distributed
- * under the terms of the GNU Affero General Public License version 3.
+ * This file is part of the Consistent Block Encrypter project, which is
+ * distributed under the terms of the GNU Affero General Public License
+ * version 3.
  */
 
 #ifndef _CBE_TRANSLATION_MODULE_H_
