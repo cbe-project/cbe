@@ -126,6 +126,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Splitter _splitter     { };
 		Cache    _cache        { };
 		Crypto   _crypto       { "All your base are belong to us  " };
+		Block_data _crypto_data { };
+
 		Block_io _io           { _block };
 		Constructible<Translation> _trans { };
 		Bit_allocator<MAX_REQS> _tag_alloc { };
@@ -282,7 +284,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 							Genode::sleep_forever();
 						}
 
-						_crypto.submit_primitive(prim, *data_ptr);
+						_crypto.submit_primitive(prim, *data_ptr, _crypto_data);
 					});
 
 					progress |= true;
@@ -315,6 +317,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				progress |= _crypto.execute_progress();
 
 				while (true) {
+
 					Cbe::Primitive prim = _crypto.peek_completed_primitive();
 					if (!prim.valid()) { break; }
 
@@ -330,10 +333,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					if (!prim.valid())     { break; }
 					if (!_io.acceptable()) { break; }
 
-					Cbe::Block_data cipher_data = _crypto.peek_generated_cipher_data(prim);
 					_crypto.drop_generated_primitive(prim);
 
-					_io.submit_primitive(CRYPTO_TAG, prim, cipher_data);
+					_io.submit_primitive(CRYPTO_TAG, prim, _crypto_data);
 
 					progress |= true;
 				}

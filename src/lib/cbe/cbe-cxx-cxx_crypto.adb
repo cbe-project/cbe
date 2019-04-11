@@ -59,12 +59,13 @@ is
 	-- Submit_Primitive
 	--
 	procedure Submit_Primitive(
-		Obj        : in out Crypto.Object_Type;
-		Prim       :        CXX_Primitive.Object_Type;
-		Plain_Data :        Crypto.Plain_Data_Type)
+		Obj         : in out Crypto.Object_Type;
+		Prim        :        CXX_Primitive.Object_Type;
+		Plain_Data  :        Crypto.Plain_Data_Type;
+		Cipher_Data :        Crypto.Cipher_Data_Type)
 	is
 	begin
-		Crypto.Submit_Primitive(Obj, CXX_Primitive.To_Spark(Prim), Plain_Data);
+		Crypto.Submit_Primitive(Obj, CXX_Primitive.To_Spark(Prim), Plain_Data, Cipher_Data);
 	end Submit_Primitive;
 
 	--
@@ -82,15 +83,6 @@ is
 	function Peek_Generated_Primitive(Obj : Crypto.Object_Type)
 	return CXX_Primitive.Object_Type
 	is (CXX_Primitive.From_Spark(Crypto.Peek_Generated_Primitive(Obj)));
-
-	--
-	-- Peek_Generated_Cipher_Data
-	--
-	function Peek_Generated_Cipher_Data(
-		Obj  : Crypto.Object_Type;
-		Prim : CXX_Primitive.Object_Type)
-	return Crypto.Cipher_Data_Type
-	is (Crypto.Peek_Generated_Cipher_Data(Obj, CXX_Primitive.To_Spark(Prim)));
 
 	--
 	-- Drop_Generated_Primitive

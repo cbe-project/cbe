@@ -42,9 +42,10 @@ is
 	-- Submit_Primitive
 	--
 	procedure Submit_Primitive(
-		Obj        : in out Object_Type;
-		Prim       :        Primitive.Object_Type;
-		Plain_Data :        Plain_Data_Type)
+		Obj         : in out Object_Type;
+		Prim        :        Primitive.Object_Type;
+		Plain_Data  :        Plain_Data_Type;
+		Cipher_Data :        Cipher_Data_Type)
 	with
 		Pre => (Primitive_Acceptable(Obj) and Primitive.Valid(Prim));
 
@@ -58,14 +59,6 @@ is
 	--
 	function Peek_Generated_Primitive(Obj : Object_Type)
 	return Primitive.Object_Type;
-
-	--
-	-- Peek_Generated_Cipher_Data
-	--
-	function Peek_Generated_Cipher_Data(
-		Obj  : Object_Type;
-		Prim : Primitive.Object_Type)
-	return Cipher_Data_Type;
 
 	--
 	-- Drop_Generated_Primitive
@@ -140,8 +133,9 @@ private
 		-- Submitted_Object
 		--
 		function Submitted_Object(
-			Prm       : Primitive.Object_Type;
-			Plain_Dat : Plain_Data_Type)
+			Prm        : Primitive.Object_Type;
+			Plain_Dat  : Plain_Data_Type;
+			Cipher_Dat : Cipher_Data_Type)
 		return Item_Type;
 
 

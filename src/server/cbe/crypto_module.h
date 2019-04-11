@@ -48,8 +48,9 @@ struct Cbe::Module::Crypto : Spark::Object<8264>
 	 *
 	 * \param p  reference to the Primitive
 	 * \param d  reference to a Block_data object
+	 * \param c  reference to a Block_data cipher object
 	 */
-	void submit_primitive(Primitive const &p, Block_data &d);
+	void submit_primitive(Primitive const &p, Block_data &d, Block_data &c);
 
 	/**
 	 * Process all submitted primitives
@@ -101,7 +102,6 @@ struct Cbe::Module::Crypto : Spark::Object<8264>
 	 *         completed primitive, otherwise an invalid one
 	 */
 	Primitive  peek_generated_primitive() const;
-	Cbe::Block_data peek_generated_cipher_data(Primitive const &prim) const;
 
 	/**
 	 * Take the next generated crypto primitive

@@ -45,13 +45,14 @@ is
 	-- Submit_Primitive
 	--
 	procedure Submit_Primitive(
-		Obj        : in out Crypto.Object_Type;
-		Prim       :        CXX_Primitive.Object_Type;
-		Plain_Data :        Crypto.Plain_Data_Type)
+		Obj         : in out Crypto.Object_Type;
+		Prim        :        CXX_Primitive.Object_Type;
+		Plain_Data  :        Crypto.Plain_Data_Type;
+		Cipher_Data :        Crypto.Cipher_Data_Type)
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe6Module6Crypto16submit_primitiveERKNS_9PrimitiveERNS_10Block_dataE";
+		External_Name => "_ZN3Cbe6Module6Crypto16submit_primitiveERKNS_9PrimitiveERNS_10Block_dataES6_";
 
 	--
 	-- Execute
@@ -71,18 +72,6 @@ is
 		Export,
 		Convention    => C,
 		External_Name => "_ZNK3Cbe6Module6Crypto24peek_generated_primitiveEv";
-
-	--
-	-- Peek_Generated_Cipher_Data
-	--
-	function Peek_Generated_Cipher_Data(
-		Obj  : Crypto.Object_Type;
-		Prim : CXX_Primitive.Object_Type)
-	return Crypto.Cipher_Data_Type
-	with
-		Export,
-		Convention    => C,
-		External_Name => "_ZNK3Cbe6Module6Crypto26peek_generated_cipher_dataERKNS_9PrimitiveE";
 
 	--
 	-- Drop_Generated_Primitive

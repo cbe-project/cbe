@@ -92,14 +92,15 @@ is
 		-- Submitted_Object
 		--
 		function Submitted_Object(
-			Prm       : Primitive.Object_Type;
-			Plain_Dat : Plain_Data_Type)
+			Prm        : Primitive.Object_Type;
+			Plain_Dat  : Plain_Data_Type;
+			Cipher_Dat : Cipher_Data_Type)
 		return Item_Type
 		is (
 			State       => Submitted,
 			Prim        => Prm,
 			Plain_Data  => Plain_Dat,
-			Cipher_Data => (others => 0));
+			Cipher_Data => Cipher_Dat);
 
 
 		--------------------
@@ -149,9 +150,10 @@ is
 	-- Submit_Primitive
 	--
 	procedure Submit_Primitive(
-		Obj        : in out Object_Type;
-		Prim       :        Primitive.Object_Type;
-		Plain_Data :        Plain_Data_Type)
+		Obj         : in out Object_Type;
+		Prim        :        Primitive.Object_Type;
+		Plain_Data  :        Plain_Data_Type;
+		Cipher_Data :        Cipher_Data_Type)
 	is
 		Prim_Buf : constant Primitive.Object_Type := Prim;
 	begin
@@ -161,7 +163,7 @@ is
 			if Item.Invalid(Obj.Items(Item_Id)) then
 
 				Obj.Items(Item_Id) :=
-					Item.Submitted_Object(Prim_Buf, Plain_Data);
+					Item.Submitted_Object(Prim_Buf, Plain_Data, Cipher_Data);
 
 				exit Items_Loop;
 
@@ -202,24 +204,6 @@ is
 		return Primitive.Invalid_Object;
 	end Peek_Generated_Primitive;
 
-
-	--
-	-- Peek_Generated_Cipher_Data
-	--
-	function Peek_Generated_Cipher_Data(
-		Obj  : Object_Type;
-		Prim : Primitive.Object_Type)
-	return Cipher_Data_Type
-	is
-		use Primitive;
-	begin
-		Items_Loop: for Item_Id in Obj.Items'Range loop
-			if Item.Prim(Obj.Items(Item_Id)) = Prim then
-				return Item.Cipher_Data(Obj.Items(Item_Id));
-			end if;
-		end loop Items_Loop;
-		return (others => 0);
-	end Peek_Generated_Cipher_Data;
 
 	--
 	-- Drop_Generated_Primitive
