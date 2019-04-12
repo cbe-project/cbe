@@ -35,10 +35,6 @@ namespace Cbe {
 		BLOCK_DEVICE_SIZE = 1u << 30,
 	};
 
-	// using Virtual_block_address        = uint64_t;
-	// using Physical_block_address        = uint64_t;
-	// using Generation = uint64_t;
-
 	struct Size       { uint64_t value; };
 	struct Block_size { uint32_t value; };
 
@@ -731,6 +727,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 			_mmu.construct(*_vbd);
 
+			/* initialise first super block slot */
 			Cbe::Super_block &sb = *reinterpret_cast<Cbe::Super_block*>(_block_allocator->data(0));
 			sb.height      = info.height;
 			sb.degree      = info.outer_degree;
@@ -738,6 +735,16 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			sb.generation  = 0;
 			sb.root_number = root_pba;
 
+			/* XXX just reserve some memory for allocating blocks */
+			sb.free_number = start_pba + avail + 2048;
+			sb.free_leaves = (backing_size / 2) / 2 / vbd_block_size;
+
+			/* clear other super block slots */
+			for (uint64_t i = 1; i < 8; i++) {
+				Cbe::Super_block &sb = *reinterpret_cast<Cbe::Super_block*>(_block_allocator->data(i));
+				Genode::memset(&sb, 0, sizeof(sb));
+				sb.root_number = ~0;
+			}
 
 			log("Created virtual block device with size ", info.size);
 		}
