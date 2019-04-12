@@ -25,6 +25,7 @@
 namespace Cbe {
 
 	struct Block_session_component;
+	struct Block_manager;
 	struct Main;
 
 } /* namespace Ceb */
@@ -80,6 +81,56 @@ struct Cbe::Block_session_component : Rpc_object<Block::Session>,
 #include <write_through_cache_module.h>
 
 
+#include <util/bit_array.h>
+
+struct Cbe::Block_manager
+{
+	/* gives us 128MiB */
+	enum { ENTRIES = 32u * 1024, };
+	Genode::Bit_array<ENTRIES> _array { };
+	Genode::size_t             _used  { 0 };
+
+	Cbe::Physical_block_address _start { 0 };
+	Genode::size_t _size { 0 };
+
+	Block_manager(Cbe::Physical_block_address start, size_t size)
+	: _start(start), _size(size)
+	{
+		if (_size > ENTRIES) {
+			Genode::warning("limit entries to ", (unsigned)ENTRIES);
+			_size = ENTRIES;
+		}
+
+		Genode::log("Block manager entries: ", _size,
+		            " start block address: ", _start);
+	}
+
+	Cbe::Physical_block_address alloc(size_t count)
+	{
+		for (size_t i = 0; i < ENTRIES; i++) {
+			bool found = false;
+			try { found = !_array.get(i, count); }
+			catch (...) { }
+
+			if (!found) { continue; }
+
+			_array.set(i, count);
+			_used += count;
+			return _start + i;
+		}
+
+		struct Alloc_failed { };
+		throw Alloc_failed();
+	}
+
+	void free(Cbe::Physical_block_address pba)
+	{
+		_array.clear(pba - _start, 1);
+		_used--;
+	}
+};
+
+
 class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 {
 	private:
@@ -88,6 +139,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 		Constructible<Attached_ram_dataspace>  _block_ds { };
 		Constructible<Block_session_component> _block_session { };
+
+		Constructible<Block_manager> _block_manager { };
 
 		/* back end Block session */
 		enum { TX_BUF_SIZE = Block::Session::TX_QUEUE_SIZE * BLOCK_SIZE, };
@@ -375,16 +428,23 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			Cbe::Super_block::Degree degree           = sb.degree;
 			Cbe::Super_block::Number_of_leaves leaves = sb.leaves;
 
+			Cbe::Super_block::Number free_number           = sb.free_number;
+			Cbe::Super_block::Number_of_leaves free_leaves = sb.free_leaves;
+
 			Genode::log("Virtual block-device info: ",
 			            "tree height: ", height, " ",
 			            "edges per node: ", degree, " ",
 			            "leaves: ", leaves, " ",
-			            "root block address: ", root_number, " "
+			            "root block address: ", root_number, " ",
+			            "free block address: ", free_number, " ",
+			            "free leaves: ", free_leaves, " "
 			);
 
 			_max_vba = leaves - 1;
 
 			_trans.construct(height, degree, root_number);
+
+			_block_manager.construct(free_number, free_leaves);
 		}
 
 	public:
