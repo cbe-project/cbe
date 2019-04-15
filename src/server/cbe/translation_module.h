@@ -153,7 +153,7 @@ class Cbe::Module::Translation
 		{
 			return Cbe::Primitive {
 				.tag          = _current.tag,
-				.operation    = Cbe::Primitive::Operation::READ,
+				.operation    = _current.operation,
 				.success      = Cbe::Primitive::Success::FALSE,
 				.block_number = _pba,
 				.index        = _current.index,
