@@ -68,18 +68,9 @@ struct Cbe::Block_session_component : Rpc_object<Block::Session>,
 };
 
 
-/*************
- ** modules **
- *************/
-
-#include <cache_module.h>
-#include <crypto_module.h>
-#include <io_module.h>
-#include <request_pool_module.h>
-#include <splitter_module.h>
-#include <translation_module.h>
-#include <write_through_cache_module.h>
-
+/**********************************
+ ** Temporary free block manager **
+ **********************************/
 
 #include <util/bit_array.h>
 
@@ -101,7 +92,7 @@ struct Cbe::Block_manager
 			_size = ENTRIES;
 		}
 
-		Genode::log("Block manager entries: ", _size,
+		Genode::log("Free Block manager entries: ", _size,
 		            " start block address: ", _start);
 	}
 
@@ -128,7 +119,23 @@ struct Cbe::Block_manager
 		_array.clear(pba - _start, 1);
 		_used--;
 	}
+
+	size_t used()  const { return _used; }
+	size_t avail() const { return _size - _used; }
 };
+
+
+/*************
+ ** modules **
+ *************/
+
+#include <cache_module.h>
+#include <crypto_module.h>
+#include <io_module.h>
+#include <request_pool_module.h>
+#include <splitter_module.h>
+#include <translation_module.h>
+#include <write_through_cache_module.h>
 
 
 class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
@@ -276,6 +283,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					if (!_splitter.request_acceptable()) { break; }
 
+					bool const write = req.operation == Block::Request::Operation::WRITE;
+					Genode::log("Block::Request write: ", write);
+
 					_request_pool.drop_pending_request(req);
 					_splitter.submit_request(req);
 
@@ -292,6 +302,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					Cbe::Primitive p = _splitter.peek_generated_primitive();
 					_splitter.drop_generated_primitive(p);
+
+					Genode::log("Splitter: ", p.write(), " ", p.read(), " ", p.sync());
 
 					_trans->submit_primitive(p);
 
@@ -328,6 +340,20 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					if (!_crypto.primitive_acceptable()) { break; }
 
 					_trans->discard_completed_primitive(prim);
+					Genode::log("Trans: ", prim.write(), " ", prim.read(), " ", prim.sync());
+
+					{
+						if (prim.write()) {
+							uint32_t const h          = _trans->height();
+							size_t   const new_blocks = h + 1;
+
+							Cbe::Physical_block_address pba = _block_manager->alloc(new_blocks);
+							Genode::log("WRITE: alloc new blocks: ", new_blocks, " pba: ", pba,
+							            " avail: ", _block_manager->avail(),
+							            " used: ", _block_manager->used());
+						}
+					}
+
 
 					block_session.with_payload([&] (Block::Request_stream::Payload const &payload) {
 

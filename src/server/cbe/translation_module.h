@@ -81,6 +81,13 @@ class Cbe::Module::Translation
 		: _degree_log2(_log2(degree)), _max_height(levels), _root(root) { }
 
 		/**
+		 * Return height of the tree
+		 *
+		 * \return height of the tree
+		 */
+		uint32_t height() const { return _max_height; }
+
+		/**
 		 * Check if the pool can accept a new request
 		 *
 		 * \return true if the request can be accepted, otherwise false
