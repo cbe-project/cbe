@@ -71,6 +71,8 @@ namespace Cbe {
 		Id   id;
 	};
 
+	enum { NUM_SUPER_BLOCKS = 8, };
+
 	struct Super_block
 	{
 		enum { NUM_KEYS = 2u };

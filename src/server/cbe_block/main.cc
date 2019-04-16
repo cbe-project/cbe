@@ -732,18 +732,32 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			sb.height      = info.height;
 			sb.degree      = info.outer_degree;
 			sb.leaves      = info.leaves;
-			sb.generation  = 0;
+			/* 
+			 * Eventually we will use 0 for the first generation but for now
+			 * we use 1.
+			 */
+			sb.generation  = 1;
 			sb.root_number = root_pba;
 
 			/* XXX just reserve some memory for allocating blocks */
 			sb.free_number = start_pba + avail + 2048;
 			sb.free_leaves = (backing_size / 2) / 2 / vbd_block_size;
+			/* abuse height as max leaves for now */
+			sb.free_height = sb.free_leaves;
 
 			/* clear other super block slots */
-			for (uint64_t i = 1; i < 8; i++) {
-				Cbe::Super_block &sb = *reinterpret_cast<Cbe::Super_block*>(_block_allocator->data(i));
-				Genode::memset(&sb, 0, sizeof(sb));
-				sb.root_number = ~0;
+			for (uint64_t i = 1; i < Cbe::NUM_SUPER_BLOCKS; i++) {
+				Cbe::Super_block &sbX = *reinterpret_cast<Cbe::Super_block*>(_block_allocator->data(i));
+				Genode::memset(&sbX, 0, sizeof(sbX));
+				/* explicitly set to 0 to mark the SB as free */
+				sbX.root_number = 0;
+				sbX.generation  = 0;
+				sbX.height      = sb.height;
+				sbX.degree      = sb.degree;
+				sbX.leaves      = sb.leaves;
+				sbX.free_number = sb.free_number;
+				sbX.free_height = sb.free_height;
+				sbX.free_leaves = sb.free_leaves;
 			}
 
 			log("Created virtual block device with size ", info.size);
