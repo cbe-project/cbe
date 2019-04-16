@@ -136,54 +136,7 @@ struct Cbe::Block_manager
 #include <splitter_module.h>
 #include <translation_module.h>
 #include <write_through_cache_module.h>
-
-
-template <Genode::uint32_t N, typename T>
-struct Write_back
-{
-	struct Entry {
-		Cbe::Block_data data { };
-		bool modified { false };
-	};
-
-	// Cbe::Block_data _data[N] { };
-	Entry _entry[N] { };
-	bool _in_progress { false };
-	bool _pending { false };
-
-	Write_back() { }
-
-	bool acceptable() const { return !_in_progress && !_pending; }
-
-	bool copy_and_update(Genode::uint32_t level, Cbe::Block_data const &orig,
-	                     Genode::uint32_t index, Cbe::Physical_block_address pba)
-	{
-		if (_in_progress || level >= N) { return false; }
-
-		_pending |= true;
-
-		Genode::memcpy(&_entry[level].data, &orig, sizeof (orig));
-		_entry[level].modified = true;
-
-		T *t = reinterpret_cast<T*>(&_entry[level].data);
-		t[index].pba = pba;
-
-		for (Genode::uint32_t i = 0; i < 4; i++) {
-			Cbe::Physical_block_address pba = t[i].pba;
-			Genode::log(__func__, ": ", pba);
-		}
-
-		return true;
-	}
-
-	void commit() { _in_progress |= true; }
-
-	void mark_generated_primitive_complete()
-	{
-		_pending = false;
-		_in_progress = false;
-	}
-};
+#include <write_back_module.h>
 
 
 class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
@@ -213,7 +166,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		};
 
 		enum {
-			BLOCK_TAG          = 0x10,
+			IO_TAG             = 0x10,
 			CACHE_TAG          = 0x20,
 			CRYPTO_TAG         = 0x30,
 			CRYPTO_TAG_DECRYPT = CRYPTO_TAG | 0x1,
@@ -221,6 +174,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			POOL_TAG           = 0x40,
 			SPLITTER_TAG       = 0x50,
 			TRANSLATION_TAG    = 0x60,
+			WRITE_BACK_TAG     = 0x70,
 		};
 
 		Cbe::Virtual_block_address _max_vba { 0 };
@@ -231,6 +185,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		using Cache       = Module::Cache<MAX_PRIM, CACHE_ENTRIES>;
 		using Crypto      = Module::Crypto;
 		using Block_io    = Module::Block_io<MAX_PRIM, BLOCK_SIZE>;
+		using Write_back  = Module::Write_back<MAX_LEVEL, Cbe::Type_i_node>;
 
 		Pool     _request_pool { };
 		Splitter _splitter     { };
@@ -242,7 +197,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Constructible<Translation> _trans { };
 		Bit_allocator<MAX_REQS> _tag_alloc { };
 
-		Write_back<6, Cbe::Type_i_node> _write_back { };
+		Write_back _write_back { };
 
 		Block_data* _data(Block::Request_stream::Payload const &payload,
 		                  Pool const &pool, Primitive const p)
@@ -448,8 +403,37 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					} else
 
 					if (prim.write()) {
-						if (!_crypto.primitive_acceptable()) { break; }
-						_crypto.submit_primitive(prim, *data_ptr, _crypto_data);
+
+						/*
+						 * 1. check if Write_back module is idle
+						 */
+						if (!_write_back.primitive_acceptable()) { break; }
+
+						/*
+						 * 2. check if allocator has enough blocks left
+						 */
+						uint32_t const new_blocks = _trans->height() + 1;
+						Cbe::Physical_block_address pba = 0;
+						try { pba = _block_manager->alloc(new_blocks); }
+						catch (...) { break; }
+
+						/*
+						 * 3. get old PBA's from Translation module
+						 */
+						Cbe::Physical_block_address old_pba[Translation::MAX_LEVELS] { };
+						if (!_trans->get_physical_block_addresses(prim, old_pba, Translation::MAX_LEVELS)) {
+
+							/* roll block allocation back */
+							for (uint32_t i = 0; i < new_blocks; i++) {
+								_block_manager->free(pba + i);
+							}
+							break;
+						}
+
+						/*
+						 * 4. hand over infos to the Write_back module
+						 */
+						_write_back.submit_primitive(prim, pba, old_pba, new_blocks, *data_ptr);
 					}
 
 					_trans->discard_completed_primitive(prim);
@@ -475,6 +459,64 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					progress |= true;
 				}
 
+				/*************************
+				 ** Write-back handling **
+				 *************************/
+
+				progress |= _write_back.execute();
+
+				while (true) {
+					Cbe::Primitive prim = _write_back.peek_completed_primitive();
+					if (!prim.valid()) { break; }
+
+#if 0
+					/* update super block */
+					Cbe::Super_block &last_sb = _super_block[_current_sb];
+
+					uint64_t next_sb = (_current_sb + 1) % Cbe::NUM_SUPER_BLOCKS;
+					Cbe::Super_block &sb = _super_block[next_sb];
+
+					sb.free_leaves = last_sb.free_leaves - new_blocks;
+					sb.generation++;
+
+					_current_sb = next_sb;
+#endif
+					_write_back.drop_completed_primitive(prim);
+					_request_pool.mark_completed_primitive(prim);
+
+					progress |= true;
+				}
+
+				while (true) {
+					Cbe::Primitive prim = _write_back.peek_generated_primitive();
+					if (!prim.valid()) { break; }
+
+					bool _progress = false;
+					switch (prim.tag) {
+					case CRYPTO_TAG_ENCRYPT:
+						if (_crypto.primitive_acceptable()) {
+							Cbe::Block_data &data = _write_back.peek_generated_data(prim);
+							// Cbe::Tag const orig_tag = _write_back.peek_generated_tag(prim);
+							_crypto.submit_primitive(prim, data, _crypto_data);
+							_progress = true;
+						}
+						break;
+					case IO_TAG:
+						if (_io.primitive_acceptable()) {
+							Cbe::Block_data &data = _write_back.peek_generated_data(prim);
+							_io.submit_primitive(WRITE_BACK_TAG, prim, data);
+							_progress = true;
+						}
+						break;
+					default: break;
+					}
+
+					if (!_progress) { break; }
+
+					_write_back.drop_generated_primitive(prim);
+					progress |= true;
+				}
+
 				/*********************
 				 ** Crypto handling **
 				 *********************/
@@ -488,7 +530,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					if (!prim.valid()) { break; }
 
 					_crypto.drop_completed_primitive(prim);
-					_request_pool.mark_completed_primitive(prim);
+					if (prim.read()) {
+						_request_pool.mark_completed_primitive(prim);
+					}
 
 					progress |= true;
 				}
@@ -534,6 +578,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						break;
 					case CACHE_TAG:
 						_cache.mark_completed_primitive(prim);
+						break;
+					case WRITE_BACK_TAG:
+						_write_back.mark_generated_primitive_complete(prim);
 						break;
 					default: break;
 					}
