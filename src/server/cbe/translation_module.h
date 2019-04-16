@@ -23,6 +23,10 @@ namespace Cbe { namespace Module {
 template <typename N>
 class Cbe::Module::Translation
 {
+	public:
+
+		static constexpr uint32_t MAX_LEVELS = 6;
+
 	private:
 
 		static inline uint32_t _log2(uint32_t value)
@@ -52,7 +56,7 @@ class Cbe::Module::Translation
 		struct Data
 		{
 			uint32_t        _avail { 0u };
-			Cbe::Block_data _data[6] { };
+			Cbe::Block_data _data[MAX_LEVELS] { };
 
 			bool available(uint32_t level) const { return _avail & (1u << (level-1)); }
 
@@ -77,8 +81,8 @@ class Cbe::Module::Translation
 
 	public:
 
-		Translation(uint32_t levels, uint32_t degree, Cbe::Primitive::Number root)
-		: _degree_log2(_log2(degree)), _max_height(levels), _root(root) { }
+		Translation(uint32_t levels, uint32_t degree)
+		: _degree_log2(_log2(degree)), _max_height(levels) { }
 
 		/**
 		 * Return height of the tree
@@ -86,6 +90,17 @@ class Cbe::Module::Translation
 		 * \return height of the tree
 		 */
 		uint32_t height() const { return _max_height; }
+
+		/**
+		 * Return index for address of given level
+		 *
+		 * \return index
+		 */
+		uint32_t index(Cbe::Primitive::Number const vba,
+		               uint32_t               const level)
+		{
+			return _get_index(vba, level);
+		}
 
 		/**
 		 * Check if the pool can accept a new request
@@ -100,15 +115,17 @@ class Cbe::Module::Translation
 		/**
 		 * Submit a new translation request
 		 *
-		 * \param r  copy of request
-		 * \param n  number of primitives
+		 * \param r  physical block address of the root of the tree
+		 * \param p  referencet to the primitive
 		 */
-		void submit_primitive(Cbe::Primitive const &p)
+		void submit_primitive(Cbe::Physical_block_address r,
+		                      Cbe::Primitive const &p)
 		{
 			if (_current.valid()) { throw -1; }
 
 			_data.reset();
 
+			_root      = r;
 			_current   = p;
 			_level     = _max_height;
 			_pba       = ~0ull;
@@ -175,6 +192,21 @@ class Cbe::Module::Translation
 			if (p.block_number != _pba) { throw -2; }
 
 			return _current.block_number;
+		}
+
+
+		bool get_physical_block_addresses(Cbe::Primitive const &p,
+		                                  Cbe::Physical_block_address *pba, size_t n)
+		{
+			if (_pba == ~0ull || p.block_number != _pba || !pba || n > MAX_LEVELS) { return false; }
+
+			pba[_max_height] = _root;
+			for (uint32_t l = _max_height; l > 0; l--) {
+					uint32_t const i = _get_index(_current.block_number, l);
+					pba[l-1] = _get_pba(_data.data(l), i);
+			}
+
+			return true;
 		}
 
 

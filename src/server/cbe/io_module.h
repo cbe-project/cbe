@@ -30,6 +30,7 @@ struct Cbe::Module::Block_io : Noncopyable
 
 		struct Internal_entry
 		{
+			Cbe::Tag       orig_tag { };
 			Cbe::Primitive primitive { };
 			Cbe::Block_data *data { nullptr };
 
@@ -89,6 +90,13 @@ struct Cbe::Module::Block_io : Noncopyable
 			return p1.block_number() == p2.block_number() && p1.operation() == p2.operation();
 		}
 
+		bool _equal_primitives(Cbe::Primitive const &p1, Cbe::Primitive const &p2)
+		{
+			return p1.block_number == p2.block_number
+			    && p1.index        == p2.index
+			    && p1.operation    == p2.operation;
+		}
+
 	public:
 
 		struct Block_size_mismatch { };
@@ -110,7 +118,7 @@ struct Cbe::Module::Block_io : Noncopyable
 		 *
 		 * \return true if a primitive can be accepted, otherwise false
 		 */
-		bool acceptable() const { return _used_entries < N; }
+		bool primitive_acceptable() const { return _used_entries < N; }
 
 		/**
 		 * Submit a new primitive
@@ -129,6 +137,7 @@ struct Cbe::Module::Block_io : Noncopyable
 				if (_entries[i].state == Internal_entry::UNUSED) {
 					_entries[i].primitive = p;
 					_entries[i].primitive.tag = tag;
+					_entries[i].orig_tag  = p.tag;
 					_entries[i].data      = &d;
 					_entries[i].state     = Internal_entry::PENDING;
 
@@ -221,13 +230,39 @@ struct Cbe::Module::Block_io : Noncopyable
 		 * \return true if there is an completed primitive, otherwise
 		 *         false
 		 */
-		bool peek_completed_primitive()
+		Primitive peek_completed_primitive()
 		{
-			for (unsigned i = 0; i < N; i++)
-				if (_entries[i].state == Internal_entry::COMPLETE)
-					return true;
+			Primitive p { };
+			for (unsigned i = 0; i < N; i++) {
+				if (_entries[i].state == Internal_entry::COMPLETE) {
+					p = _entries[i].primitive;
+					break;
+				}
+			}
 
-			return false;
+			return p;
+		}
+
+		Cbe::Block_data &peek_completed_data(Cbe::Primitive const &p)
+		{
+			for (unsigned i = 0; i < N; i++) {
+				if (_entries[i].state == Internal_entry::COMPLETE
+				    && _equal_primitives(p, _entries[i].primitive)) {
+					return *_entries[i].data;
+				}
+			}
+			throw -1;
+		}
+
+		Cbe::Tag peek_completed_tag(Cbe::Primitive const &p)
+		{
+			for (unsigned i = 0; i < N; i++) {
+				if (_entries[i].state == Internal_entry::COMPLETE
+				    && _equal_primitives(p, _entries[i].primitive)) {
+					return _entries[i].orig_tag;
+				}
+			}
+			throw -1;
 		}
 
 		/**
@@ -239,20 +274,16 @@ struct Cbe::Module::Block_io : Noncopyable
 		 * \return takes next valid completed primtive and removes it
 		 *         from the module
 		 */
-		Primitive take_completed_primitive()
+		void drop_completed_primitive(Cbe::Primitive const &p)
 		{
-			Primitive p { };
-
 			for (unsigned i = 0; i < N; i++) {
-				if (_entries[i].state == Internal_entry::COMPLETE) {
+				if (_entries[i].state == Internal_entry::COMPLETE
+				    && _equal_primitives(p, _entries[i].primitive)) {
 					_entries[i].state = Internal_entry::UNUSED;
 					_used_entries--;
-
-					p = _entries[i].primitive;
 					break;
 				}
 			}
-			return p;
 		}
 };
 

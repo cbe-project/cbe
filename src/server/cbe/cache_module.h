@@ -202,6 +202,11 @@ class Cbe::Module::Cache : Noncopyable
 			return _lookup_cache(p.block_number).valid();
 		}
 
+		bool available(Cbe::Physical_block_address const pba) const
+		{
+			return _lookup_cache(pba).valid();
+		}
+
 		/**
 		 * Get Block_data for given physical block address
 		 *
@@ -210,6 +215,15 @@ class Cbe::Module::Cache : Noncopyable
 		Cbe::Block_data const &data(Cbe::Primitive const &p)
 		{
 			Index cdx    = _lookup_cache(p.block_number);
+			Entry &entry = _entries[cdx.value];
+
+			entry.last_used = Genode::Trace::timestamp();
+			return entry.data;
+		}
+
+		Cbe::Block_data const &data(Cbe::Physical_block_address const pba)
+		{
+			Index cdx    = _lookup_cache(pba);
 			Entry &entry = _entries[cdx.value];
 
 			entry.last_used = Genode::Trace::timestamp();

@@ -138,6 +138,54 @@ struct Cbe::Block_manager
 #include <write_through_cache_module.h>
 
 
+template <Genode::uint32_t N, typename T>
+struct Write_back
+{
+	struct Entry {
+		Cbe::Block_data data { };
+		bool modified { false };
+	};
+
+	// Cbe::Block_data _data[N] { };
+	Entry _entry[N] { };
+	bool _in_progress { false };
+	bool _pending { false };
+
+	Write_back() { }
+
+	bool acceptable() const { return !_in_progress && !_pending; }
+
+	bool copy_and_update(Genode::uint32_t level, Cbe::Block_data const &orig,
+	                     Genode::uint32_t index, Cbe::Physical_block_address pba)
+	{
+		if (_in_progress || level >= N) { return false; }
+
+		_pending |= true;
+
+		Genode::memcpy(&_entry[level].data, &orig, sizeof (orig));
+		_entry[level].modified = true;
+
+		T *t = reinterpret_cast<T*>(&_entry[level].data);
+		t[index].pba = pba;
+
+		for (Genode::uint32_t i = 0; i < 4; i++) {
+			Cbe::Physical_block_address pba = t[i].pba;
+			Genode::log(__func__, ": ", pba);
+		}
+
+		return true;
+	}
+
+	void commit() { _in_progress |= true; }
+
+	void mark_generated_primitive_complete()
+	{
+		_pending = false;
+		_in_progress = false;
+	}
+};
+
+
 class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 {
 	private:
@@ -165,12 +213,14 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		};
 
 		enum {
-			BLOCK_TAG       = 1,
-			CACHE_TAG       = 2,
-			CRYPTO_TAG      = 3,
-			POOL_TAG        = 4,
-			SPLITTER_TAG    = 5,
-			TRANSLATION_TAG = 6,
+			BLOCK_TAG          = 0x10,
+			CACHE_TAG          = 0x20,
+			CRYPTO_TAG         = 0x30,
+			CRYPTO_TAG_DECRYPT = CRYPTO_TAG | 0x1,
+			CRYPTO_TAG_ENCRYPT = CRYPTO_TAG | 0x2,
+			POOL_TAG           = 0x40,
+			SPLITTER_TAG       = 0x50,
+			TRANSLATION_TAG    = 0x60,
 		};
 
 		Cbe::Virtual_block_address _max_vba { 0 };
@@ -192,8 +242,10 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Constructible<Translation> _trans { };
 		Bit_allocator<MAX_REQS> _tag_alloc { };
 
-		Block_data* _data_for_primitive(Block::Request_stream::Payload const &payload,
-		                                Pool const &pool, Primitive const p)
+		Write_back<6, Cbe::Type_i_node> _write_back { };
+
+		Block_data* _data(Block::Request_stream::Payload const &payload,
+		                  Pool const &pool, Primitive const p)
 		{
 			Block::Request const client_req = pool.request_for_tag(p.tag);
 			Block::Request request { };
@@ -213,6 +265,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 			return data;
 		}
+
+		uint64_t         _current_sb { ~0ull };
+		Cbe::Super_block _super_block[Cbe::NUM_SUPER_BLOCKS] { };
 
 		Signal_handler<Main> _request_handler {
 			_env.ep(), *this, &Main::_handle_requests };
@@ -283,9 +338,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					if (!_splitter.request_acceptable()) { break; }
 
-					bool const write = req.operation == Block::Request::Operation::WRITE;
-					Genode::log("Block::Request write: ", write);
-
 					_request_pool.drop_pending_request(req);
 					_splitter.submit_request(req);
 
@@ -303,10 +355,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					Cbe::Primitive p = _splitter.peek_generated_primitive();
 					_splitter.drop_generated_primitive(p);
 
-					Genode::log("Splitter: ", p.write(), " ", p.read(), " ", p.sync());
+					Cbe::Physical_block_address root = _super_block[0].root_number;
 
-					_trans->submit_primitive(p);
-
+					_trans->submit_primitive(root, p);
 					progress |= true;
 				}
 
@@ -336,36 +387,72 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				while (_trans->peek_completed_primitive()) {
 
 					Cbe::Primitive prim = _trans->take_completed_primitive();
+#if 0
+					if (prim.write()) {
 
-					if (!_crypto.primitive_acceptable()) { break; }
-
-					_trans->discard_completed_primitive(prim);
-					Genode::log("Trans: ", prim.write(), " ", prim.read(), " ", prim.sync());
-
-					{
-						if (prim.write()) {
+						Cbe::Physical_block_address old_pba[Translation::MAX_LEVELS] { };
+						if (_trans->get_physical_block_addresses(prim, old_pba, Translation::MAX_LEVELS)) {
+							Cbe::Primitive::Number vba = _trans->get_virtual_block_address(prim);
+							(void)vba;
+							Genode::log(old_pba[0], " -> ", old_pba[1], " -> ", old_pba[2]);
 							uint32_t const h          = _trans->height();
 							size_t   const new_blocks = h + 1;
 
 							Cbe::Physical_block_address pba = _block_manager->alloc(new_blocks);
-							Genode::log("WRITE: alloc new blocks: ", new_blocks, " pba: ", pba,
+							Genode::log("WRITE SB[", _current_sb, "]: alloc new blocks: ", new_blocks, " pba: ", pba,
+							            " leave: ", pba + h,
 							            " avail: ", _block_manager->avail(),
 							            " used: ", _block_manager->used());
+
+							if (!_write_back.acceptable()) {
+								Genode::error("could not write-back");
+							}
+
+							for (uint32_t l = 1; l <= h; l++) {
+								Cbe::Physical_block_address const p = old_pba[l];
+								if (!_cache.available(p)) {
+									Genode::error(p, " not in cache");
+								}
+
+								uint32_t const index = _trans->index(vba, l);
+								Cbe::Block_data const &data = _cache.data(p);
+								(void)data;
+								Genode::log(p, "[", index, "]: ", pba + l);
+								_write_back.copy_and_update(l, data, index, pba + l);
+							}
+							_write_back.commit();
+
+							Cbe::Super_block &last_sb = _super_block[_current_sb];
+							_current_sb = (_current_sb + 1) % Cbe::NUM_SUPER_BLOCKS;
+							Cbe::Super_block &sb = _super_block[_current_sb];
+
+							sb.free_leaves = last_sb.free_leaves - new_blocks;
+							sb.generation++;
 						}
 					}
+#endif
 
-
-					block_session.with_payload([&] (Block::Request_stream::Payload const &payload) {
-
-						Block_data *data_ptr = _data_for_primitive(payload, _request_pool, prim);
-						if (data_ptr == nullptr) {
-							Genode::error("BUG: data_ptr is nullptr");
-							Genode::sleep_forever();
-						}
-
-						_crypto.submit_primitive(prim, *data_ptr, _crypto_data);
+					using Payload = Block::Request_stream::Payload;
+					Cbe::Block_data *data_ptr = nullptr;
+					block_session.with_payload([&] (Payload const &payload) {
+						data_ptr = _data(payload, _request_pool, prim);
 					});
+					if (data_ptr == nullptr) {
+						Genode::error("BUG: data_ptr is nullptr");
+						Genode::sleep_forever();
+					}
 
+					if (prim.read()) {
+						if (!_io.primitive_acceptable()) { break; }
+						_io.submit_primitive(CRYPTO_TAG_DECRYPT, prim, *data_ptr);
+					} else
+
+					if (prim.write()) {
+						if (!_crypto.primitive_acceptable()) { break; }
+						_crypto.submit_primitive(prim, *data_ptr, _crypto_data);
+					}
+
+					_trans->discard_completed_primitive(prim);
 					progress |= true;
 				}
 
@@ -377,12 +464,12 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 				while (_cache.peek_generated_primitive()) {
 
-					if (!_io.acceptable()) { break; }
+					if (!_io.primitive_acceptable()) { break; }
 
 					Cbe::Primitive   p    = _cache.take_generated_primitive();
 					Cbe::Block_data &data = _cache.take_generated_data(p);
-					_cache.discard_generated_primitive(p);
 
+					_cache.discard_generated_primitive(p);
 					_io.submit_primitive(CACHE_TAG, p, data);
 
 					progress |= true;
@@ -410,11 +497,10 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					Cbe::Primitive prim = _crypto.peek_generated_primitive();
 					if (!prim.valid())     { break; }
-					if (!_io.acceptable()) { break; }
+					if (!_io.primitive_acceptable()) { break; }
 
 					_crypto.drop_generated_primitive(prim);
-
-					_io.submit_primitive(CRYPTO_TAG, prim, _crypto_data);
+					_io.submit_primitive(CRYPTO_TAG_ENCRYPT, prim, _crypto_data);
 
 					progress |= true;
 				}
@@ -425,16 +511,35 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 				progress |= _io.execute();
 
-				while (_io.peek_completed_primitive()) {
+				while (true) {
 
-					Cbe::Primitive p = _io.take_completed_primitive();
+					Cbe::Primitive prim = _io.peek_completed_primitive();
+					if (!prim.valid()) { break; }
 
-					switch (p.tag) {
-					case CRYPTO_TAG: _crypto.mark_completed_primitive(p); break;
-					case CACHE_TAG:  _cache.mark_completed_primitive(p);  break;
+					bool _progress = true;
+					switch (prim.tag) {
+					case CRYPTO_TAG_ENCRYPT:
+						_crypto.mark_completed_primitive(prim);
+						break;
+					case CRYPTO_TAG_DECRYPT:
+						if (!_crypto.primitive_acceptable()) {
+							_progress = false;
+						} else {
+							Cbe::Block_data   &data = _io.peek_completed_data(prim);
+							Cbe::Tag const orig_tag = _io.peek_completed_tag(prim);
+
+							prim.tag = orig_tag;
+							_crypto.submit_primitive(prim, data, _crypto_data);
+						}
+						break;
+					case CACHE_TAG:
+						_cache.mark_completed_primitive(prim);
+						break;
 					default: break;
 					}
+					if (!_progress) { break; }
 
+					_io.drop_completed_primitive(prim);
 					progress |= true;
 				}
 
@@ -446,9 +551,32 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 		void _setup()
 		{
-			Util::Block_io io(_block, BLOCK_SIZE, 0, 1);
+			Cbe::Super_block::Generation last_gen = 0;
+			uint64_t most_recent_sb = ~0ull;
 
-			Cbe::Super_block &sb = *io.addr<Cbe::Super_block*>();
+			/*
+			 * Read all super block slots and use the most recent one.
+			 */
+			for (uint64_t i = 0; i < Cbe::NUM_SUPER_BLOCKS; i++) {
+				Util::Block_io io(_block, BLOCK_SIZE, i, 1);
+				void const       *src = io.addr<void*>();
+				Cbe::Super_block &dst = _super_block[i];
+				Genode::memcpy(&dst, src, BLOCK_SIZE);
+
+				if (dst.root_number != 0 && dst.generation > last_gen) {
+					most_recent_sb = i;
+				}
+			}
+
+			if (most_recent_sb == ~0ull) {
+				Genode::error("no valid super block found");
+				throw -1;
+			}
+
+			_current_sb = most_recent_sb;
+
+			Cbe::Super_block &sb = _super_block[_current_sb];
+
 			Cbe::Super_block::Number root_number      = sb.root_number;
 			Cbe::Super_block::Height height           = sb.height;
 			Cbe::Super_block::Degree degree           = sb.degree;
@@ -457,7 +585,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			Cbe::Super_block::Number free_number           = sb.free_number;
 			Cbe::Super_block::Number_of_leaves free_leaves = sb.free_leaves;
 
-			Genode::log("Virtual block-device info: ",
+			Genode::log("Virtual block-device info in SB[", _current_sb, "]: ",
 			            "tree height: ", height, " ",
 			            "edges per node: ", degree, " ",
 			            "leaves: ", leaves, " ",
@@ -468,7 +596,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 			_max_vba = leaves - 1;
 
-			_trans.construct(height, degree, root_number);
+			_trans.construct(height, degree);
 
 			_block_manager.construct(free_number, free_leaves);
 		}
