@@ -400,6 +400,65 @@ class Cbe::Vbd
 {
 	private:
 
+		uint64_t _dump_leaves { 0 };
+
+		bool _dump_data(Cbe::Tree::Info             const &info,
+		                Cbe::Physical_block_address const  parent,
+		                Cbe::Block_allocator              &block_allocator)
+		{
+			/* finish early in case we already initialized all required leaves */
+			if (_dump_leaves >= info.leaves) { return true; }
+
+			bool finished = false;
+
+			Type_i_node *parent_node = reinterpret_cast<Cbe::Type_i_node*>(block_allocator.data(parent));
+			for (uint32_t i = 0; i < info.outer_degree; i++) {
+				Cbe::Physical_block_address const pba = parent_node[i].pba;
+				Cbe::Generation             const v   = parent_node[i].gen;
+
+				log("leave[", i, "]: vba: ", _dump_leaves, " pba: ", pba, " ", Hex(v));
+
+				++_dump_leaves;
+				if (_dump_leaves >= info.leaves) {
+					finished = true;
+					break;
+				}
+			}
+			return finished;
+		}
+
+		bool _dump(Cbe::Tree::Info                   const &info,
+		                 Cbe::Physical_block_address const  parent,
+		                 Cbe::Block_allocator              &block_allocator,
+		                 uint32_t                           height)
+		{
+			log("parent: ", parent);
+
+			height--;
+			bool finished = false;
+			if (height == 0) {
+				for (uint32_t i = 0; i < info.outer_degree; i++) {
+					finished = _dump_data(info, parent, block_allocator);
+					if (finished) { break; }
+				}
+				return finished;
+			}
+
+			Cbe::Type_i_node *node = reinterpret_cast<Cbe::Type_i_node*>(block_allocator.data(parent));
+			for (uint32_t i = 0; i < info.outer_degree; i++) {
+				Cbe::Physical_block_address const pba = node[i].pba;
+				Cbe::Generation             const v   = node[i].gen;
+
+				log("child[", i, "]: ", pba, " ", Hex(v));
+
+				finished = height == 1 ? _dump_data(info, node[i].pba, block_allocator)
+				                       : _dump(info, node[i].pba, block_allocator, height);
+				if (finished) { break; }
+			}
+
+			return finished;
+		}
+
 		uint64_t _leaves { 0 };
 
 		bool _initialize_data(Cbe::Tree::Info             const &info,
@@ -490,6 +549,29 @@ class Cbe::Vbd
 			}
 		}
 
+		void dump()
+		{
+			Block_allocator &ba = _tree.block_allocator();
+			Cbe::Super_block::Generation most_recent_gen = 0;
+			uint64_t idx = ~0ull;
+			for (uint64_t i = 0; i < Cbe::NUM_SUPER_BLOCKS; i++) {
+				Cbe::Super_block &sb = *reinterpret_cast<Cbe::Super_block*>(ba.data(i));
+				Cbe::Super_block::Generation const gen  = sb.generation;
+				if (gen >= most_recent_gen) {
+					most_recent_gen = gen;
+					idx = i;
+				}
+			}
+
+			Cbe::Super_block &sb = *reinterpret_cast<Cbe::Super_block*>(ba.data(idx));
+			Cbe::Super_block::Generation const gen  = sb.generation;
+			Cbe::Physical_block_address  const root = sb.root_number;
+			Genode::log("Current SB[", idx, "]: gen: ", gen, " root: ", root);
+
+			_dump_leaves = 0;
+			_dump(_tree.info(), sb.root_number, _tree.block_allocator(), _tree.info().height);
+		}
+
 		Cbe::Physical_block_address lookup(Cbe::Virtual_block_address const vba)
 		{
 			return _tree.lookup(vba);
@@ -565,6 +647,11 @@ class Cbe::Mmu
 				Genode::memcpy(dst, src, _vbd.block_size());
 			} catch (Cbe::Tree::Invalid_virtual_block_address) {
 				result = false;
+			}
+
+			if (vba < 8 && _current_request.operation == Block::Request::Operation::WRITE) {
+				Genode::log("Super block changed, dump tree");
+				_vbd.dump();
 			}
 
 			_current_request.success = result ? Block::Request::Success::TRUE
