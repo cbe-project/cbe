@@ -41,13 +41,13 @@ class Cbe::Module::Translation
 		uint32_t _degree_log2;
 
 		uint32_t _get_index(Cbe::Primitive::Number const vba,
-		                           uint32_t        const level)
+		                           uint32_t        const level) const
 		{
 			static uint32_t const mask = (1u << _degree_log2) - 1;
 			return (vba >> (_degree_log2*(level-1))) & mask;
 		}
 
-		Cbe::Primitive::Number _get_pba(Cbe::Block_data const &data, uint32_t i)
+		Cbe::Primitive::Number _get_pba(Cbe::Block_data const &data, uint32_t i) const
 		{
 			N const *entry = reinterpret_cast<N const*>(&data);
 			return entry[i].pba;
@@ -65,6 +65,8 @@ class Cbe::Module::Translation
 			void reset() { _avail = 0u; }
 
 			Cbe::Block_data &data(uint32_t level) { return _data[level-1]; }
+
+			Cbe::Block_data const &data(uint32_t level) const { return _data[level-1]; }
 		};
 
 		Data _data { };
@@ -78,6 +80,8 @@ class Cbe::Module::Translation
 		Cbe::Primitive::Number _num { ~0ull };
 
 		Cbe::Primitive::Number _pba { ~0ull };
+
+		bool _suspended { false };
 
 	public:
 
@@ -109,7 +113,20 @@ class Cbe::Module::Translation
 		 */
 		bool acceptable() const
 		{
-			return !_current.valid();
+			return !_current.valid() && !_suspended;
+		}
+
+
+		void suspend()
+		{
+			Genode::log(__func__, " SUSPEND TRANSLATION");
+			_suspended = true;
+		}
+
+		void resume()
+		{
+			Genode::log(__func__, " RESUME TRANSLATION");
+			_suspended = false;
 		}
 
 		/**
@@ -207,6 +224,18 @@ class Cbe::Module::Translation
 			}
 
 			return true;
+		}
+
+		void dump() const
+		{
+			Cbe::Physical_block_address pba[MAX_LEVELS] { };
+			pba [_max_height] = _root;
+			for (uint32_t l = _max_height; l > 0; l--) {
+				uint32_t const i = _get_index(_current.block_number, l);
+				pba[l-1] = _get_pba(_data.data(l), i);
+			}
+
+			Genode::error(__func__, ": ", pba[0], " -> ", pba[1], " -> ", pba[2]);
 		}
 
 
