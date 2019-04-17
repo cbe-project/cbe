@@ -58,24 +58,11 @@ install_config {
 		<resource name="RAM" quantum="32M"/>
 		<config verbose="yes" report="no" log="yes" stop_on_error="no">
 			<tests>
-				<replay verbose="no" bulk="no">
+				<replay verbose="yes" bulk="no">
 					<request type="write" lba="0" count="8"/>
-					<request type="read" lba="0" count="1"/>
-<!--
-					<request type="read" lba="3" count="1"/>
-					<request type="read" lba="15" count="1"/>
-					<request type="read" lba="5" count="1"/>
-					<request type="read" lba="7" count="1"/>
-					<request type="read" lba="15" count="1"/>
-					<request type="write" lba="16" count="1"/>
-					<request type="read" lba="128" count="1"/>
-					<request type="read" lba="128" count="1"/>
-					<request type="read" lba="128" count="1"/>
-					<request type="read" lba="128" count="1"/>
-					<request type="read" lba="128" count="32"/>
-					<request type="write" lba="128" count="1"/>
-					<request type="write" lba="129" count="2"/>
--->
+				</replay>
+				<replay verbose="yes" bulk="no">
+					<request type="read" lba="0" count="8"/>
 				</replay>
 <!--
 				<sequential length="1M" size="4K" synchronous="yes"/>
