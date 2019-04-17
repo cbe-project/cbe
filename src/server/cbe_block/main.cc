@@ -68,6 +68,7 @@ namespace Cbe {
 	struct Data
 	{
 		void *base;
+		Genode::size_t size;
 		enum { BLOCK_SIZE = Cbe::BLOCK_SIZE };
 	};
 
@@ -148,7 +149,7 @@ struct Cbe::Block_allocator
 
 	void *data(Cbe::Physical_block_address const pba)
 	{
-		if (pba > _current) {
+		if (pba > (_data.size / Data::BLOCK_SIZE)) {
 			error(__func__, ": ", pba);
 			throw Invalid_physical_block_address();
 		}
@@ -713,7 +714,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			Cbe::Physical_block_address const avail = (vbd_size / vbd_block_size) + info.md_size + 1 /* root node */;
 			Cbe::Physical_block_address const start_pba = Cbe::FIRST_PBA;
 
-			_block_allocator.construct(Data { .base = _backing_store->local_addr<void*>() }, start_pba, avail);
+			_block_allocator.construct(Data { .base = _backing_store->local_addr<void*>(),
+			                                  .size = _backing_store->size() },
+			                           start_pba, avail);
 
 			Cbe::Physical_block_address root_pba = ~0;
 			try {
