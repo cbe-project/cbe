@@ -63,6 +63,11 @@ namespace Cbe {
 		char values[BLOCK_SIZE] { };
 	};
 
+	struct Hash
+	{
+		char values[32];
+	};
+
 	struct Key
 	{
 		enum { KEY_SIZE = 64u };
@@ -106,6 +111,7 @@ namespace Cbe {
 			struct {
 				Cbe::Physical_block_address pba;
 				Cbe::Generation             gen;
+				Cbe::Hash                   hash;
 			};
 
 			char data[64];
