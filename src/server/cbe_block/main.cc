@@ -566,7 +566,10 @@ class Cbe::Vbd
 			Cbe::Super_block &sb = *reinterpret_cast<Cbe::Super_block*>(ba.data(idx));
 			Cbe::Super_block::Generation const gen  = sb.generation;
 			Cbe::Physical_block_address  const root = sb.root_number;
-			Genode::log("Current SB[", idx, "]: gen: ", gen, " root: ", root);
+			Cbe::Super_block::Number_of_leaves const free_height = sb.free_height;
+			Cbe::Super_block::Number_of_leaves const free_leaves = sb.free_leaves;
+			Genode::log("Current SB[", idx, "]: gen: ", gen, " root: ", root,
+			            " free leaves: (", free_leaves, "/", free_height, ")");
 
 			_dump_leaves = 0;
 			_dump(_tree.info(), sb.root_number, _tree.block_allocator(), _tree.info().height);
