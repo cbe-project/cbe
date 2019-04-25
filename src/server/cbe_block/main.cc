@@ -21,6 +21,9 @@
 #include <root/root.h>
 #include <util/misc_math.h>
 
+/* repo includes */
+#include <util/sha256_4k.h>
+
 /* cbe */
 #include <cbe/types.h>
 
@@ -480,9 +483,16 @@ class Cbe::Vbd
 					parent_node[i].pba = pba;
 					parent_node[i].gen = v;
 
+					Sha256_4k::Data *data = reinterpret_cast<Sha256_4k::Data*>(block_allocator.data(pba));
+					Genode::memset(data, 0x42, sizeof (*data));
+					Sha256_4k::Hash hash { };
+					Sha256_4k::hash(*data, hash);
+
+					Genode::memcpy(parent_node[i].hash.values, hash.values, sizeof (hash));
+
 					if (_verbose) {
 						log("leave[", i, "]: vba: ", _leaves, " pba: ", pba,
-						    " ", Hex(v));
+						    " ", Hex(v), " <", hash, ">");
 					}
 				} catch (...) {
 					error(": could not allocate leave ", i, " for ", parent);
@@ -505,6 +515,8 @@ class Cbe::Vbd
 		{
 			if (_verbose) { log("parent: ", parent); }
 
+			Cbe::Type_i_node *node = reinterpret_cast<Cbe::Type_i_node*>(block_allocator.data(parent));
+
 			height--;
 			bool finished = false;
 			if (height == 0) {
@@ -515,7 +527,6 @@ class Cbe::Vbd
 				return finished;
 			}
 
-			Cbe::Type_i_node *node = reinterpret_cast<Cbe::Type_i_node*>(block_allocator.data(parent));
 			for (uint32_t i = 0; i < info.outer_degree; i++) {
 				try {
 					Cbe::Physical_block_address const pba = block_allocator.alloc();
@@ -532,6 +543,17 @@ class Cbe::Vbd
 
 				finished = height == 1 ? _initialize_data(info, node[i].pba, block_allocator)
 				                       : _initialize(info, node[i].pba, block_allocator, height);
+
+				Sha256_4k::Data *data = reinterpret_cast<Sha256_4k::Data*>(block_allocator.data(node[i].pba));
+				Sha256_4k::Hash hash { };
+				Sha256_4k::hash(*data, hash);
+				Genode::memcpy(node[i].hash.values, hash.values, sizeof (hash));
+
+				if (_verbose) {
+					Cbe::Physical_block_address const pba = node[i].pba;
+					Cbe::Generation             const v   = node[i].gen;
+					log("child[", i, "]: ", pba, " ", Hex(v), " <", hash, ">");
+				}
 				if (finished) { break; }
 			}
 

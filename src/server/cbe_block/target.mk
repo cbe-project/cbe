@@ -1,3 +1,3 @@
 TARGET = cbe_block
 SRC_CC = main.cc
-LIBS   = base
+LIBS   = base sha256_4k
