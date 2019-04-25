@@ -15,7 +15,10 @@
 #include <root/root.h>
 #include <util/bit_allocator.h>
 
-/* cbe include */
+/* repo includes */
+#include <util/sha256_4k.h>
+
+/* cbe includes */
 #include <cbe/types.h>
 
 /* local includes */
@@ -152,7 +155,6 @@ struct Cbe::Block_manager
 #include <write_through_cache_module.h>
 #include <write_back_module.h>
 #include <sync_sb_module.h>
-
 
 class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 {
@@ -700,6 +702,11 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				if (dst.root_number != 0 && dst.generation > last_gen) {
 					most_recent_sb = i;
 				}
+
+				Sha256_4k::Hash hash { };
+				Sha256_4k::Data const &data = *reinterpret_cast<Sha256_4k::Data const*>(&dst);
+				Sha256_4k::hash(data, hash);
+				Genode::log("SB[", i, "] hash: ", hash);
 			}
 
 			if (most_recent_sb == ~0ull) {
