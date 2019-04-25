@@ -142,6 +142,9 @@ class Cbe::Module::Translation
 
 			_data.reset();
 
+			Cbe::Primitive::Number number = p.block_number;
+			Genode::log("Translation::", __func__, ": root: ", r, " vba: ", number);
+
 			_root      = r;
 			_current   = p;
 			_level     = _max_height;

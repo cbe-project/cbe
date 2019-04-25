@@ -36,9 +36,9 @@ install_config {
 	</start>
 
 	<start name="cbe_block">
-		<resource name="RAM" quantum="2G"/>
+		<resource name="RAM" quantum="1G"/>
 		<provides><service name="Block"/></provides>
-		<config verbose="yes" backing_size="1G" vbd_size="64K" outer_degree="4" initialize="yes"/>
+		<config verbose="yes" backing_size="512M" vbd_size="64K" outer_degree="4" initialize="yes"/>
 		<route>
 			<any-service> <parent/> </any-service>
 		</route>
@@ -58,12 +58,13 @@ install_config {
 		<resource name="RAM" quantum="32M"/>
 		<config verbose="yes" report="no" log="yes" stop_on_error="no">
 			<tests>
-				<replay verbose="yes" bulk="no">
-					<request type="write" lba="0" count="8"/>
-				</replay>
-				<replay verbose="yes" bulk="no">
-					<request type="read" lba="0" count="8"/>
-				</replay>
+				<replay verbose="yes" bulk="no"> <request type="read" lba="0" count="8"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="8"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="read" lba="0" count="8"/> </replay>
+
+				<replay verbose="yes" bulk="no"> <request type="read" lba="12" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="12" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="read" lba="12" count="1"/> </replay>
 <!--
 				<sequential length="1M" size="4K" synchronous="yes"/>
 				<sequential length="1M" size="8K" synchronous="yes"/>
@@ -89,6 +90,6 @@ build_boot_image {
 }
 
 
-append qemu_args " -nographic -m 512 "
+append qemu_args " -nographic -m 1280 "
 
 run_genode_until {.*child "block_tester" exited with exit value 1.*\n} 60

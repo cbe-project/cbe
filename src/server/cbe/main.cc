@@ -35,6 +35,7 @@ namespace Cbe {
 		SPLITTER_TAG       = 0x50,
 		TRANSLATION_TAG    = 0x60,
 		WRITE_BACK_TAG     = 0x70,
+		SYNC_SB_TAG        = 0x80,
 	};
 
 	struct Block_session_component;
@@ -150,6 +151,7 @@ struct Cbe::Block_manager
 #include <translation_module.h>
 #include <write_through_cache_module.h>
 #include <write_back_module.h>
+#include <sync_sb_module.h>
 
 
 class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
@@ -187,6 +189,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		using Crypto      = Module::Crypto;
 		using Block_io    = Module::Block_io<MAX_PRIM, BLOCK_SIZE>;
 		using Write_back  = Module::Write_back<MAX_LEVEL, Cbe::Type_i_node>;
+		using Sync_sb     = Module::Sync_sb;
 
 		Pool     _request_pool { };
 		Splitter _splitter     { };
@@ -199,6 +202,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Bit_allocator<MAX_REQS> _tag_alloc { };
 
 		Write_back _write_back { };
+		Sync_sb    _sync_sb { };
 
 		Block_data* _data(Block::Request_stream::Payload const &payload,
 		                  Pool const &pool, Primitive const p)
@@ -344,8 +348,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					Cbe::Primitive prim = _trans->take_completed_primitive();
 
-					_trans->dump();
-
 					using Payload = Block::Request_stream::Payload;
 					Cbe::Block_data *data_ptr = nullptr;
 					block_session.with_payload([&] (Payload const &payload) {
@@ -358,6 +360,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					if (prim.read()) {
 						if (!_io.primitive_acceptable()) { break; }
+						_trans->dump();
+
 						_io.submit_primitive(CRYPTO_TAG_DECRYPT, prim, *data_ptr);
 					} else
 
@@ -441,6 +445,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					Cbe::Primitive prim = _write_back.peek_completed_primitive();
 					if (!prim.valid()) { break; }
+					if (!_sync_sb.primitive_acceptable()) { break; }
 
 					Genode::log("Write_back peek_completed_primitive");
 
@@ -452,20 +457,16 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						Cbe::Super_block &sb = _super_block[next_sb];
 						sb.root_number = _write_back.peek_completed_root(prim);
 
-						sb.free_leaves = last_sb.free_leaves - _trans->height();
+						sb.free_leaves = last_sb.free_leaves - _trans->height() + 1;
 						sb.generation = last_sb.generation + 1;
 
 						Cbe::Physical_block_address const last_root = last_sb.root_number;
 						Cbe::Physical_block_address const root      = sb.root_number;
 						Genode::error("last root: ", last_root, " root: ", root);
 
-						/* XXX will block -> refactor into I/O primitive and use arbiter */
-						{
-							Cbe::Super_block::Generation const gen = sb.generation;
-							Genode::error("Sync super block: ", next_sb, " gen: ", gen);
-							void const *src = (void const*)&sb;
-							Util::Block_io io(_block, BLOCK_SIZE, next_sb, 1, true, src, BLOCK_SIZE);
-						}
+						Cbe::Super_block::Generation const gen = sb.generation;
+						Genode::error("Submit sync super block: ", next_sb, " gen: ", gen);
+						_sync_sb.submit_primitive(prim, next_sb);
 
 						Genode::error("Switch super block: ", _current_sb, " -> ", next_sb);
 						_current_sb = next_sb;
@@ -479,7 +480,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					 */
 					_trans->resume();
 
-					_request_pool.mark_completed_primitive(prim);
 					progress |= true;
 				}
 
@@ -487,9 +487,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					Cbe::Primitive prim = _write_back.peek_generated_primitive();
 					if (!prim.valid()) { break; }
-
-					// Cbe::Tag const tag = prim.tag;
-					// Genode::log("Write_back peek_generated_primitive: ", tag);
 
 					bool _progress = false;
 					switch (prim.tag) {
@@ -538,6 +535,42 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					_io.submit_primitive(WRITE_BACK_TAG, prim, data);
 
 					_write_back.drop_generated_io_primitive(prim);
+					progress |= true;
+				}
+
+				/**************************
+				 ** Super-block handling **
+				 **************************/
+
+				progress |= _sync_sb.execute();
+
+				while (true) {
+
+					Cbe::Primitive prim = _sync_sb.peek_completed_primitive();
+					if (!prim.valid()) { break; }
+
+					Cbe::Primitive req_prim = _sync_sb.peek_completed_request_primitive(prim);
+					if (!req_prim.valid()) { Genode::error("BUG"); }
+
+					_sync_sb.drop_completed_primitive(prim);
+
+					_request_pool.mark_completed_primitive(req_prim);
+
+					progress |= true;
+				}
+
+				while (true) {
+
+					Cbe::Primitive prim = _sync_sb.peek_generated_primitive();
+					if (!prim.valid()) { break; }
+					if (!_io.primitive_acceptable()) { break; }
+
+					uint64_t   const  id      = _sync_sb.peek_generated_id(prim);
+					Cbe::Super_block &sb      = _super_block[id];
+					Cbe::Block_data  &sb_data = *reinterpret_cast<Cbe::Block_data*>(&sb);
+
+					_io.submit_primitive(SYNC_SB_TAG, prim, sb_data);
+					_sync_sb.drop_generated_primitive(prim);
 					progress |= true;
 				}
 
@@ -609,6 +642,10 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						Genode::log("_write_back.mark_completed_io_primitive");
 						_write_back.mark_completed_io_primitive(prim);
 						break;
+					case SYNC_SB_TAG:
+						Genode::log("SYNC_SB_TAG");
+						_sync_sb.mark_generated_primitive_complete(prim);
+						break;
 					default: break;
 					}
 					if (!_progress) { break; }
@@ -621,6 +658,29 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			}
 
 			block_session.wakeup_client();
+		}
+
+		void _dump_current_sb_info() const
+		{
+			Cbe::Super_block const &sb = _super_block[_current_sb];
+
+			Cbe::Super_block::Number const root_number      = sb.root_number;
+			Cbe::Super_block::Height const height           = sb.height;
+			Cbe::Super_block::Degree const degree           = sb.degree;
+			Cbe::Super_block::Number_of_leaves const leaves = sb.leaves;
+
+			Cbe::Super_block::Number const free_number           = sb.free_number;
+			Cbe::Super_block::Number_of_leaves const free_leaves = sb.free_leaves;
+			Cbe::Super_block::Number_of_leaves const free_height = sb.free_height;
+
+			Genode::log("Virtual block-device info in SB[", _current_sb, "]: ",
+			            "tree height: ", height, " ",
+			            "edges per node: ", degree, " ",
+			            "leaves: ", leaves, " ",
+			            "root block address: ", root_number, " ",
+			            "free block address: ", free_number, " ",
+			            "free leaves: (", free_leaves, "/", free_height, ")"
+			);
 		}
 
 		void _setup()
@@ -649,29 +709,20 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 			_current_sb = most_recent_sb;
 
-			Cbe::Super_block &sb = _super_block[_current_sb];
+			using SB = Cbe::Super_block;
 
-			Cbe::Super_block::Number root_number      = sb.root_number;
-			Cbe::Super_block::Height height           = sb.height;
-			Cbe::Super_block::Degree degree           = sb.degree;
-			Cbe::Super_block::Number_of_leaves leaves = sb.leaves;
+			SB const &sb = _super_block[_current_sb];
 
-			Cbe::Super_block::Number free_number           = sb.free_number;
-			Cbe::Super_block::Number_of_leaves free_leaves = sb.free_leaves;
+			SB::Height const height           = sb.height;
+			SB::Degree const degree           = sb.degree;
+			SB::Number_of_leaves const leaves = sb.leaves;
 
-			Genode::log("Virtual block-device info in SB[", _current_sb, "]: ",
-			            "tree height: ", height, " ",
-			            "edges per node: ", degree, " ",
-			            "leaves: ", leaves, " ",
-			            "root block address: ", root_number, " ",
-			            "free block address: ", free_number, " ",
-			            "free leaves: ", free_leaves, " "
-			);
+			SB::Number const free_number           = sb.free_number;
+			SB::Number_of_leaves const free_leaves = sb.free_leaves;
 
 			_max_vba = leaves - 1;
 
 			_trans.construct(height, degree);
-
 			_block_manager.construct(free_number, free_leaves);
 		}
 
@@ -685,6 +736,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Main(Env &env) : _env(env)
 		{
 			_setup();
+			_dump_current_sb_info();
 
 			_env.parent().announce(_env.ep().manage(*this));
 		}
@@ -714,6 +766,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 			_block.tx_channel()->sigh_ack_avail(_request_handler);
 			_block.tx_channel()->sigh_ready_to_submit(_request_handler);
+
+			_dump_current_sb_info();
 
 			return _block_session->cap();
 		}
