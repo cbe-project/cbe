@@ -418,8 +418,9 @@ class Cbe::Vbd
 			for (uint32_t i = 0; i < info.outer_degree; i++) {
 				Cbe::Physical_block_address const pba = parent_node[i].pba;
 				Cbe::Generation             const v   = parent_node[i].gen;
+				Cbe::Hash                   const &hash = parent_node[i].hash;
 
-				log("leave[", i, "]: vba: ", _dump_leaves, " pba: ", pba, " ", Hex(v));
+				log("leave[", i, "]: vba: ", _dump_leaves, " pba: ", pba, " ", Hex(v), " <", hash, ">");
 
 				++_dump_leaves;
 				if (_dump_leaves >= info.leaves) {
@@ -451,8 +452,9 @@ class Cbe::Vbd
 			for (uint32_t i = 0; i < info.outer_degree; i++) {
 				Cbe::Physical_block_address const pba = node[i].pba;
 				Cbe::Generation             const v   = node[i].gen;
+				Cbe::Hash                   const &hash = node[i].hash;
 
-				log("child[", i, "]: ", pba, " ", Hex(v));
+				log("child[", i, "]: ", pba, " ", Hex(v), " <", hash, ">");
 
 				finished = height == 1 ? _dump_data(info, node[i].pba, block_allocator)
 				                       : _dump(info, node[i].pba, block_allocator, height);
@@ -588,10 +590,12 @@ class Cbe::Vbd
 			Cbe::Super_block &sb = *reinterpret_cast<Cbe::Super_block*>(ba.data(idx));
 			Cbe::Super_block::Generation const gen  = sb.generation;
 			Cbe::Physical_block_address  const root = sb.root_number;
+			Cbe::Hash                    const &root_hash = sb.root_hash;
 			Cbe::Super_block::Number_of_leaves const free_height = sb.free_height;
 			Cbe::Super_block::Number_of_leaves const free_leaves = sb.free_leaves;
 			Genode::log("Current SB[", idx, "]: gen: ", gen, " root: ", root,
-			            " free leaves: (", free_leaves, "/", free_height, ")");
+			            " free leaves: (", free_leaves, "/", free_height, ")",
+			            " root hash: <", root_hash, ">");
 
 			_dump_leaves = 0;
 			_dump(_tree.info(), sb.root_number, _tree.block_allocator(), _tree.info().height);
@@ -853,6 +857,11 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			 */
 			sb.generation  = 1;
 			sb.root_number = root_pba;
+
+			Sha256_4k::Data *data = reinterpret_cast<Sha256_4k::Data*>(_block_allocator->data(root_pba));
+			Sha256_4k::Hash hash { };
+			Sha256_4k::hash(*data, hash);
+			Genode::memcpy(sb.root_hash.values, hash.values, sizeof (hash));
 
 			/* XXX just reserve some memory for allocating blocks */
 			sb.free_number = start_pba + avail + 2048;
