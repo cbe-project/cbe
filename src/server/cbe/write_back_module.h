@@ -69,7 +69,18 @@ class Cbe::Module::Write_back
 				Entry &e1 = _entry[i-1];
 				Genode::uint32_t const index = trans.index(_vba, i);
 				T *t = reinterpret_cast<T*>(&e.data);
+
+				Cbe::Physical_block_address const _old_pba = t[index].pba;
 				t[index].pba = e1.new_pba;
+
+				/* calculate hash for child */
+				{
+					Genode::error(__func__, ": ", _old_pba, " -> ", e1.new_pba, " hash");
+					Sha256_4k::Data *data = reinterpret_cast<Sha256_4k::Data*>(&e1.data);
+					Sha256_4k::Hash hash { };
+					Sha256_4k::hash(*data, hash);
+					Genode::memcpy(t[index].hash.values, hash.values, sizeof (hash));
+				};
 
 				Genode::error(i, ": ", _vba, " ", e.old_pba, " -> ", e.new_pba, " ", index);
 
@@ -173,14 +184,23 @@ class Cbe::Module::Write_back
 			return p;
 		}
 
-		Cbe::Physical_block_address peek_completed_root(Cbe::Primitive const &p)
+		Cbe::Physical_block_address peek_completed_root(Cbe::Primitive const &p) const
 		{
 			Genode::log(__func__, "p: ", p.block_number);
 
-			Entry &e = _entry[_levels-1];
+			Entry const &e = _entry[_levels-1];
 			return e.new_pba;
 		}
 
+		void peek_competed_root_hash(Cbe::Primitive const &p, Cbe::Hash &hash) const
+		{
+			Genode::log(__func__, "p: ", p.block_number);
+
+			Entry const &e = _entry[_levels-1];
+			Sha256_4k::Data const *data = reinterpret_cast<Sha256_4k::Data const*>(&e.data);
+			Sha256_4k::Hash &h = *reinterpret_cast<Sha256_4k::Hash*>(&hash);
+			Sha256_4k::hash(*data, h);
+		}
 
 		void drop_completed_primitive(Cbe::Primitive const &p)
 		{

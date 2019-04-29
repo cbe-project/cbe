@@ -16,6 +16,7 @@
 
 /* Genode includes */
 #include <base/stdint.h>
+#include <base/output.h>
 
 namespace Cbe {
 
@@ -66,6 +67,16 @@ namespace Cbe {
 	struct Hash
 	{
 		char values[32];
+
+		void print(Genode::Output &out) const
+		{
+			using namespace Genode;
+
+			for (char const c : values) {
+				Genode::print(out, Hex((unsigned char const)c,
+				              Hex::OMIT_PREFIX, Hex::PAD));
+			}
+		}
 	};
 
 	struct Key
@@ -92,6 +103,7 @@ namespace Cbe {
 				Key key[NUM_KEYS];
 
 				Number           root_number;
+				Hash             root_hash;
 				Generation       generation;
 				Height           height;
 				Degree           degree;
