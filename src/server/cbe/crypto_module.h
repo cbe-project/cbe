@@ -118,6 +118,16 @@ struct Cbe::Module::Crypto : Spark::Object<8264>
 	 *           the corresponding internal primitive as completed
 	 */
 	void mark_completed_primitive(Primitive const &p);
+
+	/**
+	 * Copy the internal data buffer of the completed primitive
+	 *
+	 * \param p     reference to Primitive that is used to lookup
+	 *              the corresponding internal primitive
+	 * \param data  reference to destination buffer the internal data
+	 *              should be copied to
+	 */
+	void copy_completed_data(Primitive const &p, Cbe::Block_data &data);
 };
 
 #endif /* _CBE_CRYPTO_MODULE_H_ */

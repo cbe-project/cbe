@@ -78,6 +78,33 @@ is
 		end Mark_Completed_Primitive;
 
 		--
+		-- Copy_Completed_Data
+		--
+		procedure Copy_Completed_Data(
+			Obj        : in     Item_Type;
+			Prm        :        Primitive.Object_Type;
+			Plain_Data : in out Crypto.Plain_Data_Type)
+		is
+			use Request;
+		begin
+			if
+				Obj.State /= Complete or
+				not Primitive.Equal(Obj.Prim, Prm)
+			then
+				return;
+			end if;
+
+			if
+				Primitive.Operation(Obj.Prim) = Request.Read and
+				Primitive.Success(Prm)        = Request.True
+			then
+				-- XXX not sure if that works as expected
+				Plain_Data := Obj.Plain_Data;
+			end if;
+
+		end Copy_Completed_Data;
+
+		--
 		-- Invalid_Object
 		--
 		function Invalid_Object
@@ -265,6 +292,19 @@ is
 		end loop;
 	end Mark_Completed_Primitive;
 
+	--
+	-- Mark_Completed_Primitive
+	--
+	procedure Copy_Completed_Data(
+		Obj        : in out Crypto.Object_Type;
+		Prim       :        Primitive.Object_Type;
+		Plain_Data : in out Crypto.Plain_Data_Type)
+	is
+	begin
+		for Item_Id in Obj.Items'Range loop
+			Item.Copy_Completed_Data(Obj.Items(Item_Id), Prim, Plain_Data);
+		end loop;
+	end Copy_Completed_Data;
 
 	---------------
 	-- Accessors --

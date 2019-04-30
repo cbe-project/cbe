@@ -124,6 +124,18 @@ is
 		Crypto.Mark_Completed_Primitive(Obj, CXX_Primitive.To_Spark(Prim));
 	end Mark_Completed_Primitive;
 
+	--
+	-- Copy_Completed_Data
+	--
+	procedure Copy_Completed_Data(
+		Obj        : in out Crypto.Object_Type;
+		Prim       :        CXX_Primitive.Object_Type;
+		Plain_Data : in out Crypto.Plain_Data_Type)
+	is
+	begin
+		Crypto.Copy_Completed_Data(Obj, CXX_Primitive.To_Spark(Prim), Plain_Data);
+	end Copy_Completed_Data;
+
 
 	---------------
 	-- Accessors --

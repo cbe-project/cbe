@@ -91,6 +91,13 @@ is
 		Obj  : in out Object_Type;
 		Prim :        Primitive.Object_Type);
 
+	--
+	-- Copy_Completed_Data
+	--
+	procedure Copy_Completed_Data(
+		Obj        : in out Crypto.Object_Type;
+		Prim       :        Primitive.Object_Type;
+		Plain_Data : in out Crypto.Plain_Data_Type);
 
 	---------------
 	-- Accessors --
@@ -122,6 +129,14 @@ private
 			Obj : in out Item_Type;
 			Prm :        Primitive.Object_Type;
 			Key :        Key_Type);
+
+		--
+		-- Copy_Completed_Data
+		--
+		procedure Copy_Completed_Data(
+			Obj        : in     Item_Type;
+			Prm        :        Primitive.Object_Type;
+			Plain_Data : in out Crypto.Plain_Data_Type);
 
 		--
 		-- Invalid_Object

@@ -116,6 +116,18 @@ is
 		Convention    => C,
 		External_Name => "_ZN3Cbe6Module6Crypto24mark_completed_primitiveERKNS_9PrimitiveE";
 
+	--
+	-- Mark_Completed_Primitive
+	--
+	procedure Copy_Completed_Data(
+		Obj        : in out Crypto.Object_Type;
+		Prim       :        CXX_Primitive.Object_Type;
+		Plain_Data : in out Crypto.Plain_Data_Type)
+	with
+		Export,
+		Convention    => C,
+		External_Name => "_ZN3Cbe6Module6Crypto19copy_completed_dataERKNS_9PrimitiveERNS_10Block_dataE";
+
 
 	---------------
 	-- Accessors --

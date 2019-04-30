@@ -618,8 +618,23 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					_crypto.drop_completed_primitive(prim);
 					if (prim.read()) {
+
+						using Payload = Block::Request_stream::Payload;
+						Cbe::Block_data *data_ptr = nullptr;
+						block_session.with_payload([&] (Payload const &payload) {
+							data_ptr = _data(payload, _request_pool, prim);
+						});
+						if (data_ptr == nullptr) {
+							Genode::error("BUG: data_ptr is nullptr");
+							Genode::sleep_forever();
+						}
+						_crypto.copy_completed_data(prim, *data_ptr);
 						_request_pool.mark_completed_primitive(prim);
+
 					} else if (prim.write()) {
+
+						Cbe::Block_data &data = _write_back.peek_generated_data(prim);
+						_crypto.copy_completed_data(prim, data);
 						_write_back.mark_completed_crypto_primitive(prim);
 					}
 
