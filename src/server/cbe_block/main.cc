@@ -806,7 +806,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			Xml_node config = _config_rom.xml();
 			Number_of_bytes const backing_size   = config.attribute_value("backing_size",   Number_of_bytes(0));
 			Number_of_bytes const vbd_size       = config.attribute_value("vbd_size",       Number_of_bytes(0));
-			Number_of_bytes const vbd_block_size = config.attribute_value("vbd_block_size", Number_of_bytes(0));
+			Number_of_bytes const vbd_block_size = config.attribute_value("vbd_block_size", Number_of_bytes(4096));
 			uint32_t const outer_degree = config.attribute_value("outer_degree",   0u);
 			bool const initialize = config.attribute_value("initialize", false);
 

@@ -38,7 +38,7 @@ install_config {
 	<start name="cbe_block">
 		<resource name="RAM" quantum="2G"/>
 		<provides><service name="Block"/></provides>
-		<config verbose="no" backing_size="1G" vbd_size="64K" vbd_block_size="4K" outer_degree="4" initialize="yes"/>
+		<config verbose="yes" backing_size="512M" vbd_size="1M" outer_degree="16" initialize="yes"/>
 		<route>
 			<any-service> <parent/> </any-service>
 		</route>
