@@ -9,6 +9,7 @@
 /* Genode includes */
 #include <base/allocator_avl.h>
 #include <base/attached_ram_dataspace.h>
+#include <base/attached_rom_dataspace.h>
 #include <base/component.h>
 #include <base/heap.h>
 #include <block/request_stream.h>
@@ -162,6 +163,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 		Env &_env;
 
+		Attached_rom_dataspace _config_rom { _env, "config" };
+
 		Constructible<Attached_ram_dataspace>  _block_ds { };
 		Constructible<Block_session_component> _block_session { };
 
@@ -230,6 +233,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 		uint64_t         _current_sb { ~0ull };
 		Cbe::Super_block _super_block[Cbe::NUM_SUPER_BLOCKS] { };
+
+
+		bool _show_progress { false };
 
 		Signal_handler<Main> _request_handler {
 			_env.ep(), *this, &Main::_handle_requests };
@@ -327,7 +333,11 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 ** Translation handling **
 				 **************************/
 
-				progress |= _trans->execute();
+				bool const trans_progress = _trans->execute();
+				progress |= trans_progress;
+				if (_show_progress) {
+					Genode::log("Translation progress: ", trans_progress);
+				}
 
 				while (_trans->peek_generated_primitive()) {
 
@@ -422,7 +432,11 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 ** Cache handling **
 				 ********************/
 
-				progress |= _cache.execute();
+				bool const cache_progress = _cache.execute();
+				progress |= cache_progress;
+				if (_show_progress) {
+					Genode::log("Cache progress: ", cache_progress);
+				}
 
 				while (_cache.peek_generated_primitive()) {
 
@@ -441,7 +455,11 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 ** Write-back handling **
 				 *************************/
 
-				progress |= _write_back.execute();
+				bool const write_back_progress = _write_back.execute();
+				progress |= write_back_progress;
+				if (_show_progress) {
+					Genode::log("Write-back progress: ", write_back_progress);
+				}
 
 				while (true) {
 
@@ -546,7 +564,11 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 ** Super-block handling **
 				 **************************/
 
-				progress |= _sync_sb.execute();
+				bool const sync_sb_progress = _sync_sb.execute();
+				progress |= sync_sb_progress;
+				if (_show_progress) {
+					Genode::log("Sync-sb progress: ", sync_sb_progress);
+				}
 
 				while (true) {
 
@@ -583,7 +605,11 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 *********************/
 
 				_crypto.execute();
-				progress |= _crypto.execute_progress();
+				bool const crypto_progress = _crypto.execute_progress();
+				progress |= crypto_progress;
+				if (_show_progress) {
+					Genode::log("Crypto progress: ", crypto_progress);
+				}
 
 				while (true) {
 
@@ -604,10 +630,13 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					Cbe::Primitive prim = _crypto.peek_generated_primitive();
 					if (!prim.valid())     { break; }
-					if (!_io.primitive_acceptable()) { break; }
+					if (!prim.read()) {
+						Genode::error("BUG: got wrong primitive");
+						throw -12346;
+					}
 
 					_crypto.drop_generated_primitive(prim);
-					_io.submit_primitive(CRYPTO_TAG_ENCRYPT, prim, _crypto_data);
+					_crypto.mark_completed_primitive(prim);
 
 					progress |= true;
 				}
@@ -616,7 +645,11 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 ** I/O handling **
 				 ******************/
 
-				progress |= _io.execute();
+				bool const io_progress = _io.execute();
+				progress |= io_progress;
+				if (_show_progress) {
+					Genode::log("Io progress: ", io_progress);
+				}
 
 				while (true) {
 
@@ -625,9 +658,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					bool _progress = true;
 					switch (prim.tag) {
-					case CRYPTO_TAG_ENCRYPT:
-						_crypto.mark_completed_primitive(prim);
-						break;
 					case CRYPTO_TAG_DECRYPT:
 						if (!_crypto.primitive_acceptable()) {
 							_progress = false;
@@ -744,6 +774,11 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		 */
 		Main(Env &env) : _env(env)
 		{
+			if (_config_rom.valid()) {
+				_show_progress =
+					_config_rom.xml().attribute_value("show_progress", false);
+			}
+
 			_setup();
 			_dump_current_sb_info();
 

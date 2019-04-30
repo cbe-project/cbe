@@ -142,8 +142,8 @@ class Cbe::Module::Translation
 
 			_data.reset();
 
-			Cbe::Primitive::Number number = p.block_number;
-			Genode::log("Translation::", __func__, ": root: ", r, " vba: ", number);
+			// Cbe::Primitive::Number number = p.block_number;
+			// Genode::log("Translation::", __func__, ": level: ", _max_height, " root: ", r, " vba: ", number);
 
 			_root      = r;
 			_current   = p;
@@ -177,9 +177,14 @@ class Cbe::Module::Translation
 				return true;
 			}
 
+			/*
+			 * We query the next level and should it already be the last,
+			 * we have found the pba for the data leave node.
+			 */
 			if (--_level == 0) {
-					uint32_t const i = _get_index(_current.block_number, 1);
-					_pba = _get_pba(_data.data(1), i);
+				uint32_t const i = _get_index(_current.block_number, 1);
+				_pba = _get_pba(_data.data(1), i);
+
 			}
 
 			return true;
@@ -248,6 +253,8 @@ class Cbe::Module::Translation
 		void discard_completed_primitive(Cbe::Primitive const &p)
 		{
 			(void)p;
+			// Cbe::Primitive::Number number = p.block_number;
+			// Genode::log("Translation::", __func__, ": vba: ", number);
 
 			/* allow further translation requests */
 			_current = Cbe::Primitive { };
