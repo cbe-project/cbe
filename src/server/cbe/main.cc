@@ -204,6 +204,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Splitter _splitter     { };
 		Cache    _cache        { };
 		Block_data _cache_data[CACHE_ENTRIES] { };
+		Block_data _cache_job_data[MAX_PRIM] { };
 
 		Crypto   _crypto       { "All your base are belong to us  " };
 		Block_data _crypto_data { };
@@ -443,7 +444,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 ** Cache handling **
 				 ********************/
 
-				bool const cache_progress = _cache.execute(_cache_data, CACHE_ENTRIES);
+				bool const cache_progress =
+					_cache.execute(_cache_data, CACHE_ENTRIES, _cache_job_data, MAX_PRIM);
 				progress |= cache_progress;
 				if (_show_progress) {
 					Genode::log("Cache progress: ", cache_progress);
@@ -453,8 +455,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					if (!_io.primitive_acceptable()) { break; }
 
-					Cbe::Primitive   p    = _cache.take_generated_primitive();
-					Cbe::Block_data &data = _cache.take_generated_data(p);
+					Cbe::Primitive p      = _cache.take_generated_primitive();
+					Cache_Index const idx = _cache.take_generated_data(p);
+					Cbe::Block_data &data = _cache_job_data[idx.value];
 
 					_cache.discard_generated_primitive(p);
 					_io.submit_primitive(CACHE_TAG, p, data);

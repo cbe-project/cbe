@@ -126,7 +126,6 @@ class Cbe::Module::Cache : Noncopyable
 		struct Job
 		{
 			Cbe::Primitive  primitive { };
-			Cbe::Block_data data      { };
 
 			enum State { UNUSED, SUBMITTED, PENDING, IN_PROGRESS, FILL, COMPLETE } state { UNUSED };
 		};
@@ -139,7 +138,7 @@ class Cbe::Module::Cache : Noncopyable
 		{
 			for (unsigned i = 0; i < JOBS; i++) {
 				if (_jobs[i].state == state) {
-					if (fn(_jobs[i]) == FOUND) { break; }
+					if (fn(_jobs[i], Index { .value = i }) == FOUND) { break; }
 				}
 			}
 		}
@@ -269,15 +268,23 @@ class Cbe::Module::Cache : Noncopyable
 		 *
 		 * \return true if any completed primitive was processed
 		 */
-		bool execute(Cbe::Block_data *data, size_t n)
+		bool execute(Cbe::Block_data *data, size_t data_items,
+		             Cbe::Block_data const *job_data, size_t job_data_items)
 		{
 			bool progress = false;
-			_for_each_entry(Job::COMPLETE, [&] (Job &j) {
+			_for_each_entry(Job::COMPLETE, [&] (Job &j, Index idx) {
 
 				Index cdx = _get_cache_slot();
-				if (cdx.value > n) {
+				if (cdx.value >= data_items) {
 					Genode::error("Cache::", __func__, " out-of-bounds data access");
-					throw -1;
+					struct Out_of_bounds_data_access { };
+					throw Out_of_bounds_data_access();
+				}
+
+				if (idx.value >= job_data_items) {
+					Genode::error("Cache::", __func__, " out-of-bounds job-data access");
+					struct Out_of_bounds_job_data_access { };
+					throw Out_of_bounds_job_data_access();
 				}
 
 				Entry &entry = _entries[cdx.value];
@@ -285,9 +292,8 @@ class Cbe::Module::Cache : Noncopyable
 				entry.pba       = j.primitive.block_number;
 				entry.last_used = Genode::Trace::timestamp();
 
-				// void       * const dst = (void*)&entry.data;
-				void       * const dst = (void*)&data[cdx.value];;
-				void const * const src = (void const*)&j.data;
+				void       * const dst = (void*)&data[cdx.value];
+				void const * const src = (void const*)&job_data[idx.value];
 				Genode::memcpy(dst, src, sizeof (Cbe::Block_data));
 
 				j.state = Job::UNUSED;
@@ -345,12 +351,13 @@ class Cbe::Module::Cache : Noncopyable
 		 *
 		 * \return reference to data
 		 */
-		Cbe::Block_data &take_generated_data(Cbe::Primitive const &p)
+		// Cbe::Block_data &take_generated_data(Cbe::Primitive const &p)
+		Index take_generated_data(Cbe::Primitive const &p)
 		{
 			for (unsigned i = 0; i < JOBS; i++) {
 				if (   _jobs[i].state == Job::PENDING
 				    && _equal_primitives(_jobs[i].primitive, p)) {
-					return _jobs[i].data;
+					return Index { .value = i };
 				}
 			}
 
@@ -385,7 +392,7 @@ class Cbe::Module::Cache : Noncopyable
 		 */
 		void mark_completed_primitive(Cbe::Primitive const &p)
 		{
-			_for_each_entry(Job::IN_PROGRESS, [&] (Job &j) {
+			_for_each_entry(Job::IN_PROGRESS, [&] (Job &j, Index) {
 
 				if (!_equal_primitives(j.primitive, p)) { return CONTINUE; }
 
