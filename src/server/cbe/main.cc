@@ -339,8 +339,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					_splitter.drop_generated_primitive(p);
 
 					Cbe::Physical_block_address root = _super_block[_current_sb].root_number;
+					Cbe::Hash const &root_hash = _super_block[_current_sb].root_hash;
 
-					_trans->submit_primitive(root, p);
+					_trans->submit_primitive(root, root_hash, p);
 					progress |= true;
 				}
 

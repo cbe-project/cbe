@@ -9,6 +9,9 @@
 #ifndef _CBE_TRANSLATION_MODULE_H_
 #define _CBE_TRANSLATION_MODULE_H_
 
+/* repo includes */
+#include <util/sha256_4k.h>
+
 /* local includes */
 #include <cbe/types.h>
 
@@ -20,7 +23,7 @@ namespace Cbe { namespace Module {
 } /* namespace Module */ } /* namespace Cbe */
 
 
-template <typename N>
+template <typename T>
 class Cbe::Module::Translation
 {
 	public:
@@ -49,9 +52,16 @@ class Cbe::Module::Translation
 
 		Cbe::Primitive::Number _get_pba(Cbe::Block_data const &data, uint32_t i) const
 		{
-			N const *entry = reinterpret_cast<N const*>(&data);
+			T const *entry = reinterpret_cast<T const*>(&data);
 			return entry[i].pba;
 		}
+
+		Cbe::Hash const *_get_hash(Cbe::Block_data const &data, uint32_t i) const
+		{
+			T const *entry = reinterpret_cast<T const*>(&data);
+			return &entry[i].hash;
+		}
+
 
 		struct Data
 		{
@@ -74,6 +84,7 @@ class Cbe::Module::Translation
 		uint32_t const _max_height;
 
 		Cbe::Primitive::Number _root { ~0ull };
+		Cbe::Hash              _root_hash { };
 
 		Cbe::Primitive  _current    { };
 		uint32_t        _level      { ~0u };
@@ -136,6 +147,7 @@ class Cbe::Module::Translation
 		 * \param p  referencet to the primitive
 		 */
 		void submit_primitive(Cbe::Physical_block_address r,
+		                      Cbe::Hash const &root_hash,
 		                      Cbe::Primitive const &p)
 		{
 			if (_current.valid()) { throw -1; }
@@ -146,6 +158,7 @@ class Cbe::Module::Translation
 			// Genode::log("Translation::", __func__, ": level: ", _max_height, " root: ", r, " vba: ", number);
 
 			_root      = r;
+			Genode::memcpy(_root_hash.values, root_hash.values, sizeof (Cbe::Hash));
 			_current   = p;
 			_level     = _max_height;
 			_pba       = ~0ull;
@@ -175,6 +188,29 @@ class Cbe::Module::Translation
 				}
 
 				return true;
+			}
+
+			/*
+			 * Check hash
+			 */
+			struct Hash_mismatch { };
+			Sha256_4k::Hash hash { };
+			Sha256_4k::Data const &data =
+				*reinterpret_cast<Sha256_4k::Data const*>(&_data.data(_level));
+			Sha256_4k::hash(data, hash);
+
+			Cbe::Hash const *h = nullptr;
+			if (_level == _max_height) {
+				h = &_root_hash;
+			} else {
+				/* or use previous level data to get next level */
+				uint32_t   const i = _get_index(_current.block_number, _level+1);
+				h = _get_hash(_data.data(_level+1), i);
+			}
+
+			if (Genode::memcmp(hash.values, h->values, sizeof (Cbe::Hash))) {
+				Genode::error("<", hash, "> != <", *h, ">");
+				throw Hash_mismatch();
 			}
 
 			/*
