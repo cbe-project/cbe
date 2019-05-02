@@ -191,6 +191,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		using Splitter    = Module::Splitter;
 		using Translation = Module::Translation<Cbe::Type_i_node>;
 		using Cache       = Module::Cache<MAX_PRIM, CACHE_ENTRIES>;
+		using Cache_Index = Module::Cache<MAX_PRIM, CACHE_ENTRIES>::Index;
 		using Crypto      = Module::Crypto;
 		using Block_io    = Module::Block_io<MAX_PRIM, BLOCK_SIZE>;
 		using Write_back  = Module::Write_back<MAX_LEVEL, Cbe::Type_i_node>;
@@ -199,6 +200,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Pool     _request_pool { };
 		Splitter _splitter     { };
 		Cache    _cache        { };
+		Block_data _cache_data[CACHE_ENTRIES] { };
+
 		Crypto   _crypto       { "All your base are belong to us  " };
 		Block_data _crypto_data { };
 
@@ -227,6 +230,11 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 				data = reinterpret_cast<Block_data*>(addr);
 			});
+
+			if (data == nullptr) {
+				Genode::error("BUG: data_ptr is nullptr");
+				Genode::sleep_forever();
+			}
 
 			return data;
 		}
@@ -343,13 +351,14 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					Cbe::Primitive p = _trans->take_generated_primitive();
 
-					if (!_cache.available(p)) {
+					if (!_cache.available(p.block_number)) {
 
 						if (_cache.acceptable(p)) { _cache.submit_primitive(p); }
 						break;
 					} else {
 
-						Cbe::Block_data const &data = _cache.data(p);
+						Cache_Index     const idx   = _cache.data(p.block_number);
+						Cbe::Block_data const &data = _cache_data[idx.value];
 						_trans->mark_generated_primitive_complete(p, data);
 					}
 
@@ -365,10 +374,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					block_session.with_payload([&] (Payload const &payload) {
 						data_ptr = _data(payload, _request_pool, prim);
 					});
-					if (data_ptr == nullptr) {
-						Genode::error("BUG: data_ptr is nullptr");
-						Genode::sleep_forever();
-					}
 
 					if (prim.read()) {
 						if (!_io.primitive_acceptable()) { break; }
@@ -432,7 +437,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 ** Cache handling **
 				 ********************/
 
-				bool const cache_progress = _cache.execute();
+				bool const cache_progress = _cache.execute(_cache_data, CACHE_ENTRIES);
 				progress |= cache_progress;
 				if (_show_progress) {
 					Genode::log("Cache progress: ", cache_progress);
@@ -524,7 +529,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						Genode::log("Write_back CACHE_TAG");
 						if (_cache.available(prim.block_number)) {
 
-							Cbe::Block_data const &data = _cache.data(prim);
+							Cache_Index     const idx   = _cache.data(prim.block_number);
+							Cbe::Block_data const &data = _cache_data[idx.value];
 							_write_back.copy_and_update(prim, data, *_trans);
 							_progress = true;
 						} else {
@@ -624,10 +630,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						block_session.with_payload([&] (Payload const &payload) {
 							data_ptr = _data(payload, _request_pool, prim);
 						});
-						if (data_ptr == nullptr) {
-							Genode::error("BUG: data_ptr is nullptr");
-							Genode::sleep_forever();
-						}
 						_crypto.copy_completed_data(prim, *data_ptr);
 						_request_pool.mark_completed_primitive(prim);
 

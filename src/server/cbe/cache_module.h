@@ -37,6 +37,13 @@ class Cbe::Module::Cache : Noncopyable
 			bool valid() const { return primitive.valid(); }
 		};
 
+		struct Index
+		{
+			static constexpr Genode::uint32_t INVALID = ~0u;
+			unsigned value;
+			bool valid() const { return value != INVALID; }
+		};
+
 	private:
 
 		/*
@@ -46,7 +53,6 @@ class Cbe::Module::Cache : Noncopyable
 		struct Entry
 		{
 			Cbe::Physical_block_address pba { };
-			Cbe::Block_data data            { };
 
 			Genode::Trace::Timestamp last_used { 0 };
 
@@ -54,13 +60,6 @@ class Cbe::Module::Cache : Noncopyable
 		};
 
 		Entry _entries[CACHE_SIZE] { };
-
-		struct Index
-		{
-			static constexpr Genode::uint32_t INVALID = ~0u;
-			unsigned value;
-			bool valid() const { return value != INVALID; }
-		};
 
 		enum { FOUND = 0, CONTINUE, };
 
@@ -193,43 +192,34 @@ class Cbe::Module::Cache : Noncopyable
 	public:
 
 		/**
-		 * Check if the module can accept a new primitive
+		 * Check if the data for the given physical block address is in the cache
 		 *
 		 * \return true if a primitive can be accepted, otherwise false
 		 */
-		bool available(Cbe::Primitive const &p) const
-		{
-			return _lookup_cache(p.block_number).valid();
-		}
-
 		bool available(Cbe::Physical_block_address const pba) const
 		{
 			return _lookup_cache(pba).valid();
 		}
 
 		/**
-		 * Get Block_data for given physical block address
+		 * Get index of data for given physical block address
 		 *
-		 * \return reference to Block_data
+		 * \return index
 		 */
-		Cbe::Block_data const &data(Cbe::Primitive const &p)
-		{
-			Index cdx    = _lookup_cache(p.block_number);
-			Entry &entry = _entries[cdx.value];
-
-			entry.last_used = Genode::Trace::timestamp();
-			return entry.data;
-		}
-
-		Cbe::Block_data const &data(Cbe::Physical_block_address const pba)
+		Index data(Cbe::Physical_block_address const pba)
 		{
 			Index cdx    = _lookup_cache(pba);
 			Entry &entry = _entries[cdx.value];
 
 			entry.last_used = Genode::Trace::timestamp();
-			return entry.data;
+			return cdx;
 		}
 
+		/**
+		 * Check if the module can accept a new primitive
+		 *
+		 * \return true if a primitive can be accepted, otherwise false
+		 */
 		bool acceptable(Cbe::Primitive const &p) const
 		{
 			return _active_jobs < JOBS || !_request_pending(p.block_number);
@@ -253,7 +243,7 @@ class Cbe::Module::Cache : Noncopyable
 				return;
 			}
 
-			if (available(p)) {
+			if (available(p.block_number)) {
 				Genode::error("request available");
 				return;
 			}
@@ -279,19 +269,24 @@ class Cbe::Module::Cache : Noncopyable
 		 *
 		 * \return true if any completed primitive was processed
 		 */
-		bool execute()
+		bool execute(Cbe::Block_data *data, size_t n)
 		{
 			bool progress = false;
 			_for_each_entry(Job::COMPLETE, [&] (Job &j) {
 
 				Index cdx = _get_cache_slot();
+				if (cdx.value > n) {
+					Genode::error("Cache::", __func__, " out-of-bounds data access");
+					throw -1;
+				}
 
 				Entry &entry = _entries[cdx.value];
 				entry.state     = Entry::COMPLETE;
 				entry.pba       = j.primitive.block_number;
 				entry.last_used = Genode::Trace::timestamp();
 
-				void       * const dst = (void*)&entry.data;
+				// void       * const dst = (void*)&entry.data;
+				void       * const dst = (void*)&data[cdx.value];;
 				void const * const src = (void const*)&j.data;
 				Genode::memcpy(dst, src, sizeof (Cbe::Block_data));
 
