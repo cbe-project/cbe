@@ -22,6 +22,15 @@ namespace Cbe { namespace Module {
 template <unsigned N, typename T>
 class Cbe::Module::Write_back
 {
+	public:
+
+		struct Index
+		{
+			static constexpr Genode::uint32_t INVALID = ~0u;
+			unsigned value;
+			bool valid() const { return value != INVALID; }
+		};
+
 	private:
 
 		struct Entry {
@@ -327,7 +336,6 @@ class Cbe::Module::Write_back
 			Genode::error(__func__, ": invalid primitive");
 			throw -1;
 		}
-
 
 		void drop_generated_io_primitive(Cbe::Primitive const &p)
 		{

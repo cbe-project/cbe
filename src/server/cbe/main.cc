@@ -181,8 +181,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		enum {
 			MAX_REQS      = 16,
 			MAX_PRIM      = 1,
-			CACHE_ENTRIES = 16,
 			MAX_LEVEL     = 6,
+			CACHE_ENTRIES = 16,
+			IO_ENTRIES    = 1,
 		};
 
 		Cbe::Virtual_block_address _max_vba { 0 };
@@ -193,8 +194,10 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		using Cache       = Module::Cache<MAX_PRIM, CACHE_ENTRIES>;
 		using Cache_Index = Module::Cache<MAX_PRIM, CACHE_ENTRIES>::Index;
 		using Crypto      = Module::Crypto;
-		using Block_io    = Module::Block_io<MAX_PRIM, BLOCK_SIZE>;
-		using Write_back  = Module::Write_back<MAX_LEVEL, Cbe::Type_i_node>;
+		using Io          = Module::Block_io<IO_ENTRIES, BLOCK_SIZE>;
+		using Io_index    = Module::Block_io<IO_ENTRIES, BLOCK_SIZE>::Index;
+		using Write_back       = Module::Write_back<MAX_LEVEL, Cbe::Type_i_node>;
+		using Write_back_Index = Module::Write_back<MAX_LEVEL, Cbe::Type_i_node>::Index;
 		using Sync_sb     = Module::Sync_sb;
 
 		Pool     _request_pool { };
@@ -205,11 +208,14 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Crypto   _crypto       { "All your base are belong to us  " };
 		Block_data _crypto_data { };
 
-		Block_io _io           { _block };
+		Io         _io                  { _block };
+		Block_data _io_data[IO_ENTRIES] { };
+
 		Constructible<Translation> _trans { };
 		Bit_allocator<MAX_REQS> _tag_alloc { };
 
 		Write_back _write_back { };
+		Block_data _write_back_data[MAX_LEVEL] { };
 		Sync_sb    _sync_sb { };
 
 		Block_data* _data(Block::Request_stream::Payload const &payload,

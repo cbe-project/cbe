@@ -24,8 +24,17 @@ namespace Cbe { namespace Module {
 
 
 template <unsigned N, Genode::size_t BLOCK_SIZE>
-struct Cbe::Module::Block_io : Noncopyable
+class Cbe::Module::Block_io : Noncopyable
 {
+	public:
+
+		struct Index
+		{
+			static constexpr Genode::uint32_t INVALID = ~0u;
+			unsigned value;
+			bool valid() const { return value != INVALID; }
+		};
+
 	private:
 
 		struct Internal_entry
