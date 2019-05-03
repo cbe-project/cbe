@@ -28,6 +28,8 @@
 
 namespace Cbe {
 
+	struct Time;
+
 	enum {
 		INVALID_TAG        = 0x00,
 		IO_TAG             = 0x10,
@@ -143,6 +145,27 @@ struct Cbe::Block_manager
 };
 
 
+struct Cbe::Time
+{
+	Timestamp timestamp() const
+	{
+		uint32_t lo, hi;
+		/* serialize first */
+		__asm__ __volatile__ (
+			"xorl %%eax,%%eax\n\t"
+			"cpuid\n\t"
+			:
+			:
+			: "%rax", "%rbx", "%rcx", "%rdx"
+		);
+		__asm__ __volatile__ (
+			"rdtsc" : "=a" (lo), "=d" (hi)
+		);
+		return (uint64_t)hi << 32 | lo;
+	}
+};
+
+
 /*************
  ** modules **
  *************/
@@ -191,8 +214,12 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		using Pool        = Module::Request_pool;
 		using Splitter    = Module::Splitter;
 		using Translation = Module::Translation<Cbe::Type_i_node>;
-		using Cache       = Module::Cache<MAX_PRIM, CACHE_ENTRIES>;
-		using Cache_Index = Module::Cache<MAX_PRIM, CACHE_ENTRIES>::Index;
+
+		using Cache          = Module::Cache<MAX_PRIM, CACHE_ENTRIES>;
+		using Cache_Index    = Module::Cache<MAX_PRIM, CACHE_ENTRIES>::Index;
+		using Cache_Data     = Module::Cache<MAX_PRIM, CACHE_ENTRIES>::Data;
+		using Cache_Job_Data = Module::Cache<MAX_PRIM, CACHE_ENTRIES>::Job_Data;
+
 		using Crypto      = Module::Crypto;
 		using Io          = Module::Block_io<IO_ENTRIES, BLOCK_SIZE>;
 		using Io_index    = Module::Block_io<IO_ENTRIES, BLOCK_SIZE>::Index;
@@ -202,9 +229,12 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 		Pool     _request_pool { };
 		Splitter _splitter     { };
-		Cache    _cache        { };
-		Block_data _cache_data[CACHE_ENTRIES] { };
-		Block_data _cache_job_data[MAX_PRIM] { };
+
+		Time _time { };
+
+		Cache          _cache          { };
+		Cache_Data     _cache_data     { };
+		Cache_Job_Data _cache_job_data { };
 
 		Crypto   _crypto       { "All your base are belong to us  " };
 		Block_data _crypto_data { };
@@ -359,14 +389,17 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					Cbe::Primitive p = _trans->take_generated_primitive();
 
-					if (!_cache.available(p.block_number)) {
+					if (!_cache.data_available(p.block_number)) {
 
-						if (_cache.acceptable(p)) { _cache.submit_primitive(p); }
+						if (_cache.request_acceptable(p.block_number)) {
+							_cache.submit_request(p.block_number);
+						}
 						break;
 					} else {
 
-						Cache_Index     const idx   = _cache.data(p.block_number);
-						Cbe::Block_data const &data = _cache_data[idx.value];
+						Cache_Index     const idx   = _cache.data_index(p.block_number,
+						                                                _time.timestamp());
+						Cbe::Block_data const &data = _cache_data.item[idx.value];
 						_trans->mark_generated_primitive_complete(p, data);
 					}
 
@@ -445,23 +478,24 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 ** Cache handling **
 				 ********************/
 
-				bool const cache_progress =
-					_cache.execute(_cache_data, CACHE_ENTRIES, _cache_job_data, MAX_PRIM);
+				bool const cache_progress = _cache.execute(_cache_data, _cache_job_data,
+				                                           _time.timestamp());
 				progress |= cache_progress;
 				if (_show_progress) {
 					Genode::log("Cache progress: ", cache_progress);
 				}
 
-				while (_cache.peek_generated_primitive()) {
+				while (true) {
 
+					Cbe::Primitive prim = _cache.peek_generated_primitive();
+					if (!prim.valid()) { break; }
 					if (!_io.primitive_acceptable()) { break; }
 
-					Cbe::Primitive p      = _cache.take_generated_primitive();
-					Cache_Index const idx = _cache.take_generated_data(p);
-					Cbe::Block_data &data = _cache_job_data[idx.value];
+					Cache_Index const idx = _cache.peek_generated_data_index(prim);
+					Cbe::Block_data &data = _cache_job_data.item[idx.value];
 
-					_cache.discard_generated_primitive(p);
-					_io.submit_primitive(CACHE_TAG, p, data);
+					_cache.drop_generated_primitive(prim);
+					_io.submit_primitive(CACHE_TAG, prim, data);
 
 					progress |= true;
 				}
@@ -537,16 +571,17 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						break;
 					case CACHE_TAG:
 						Genode::log("Write_back CACHE_TAG");
-						if (_cache.available(prim.block_number)) {
+						if (_cache.data_available(prim.block_number)) {
 
-							Cache_Index     const idx   = _cache.data(prim.block_number);
-							Cbe::Block_data const &data = _cache_data[idx.value];
+							Cache_Index     const idx   = _cache.data_index(prim.block_number,
+							                                                _time.timestamp());
+							Cbe::Block_data const &data = _cache_data.item[idx.value];
 							_write_back.copy_and_update(prim, data, *_trans);
 							_progress = true;
 						} else {
 
-							if (_cache.acceptable(prim)) {
-								_cache.submit_primitive(prim);
+							if (_cache.request_acceptable(prim.block_number)) {
+								_cache.submit_request(prim.block_number);
 							}
 						}
 						break;

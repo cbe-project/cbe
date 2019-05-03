@@ -57,6 +57,8 @@ namespace Cbe {
 	using Virtual_block_address  = uint64_t;
 	using Generation             = uint64_t;
 
+	using Timestamp = uint64_t;
+
 	enum { BLOCK_SIZE = 4096u };
 
 	struct Block_data

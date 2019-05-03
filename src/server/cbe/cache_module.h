@@ -11,7 +11,6 @@
 
 /* Genode includes */
 #include <base/sleep.h>
-#include <trace/timestamp.h>
 
 /* local includes */
 #include <cbe/types.h>
@@ -29,19 +28,22 @@ class Cbe::Module::Cache : Noncopyable
 {
 	public:
 
-		struct Primitive
+		struct Data
 		{
-			Cbe::Primitive const &primitive;
-			Cbe::Block_data &data;
+			Cbe::Block_data item[CACHE_SIZE];
+		};
 
-			bool valid() const { return primitive.valid(); }
+		struct Job_Data
+		{
+			Cbe::Block_data item[JOBS];
 		};
 
 		struct Index
 		{
 			static constexpr Genode::uint32_t INVALID = ~0u;
+			static constexpr Genode::uint32_t MAX = CACHE_SIZE;
 			unsigned value;
-			bool valid() const { return value != INVALID; }
+			bool valid() const { return value != INVALID && value < MAX; }
 		};
 
 	private:
@@ -54,24 +56,12 @@ class Cbe::Module::Cache : Noncopyable
 		{
 			Cbe::Physical_block_address pba { };
 
-			Genode::Trace::Timestamp last_used { 0 };
+			Cbe::Timestamp last_used { 0 };
 
-			enum State { UNUSED, INVALIDATE, PENDING, FILL, COMPLETE } state { UNUSED };
+			enum State { UNUSED, USED } state { UNUSED };
 		};
 
 		Entry _entries[CACHE_SIZE] { };
-
-		enum { FOUND = 0, CONTINUE, };
-
-		template <typename FN>
-		void _for_all_cache_entries(unsigned state, FN const &fn)
-		{
-			for (unsigned i = 0; i < CACHE_SIZE; i++) {
-				if (_entries[i].state == state) {
-					fn(Index { .value = i }, _entries[i]);
-				}
-			}
-		}
 
 		Index _lookup_cache(Cbe::Physical_block_address pba) const
 		{
@@ -80,7 +70,7 @@ class Cbe::Module::Cache : Noncopyable
 			for (unsigned i = 0; i < CACHE_SIZE; i++) {
 
 				Entry const &entry = _entries[i];
-				if (   entry.state == Entry::COMPLETE
+				if (   entry.state == Entry::USED
 				    && entry.pba   == pba) {
 					cdx.value = i;
 					break;
@@ -104,14 +94,18 @@ class Cbe::Module::Cache : Noncopyable
 			}
 			if (cdx.valid()) { return cdx; }
 
-			Genode::Trace::Timestamp min_used { ~0ul };
+			Cbe::Timestamp min_used { ~0ul };
 
-			_for_all_cache_entries(Entry::COMPLETE, [&] (Index idx, Entry &entry) {
-				if (min_used > entry.last_used) {
-					min_used = entry.last_used;
-					cdx = idx;
+			for (unsigned i = 0; i < CACHE_SIZE; i++) {
+
+				Entry const &entry = _entries[i];
+				if (entry.state == Entry::USED) {
+					if (min_used > entry.last_used) {
+						min_used = entry.last_used;
+						cdx.value = i;
+					}
 				}
-			});
+			}
 			if (!cdx.valid()) {
 				Genode::error("BUG: cannot evict cache entry");
 				Genode::sleep_forever();
@@ -125,13 +119,15 @@ class Cbe::Module::Cache : Noncopyable
 
 		struct Job
 		{
-			Cbe::Primitive  primitive { };
-
-			enum State { UNUSED, SUBMITTED, PENDING, IN_PROGRESS, FILL, COMPLETE } state { UNUSED };
+			Cbe::Physical_block_address pba;
+			enum State { UNUSED, PENDING, IN_PROGRESS, COMPLETE } state;
+			bool success;
 		};
 
 		Job  _jobs[JOBS]      {   };
 		unsigned _active_jobs { 0 };
+
+		enum { FOUND = 0, CONTINUE, };
 
 		template <typename FN>
 		void _for_each_entry(unsigned state, FN const &fn)
@@ -141,23 +137,6 @@ class Cbe::Module::Cache : Noncopyable
 					if (fn(_jobs[i], Index { .value = i }) == FOUND) { break; }
 				}
 			}
-		}
-
-		template <typename FN>
-		void _for_each_entry_const(unsigned state, FN const &fn) const
-		{
-			for (unsigned i = 0; i < JOBS; i++) {
-				if (_jobs[i].state == state) {
-					if (fn(_jobs[i]) == FOUND) { break; }
-				}
-			}
-		}
-
-		bool _equal_primitives(Cbe::Primitive const &p1, Cbe::Primitive const &p2)
-		{
-			return p1.block_number == p2.block_number
-			    && p1.index        == p2.index
-			    && p1.operation    == p2.operation;
 		}
 
 		Index _unused_entry()
@@ -172,20 +151,25 @@ class Cbe::Module::Cache : Noncopyable
 			return Index { .value = Index::INVALID };
 		}
 
-		bool _request_pending(Cbe::Physical_block_address pba) const
+		bool _job_pending(Cbe::Physical_block_address pba) const
 		{
-			bool result = false;
 			for (unsigned i = 0; i < JOBS; i++) {
-				if (  _jobs[i].state == Job::PENDING
-				   || _jobs[i].state == Job::IN_PROGRESS
-				   || _jobs[i].state == Job::COMPLETE) {
-					if (_jobs[i].primitive.block_number == pba) {
-						result = true;
-						break;
-					}
+				if (  _jobs[i].state != Job::UNUSED
+				   && _jobs[i].pba == pba) {
+					return true;
 				}
 			}
-			return result;
+			return false;
+		}
+
+		void _copy_to(Cache::Data &data, Cache::Index data_index,
+		              Cache::Job_Data const &job_data, Cache::Index job_index)
+		{
+			void       * const dst = (void*)&data.item[data_index.value];
+			void const * const src = (void const*)&job_data.item[job_index.value];
+
+			/* assert sizeof data.item[0] == sizeof job_data.item[0] == sizeof Block_data */
+			Genode::memcpy(dst, src, sizeof (Cbe::Block_data));
 		}
 
 	public:
@@ -195,22 +179,30 @@ class Cbe::Module::Cache : Noncopyable
 		 *
 		 * \return true if a primitive can be accepted, otherwise false
 		 */
-		bool available(Cbe::Physical_block_address const pba) const
+		bool data_available(Cbe::Physical_block_address const pba) const
 		{
 			return _lookup_cache(pba).valid();
 		}
 
 		/**
-		 * Get index of data for given physical block address
+		 * Get index of data for given physical block address and update LRU
+		 * value
+		 *
+		 * This method must only be called after executing 'data_available'
+		 * returned true.
+		 *
+		 * \param  pba   physical block address
+		 * \param  time  reference to time object used to update LRU
 		 *
 		 * \return index
 		 */
-		Index data(Cbe::Physical_block_address const pba)
+		Index data_index(Cbe::Physical_block_address const pba,
+		                 Cbe::Timestamp current_time)
 		{
 			Index cdx    = _lookup_cache(pba);
 			Entry &entry = _entries[cdx.value];
 
-			entry.last_used = Genode::Trace::timestamp();
+			entry.last_used = current_time;
 			return cdx;
 		}
 
@@ -219,9 +211,9 @@ class Cbe::Module::Cache : Noncopyable
 		 *
 		 * \return true if a primitive can be accepted, otherwise false
 		 */
-		bool acceptable(Cbe::Primitive const &p) const
+		bool request_acceptable(Cbe::Physical_block_address pba) const
 		{
-			return _active_jobs < JOBS || !_request_pending(p.block_number);
+			return _active_jobs < JOBS || !_job_pending(pba);
 		}
 
 		/**
@@ -235,28 +227,25 @@ class Cbe::Module::Cache : Noncopyable
 		 * \param p  reference to the Primitive
 		 * \param d  reference to a Block_data object
 		 */
-		void submit_primitive(Cbe::Primitive const &p)
+		void submit_request(Cbe::Physical_block_address const pba)
 		{
-			if (_request_pending(p.block_number)) {
+			if (_job_pending(pba)) {
 				Genode::error("_request_pending");
 				return;
 			}
 
-			if (available(p.block_number)) {
+			if (data_available(pba)) {
 				Genode::error("request available");
 				return;
 			}
 
 			Index edx = _unused_entry();
 
-			_jobs[edx.value].primitive = Cbe::Primitive {
-				.tag          = p.tag,
-				.operation    = p.operation,
-				.success      = Cbe::Primitive::Success::FALSE,
-				.block_number = p.block_number,
-				.index        = p.index,
+			_jobs[edx.value] = Job {
+				.pba     = pba,
+				.state   = Job::PENDING,
+				.success = false,
 			};
-			_jobs[edx.value].state = Job::PENDING;
 
 			_active_jobs++;
 		}
@@ -268,33 +257,23 @@ class Cbe::Module::Cache : Noncopyable
 		 *
 		 * \return true if any completed primitive was processed
 		 */
-		bool execute(Cbe::Block_data *data, size_t data_items,
-		             Cbe::Block_data const *job_data, size_t job_data_items)
+		bool execute(Cache::Data &data, Cache::Job_Data const &job_data,
+		             Cbe::Timestamp current_time)
 		{
 			bool progress = false;
 			_for_each_entry(Job::COMPLETE, [&] (Job &j, Index idx) {
 
 				Index cdx = _get_cache_slot();
-				if (cdx.value >= data_items) {
-					Genode::error("Cache::", __func__, " out-of-bounds data access");
-					struct Out_of_bounds_data_access { };
-					throw Out_of_bounds_data_access();
+
+				if (j.success) {
+
+					Entry &entry = _entries[cdx.value];
+					entry.state     = Entry::USED;
+					entry.pba       = j.pba;
+					entry.last_used = current_time;
+
+					_copy_to(data, cdx, job_data, idx);
 				}
-
-				if (idx.value >= job_data_items) {
-					Genode::error("Cache::", __func__, " out-of-bounds job-data access");
-					struct Out_of_bounds_job_data_access { };
-					throw Out_of_bounds_job_data_access();
-				}
-
-				Entry &entry = _entries[cdx.value];
-				entry.state     = Entry::COMPLETE;
-				entry.pba       = j.primitive.block_number;
-				entry.last_used = Genode::Trace::timestamp();
-
-				void       * const dst = (void*)&data[cdx.value];
-				void const * const src = (void const*)&job_data[idx.value];
-				Genode::memcpy(dst, src, sizeof (Cbe::Block_data));
 
 				j.state = Job::UNUSED;
 				_active_jobs--;
@@ -307,21 +286,6 @@ class Cbe::Module::Cache : Noncopyable
 		}
 
 		/**
-		 * Check for any generated primitive
-		 *
-		 * \return true if I/O primtive is pending, false otherwise
-		 */
-		bool peek_generated_primitive() const
-		{
-			for (unsigned i = 0; i < JOBS; i++) {
-				if (_jobs[i].state == Job::PENDING) {
-					return true;
-				}
-			}
-			return false;
-		}
-
-		/**
 		 * Take the next generated primitive
 		 *
 		 * This method must only be called after executing
@@ -329,16 +293,21 @@ class Cbe::Module::Cache : Noncopyable
 		 *
 		 * \return next valid generated primitive
 		 */
-		Cbe::Primitive take_generated_primitive()
+		Cbe::Primitive peek_generated_primitive()
 		{
 			for (unsigned i = 0; i < JOBS; i++) {
 				if (_jobs[i].state == Job::PENDING) {
-					return _jobs[i].primitive;
+					return Cbe::Primitive {
+						.tag          = Cbe::CACHE_TAG,
+						.operation    = Cbe::Primitive::Operation::READ,
+						.success      = Cbe::Primitive::Success::FALSE,
+						.block_number = _jobs[i].pba,
+						.index        = 0,
+					};
 				}
 			}
 
-			struct No_generated_primitive_available { };
-			throw No_generated_primitive_available();
+			return Cbe::Primitive { };
 		}
 
 		/**
@@ -351,12 +320,11 @@ class Cbe::Module::Cache : Noncopyable
 		 *
 		 * \return reference to data
 		 */
-		// Cbe::Block_data &take_generated_data(Cbe::Primitive const &p)
-		Index take_generated_data(Cbe::Primitive const &p)
+		Index peek_generated_data_index(Cbe::Primitive const &p)
 		{
 			for (unsigned i = 0; i < JOBS; i++) {
 				if (   _jobs[i].state == Job::PENDING
-				    && _equal_primitives(_jobs[i].primitive, p)) {
+				    && _jobs[i].pba == p.block_number) {
 					return Index { .value = i };
 				}
 			}
@@ -370,11 +338,11 @@ class Cbe::Module::Cache : Noncopyable
 		 *
 		 * \param  p  reference to primitive
 		 */
-		void discard_generated_primitive(Cbe::Primitive const &p)
+		void drop_generated_primitive(Cbe::Primitive const &p)
 		{
 			for (unsigned i = 0; i < JOBS; i++) {
 				if (   _jobs[i].state == Job::PENDING
-				    && _equal_primitives(_jobs[i].primitive, p)) {
+				    && _jobs[i].pba == p.block_number) {
 					_jobs[i].state = Job::IN_PROGRESS;
 					return;
 				}
@@ -394,9 +362,9 @@ class Cbe::Module::Cache : Noncopyable
 		{
 			_for_each_entry(Job::IN_PROGRESS, [&] (Job &j, Index) {
 
-				if (!_equal_primitives(j.primitive, p)) { return CONTINUE; }
+				if (j.pba != p.block_number) { return CONTINUE; }
 
-				j.primitive.success = p.success;
+				j.success = p.success == Cbe::Primitive::Success::TRUE;
 				j.state = Job::COMPLETE;
 
 				return FOUND;
