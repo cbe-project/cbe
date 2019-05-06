@@ -115,6 +115,6 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZNK3Cbe6Module12Request_pool15request_for_tagEj";
+		External_Name => "_ZNK3Cbe6Module12Request_pool15request_for_tagENS_3TagE";
 
 end CBE.CXX.CXX_Pool;

@@ -7,12 +7,13 @@ build {
 	server/cbe
 	server/cbe_block
 	app/block_tester
+	server/log_terminal
 }
 
 create_boot_directory
 
 install_config {
-<config>
+<config verbose="yes">
 	<parent-provides>
 		<service name="ROM"/>
 		<service name="RAM"/>
@@ -35,6 +36,11 @@ install_config {
 		<provides><service name="Timer"/></provides>
 	</start>
 
+	<start name="log_terminal">
+		<resource name="RAM" quantum="1M"/>
+		<provides><service name="Terminal"/></provides>
+	</start>
+
 	<start name="cbe_block">
 		<resource name="RAM" quantum="1G"/>
 		<provides><service name="Block"/></provides>
@@ -47,9 +53,10 @@ install_config {
 	<start name="cbe">
 		<resource name="RAM" quantum="4M"/>
 		<provides><service name="Block"/></provides>
-		<config show_progress="no"/>
+		<config show_progress="yes"/>
 		<route>
 			<service name="Block"> <child name="cbe_block"/> </service>
+			<service name="Terminal"> <child name="log_terminal"/> </service>
 			<any-service> <parent/> </any-service>
 		</route>
 	</start>
@@ -87,6 +94,7 @@ install_config {
 build_boot_image {
 	core init timer ram_block block_tester cbe_block cbe
 	ld.lib.so spark.lib.so libsparkcrypto.lib.so
+	log_terminal
 }
 
 

@@ -16,6 +16,8 @@
 #include <root/root.h>
 #include <util/bit_allocator.h>
 
+#include <terminal_session/connection.h>
+
 /* repo includes */
 #include <util/sha256_4k.h>
 
@@ -207,10 +209,10 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		using Splitter    = Module::Splitter;
 		using Translation = Module::Translation<Cbe::Type_i_node>;
 
-		using Cache          = Module::Cache<MAX_PRIM, CACHE_ENTRIES>;
-		using Cache_Index    = Module::Cache<MAX_PRIM, CACHE_ENTRIES>::Index;
-		using Cache_Data     = Module::Cache<MAX_PRIM, CACHE_ENTRIES>::Data;
-		using Cache_Job_Data = Module::Cache<MAX_PRIM, CACHE_ENTRIES>::Job_Data;
+		using Cache          = Module::Cache;
+		using Cache_Index    = Module::Cache_Index;
+		using Cache_Data     = Module::Cache_Data;
+		using Cache_Job_Data = Module::Cache_Job_Data;
 
 		using Crypto      = Module::Crypto;
 		using Io          = Module::Block_io<IO_ENTRIES, BLOCK_SIZE>;
@@ -943,13 +945,25 @@ extern "C" void print_size(Genode::size_t sz) {
 }
 
 
+extern "C" void print_u64(unsigned long long const u) { Genode::log(u); }
+extern "C" void print_u32(unsigned int const u) { Genode::log(u); }
+extern "C" void print_u16(unsigned short const u) { Genode::log(u); }
+extern "C" void print_u8(unsigned char const u) { Genode::log(u); }
+
+
+
 Genode::Env *__genode_env;
+Terminal::Connection *__genode_terminal;
 
 
 void Component::construct(Genode::Env &env)
 {
 	/* make ada-runtime happy */
 	__genode_env = &env;
+
+	static Terminal::Connection term { env };
+	__genode_terminal = &term;
+
 	env.exec_static_constructors();
 
 	static Cbe::Main inst(env);

@@ -18,6 +18,15 @@ package body CBE.CXX with Spark_Mode is
 		when False => 0,
 		when True  => 1);
 
+	--
+	-- Index_Type_To_CXX
+	--
+	function Index_Type_To_CXX(Index_Value : in Index_Type)
+	return CXX_Index_Type
+	is
+	begin
+		return (CXX_Index_Type(Index_Value));
+	end Index_Type_To_CXX;
 
 	--
 	-- Bits_To_Bytes

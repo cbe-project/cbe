@@ -85,7 +85,7 @@ namespace Cbe {
 	struct Block_data
 	{
 		char values[BLOCK_SIZE] { };
-	};
+	} __attribute__((packed));
 
 	struct Hash
 	{
