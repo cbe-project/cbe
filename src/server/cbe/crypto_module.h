@@ -64,6 +64,12 @@ struct Cbe::Module::Crypto : Spark::Object<8264>
 	void execute();
 	bool execute_progress();
 
+	bool foobar()
+	{
+		execute();
+		return execute_progress();
+	}
+
 	/**
 	 * Check for any completed primitive
 	 *

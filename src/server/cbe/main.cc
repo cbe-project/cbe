@@ -655,8 +655,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 ** Crypto handling **
 				 *********************/
 
-				_crypto.execute();
-				bool const crypto_progress = _crypto.execute_progress();
+				bool const crypto_progress = _crypto.foobar();
 				progress |= crypto_progress;
 				if (_show_progress) {
 					Genode::log("Crypto progress: ", crypto_progress);
