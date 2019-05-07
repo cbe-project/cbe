@@ -177,33 +177,25 @@ struct Cbe::Block_session_component : Rpc_object<Block::Session>,
 {
 	Entrypoint &_ep;
 
-	uint64_t _block_count;
-
 	Block_session_component(Region_map               &rm,
 	                        Dataspace_capability      ds,
 	                        Entrypoint               &ep,
 	                        Signal_context_capability sigh,
 	                        uint64_t                  block_count)
 	:
-		Request_stream(rm, ds, ep, sigh, BLOCK_SIZE), _ep(ep),
-		_block_count(block_count)
+		Request_stream(rm, ds, ep, sigh,
+		               Info { .block_size  = Cbe::BLOCK_SIZE,
+		                      .block_count = block_count,
+		                      .align_log2  = Genode::log2((uint64_t)Cbe::BLOCK_SIZE),
+		                      .writeable    = true }),
+		_ep(ep)
 	{
 		_ep.manage(*this);
 	}
 
 	~Block_session_component() { _ep.dissolve(*this); }
 
-	void info(Block::sector_t *count, size_t *block_size, Operations *ops) override
-	{
-		*count      = _block_count;
-		*block_size = Cbe::BLOCK_SIZE;
-		*ops        = Operations();
-
-		ops->set_operation(Block::Packet_descriptor::Opcode::READ);
-		ops->set_operation(Block::Packet_descriptor::Opcode::WRITE);
-	}
-
-	void sync() override { }
+	Info info() const override { return Request_stream::info(); }
 
 	Capability<Tx> tx_cap() override { return Request_stream::tx_cap(); }
 };
@@ -633,7 +625,7 @@ class Cbe::Mmu
 
 		bool acceptable() const
 		{
-			return !_current_request.operation_defined();
+			return !_current_request.operation.valid();
 		}
 
 		void submit_request(Block::Request &request, void *data)
@@ -646,14 +638,14 @@ class Cbe::Mmu
 
 		bool execute()
 		{
-			if (!_current_request.operation_defined() || !_pending) { return false; }
+			if (!_current_request.operation.valid() || !_pending) { return false; }
 
-			if (_current_request.operation == Block::Request::Operation::SYNC) {
+			if (_current_request.operation.type == Block::Operation::Type::SYNC) {
 				_completed = true;
 				return true;
 			}
 
-			Cbe::Virtual_block_address vba = _current_request.block_number;
+			Cbe::Virtual_block_address vba = _current_request.operation.block_number;
 			Cbe::Physical_block_address physical_block_address = 0;
 
 			bool result = true;
@@ -662,10 +654,10 @@ class Cbe::Mmu
 				physical_block_address = vba; //_vbd.lookup(vba);
 
 				void *dst = nullptr, *src = nullptr;
-				if (_current_request.operation == Block::Request::Operation::READ) {
+				if (_current_request.operation.type == Block::Operation::Type::READ) {
 					src = _vbd.data(physical_block_address);
 					dst = _data;
-				} else if (_current_request.operation == Block::Request::Operation::WRITE) {
+				} else if (_current_request.operation.type == Block::Operation::Type::WRITE) {
 					src = _data;
 					dst = _vbd.data(physical_block_address);
 				} else {
@@ -678,13 +670,12 @@ class Cbe::Mmu
 				result = false;
 			}
 
-			if (vba < 8 && _current_request.operation == Block::Request::Operation::WRITE) {
+			if (vba < 8 && _current_request.operation.type == Block::Operation::Type::WRITE) {
 				Genode::log("Super block changed, dump tree");
 				_vbd.dump();
 			}
 
-			_current_request.success = result ? Block::Request::Success::TRUE
-			                                  : Block::Request::Success::FALSE;
+			_current_request.success = result ? true : false;
 
 			_pending = false;
 			_completed = true;
@@ -753,7 +744,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						return Block_session_component::Response::RETRY;
 					}
 
-					if (!request.operation_defined()) {
+					if (!request.operation.valid()) {
 						return Block_session_component::Response::REJECTED;
 					}
 
@@ -785,7 +776,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				if (!progress) { break; }
 			}
 
-			block_session.wakeup_client();
+			block_session.wakeup_client_if_needed();
 		}
 
 	public:
