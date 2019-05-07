@@ -56,33 +56,25 @@ struct Cbe::Block_session_component : Rpc_object<Block::Session>,
 {
 	Entrypoint &_ep;
 
-	Block::sector_t _block_count;
-
 	Block_session_component(Region_map               &rm,
 	                        Dataspace_capability      ds,
 	                        Entrypoint               &ep,
 	                        Signal_context_capability sigh,
 	                        Block::sector_t           block_count)
 	:
-		Request_stream(rm, ds, ep, sigh, BLOCK_SIZE), _ep(ep),
-		_block_count(block_count)
+		Request_stream(rm, ds, ep, sigh,
+		               Info { .block_size  = Cbe::BLOCK_SIZE,
+		                      .block_count = block_count,
+		                      .align_log2  = Genode::log2((Block::sector_t)Cbe::BLOCK_SIZE),
+		                      .writeable    = true }),
+		_ep(ep)
 	{
 		_ep.manage(*this);
 	}
 
 	~Block_session_component() { _ep.dissolve(*this); }
 
-	void info(Block::sector_t *count, size_t *block_size, Operations *ops) override
-	{
-		*count      = _block_count;
-		*block_size = Cbe::BLOCK_SIZE;
-		*ops        = Operations();
-
-		ops->set_operation(Block::Packet_descriptor::Opcode::READ);
-		ops->set_operation(Block::Packet_descriptor::Opcode::WRITE);
-	}
-
-	void sync() override { }
+	Info info() const override { return Request_stream::info(); }
 
 	Capability<Tx> tx_cap() override { return Request_stream::tx_cap(); }
 };
@@ -195,9 +187,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 		/* back end Block session */
 		enum { TX_BUF_SIZE = Block::Session::TX_QUEUE_SIZE * BLOCK_SIZE, };
-		Heap              _heap        { _env.ram(), _env.rm() };
-		Allocator_avl     _block_alloc { &_heap };
-		Block::Connection _block       { _env, &_block_alloc, TX_BUF_SIZE };
+		Heap                _heap        { _env.ram(), _env.rm() };
+		Allocator_avl       _block_alloc { &_heap };
+		Block::Connection<> _block       { _env, &_block_alloc, TX_BUF_SIZE };
 
 		/* modules */
 
@@ -249,13 +241,65 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Block_data _write_back_data[MAX_LEVEL] { };
 		Sync_sb    _sync_sb { };
 
+		Block::Request convert_from(Cbe::Request const &r)
+		{
+			auto convert_op = [&] (Cbe::Request::Operation o) {
+				switch (o) {
+				case Cbe::Request::Operation::INVALID: return Block::Operation::Type::INVALID;
+				case Cbe::Request::Operation::READ:    return Block::Operation::Type::READ;
+				case Cbe::Request::Operation::WRITE:   return Block::Operation::Type::WRITE;
+				case Cbe::Request::Operation::SYNC:    return Block::Operation::Type::SYNC;
+				}
+				return Block::Operation::Type::INVALID;
+			};
+			auto convert_success = [&] (Cbe::Request::Success s) {
+				return s == Cbe::Request::Success::TRUE ? true : false;
+			};
+			return Block::Request {
+				.operation = {
+					.type         = convert_op(r.operation),
+					.block_number = r.block_number,
+					.count        = r.count,
+				},
+				.success   = convert_success(r.success),
+				.offset    = (Block::off_t)r.offset,
+				.tag       = { .value = r.tag },
+			};
+		}
+
+		Cbe::Request convert_to(Block::Request const &r)
+		{
+			auto convert_op = [&] (Block::Operation::Type t) {
+				switch (t) {
+				case Block::Operation::Type::INVALID: return Cbe::Request::Operation::INVALID;
+				case Block::Operation::Type::READ:    return Cbe::Request::Operation::READ;
+				case Block::Operation::Type::WRITE:   return Cbe::Request::Operation::WRITE;
+				case Block::Operation::Type::SYNC:    return Cbe::Request::Operation::SYNC;
+				case Block::Operation::Type::TRIM:    return Cbe::Request::Operation::INVALID; // XXX fix
+				}
+				return Cbe::Request::Operation::INVALID;
+			};
+			auto convert_success = [&] (bool success) {
+				return success ? Cbe::Request::Success::TRUE : Cbe::Request::Success::FALSE;
+			};
+
+			return Cbe::Request {
+				.operation    = convert_op(r.operation.type),
+				.success      = convert_success(r.success),
+				.block_number = r.operation.block_number,
+				.offset       = (Genode::uint64_t)r.offset,
+				.count        = (Genode::uint32_t)r.operation.count,
+				.tag          = (Genode::uint32_t)r.tag.value,
+			};
+		}
+
 		Block_data* _data(Block::Request_stream::Payload const &payload,
 		                  Pool const &pool, Primitive const p)
 		{
-			Block::Request const client_req = pool.request_for_tag(p.tag);
+			Cbe::Request const client_req = pool.request_for_tag(p.tag);
 			Block::Request request { };
 			request.offset = client_req.offset + (p.index * BLOCK_SIZE);
-			request.count  = 1;
+			request.operation.count  = 1;
 
 			Block_data *data { nullptr };
 			payload.with_content(request, [&] (void *addr, Genode::size_t size) {
@@ -303,8 +347,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					using namespace Genode;
 
-					if (request.block_number > _max_vba) {
-						Cbe::Virtual_block_address const vba = request.block_number;
+					if (request.operation.block_number > _max_vba) {
+						Cbe::Virtual_block_address const vba = request.operation.block_number;
 						warning("reject request with out-of-range virtual block address ", vba);
 
 						return Block_session_component::Response::REJECTED;
@@ -314,15 +358,17 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						return Block_session_component::Response::RETRY;
 					}
 
-					if (!request.operation_defined()) {
-						Cbe::Virtual_block_address const vba = request.block_number;
+					if (!request.operation.valid()) {
+						Cbe::Virtual_block_address const vba = request.operation.block_number;
 						warning("reject invalid request for virtual block address ", vba);
 						return Block_session_component::Response::REJECTED;
 					}
 
-					Number_of_primitives const num = _splitter.number_of_primitives(request);
-					request.tag = _tag_alloc.alloc();
-					_request_pool.submit_request(request, num);
+					Cbe::Request req = convert_to(request);
+					req.tag = _tag_alloc.alloc();
+
+					Number_of_primitives const num = _splitter.number_of_primitives(req);
+					_request_pool.submit_request(req, num);
 
 					progress |= true;
 					return Block_session_component::Response::ACCEPTED;
@@ -330,12 +376,14 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 				block_session.try_acknowledge([&] (Block_session_component::Ack &ack) {
 
-					Block::Request const &req = _request_pool.peek_completed_request();
+					Cbe::Request const &req = _request_pool.peek_completed_request();
 					if (!req.operation_defined()) { return; }
 
 					_request_pool.drop_completed_request(req);
 					_tag_alloc.free(req.tag);
-					ack.submit(req);
+
+					Block::Request request = convert_from(req);
+					ack.submit(request);
 
 					progress |= true;
 				});
@@ -346,7 +394,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 				while (true) {
 
-					Block::Request const &req = _request_pool.peek_pending_request();
+					Cbe::Request const &req = _request_pool.peek_pending_request();
 					if (!req.operation_defined()) { break; }
 
 					if (!_splitter.request_acceptable()) { break; }
@@ -752,7 +800,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				if (!progress) { break; }
 			}
 
-			block_session.wakeup_client();
+			block_session.wakeup_client_if_needed();
 		}
 
 		void _dump_current_sb_info() const

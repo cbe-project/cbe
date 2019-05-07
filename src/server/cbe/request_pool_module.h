@@ -25,7 +25,7 @@ namespace Cbe { namespace Module {
 struct Cbe::Module::Request_pool : Spark::Object<896>
 {
 	Request_pool(size_t size      = sizeof(Request_pool),
-	             size_t req_size  = sizeof(Block::Request),
+	             size_t req_size  = sizeof(Cbe::Request),
 	             size_t prim_size = sizeof(Primitive));
 
 	/**
@@ -44,7 +44,7 @@ struct Cbe::Module::Request_pool : Spark::Object<896>
 	 * \param r  copy of request
 	 * \param n  number of primitives
 	 */
-	void submit_request(Block::Request       const &request,
+	void submit_request(Cbe::Request         const &request,
 	                    Number_of_primitives const  num);
 
 	/**
@@ -55,12 +55,12 @@ struct Cbe::Module::Request_pool : Spark::Object<896>
 	 *
 	 * \return true if a request is pending, otherwise false
 	 */
-	Block::Request peek_pending_request() const;
+	Cbe::Request peek_pending_request() const;
 
 	/**
 	 * Drop pending request
 	 */
-	void drop_pending_request(Block::Request const &req);
+	void drop_pending_request(Cbe::Request const &req);
 
 	/**
 	 * Mark the primitive as completed
@@ -78,7 +78,7 @@ struct Cbe::Module::Request_pool : Spark::Object<896>
 	 *
 	 * \return true if a request is pending, otherwise false
 	 */
-	Block::Request peek_completed_request() const;
+	Cbe::Request peek_completed_request() const;
 
 	/**
 	 * Take completed request
@@ -89,7 +89,7 @@ struct Cbe::Module::Request_pool : Spark::Object<896>
 	 * \return takes next completed request and removes it
 	 *         from the module
 	 */
-	void drop_completed_request(Block::Request const &req);
+	void drop_completed_request(Cbe::Request const &req);
 
 	/**
 	 * Get request for given tag
@@ -102,7 +102,7 @@ struct Cbe::Module::Request_pool : Spark::Object<896>
 	 * \return a valid Block::Request for the given tag or an
 	 *         an invalid one in case there is none
 	 */
-	Block::Request request_for_tag(Tag const tag) const;
+	Cbe::Request request_for_tag(Tag const tag) const;
 };
 
 #endif /* _CBE_REQUEST_POOL_MODULE_H_ */

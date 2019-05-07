@@ -66,9 +66,10 @@ class Cbe::Module::Block_io : Noncopyable
 		Internal_entry _entries[N]   {   };
 		unsigned       _used_entries { 0 };
 
-		Block::Connection &_block;
-		Block::sector_t    _block_count { 0 };
-		Genode::size_t     _block_size  { 0 };
+		Block::Connection<> &_block;
+		Block::Session::Info const _info { _block.info() };
+		// Block::sector_t      _block_count { 0 };
+		// Genode::size_t       _block_size  { 0 };
 
 		struct Fake_sync_primitive     { };
 		struct Invalid_block_operation { };
@@ -88,9 +89,9 @@ class Cbe::Module::Block_io : Noncopyable
 				}
 			};
 
-			return Block::Packet_descriptor(_block.tx()->alloc_packet(BLOCK_SIZE),
+			return Block::Packet_descriptor(_block.alloc_packet(BLOCK_SIZE),
 					operation(primitive.operation),
-					primitive.block_number, BLOCK_SIZE / _block_size);
+					primitive.block_number, BLOCK_SIZE / _info.block_size);
 		}
 
 		bool _equal_packets(Block::Packet_descriptor const &p1,
@@ -110,12 +111,9 @@ class Cbe::Module::Block_io : Noncopyable
 
 		struct Block_size_mismatch { };
 
-		Block_io(Block::Connection &block) : _block(block)
+		Block_io(Block::Connection<> &block) : _block(block)
 		{
-			Block::Session::Operations block_ops { };
-			_block.info(&_block_count, &_block_size, &block_ops);
-
-			if (_block_size > BLOCK_SIZE) {
+			if (_info.block_size > BLOCK_SIZE) {
 				Genode::error("back end block size must either be equal to "
 				              "or be a multiple of ", BLOCK_SIZE);
 				throw Block_size_mismatch();

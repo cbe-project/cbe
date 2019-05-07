@@ -53,7 +53,7 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe6Module8Splitter20number_of_primitivesERKN5Block7RequestE";
+		External_Name => "_ZN3Cbe6Module8Splitter20number_of_primitivesERKNS_7RequestE";
 
 	--
 	-- Peek_Generated_Primitive
@@ -74,7 +74,7 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe6Module8Splitter14submit_requestERKN5Block7RequestE";
+		External_Name => "_ZN3Cbe6Module8Splitter14submit_requestERKNS_7RequestE";
 
 	--
 	-- Drop_Generated_Primitive

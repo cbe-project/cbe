@@ -104,8 +104,8 @@ struct Util::Block_io
 
 	using Packet_descriptor = Block::Packet_descriptor;
 
-	Block::Connection  &_block;
-	Packet_descriptor  _p;
+	Block::Connection<>  &_block;
+	Packet_descriptor     _p;
 
 	/**
 	 * Constructor
@@ -119,12 +119,12 @@ struct Util::Block_io
 	 *
 	 * \throw Io_error
 	 */
-	Block_io(Block::Connection &block, size_t block_size,
+	Block_io(Block::Connection<> &block, size_t block_size,
 	         sector_t lba, size_t count,
 	         bool write = false, void const *data = nullptr, size_t len = 0)
 	:
 		_block(block),
-		_p(_block.tx()->alloc_packet(block_size * count),
+		_p(_block.alloc_packet(block_size * count),
 		   write ? Packet_descriptor::WRITE
 		         : Packet_descriptor::READ, lba, count)
 	{

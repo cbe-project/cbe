@@ -25,7 +25,7 @@ namespace Cbe { namespace Module {
 struct Cbe::Module::Splitter : Spark::Object<56>
 {
 	Splitter(size_t size      = sizeof(Splitter),
-	         size_t req_size  = sizeof(Block::Request),
+	         size_t req_size  = sizeof(Cbe::Request),
 	         size_t prim_size = sizeof(Primitive));
 
 	/**
@@ -33,7 +33,7 @@ struct Cbe::Module::Splitter : Spark::Object<56>
 	 *
 	 * \return number of primitives
 	 */
-	static Number_of_primitives number_of_primitives(Block::Request const &request);
+	static Number_of_primitives number_of_primitives(Cbe::Request const &request);
 
 	/**
 	 * Check if the module can accept a new request
@@ -51,7 +51,7 @@ struct Cbe::Module::Splitter : Spark::Object<56>
 	 *
 	 * \param r  reference to the Block request
 	 */
-	void submit_request(Block::Request const &request);
+	void submit_request(Cbe::Request const &request);
 
 	/**
 	 * Check for any generated primitive
@@ -77,7 +77,7 @@ struct Cbe::Module::Splitter : Spark::Object<56>
 	 ** Accessors **
 	 ***************/
 
-	Block::Request curr_req() const;
+	Cbe::Request curr_req() const;
 };
 
 

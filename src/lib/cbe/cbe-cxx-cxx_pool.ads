@@ -50,7 +50,7 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe6Module12Request_pool14submit_requestERKN5Block7RequestEm";
+		External_Name => "_ZN3Cbe6Module12Request_pool14submit_requestERKNS_7RequestEm";
 
 	--
 	-- Peek_Pending_Request
@@ -71,7 +71,7 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe6Module12Request_pool20drop_pending_requestERKN5Block7RequestE";
+		External_Name => "_ZN3Cbe6Module12Request_pool20drop_pending_requestERKNS_7RequestE";
 
 	--
 	-- Mark_Completed_Primitive
@@ -103,7 +103,7 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe6Module12Request_pool22drop_completed_requestERKN5Block7RequestE";
+		External_Name => "_ZN3Cbe6Module12Request_pool22drop_completed_requestERKNS_7RequestE";
 
 	--
 	-- Request_For_Tag

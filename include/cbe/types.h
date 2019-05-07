@@ -25,6 +25,27 @@ namespace Cbe {
 	using Tag                  = uint32_t;
 	using Number_of_primitives = size_t;
 
+	struct Request
+	{
+		enum class Operation : Genode::uint32_t { INVALID = 0, READ = 1, WRITE = 2, SYNC = 3 };
+		enum class Success   : Genode::uint32_t { FALSE = 0, TRUE = 1 };
+
+		Operation         operation;
+		Success           success;
+		Genode::uint64_t  block_number;
+		Genode::uint64_t  offset;
+		Genode::uint32_t  count;
+		Genode::uint32_t  tag;
+
+		bool operation_defined() const
+		{
+			return operation == Operation::READ
+				|| operation == Operation::WRITE
+				|| operation == Operation::SYNC;
+		}
+
+	} __attribute__((packed));
+
 	struct Primitive
 	{
 		using Number = uint64_t;
