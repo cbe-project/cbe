@@ -35,6 +35,6 @@ is
 
 	type Virtual_Block_Address_Type is mod 2**64;
 
-	type Timestamp is mod 2**64;
+	type Timestamp_Type is mod 2**64;
 
 end CBE;

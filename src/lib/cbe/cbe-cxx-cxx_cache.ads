@@ -46,7 +46,7 @@ is
 	function Data_Index(
 		Obj : in out Cache.Object_Type;
 		Pba :        CXX_Physical_block_address_Type;
-		Ts  :        Timestamp)
+		Ts  :        Timestamp_Type)
 	return CXX_Index_Type
 	with
 		Export,
@@ -83,7 +83,7 @@ is
 		Obj      : in out Cache.Object_Type;
 		Data     : in out Cache.Cache_Data_Type;
 		Job_Data : in     Cache.Cache_Job_Data_Type;
-		Time     :        Timestamp)
+		Time     :        Timestamp_Type)
 	with
 		Export,
 		Convention    => C,

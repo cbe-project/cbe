@@ -44,7 +44,7 @@ is
 	function Data_Index(
 		Obj : in out Cache.Object_Type;
 		Pba :        CXX_Physical_block_address_Type;
-		Ts  :        Timestamp)
+		Ts  :        Timestamp_Type)
 	return CXX_Index_Type
 	is
 		Cache_Idx : constant Cache.Cache_Index_Type := Cache.Data_Index(Obj, Physical_Block_address_Type(Pba), Ts);
@@ -82,7 +82,7 @@ is
 		Obj      : in out Cache.Object_Type;
 		Data     : in out Cache.Cache_Data_Type;
 		Job_Data : in     Cache.Cache_Job_Data_Type;
-		Time     :        Timestamp)
+		Time     :        Timestamp_Type)
 	is
 	begin
 		Cache.Fill_Cache(Obj, Data, Job_Data, Time);

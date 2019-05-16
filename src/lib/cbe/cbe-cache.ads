@@ -18,16 +18,8 @@ is
 	type Cache_Index_Type is range 0 .. 15;
 	type Cache_Job_Index_Type is range 0 .. 1;
 
-	type Cache_Data_Items_Type is array (Cache_Index_Type'First .. Cache_Index_Type'Last) of Block_Data_Type;
-	type Cache_Job_Data_Items_Type is array (Cache_Job_Index_Type'First .. Cache_Job_Index_Type'Last) of Block_Data_Type;
-
-	type Cache_Data_Type is record
-		Items : Cache_Data_Items_Type;
-	end record;
-
-	type Cache_Job_Data_Type is record
-		Items : Cache_Job_Data_Items_Type;
-	end record;
+	type Cache_Data_Type is array (Cache_Index_Type'Range) of Block_Data_Type;
+	type Cache_Job_Data_Type is array (Cache_Job_Index_Type'Range) of Block_Data_Type;
 
 	type Object_Type is private;
 
@@ -50,7 +42,7 @@ is
 	function Data_Index(
 		Obj : in out Object_Type;
 		Pba :        Physical_Block_Address_Type;
-		Ts  :        Timestamp)
+		Ts  :        Timestamp_Type)
 	return Cache_Index_Type;
 
 	--
@@ -75,7 +67,7 @@ is
 		Obj      : in out Object_Type;
 		Data     : in out Cache_Data_Type;
 		Job_Data : in     Cache_Job_Data_Type;
-		Time     :        Timestamp);
+		Time     :        Timestamp_Type);
 
 	--
 	-- Execute_Progress
@@ -140,7 +132,7 @@ private
 		procedure Initialize_Object(
 			Obj : out Cache_Item_Type;
 			Pba :     Physical_Block_Address_Type;
-			Ts  :     Timestamp);
+			Ts  :     Timestamp_Type);
 
 		---------------
 		-- Accessors --
@@ -150,7 +142,7 @@ private
 		function Used   (Obj : Cache_Item_Type) return Boolean;
 
 		function Pba (Obj : Cache_Item_Type) return Physical_Block_Address_Type;
-		function Ts  (Obj : Cache_Item_Type) return Timestamp;
+		function Ts  (Obj : Cache_Item_Type) return Timestamp_Type;
 
 		procedure State(
 			Obj : in out Cache_Item_Type;
@@ -158,7 +150,7 @@ private
 
 		procedure Set_Ts(
 			Obj : in out Cache_Item_Type;
-			Ts  :        Timestamp);
+			Ts  :        Timestamp_Type);
 
 	private
 
@@ -167,13 +159,13 @@ private
 		--
 		type Cache_Item_Type is record
 			Pba   : Physical_Block_Address_Type;
-			Ts    : Timestamp;
+			Ts    : Timestamp_Type;
 			State : State_Type;
 		end record;
 
 	end Cache_Item;
 
-	type Cache_Items_Type is array (Cache_Index_Type'First .. Cache_Index_Type'Last) of Cache_Item.Cache_Item_Type;
+	type Cache_Items_Type is array (Cache_Index_Type'Range) of Cache_Item.Cache_Item_Type;
 
 	--
 	-- Job_Item
@@ -185,11 +177,10 @@ private
 		type Job_Item_Type  is private;
 
 		--
-		-- Initialize_Object
+		-- Pending_Object
 		--
-		procedure Initialize_Object(
-			Obj : out Job_Item_Type;
-			Pba : Physical_Block_Address_Type);
+		function Pending_Object(Pba : Physical_Block_Address_Type)
+		return Job_Item_Type;
 
 		--
 		-- Unused_Object
@@ -237,7 +228,7 @@ private
 
 	end Job_Item;
 
-	type Job_Items_Type is array (Cache_Job_Index_Type'First .. Cache_Job_Index_Type'Last) of Job_Item.Job_Item_Type;
+	type Job_Items_Type is array (Cache_Job_Index_Type'Range) of Job_Item.Job_Item_Type;
 
 	--
 	-- Object_Type

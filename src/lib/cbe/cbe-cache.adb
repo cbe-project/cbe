@@ -34,7 +34,7 @@ is
 		procedure Initialize_Object(
 			Obj : out Cache_Item_Type;
 			Pba : Physical_Block_Address_Type;
-			Ts  : Timestamp)
+			Ts  : Timestamp_Type)
 		is
 		begin
 			State(Obj, Sta => Used);
@@ -50,7 +50,7 @@ is
 		function Used   (Obj : Cache_Item_Type) return Boolean is (Obj.State = Used);
 
 		function Pba (Obj : Cache_Item_Type) return Physical_Block_Address_Type is (Obj.Pba);
-		function Ts  (Obj : Cache_Item_Type) return Timestamp is (Obj.Ts);
+		function Ts  (Obj : Cache_Item_Type) return Timestamp_Type is (Obj.Ts);
 
 		procedure State(
 			Obj : in out Cache_Item_Type;
@@ -62,7 +62,7 @@ is
 
 		procedure Set_Ts(
 			Obj : in out Cache_Item_Type;
-			Ts  :        Timestamp)
+			Ts  :        Timestamp_Type)
 		is
 		begin
 			Obj.Ts := Ts;
@@ -75,17 +75,14 @@ is
 	is
 
 		--
-		-- Initialize_Object
+		-- Pending_Object
 		--
-		procedure Initialize_Object(
-			Obj : out Job_Item_Type;
-			Pba : Physical_Block_Address_Type)
-		is
-		begin
-			State(Obj, Sta => Pending);
-			Obj.Success := False;
-			Obj.Pba := Pba;
-		end Initialize_Object;
+		function Pending_Object(Pba : Physical_Block_Address_Type)
+		return Job_Item_Type
+		is (
+			State => Pending,
+			Success => False,
+			Pba => Pba);
 
 		--
 		-- Unused_Object
@@ -155,7 +152,7 @@ is
 	return Cache_Index_Type
 	is
 		Cache_Id : Cache_Index_Type := Cache_Index_Type'Last;
-		Min_Used : Timestamp := Timestamp'Last;
+		Min_Used : Timestamp_Type := Timestamp_Type'Last;
 	begin
 		Unused_Slot: for Cache_Item_Id in Obj.Cache_Items'Range loop
 			if Cache_Item.Unused(Obj.Cache_Items(Cache_Item_Id)) then
@@ -217,7 +214,7 @@ is
 	function Data_Index(
 		Obj : in out Object_Type;
 		Pba :        Physical_Block_Address_Type;
-		Ts  :        Timestamp)
+		Ts  :        Timestamp_Type)
 	return Cache_Index_Type
 	is
 	begin
@@ -283,7 +280,7 @@ is
 
 		New_Job: for Job_Item_Id in Obj.Job_Items'Range loop
 			if Job_Item.Unused(Obj.Job_Items(Job_Item_Id)) then
-				Job_Item.Initialize_Object(Obj.Job_Items(Job_Item_Id), Pba);
+				Obj.Job_Items(Job_Item_Id) := Job_Item.Pending_Object(Pba);
 				Job_Item.State(Obj.Job_Items(Job_Item_Id), Job_Item.Pending);
 				Obj.Active_Jobs := Obj.Active_Jobs + 1;
 				return;
@@ -298,7 +295,7 @@ is
 		Obj      : in out Object_Type;
 		Data     : in out Cache_Data_Type;
 		Job_Data : in     Cache_Job_Data_Type;
-		Time     :        Timestamp)
+		Time     :        Timestamp_Type)
 	is
 		Cache_Id : Cache_Index_Type;
 	begin
@@ -312,7 +309,7 @@ is
 				                             Job_Item.Pba(Obj.Job_Items(Job_Item_Id)),
 				                             Time);
 
-				Data.Items(Cache_Id) := Job_Data.Items(Job_Item_Id); -- XXX will it work?
+				Data(Cache_Id) := Job_Data(Job_Item_Id); -- XXX will it work?
 
 				Job_Item.Set_Unused(Obj.Job_Items(Job_Item_Id));
 
