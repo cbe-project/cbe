@@ -561,6 +561,16 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 						uint64_t next_sb = (_current_sb + 1) % Cbe::NUM_SUPER_BLOCKS;
 						Cbe::Super_block &sb = _super_block[next_sb];
+
+						/* reclaim */
+						if (next_sb < _current_sb) {
+							Cbe::Physical_block_address const root = sb.root_number;
+							Genode::log("SB cycled");
+							for (unsigned i = 0; i < _trans->height() + 1; i++) {
+								Genode::log(" Might reclaim ", root + i);
+							}
+						}
+
 						sb.root_number = _write_back.peek_completed_root(prim);
 						Cbe::Hash *root_hash = &sb.root_hash;
 						_write_back.peek_competed_root_hash(prim, *root_hash);
