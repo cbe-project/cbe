@@ -22,7 +22,20 @@ namespace Cbe {
 
 	using namespace Genode;
 
-	using Tag                  = uint32_t;
+	enum class Tag : Genode::uint32_t {
+		INVALID_TAG        = 0x00,
+		IO_TAG             = 0x10,
+		CACHE_TAG          = 0x20,
+		CRYPTO_TAG         = 0x30,
+		CRYPTO_TAG_DECRYPT = CRYPTO_TAG | 0x1,
+		CRYPTO_TAG_ENCRYPT = CRYPTO_TAG | 0x2,
+		POOL_TAG           = 0x40,
+		SPLITTER_TAG       = 0x50,
+		TRANSLATION_TAG    = 0x60,
+		WRITE_BACK_TAG     = 0x70,
+		SYNC_SB_TAG        = 0x80,
+	};
+
 	using Number_of_primitives = size_t;
 
 	struct Request

@@ -209,7 +209,7 @@ class Cbe::Module::Translation
 			}
 
 			if (Genode::memcmp(hash.values, h->values, sizeof (Cbe::Hash))) {
-				Genode::error("<", hash, "> != <", *h, ">");
+				Genode::error("level: ", _level, " <", hash, "> != <", *h, ">");
 				throw Hash_mismatch();
 			}
 

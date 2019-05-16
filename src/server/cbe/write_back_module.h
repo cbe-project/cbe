@@ -45,7 +45,7 @@ class Cbe::Module::Write_back
 			bool io_in_progress { false };
 			bool io_done { false };
 
-			Cbe::Tag tag { Cbe::INVALID_TAG };
+			Cbe::Tag tag { Cbe::Tag::INVALID_TAG };
 		};
 
 		Entry _entry[N] { };
@@ -68,7 +68,7 @@ class Cbe::Module::Write_back
 
 			for (Genode::uint32_t i = 0; i < _levels; i++) {
 				Entry &e = _entry[i];
-				if (e.tag != Cbe::CACHE_TAG || e.old_pba != p.block_number) { continue; }
+				if (e.tag != Cbe::Tag::CACHE_TAG || e.old_pba != p.block_number) { continue; }
 
 				/* assert sizeof (e.data) == sizeof (data) */
 				void const *src = (void const*)&data;
@@ -131,12 +131,12 @@ class Cbe::Module::Write_back
 				e.done        = false;
 				e.io_in_progress = false;
 				e.io_done        = false;
-				e.tag = Cbe::CACHE_TAG;
+				e.tag = Cbe::Tag::CACHE_TAG;
 			}
 
 			/* the data or rather leave node is special */
 			Entry &e = _entry[0];
-			e.tag = Cbe::CRYPTO_TAG_ENCRYPT;
+			e.tag = Cbe::Tag::CRYPTO_TAG_ENCRYPT;
 			void *dest = (void*)&e.data;
 			Genode::memcpy(dest, &d, sizeof (e.data));
 		}
@@ -162,7 +162,7 @@ class Cbe::Module::Write_back
 			/* arm I/O and rebrand entries */
 			for (Genode::uint32_t i = 0; i < _levels; i++) {
 				Entry &e = _entry[i];
-				e.tag = Cbe::IO_TAG;
+				e.tag = Cbe::Tag::IO_TAG;
 			}
 			_io = true;
 
@@ -233,7 +233,7 @@ class Cbe::Module::Write_back
 				Entry &e = _entry[i];
 				if (e.in_progress || e.done) { continue; }
 
-				bool const cache = e.tag == Cbe::CACHE_TAG;
+				bool const cache = e.tag == Cbe::Tag::CACHE_TAG;
 				Cbe::Primitive::Number const block_number = cache ? e.old_pba : e.new_pba;
 				p = Primitive {
 					.tag          = e.tag,
@@ -253,7 +253,7 @@ class Cbe::Module::Write_back
 
 			for (Genode::uint32_t i = 0; i < _levels; i++) {
 				Entry &e = _entry[i];
-				bool const cache = e.tag == Cbe::CACHE_TAG;
+				bool const cache = e.tag == Cbe::Tag::CACHE_TAG;
 				bool const match = p.block_number == (cache ? e.old_pba : e.new_pba);
 				if (match) { return e.data; }
 			}
@@ -268,7 +268,7 @@ class Cbe::Module::Write_back
 
 			for (Genode::uint32_t i = 0; i < _levels; i++) {
 				Entry &e = _entry[i];
-				bool const cache = e.tag == Cbe::CACHE_TAG;
+				bool const cache = e.tag == Cbe::Tag::CACHE_TAG;
 				bool const match = p.block_number == (cache ? e.old_pba : e.new_pba);
 				if (!match) { continue; }
 				
@@ -286,7 +286,7 @@ class Cbe::Module::Write_back
 
 			for (Genode::uint32_t i = 0; i < _levels; i++) {
 				Entry &e = _entry[i];
-				bool const crypto = e.tag == Cbe::CRYPTO_TAG_ENCRYPT;
+				bool const crypto = e.tag == Cbe::Tag::CRYPTO_TAG_ENCRYPT;
 				bool const match = p.block_number == e.new_pba;
 				if (!crypto || !match) { continue; }
 
@@ -312,7 +312,7 @@ class Cbe::Module::Write_back
 				if (e.io_in_progress || !e.done) { continue; }
 
 				p = Primitive {
-					.tag          = Cbe::IO_TAG,
+					.tag          = Cbe::Tag::IO_TAG,
 					.operation    = Cbe::Primitive::Operation::WRITE,
 					.success      = Cbe::Primitive::Success::FALSE,
 					.block_number = e.new_pba,
@@ -343,7 +343,7 @@ class Cbe::Module::Write_back
 
 			for (Genode::uint32_t i = 0; i < _levels; i++) {
 				Entry &e = _entry[i];
-				bool const io = e.tag == Cbe::IO_TAG;
+				bool const io = e.tag == Cbe::Tag::IO_TAG;
 				bool const match = p.block_number == e.new_pba;
 				if (!io || !match) { continue; }
 				
@@ -361,7 +361,7 @@ class Cbe::Module::Write_back
 
 			for (Genode::uint32_t i = 0; i < _levels; i++) {
 				Entry &e = _entry[i];
-				bool const io = e.tag == Cbe::IO_TAG;
+				bool const io = e.tag == Cbe::Tag::IO_TAG;
 				bool const match = p.block_number == e.new_pba;
 				if (!io || !match) { continue; }
 

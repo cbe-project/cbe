@@ -32,19 +32,6 @@ namespace Cbe {
 
 	struct Time;
 
-	enum {
-		INVALID_TAG        = 0x00,
-		IO_TAG             = 0x10,
-		CACHE_TAG          = 0x20,
-		CRYPTO_TAG         = 0x30,
-		CRYPTO_TAG_DECRYPT = CRYPTO_TAG | 0x1,
-		CRYPTO_TAG_ENCRYPT = CRYPTO_TAG | 0x2,
-		POOL_TAG           = 0x40,
-		SPLITTER_TAG       = 0x50,
-		TRANSLATION_TAG    = 0x60,
-		WRITE_BACK_TAG     = 0x70,
-		SYNC_SB_TAG        = 0x80,
-	};
 
 	struct Block_session_component;
 	struct Block_manager;
@@ -470,7 +457,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						if (!_io.primitive_acceptable()) { break; }
 						_trans->dump();
 
-						_io.submit_primitive(CRYPTO_TAG_DECRYPT, prim, *data_ptr);
+						_io.submit_primitive(Tag::CRYPTO_TAG_DECRYPT, prim, *data_ptr);
 					} else
 
 					if (prim.write()) {
@@ -545,7 +532,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					Cbe::Block_data &data = _cache_job_data.item[idx.value];
 
 					_cache.drop_generated_primitive(prim);
-					_io.submit_primitive(CACHE_TAG, prim, data);
+					_io.submit_primitive(Tag::CACHE_TAG, prim, data);
 
 					progress |= true;
 				}
@@ -611,7 +598,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					bool _progress = false;
 					switch (prim.tag) {
-					case CRYPTO_TAG_ENCRYPT:
+					case Tag::CRYPTO_TAG_ENCRYPT:
 						Genode::log("Write_back CRYPTO_TAG_ENCRYPT");
 						if (_crypto.primitive_acceptable()) {
 							Cbe::Block_data &data = _write_back.peek_generated_data(prim);
@@ -619,7 +606,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 							_progress = true;
 						}
 						break;
-					case CACHE_TAG:
+					case Tag::CACHE_TAG:
 						Genode::log("Write_back CACHE_TAG");
 						if (_cache.data_available(prim.block_number)) {
 
@@ -652,10 +639,10 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					Cbe::Tag const tag = prim.tag;
 					Cbe::Primitive::Number const number = prim.block_number;
-					Genode::log("Write_back peek_generated_io_primitive: ", tag, " ", number);
+					Genode::log("Write_back peek_generated_io_primitive: ", (uint32_t)tag, " ", number);
 
 					Cbe::Block_data &data = _write_back.peek_generated_io_data(prim);
-					_io.submit_primitive(WRITE_BACK_TAG, prim, data);
+					_io.submit_primitive(Tag::WRITE_BACK_TAG, prim, data);
 
 					_write_back.drop_generated_io_primitive(prim);
 					progress |= true;
@@ -696,7 +683,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					Cbe::Super_block &sb      = _super_block[id];
 					Cbe::Block_data  &sb_data = *reinterpret_cast<Cbe::Block_data*>(&sb);
 
-					_io.submit_primitive(SYNC_SB_TAG, prim, sb_data);
+					_io.submit_primitive(Tag::SYNC_SB_TAG, prim, sb_data);
 					_sync_sb.drop_generated_primitive(prim);
 					progress |= true;
 				}
@@ -769,7 +756,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					bool _progress = true;
 					switch (prim.tag) {
-					case CRYPTO_TAG_DECRYPT:
+					case Tag::CRYPTO_TAG_DECRYPT:
 						if (!_crypto.primitive_acceptable()) {
 							_progress = false;
 						} else {
@@ -780,14 +767,14 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 							_crypto.submit_primitive(prim, data, _crypto_data);
 						}
 						break;
-					case CACHE_TAG:
+					case Tag::CACHE_TAG:
 						_cache.mark_completed_primitive(prim);
 						break;
-					case WRITE_BACK_TAG:
+					case Tag::WRITE_BACK_TAG:
 						Genode::log("_write_back.mark_completed_io_primitive");
 						_write_back.mark_completed_io_primitive(prim);
 						break;
-					case SYNC_SB_TAG:
+					case Tag::SYNC_SB_TAG:
 						Genode::log("SYNC_SB_TAG");
 						_sync_sb.mark_generated_primitive_complete(prim);
 						break;

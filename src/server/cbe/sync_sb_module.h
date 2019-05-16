@@ -52,7 +52,7 @@ class Cbe::Module::Sync_sb
 			_entry[0] = Entry { .primitive = p, .id = id, .pending = false, .complete = false };
 
 			_curr_primitive = Primitive {
-				.tag          = Cbe::SYNC_SB_TAG,
+				.tag          = Cbe::Tag::SYNC_SB_TAG,
 				.operation    = Cbe::Primitive::Operation::WRITE,
 				.success      = Cbe::Primitive::Success::FALSE,
 				/* there is currently a 1:1 mapping between SB slot and pba */
