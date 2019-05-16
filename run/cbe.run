@@ -1,3 +1,6 @@
+
+exec rm -rf var/libcache/cbe
+
 build {
 	core init timer
 	server/ram_block
