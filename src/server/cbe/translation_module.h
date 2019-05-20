@@ -18,6 +18,13 @@
 
 namespace Cbe { namespace Module {
 
+	enum { TRANSLATION_MAX_LEVELS = 6, };
+
+	struct Translation_Data
+	{
+		Cbe::Block_data item[1];
+	} __attribute__((packed));
+
 	template <typename> class Translation;
 
 } /* namespace Module */ } /* namespace Cbe */
@@ -28,7 +35,7 @@ class Cbe::Module::Translation
 {
 	public:
 
-		static constexpr uint32_t MAX_LEVELS = 6;
+		static constexpr uint32_t MAX_LEVELS = TRANSLATION_MAX_LEVELS;
 
 	private:
 
@@ -65,54 +72,51 @@ class Cbe::Module::Translation
 
 		struct Data
 		{
-			uint32_t        _avail { 0u };
-			Cbe::Block_data _data[MAX_LEVELS] { };
+			uint32_t _avail { 0u };
 
 			bool available(uint32_t level) const { return _avail & (1u << (level-1)); }
-
 			void set_available(uint32_t level) { _avail |= (1u << (level-1)); }
 
 			void reset() { _avail = 0u; }
-
-			Cbe::Block_data &data(uint32_t level) { return _data[level-1]; }
-
-			Cbe::Block_data const &data(uint32_t level) const { return _data[level-1]; }
 		};
+
+		Cbe::Physical_block_address _walk[MAX_LEVELS] { };
+		Cbe::Hash                   _walk_hash[MAX_LEVELS] { };
 
 		Data _data { };
 
-		uint32_t const _max_height;
+		uint32_t const _height;
 
-		Cbe::Primitive::Number _root { ~0ull };
+		Cbe::Physical_block_address _root { Cbe::INVALID_PBA };
 		Cbe::Hash              _root_hash { };
 
 		Cbe::Primitive  _current    { };
 		uint32_t        _level      { ~0u };
-		Cbe::Primitive::Number _num { ~0ull };
+		Cbe::Physical_block_address _next_pba { Cbe::INVALID_PBA };
 
-		Cbe::Primitive::Number _pba { ~0ull };
+		Cbe::Physical_block_address _data_pba { Cbe::INVALID_PBA };
 
 		bool _suspended { false };
 
 	public:
 
 		Translation(uint32_t levels, uint32_t degree)
-		: _degree_log2(_log2(degree)), _max_height(levels) { }
+		: _degree_log2(_log2(degree)), _height(levels) { }
 
 		/**
 		 * Return height of the tree
 		 *
 		 * \return height of the tree
 		 */
-		uint32_t height() const { return _max_height; }
+		uint32_t height() const { return _height; }
 
 		/**
 		 * Return index for address of given level
 		 *
 		 * \return index
 		 */
-		uint32_t index(Cbe::Primitive::Number const vba,
-		               uint32_t               const level)
+		uint32_t index(Cbe::Virtual_block_address const vba,
+		               uint32_t                   const level)
 		{
 			return _get_index(vba, level);
 		}
@@ -154,39 +158,52 @@ class Cbe::Module::Translation
 
 			_data.reset();
 
-			// Cbe::Primitive::Number number = p.block_number;
-			// Genode::log("Translation::", __func__, ": level: ", _max_height, " root: ", r, " vba: ", number);
+			// Cbe::Virtual_block_address const vba = p.block_number;
+			// Genode::log("vba: ", vba);
 
 			_root      = r;
 			Genode::memcpy(_root_hash.values, root_hash.values, sizeof (Cbe::Hash));
 			_current   = p;
-			_level     = _max_height;
-			_pba       = ~0ull;
+			_level     = _height;
+			_data_pba  = Cbe::INVALID_PBA;
+			_next_pba  = Cbe::INVALID_PBA;
 		}
 
-		bool execute()
+		bool execute(Translation_Data &tdata)
 		{
 			/* no active translation request */
 			if (!_current.valid()) { return false; }
 
 			/* request already translated */
-			if (_pba != ~0ull) { return false; }
+			if (_data_pba != Cbe::INVALID_PBA) { return false; }
+
+			// bool const data_available = _data.available(_level);
+			// Genode::log("data available level ", _level, " ", data_available, " ",
+			//             data_available ? _walk[_level] : 0);
 
 			if (!_data.available(_level)) {
 
 				/* data request already pending */
-				if (_num != ~0ull) { return false; }
+				if (_next_pba != Cbe::INVALID_PBA) { return false; }
 
 				/* otherwise start from root */
-				if (_level == _max_height) {
-					_num = _root;
+				if (_level == _height) {
+					_next_pba = _root;
+					Genode::memcpy(_walk_hash[_level].values,
+					               _root_hash.values, sizeof (Cbe::Hash));
 				} else {
 
 					/* or use previous level data to get next level */
 					uint32_t const i = _get_index(_current.block_number, _level+1);
-					_num = _get_pba(_data.data(_level+1), i);
+					_next_pba = _get_pba(tdata.item[0], i);
+
+					Genode::memcpy(_walk_hash[_level].values,
+					               _get_hash(tdata.item[0], i),
+					               sizeof (Cbe::Hash));
 				}
 
+				// Genode::log("next pba: ", _next_pba);
+				_walk[_level] = _next_pba;
 				return true;
 			}
 
@@ -196,16 +213,15 @@ class Cbe::Module::Translation
 			struct Hash_mismatch { };
 			Sha256_4k::Hash hash { };
 			Sha256_4k::Data const &data =
-				*reinterpret_cast<Sha256_4k::Data const*>(&_data.data(_level));
+				*reinterpret_cast<Sha256_4k::Data const*>(&tdata.item[0]);
 			Sha256_4k::hash(data, hash);
 
 			Cbe::Hash const *h = nullptr;
-			if (_level == _max_height) {
+			if (_level == _height) {
 				h = &_root_hash;
 			} else {
 				/* or use previous level data to get next level */
-				uint32_t   const i = _get_index(_current.block_number, _level+1);
-				h = _get_hash(_data.data(_level+1), i);
+				h = &_walk_hash[_level];
 			}
 
 			if (Genode::memcmp(hash.values, h->values, sizeof (Cbe::Hash))) {
@@ -219,8 +235,12 @@ class Cbe::Module::Translation
 			 */
 			if (--_level == 0) {
 				uint32_t const i = _get_index(_current.block_number, 1);
-				_pba = _get_pba(_data.data(1), i);
+				_data_pba = _get_pba(tdata.item[0], i);
 
+				_walk[_level] = _data_pba;
+				Genode::memcpy(_walk_hash[_level].values,
+				               _get_hash(tdata.item[0], i),
+				               sizeof (Cbe::Hash));
 			}
 
 			return true;
@@ -229,20 +249,36 @@ class Cbe::Module::Translation
 		/**
 		 *
 		 */
-		bool peek_completed_primitive() const { return _pba != ~0ull; }
+		Cbe::Primitive peek_completed_primitive()
+		{
+			if (_data_pba != Cbe::INVALID_PBA) {
+				return Cbe::Primitive {
+					.tag          = _current.tag,
+					.operation    = _current.operation,
+					.success      = Cbe::Primitive::Success::FALSE,
+					.block_number = _data_pba,
+					.index        = _current.index,
+				};
+			}
+
+			return Cbe::Primitive { };
+		}
 
 		/**
 		 *
 		 */
-		Cbe::Primitive take_completed_primitive()
+		void drop_completed_primitive(Cbe::Primitive const &p)
 		{
-			return Cbe::Primitive {
-				.tag          = _current.tag,
-				.operation    = _current.operation,
-				.success      = Cbe::Primitive::Success::FALSE,
-				.block_number = _pba,
-				.index        = _current.index,
-			};
+			if (p.block_number != _data_pba) {
+				Genode::error(__func__, " invalid primitive");
+				throw -1;
+			}
+
+			/* allow further translation requests */
+			_current = Cbe::Primitive { };
+
+			/* reset completed primitive */
+			_data_pba = Cbe::INVALID_PBA;
 		}
 
 		/**
@@ -250,7 +286,7 @@ class Cbe::Module::Translation
 		 */
 		Cbe::Primitive::Number get_virtual_block_address(Cbe::Primitive const &p)
 		{
-			if (p.block_number != _pba) { throw -2; }
+			if (p.block_number != _data_pba) { throw -2; }
 
 			return _current.block_number;
 		}
@@ -259,12 +295,13 @@ class Cbe::Module::Translation
 		bool get_physical_block_addresses(Cbe::Primitive const &p,
 		                                  Cbe::Physical_block_address *pba, size_t n)
 		{
-			if (_pba == ~0ull || p.block_number != _pba || !pba || n > MAX_LEVELS) { return false; }
+			if (_data_pba == Cbe::INVALID_PBA
+			    || p.block_number != _data_pba
+			    || !pba
+			    || n > MAX_LEVELS) { return false; }
 
-			pba[_max_height] = _root;
-			for (uint32_t l = _max_height; l > 0; l--) {
-					uint32_t const i = _get_index(_current.block_number, l);
-					pba[l-1] = _get_pba(_data.data(l), i);
+			for (uint32_t l = 0; l < _height+1; l++) {
+				pba[l] = _walk[l];
 			}
 
 			return true;
@@ -272,31 +309,10 @@ class Cbe::Module::Translation
 
 		void dump() const
 		{
-			Cbe::Physical_block_address pba[MAX_LEVELS] { };
-			pba [_max_height] = _root;
-			for (uint32_t l = _max_height; l > 0; l--) {
-				uint32_t const i = _get_index(_current.block_number, l);
-				pba[l-1] = _get_pba(_data.data(l), i);
+			Genode::error("WALK: ");
+			for (uint32_t l = 0; l < _height+1; l++) {
+				Genode::error("      ", _walk[_height-l], " <", _walk_hash[_height-l], ">");
 			}
-
-			Genode::error(__func__, ": ", pba[0], " -> ", pba[1], " -> ", pba[2]);
-		}
-
-
-		/**
-		 *
-		 */
-		void discard_completed_primitive(Cbe::Primitive const &p)
-		{
-			(void)p;
-			// Cbe::Primitive::Number number = p.block_number;
-			// Genode::log("Translation::", __func__, ": vba: ", number);
-
-			/* allow further translation requests */
-			_current = Cbe::Primitive { };
-
-			/* reset completed primitive */
-			_pba = ~0ull;
 		}
 
 		/**
@@ -304,38 +320,34 @@ class Cbe::Module::Translation
 		 *
 		 * \return true if I/O primtive is pending, false otherwise
 		 */
-		bool peek_generated_primitive() const
+		Cbe::Primitive peek_generated_primitive() const
 		{
-			return _num != ~0ull;
+			if (_next_pba != Cbe::INVALID_PBA) {
+				return Cbe::Primitive {
+					.tag          = _current.tag,
+					.operation    = Cbe::Primitive::Operation::READ,
+					.success      = Cbe::Primitive::Success::FALSE,
+					.block_number = _next_pba,
+					.index        = _current.index,
+				};
+			}
+
+			return Cbe::Primitive { };
 		}
 
 		/**
-		 * Take the next generated primitive
+		 * Discard generated primitive
 		 *
-		 * This method must only be called after executing
-		 * 'peek_generated_primitive' returned true.
-		 *
-		 * \return next valid generated primitive
-		 */
-		Cbe::Primitive take_generated_primitive()
-		{
-			return Cbe::Primitive {
-				.tag          = _current.tag,
-				.operation    = Cbe::Primitive::Operation::READ,
-				.success      = Cbe::Primitive::Success::FALSE,
-				.block_number = _num,
-				.index        = _current.index,
-			};
-		}
-
-		/**
-		 * Discard
+		 * \param p   reference to the primitive being discarded
 		 */
 		void discard_generated_primitive(Cbe::Primitive const &p)
 		{
-			if (p.block_number != _num) { return; }
+			if (p.block_number != _next_pba) {
+				Genode::error(__func__, " invalid primitive");
+				throw -1;
+			}
 
-			_num = ~0ull;
+			_next_pba = Cbe::INVALID_PBA;
 		}
 
 		/**
@@ -345,15 +357,16 @@ class Cbe::Module::Translation
 		 *           the corresponding internal primitive as completed
 		 */
 		void mark_generated_primitive_complete(Cbe::Primitive const  &p,
-		                                       Cbe::Block_data const &data)
+		                                       Cbe::Block_data const &data,
+		                                       Translation_Data &tdata)
 		{
-			(void)p;
+			if (p.block_number != _next_pba) {
+				Genode::error(__func__, " invalid primitive");
+				throw -1;
+			}
 
 			_data.set_available(_level);
-			Genode::memcpy(&_data.data(_level), &data, sizeof (Cbe::Block_data));
-
-			/* XXX should be taken care of by discard_generated_primitive */
-			_num = ~0ull;
+			Genode::memcpy(&tdata.item[0], &data, sizeof (Cbe::Block_data));
 		}
 };
 

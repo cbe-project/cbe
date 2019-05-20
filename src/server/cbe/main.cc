@@ -213,6 +213,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		using Pool        = Module::Request_pool;
 		using Splitter    = Module::Splitter;
 		using Translation = Module::Translation<Cbe::Type_i_node>;
+		using Translation_Data = Module::Translation_Data;
 
 		using Cache          = Module::Cache;
 		using Cache_Index    = Module::Cache_Index;
@@ -242,6 +243,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Block_data _io_data[IO_ENTRIES] { };
 
 		Constructible<Translation> _trans { };
+		Translation_Data           _trans_data { };
 		Bit_allocator<MAX_REQS> _tag_alloc { };
 
 		Write_back _write_back { };
@@ -434,15 +436,15 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 ** Translation handling **
 				 **************************/
 
-				bool const trans_progress = _trans->execute();
+				bool const trans_progress = _trans->execute(_trans_data);
 				progress |= trans_progress;
 				if (_show_progress) {
 					Genode::log("Translation progress: ", trans_progress);
 				}
 
-				while (_trans->peek_generated_primitive()) {
-
-					Cbe::Primitive p = _trans->take_generated_primitive();
+				while (true) {
+					Cbe::Primitive p = _trans->peek_generated_primitive();
+					if (!p.valid()) { break; }
 
 					if (!_cache.data_available(p.block_number)) {
 
@@ -455,15 +457,18 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						Cache_Index     const idx   = _cache.data_index(p.block_number,
 						                                                _time.timestamp());
 						Cbe::Block_data const &data = _cache_data.item[idx.value];
-						_trans->mark_generated_primitive_complete(p, data);
+						_trans->mark_generated_primitive_complete(p, data, _trans_data);
+
+						_trans->discard_generated_primitive(p);
 					}
 
 					progress |= true;
 				}
 
-				while (_trans->peek_completed_primitive()) {
+				while (true) {
 
-					Cbe::Primitive prim = _trans->take_completed_primitive();
+					Cbe::Primitive prim = _trans->peek_completed_primitive();
+					if (!prim.valid()) { break; }
 
 					using Payload = Block::Request_stream::Payload;
 					Cbe::Block_data *data_ptr = nullptr;
@@ -473,12 +478,14 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					if (prim.read()) {
 						if (!_io.primitive_acceptable()) { break; }
-						_trans->dump();
+						// _trans->dump();
 
 						_io.submit_primitive(Tag::CRYPTO_TAG_DECRYPT, prim, *data_ptr);
 					} else
 
 					if (prim.write()) {
+
+						// _trans->dump();
 
 						Cbe::Primitive::Number n = prim.block_number;
 						Genode::log("STEP 1: ", n);
@@ -525,7 +532,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						_trans->suspend();
 					}
 
-					_trans->discard_completed_primitive(prim);
+					_trans->drop_completed_primitive(prim);
 					progress |= true;
 				}
 

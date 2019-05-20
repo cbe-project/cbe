@@ -87,6 +87,7 @@ namespace Cbe {
 		}
 	} __attribute__((packed));
 
+	enum { INVALID_PBA = 18446744073709551615ULL, };
 	using Physical_block_address = uint64_t;
 	using Virtual_block_address  = uint64_t;
 	using Generation             = uint64_t;
