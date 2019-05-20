@@ -191,6 +191,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		bool _check_object_sizes()
 		{
 			Cbe::assert_valid_object_size<Module::Cache>();
+			Cbe::assert_valid_object_size<Module::Crypto>();
+			Cbe::assert_valid_object_size<Module::Request_pool>();
+			Cbe::assert_valid_object_size<Module::Splitter>();
 
 			return true;
 		}

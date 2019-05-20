@@ -23,17 +23,24 @@ is
 	-------------------
 
 	--
+	-- Object_Size
+	--
+	function Object_Size (Obj : Splitter.Object_Type) return CXX_Object_Size_Type
+		with Export,
+		Convention    => C,
+		External_Name => "_ZN3Cbe6Module11object_sizeERKNS0_8SplitterE";
+
+	--
 	-- Initialize_Object
 	--
 	procedure Initialize_Object(
-		Obj       : in out Splitter.Object_Type;
-		Obj_Size  :        CXX_Size_Type;
-		Req_Size  :        CXX_Size_Type;
-		Prim_Size :        CXX_Size_Type)
+		Obj       : out Splitter.Object_Type;
+		Req_Size  :     CXX_Size_Type;
+		Prim_Size :     CXX_Size_Type)
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe6Module8SplitterC1Emmm";
+		External_Name => "_ZN3Cbe6Module8SplitterC1Emm";
 
 	--
 	-- Request_Acceptable

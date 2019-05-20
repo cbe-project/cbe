@@ -11,21 +11,23 @@
 
 /* cbe includes */
 #include <cbe/types.h>
-
-/* local includes */
-#include <spark_object.h>
+#include <cbe/spark_object.h>
 
 
 namespace Cbe { namespace Module {
 
 	class Request_pool;
 
+	Genode::uint32_t object_size(Request_pool const &);
+
 } /* namespace Module */ } /* namespace Cbe */
 
-struct Cbe::Module::Request_pool : Spark::Object<896>
+struct Cbe::Module::Request_pool : Cbe::Spark_object<896>
 {
-	Request_pool(size_t size      = sizeof(Request_pool),
-	             size_t req_size  = sizeof(Cbe::Request),
+	/*
+	 * Constructor
+	 */
+	Request_pool(size_t req_size  = sizeof(Cbe::Request),
 	             size_t prim_size = sizeof(Primitive));
 
 	/**

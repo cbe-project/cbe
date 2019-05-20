@@ -15,8 +15,6 @@
 /* local includes */
 #include <cbe/types.h>
 #include <cbe/spark_object.h>
-#include <spark_object.h>
-
 
 namespace Cbe { namespace Module {
 

@@ -15,20 +15,23 @@ package body CBE.CXX.CXX_Splitter
 with Spark_Mode => Off
 is
 	--
+	-- Object_Size
+	--
+	function Object_Size (Obj : Splitter.Object_Type)
+	return CXX_Object_Size_Type is (Obj'Size / 8);
+
+	--
 	-- Initialize_Object
 	--
 	procedure Initialize_Object(
-		Obj       : in out Splitter.Object_Type;
-		Obj_Size  : in     CXX_Size_Type;
+		Obj       :    out Splitter.Object_Type;
 		Req_Size  : in     CXX_Size_Type;
 		Prim_Size : in     CXX_Size_Type)
 	is
 		Req  : constant CXX_Request.Object_Type   := (0,0,0,0,0,0);
 		Prim : constant CXX_Primitive.Object_Type := (0,0,0,0,0);
 	begin
-		if not Correct_Object_Size(Obj'Size, Obj_Size) then
-			raise Program_Error;
-		elsif not Correct_Object_Size(Req'Size, Req_Size) then
+		if not Correct_Object_Size(Req'Size, Req_Size) then
 			raise Program_Error;
 		elsif not Correct_Object_Size(Prim'Size, Prim_Size) then
 			raise Program_Error;

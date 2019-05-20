@@ -14,20 +14,24 @@
 
 /* local includes */
 #include <cbe/types.h>
-#include <spark_object.h>
+#include <cbe/spark_object.h>
 
 
 namespace Cbe { namespace Module {
 
 	class Crypto;
 
+	Genode::uint32_t object_size(Crypto const &);
+
 } /* namespace Module */ } /* namespace Cbe */
 
 
-struct Cbe::Module::Crypto : Spark::Object<8264>
+struct Cbe::Module::Crypto : Cbe::Spark_object<8264>
 {
+	/**
+	 * Constructor
+	 */
 	Crypto(char const *key /* must be 32b total */,
-	       Genode::size_t obj_sz  = sizeof (Crypto),
 	       Genode::size_t data_sz = sizeof (Cbe::Block_data),
 	       Genode::size_t prim_sz = sizeof (Primitive));
 

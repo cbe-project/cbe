@@ -18,18 +18,25 @@ is
 	--  pragma Pure;
 
 	--
+	-- Object_Size
+	--
+	function Object_Size (Obj : Crypto.Object_Type) return CXX_Object_Size_Type
+		with Export,
+		Convention    => C,
+		External_Name => "_ZN3Cbe6Module11object_sizeERKNS0_6CryptoE";
+
+	--
 	-- Initialize_Object
 	--
 	procedure Initialize_Object(
 		Obj       : out Crypto.Object_Type;
 		Key       :     Crypto.Key_Type;
-		Obj_Size  :     CXX_Size_Type;
 		Data_Size :     CXX_Size_Type;
 		Prim_Size :     CXX_Size_Type)
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe6Module6CryptoC1EPKcmmm";
+		External_Name => "_ZN3Cbe6Module6CryptoC1EPKcmm";
 
 	--
 	-- Primitive_Acceptable

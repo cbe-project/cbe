@@ -18,17 +18,24 @@ is
 --	pragma Pure;
 
 	--
+	-- Object_Size
+	--
+	function Object_Size (Obj : Pool.Object_Type) return CXX_Object_Size_Type
+		with Export,
+		Convention    => C,
+		External_Name => "_ZN3Cbe6Module11object_sizeERKNS0_12Request_poolE";
+
+	--
 	-- Initialize_Object
 	--
 	procedure Initialize_Object(
-		Obj       : in out Pool.Object_Type;
-		Obj_Size  : in     CXX_Size_Type;
+		Obj       :    out Pool.Object_Type;
 		Req_Size  : in     CXX_Size_Type;
 		Prim_Size : in     CXX_Size_Type)
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe6Module12Request_poolC1Emmm";
+		External_Name => "_ZN3Cbe6Module12Request_poolC1Emm";
 
 	--
 	-- Request_Acceptable

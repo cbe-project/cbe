@@ -18,12 +18,17 @@ is
 		External_Name => "print_size";
 
 	--
+	-- Object_Size
+	--
+	function Object_Size (Obj : Crypto.Object_Type)
+	return CXX_Object_Size_Type is (Obj'Size / 8);
+
+	--
 	-- Initialize_Object
 	--
 	procedure Initialize_Object(
 		Obj       : out Crypto.Object_Type;
 		Key       :     Crypto.Key_Type;
-		Obj_Size  :     CXX_Size_Type;
 		Data_Size :     CXX_Size_Type;
 		Prim_Size :     CXX_Size_Type)
 	is
@@ -31,10 +36,7 @@ is
 		Cipher_Data : constant Crypto.Cipher_Data_TYpe   := (others => 0);
 		Prim        : constant CXX_Primitive.Object_Type := (0,0,0,0,0);
 	begin
-		if not Correct_Object_Size(Obj'Size, Obj_Size) then
-			print_size(Obj'Size);
-			raise Program_Error;
-		elsif not Correct_Object_Size(Plain_Data'Size, Data_Size) then
+		if not Correct_Object_Size(Plain_Data'Size, Data_Size) then
 			print_size(Plain_Data'Size);
 			raise Program_Error;
 		elsif not Correct_Object_Size(Cipher_Data'Size, Data_Size) then
