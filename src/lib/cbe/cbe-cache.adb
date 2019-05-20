@@ -162,7 +162,8 @@ is
 
 		Evict_Slot: for Cache_Item_Id in Obj.Cache_Items'Range loop
 			if Cache_Item.Used(Obj.Cache_Items(Cache_Item_Id)) then
-				if Min_Used > Cache_Item.Ts(Obj.Cache_Items(Cache_Item_Id)) then
+				if Min_Used > Cache_Item.Ts(Obj.Cache_Items(Cache_Item_Id))
+				then
 					Cache_Id := Cache_Item_Id;
 					Min_Used := Cache_Item.Ts(Obj.Cache_Items(Cache_Item_Id));
 				end if;
@@ -199,8 +200,8 @@ is
 	is
 	begin
 		Item_Loop: for Item of Obj.Cache_Items loop
-			if Cache_Item.Used(Item) and
-			   Cache_Item.Pba(Item) = Pba then
+			if Cache_Item.Used(Item) and Cache_Item.Pba(Item) = Pba
+			then
 				return True;
 			end if;
 		end loop Item_Loop;
@@ -220,7 +221,8 @@ is
 	begin
 		for Cache_Item_Id in Obj.Cache_Items'Range loop
 			if Cache_Item.Used(Obj.Cache_Items(Cache_Item_Id)) and
-			   Cache_Item.Pba(Obj.Cache_Items(Cache_Item_Id)) = Pba then
+			   Cache_Item.Pba(Obj.Cache_Items(Cache_Item_Id)) = Pba
+			then
 				Cache_Item.Set_Ts(Obj.Cache_Items(Cache_Item_Id), Ts);
 				return Cache_Item_Id; -- XXX convert
 			end if;
@@ -279,7 +281,8 @@ is
 		end if;
 
 		New_Job: for Job_Item_Id in Obj.Job_Items'Range loop
-			if Job_Item.Unused(Obj.Job_Items(Job_Item_Id)) then
+			if Job_Item.Unused(Obj.Job_Items(Job_Item_Id))
+			then
 				Obj.Job_Items(Job_Item_Id) := Job_Item.Pending_Object(Pba);
 				Job_Item.State(Obj.Job_Items(Job_Item_Id), Job_Item.Pending);
 				Obj.Active_Jobs := Obj.Active_Jobs + 1;
@@ -303,7 +306,8 @@ is
 
 		Complete_Job: for Job_Item_Id in Obj.Job_Items'Range loop
 			if Job_Item.Complete(Obj.Job_Items(Job_Item_Id)) and
-			   Job_Item.Success(Obj.Job_Items(Job_Item_Id)) then
+			   Job_Item.Success(Obj.Job_Items(Job_Item_Id))
+			then
 				Cache_Id := Get_Cache_Slot(Obj);
 				Cache_Item.Initialize_Object(Obj.Cache_Items(Cache_Id),
 				                             Job_Item.Pba(Obj.Job_Items(Job_Item_Id)),
@@ -332,8 +336,8 @@ is
 	is
 	begin
 		Peek_Primitive: for Job_Item_Id in Obj.Job_Items'Range loop
-			if Job_Item.Pending(Obj.Job_Items(Job_Item_Id)) then
-
+			if Job_Item.Pending(Obj.Job_Items(Job_Item_Id))
+			then
 				return Primitive.Valid_Object(
 					Op => Request.Read,
 					Succ => Request.Success_Type(False),
@@ -357,7 +361,8 @@ is
 	begin
 		Pending_Data: for Job_Item_Id in Obj.Job_Items'Range loop
 			if Job_Item.Pending(Obj.Job_Items(Job_Item_Id)) and
-			   Job_Item.Pba(Obj.Job_Items(Job_Item_Id)) = Physical_Block_Address_Type(Primitive.Block_Number(Prim)) then
+			   Job_Item.Pba(Obj.Job_Items(Job_Item_Id)) = Physical_Block_Address_Type(Primitive.Block_Number(Prim))
+			then
 				return Cache_Index_Type(Job_Item_Id);
 			end if;
 		end loop Pending_Data;
@@ -375,7 +380,8 @@ is
 	begin
 		Drop_Primitive: for Job_Item_Id in Obj.Job_Items'Range loop
 			if Job_Item.Pending(Obj.Job_Items(Job_Item_Id)) and
-			   Job_Item.Pba(Obj.Job_Items(Job_Item_Id)) = Physical_Block_Address_Type(Primitive.Block_Number(Prim)) then
+			   Job_Item.Pba(Obj.Job_Items(Job_Item_Id)) = Physical_Block_Address_Type(Primitive.Block_Number(Prim))
+			then
 				Job_Item.State(Obj.Job_Items(Job_Item_Id), Job_Item.In_Progress);
 				return;
 			end if;
@@ -392,7 +398,8 @@ is
 	begin
 		Complete_Primitive: for Job_Item_Id in Obj.Job_Items'Range loop
 			if Job_Item.In_Progress(Obj.Job_Items(Job_Item_Id)) and
-			   Job_Item.Pba(Obj.Job_Items(Job_Item_Id)) = Physical_Block_Address_Type(Primitive.Block_Number(Prim)) then
+			   Job_Item.Pba(Obj.Job_Items(Job_Item_Id)) = Physical_Block_Address_Type(Primitive.Block_Number(Prim))
+			then
 				Job_Item.State(Obj.Job_Items(Job_Item_Id), Job_Item.Complete);
 				Job_Item.Set_Success(Obj.Job_Items(Job_Item_Id), Boolean(Primitive.Success(Prim)));
 				return;

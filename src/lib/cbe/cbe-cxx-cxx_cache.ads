@@ -18,22 +18,28 @@ is
 	pragma Pure;
 
 	--
+	-- Object_Size
+	--
+	function Object_Size (Obj : Cache.Object_Type) return CXX_Object_Size_Type
+		with Export,
+		Convention    => C,
+		External_Name => "_ZN3Cbe6Module11object_sizeERKNS0_5CacheE";
+
+	--
 	-- Initialize_Object
 	--
-	procedure Initialize_Object(
-		Obj       : in out Cache.Object_Type;
-		Obj_Size  : in     CXX_Size_Type)
+	procedure Initialize_Object(Obj : out Cache.Object_Type)
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe6Module5CacheC1Em";
+		External_Name => "_ZN3Cbe6Module5CacheC1Ev";
 
 	--
 	-- Data_Available
 	--
 	function Data_Available(
 		Obj : Cache.Object_Type;
-		Pba : Physical_Block_address_Type)
+		Pba : CXX_Physical_Block_Address_Type)
 	return CXX_Bool_Type
 	with
 		Export,
@@ -45,7 +51,7 @@ is
 	--
 	function Data_Index(
 		Obj : in out Cache.Object_Type;
-		Pba :        CXX_Physical_block_address_Type;
+		Pba :        CXX_Physical_Block_Address_Type;
 		Ts  :        Timestamp_Type)
 	return CXX_Index_Type
 	with
@@ -58,7 +64,7 @@ is
 	--
 	function Request_Acceptable(
 		Obj : Cache.Object_Type;
-		Pba : CXX_Physical_block_address_Type)
+		Pba : CXX_Physical_Block_Address_Type)
 	return CXX_Bool_Type
 	with
 		Export,
@@ -70,7 +76,7 @@ is
 	--
 	procedure Submit_Request(
 		Obj : in out Cache.Object_Type;
-		Pba :        CXX_Physical_block_address_Type)
+		Pba :        CXX_Physical_Block_Address_Type)
 	with
 		Export,
 		Convention    => C,

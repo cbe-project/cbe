@@ -11,18 +11,19 @@ pragma Ada_2012;
 package body CBE.CXX.CXX_Cache
 with Spark_Mode
 is
+
+	--
+	-- Object_Size
+	--
+	function Object_Size (Obj : Cache.Object_Type)
+	return CXX_Object_Size_Type is (Obj'Size / 8);
+
 	--
 	-- Initialize_Object
 	--
-	procedure Initialize_Object(
-		Obj       : in out Cache.Object_Type;
-		Obj_Size  : in     CXX_Size_Type)
+	procedure Initialize_Object(Obj : out Cache.Object_Type)
 	is
 	begin
-		if not Enough_Storage_Space(Obj'Size, Obj_Size) then
-			raise Program_Error;
-		end if;
-
 		Cache.Initialize_Object(Obj);
 	end Initialize_Object;
 
@@ -31,11 +32,11 @@ is
 	--
 	function Data_Available(
 		Obj : Cache.Object_Type;
-		Pba : Physical_Block_address_Type)
+		Pba : CXX_Physical_Block_Address_Type)
 	return CXX_Bool_Type
 	is
 	begin
-		return Boolean_To_CXX(Cache.Data_Available(Obj, Pba));
+		return Boolean_To_CXX(Cache.Data_Available(Obj, Physical_Block_Address_Type(Pba)));
 	end Data_Available;
 
 	--
@@ -43,11 +44,11 @@ is
 	--
 	function Data_Index(
 		Obj : in out Cache.Object_Type;
-		Pba :        CXX_Physical_block_address_Type;
+		Pba :        CXX_Physical_Block_Address_Type;
 		Ts  :        Timestamp_Type)
 	return CXX_Index_Type
 	is
-		Cache_Idx : constant Cache.Cache_Index_Type := Cache.Data_Index(Obj, Physical_Block_address_Type(Pba), Ts);
+		Cache_Idx : constant Cache.Cache_Index_Type := Cache.Data_Index(Obj, Physical_Block_Address_Type(Pba), Ts);
 	begin
 		return Index_Type_To_CXX(Index_Type(Cache_Idx));
 	end Data_Index;
@@ -57,11 +58,11 @@ is
 	--
 	function Request_Acceptable(
 		Obj : Cache.Object_Type;
-		Pba : CXX_Physical_block_address_Type)
+		Pba : CXX_Physical_Block_Address_Type)
 	return CXX_Bool_Type
 	is
 	begin
-		return Boolean_To_CXX(Cache.Request_Acceptable(Obj, Physical_Block_address_Type(Pba)));
+		return Boolean_To_CXX(Cache.Request_Acceptable(Obj, Physical_Block_Address_Type(Pba)));
 	end Request_Acceptable;
 
 	--
@@ -69,10 +70,10 @@ is
 	--
 	procedure Submit_Request(
 		Obj : in out Cache.Object_Type;
-		Pba :        CXX_Physical_block_address_Type)
+		Pba :        CXX_Physical_Block_Address_Type)
 	is
 	begin
-		Cache.Submit_Request(Obj, Physical_Block_address_Type(Pba));
+		Cache.Submit_Request(Obj, Physical_Block_Address_Type(Pba));
 	end Submit_Request;
 
 	--

@@ -22,11 +22,8 @@ package body CBE.CXX with Spark_Mode is
 	-- Index_Type_To_CXX
 	--
 	function Index_Type_To_CXX(Index_Value : in Index_Type)
-	return CXX_Index_Type
-	is
-	begin
-		return (CXX_Index_Type(Index_Value));
-	end Index_Type_To_CXX;
+	return CXX_Index_Type is
+		(CXX_Index_Type(Index_Value));
 
 	--
 	-- Bits_To_Bytes

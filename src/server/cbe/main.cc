@@ -182,6 +182,21 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 		/* modules */
 
+		/*
+		 * Check if we provided enough memory for all the SPARK objects.
+		 * We use the check of '_object_sizes_match' in the constructor
+		 * to prevent the compiler from optimizing the call away.
+		 */
+
+		bool _check_object_sizes()
+		{
+			Cbe::assert_valid_object_size<Module::Cache>();
+
+			return true;
+		}
+
+		bool const _object_sizes_match { _check_object_sizes() };
+
 		enum {
 			MAX_REQS      = 16,
 			MAX_PRIM      = 1,
@@ -882,6 +897,10 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		 */
 		Main(Env &env) : _env(env)
 		{
+			if (!_object_sizes_match) {
+				error("object size mismatch");
+			}
+
 			if (_config_rom.valid()) {
 				_show_progress =
 					_config_rom.xml().attribute_value("show_progress", false);
@@ -953,6 +972,9 @@ Genode::Env *__genode_env;
 Terminal::Connection *__genode_terminal;
 
 
+extern "C" void adainit();
+
+
 void Component::construct(Genode::Env &env)
 {
 	/* make ada-runtime happy */
@@ -962,6 +984,8 @@ void Component::construct(Genode::Env &env)
 	__genode_terminal = &term;
 
 	env.exec_static_constructors();
+
+	adainit();
 
 	static Cbe::Main inst(env);
 }
