@@ -136,24 +136,28 @@ struct Cbe::Block_allocator
 
 	Data const _data;
 
+	Cbe::Physical_block_address const _start;
+
 	Cbe::Physical_block_address _current;
 	Cbe::Physical_block_address _avail;
 
 	Block_allocator(Data const data, Cbe::Physical_block_address const start, Cbe::Physical_block_address const avail)
-	: _data(data), _current(start), _avail(avail)
+	: _data(data), _start(start), _current(start), _avail(avail)
 	{
 		/* assert _avail > 0 */
 		if (!_avail) { throw Out_of_blocks(); }
 
-		if (_verbose) {
-			log(__func__, ": avail: ", _avail, " start index: ", _current);
+		if (1) {
+			log(__func__, ": avail: ", _avail, " start index: ", _start);
 		}
 	}
 
 	void *data(Cbe::Physical_block_address const pba)
 	{
-		if (pba > (_data.size / Data::BLOCK_SIZE)) {
-			error(__func__, ": ", pba);
+		Cbe::Physical_block_address const count = _data.size / Data::BLOCK_SIZE;
+		/* assert count + start > start */
+		if (pba > (count + _start)) {
+			error(__func__, ": ", pba, " (", count, ",", _start, ")");
 			throw Invalid_physical_block_address();
 		}
 		return (char*)_data.base + (pba * Data::BLOCK_SIZE);
@@ -579,18 +583,31 @@ class Cbe::Vbd
 				}
 			}
 
-			Cbe::Super_block &sb = *reinterpret_cast<Cbe::Super_block*>(ba.data(idx));
-			Cbe::Super_block::Generation const gen  = sb.generation;
-			Cbe::Physical_block_address  const root = sb.root_number;
-			Cbe::Hash                    const &root_hash = sb.root_hash;
-			Cbe::Super_block::Number_of_leaves const free_height = sb.free_height;
-			Cbe::Super_block::Number_of_leaves const free_leaves = sb.free_leaves;
-			Genode::log("Current SB[", idx, "]: gen: ", gen, " root: ", root,
-			            " free leaves: (", free_leaves, "/", free_height, ")",
-			            " root hash: <", root_hash, ">");
+			bool all = true;
+			for (uint64_t i = 0; i < Cbe::NUM_SUPER_BLOCKS; i++) {
 
-			_dump_leaves = 0;
-			_dump(_tree.info(), sb.root_number, _tree.block_allocator(), _tree.info().height);
+
+				if (!all && i != idx) { continue; }
+
+				Cbe::Super_block &sb = *reinterpret_cast<Cbe::Super_block*>(ba.data(i));
+
+				Cbe::Super_block::Generation const gen  = sb.generation;
+				Cbe::Physical_block_address  const root = sb.root_number;
+
+				if (gen == 0 && root == 0) {
+					Genode::log("          SB[", i, "] invalid");
+					continue;
+				}
+				Cbe::Hash                    const &root_hash = sb.root_hash;
+				Cbe::Super_block::Number_of_leaves const free_height = sb.free_height;
+				Cbe::Super_block::Number_of_leaves const free_leaves = sb.free_leaves;
+				Genode::log(i == idx ? "Current " : "          ", "SB[", i, "]: gen: ", gen, " root: ", root,
+				            " free leaves: (", free_leaves, "/", free_height, ")",
+				            " root hash: <", root_hash, ">");
+
+				_dump_leaves = 0;
+				_dump(_tree.info(), sb.root_number, _tree.block_allocator(), _tree.info().height);
+			}
 		}
 
 		Cbe::Physical_block_address lookup(Cbe::Virtual_block_address const vba)
@@ -671,8 +688,10 @@ class Cbe::Mmu
 			}
 
 			if (vba < 8 && _current_request.operation.type == Block::Operation::Type::WRITE) {
-				Genode::log("Super block changed, dump tree");
-				_vbd.dump();
+				if (_verbose) {
+					Genode::log("Super block changed, dump tree");
+					_vbd.dump();
+				}
 			}
 
 			_current_request.success = result ? true : false;
@@ -855,7 +874,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			Genode::memcpy(sb.root_hash.values, hash.values, sizeof (hash));
 
 			/* XXX just reserve some memory for allocating blocks */
-			sb.free_number = start_pba + avail + 2048;
+			sb.free_number = start_pba + (avail / 2) + 2048;
 			sb.free_leaves = (backing_size / 2) / 2 / vbd_block_size;
 			/* abuse height as max leaves for now */
 			sb.free_height = sb.free_leaves;
