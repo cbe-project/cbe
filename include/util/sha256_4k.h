@@ -24,8 +24,7 @@ namespace Sha256_4k {
 			using namespace Genode;
 
 			for (char const c : values) {
-				Genode::print(out, Hex((unsigned char const)c,
-				                       Hex::OMIT_PREFIX, Hex::PAD));
+				Genode::print(out, Hex(c, Hex::OMIT_PREFIX, Hex::PAD));
 			}
 		}
 	};
