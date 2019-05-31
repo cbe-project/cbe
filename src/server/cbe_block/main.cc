@@ -78,14 +78,7 @@ namespace Cbe {
 	class Vbd;
 	class Mmu;
 
-	/* XXX (ab-)use generation field for debug type */
-	enum {
-		GEN_TYPE_PARENT = 1ull << 32,
-		GEN_TYPE_CHILD  = 2ull << 32,
-	};
-
 	enum { FIRST_PBA = 128, };
-
 
 	using namespace Genode;
 

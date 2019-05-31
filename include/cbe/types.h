@@ -129,7 +129,7 @@ namespace Cbe {
 	{
 		enum { NUM_KEYS = 2u };
 		using Number           = uint64_t;
-		using Generation       = uint64_t;
+		using Generation       = Cbe::Generation;
 		using Height           = uint32_t;
 		using Degree           = uint32_t;
 		using Number_of_leaves = uint64_t;
@@ -152,6 +152,12 @@ namespace Cbe {
 			char data[BLOCK_SIZE];
 		};
 	} __attribute__((packed));
+
+	/* XXX (ab-)use generation field for debug type */
+	enum {
+		GEN_TYPE_PARENT = 1ull << 48,
+		GEN_TYPE_CHILD  = 2ull << 48,
+	};
 
 	struct Type_i_node
 	{
