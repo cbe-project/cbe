@@ -932,4 +932,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 };
 
 
-void Component::construct(Genode::Env &env) { static Cbe::Main inst(env); }
+void Component::construct(Genode::Env &env)
+{
+	env.exec_static_constructors();
+	static Cbe::Main inst(env);
+}
