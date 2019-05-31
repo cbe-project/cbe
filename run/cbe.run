@@ -53,26 +53,55 @@ install_config {
 	<start name="cbe">
 		<resource name="RAM" quantum="4M"/>
 		<provides><service name="Block"/></provides>
-		<config show_progress="yes"/>
+		<config show_progress="no"/>
 		<route>
 			<service name="Block"> <child name="cbe_block"/> </service>
 			<service name="Terminal"> <child name="log_terminal"/> </service>
+			<service name="Timer"> <child name="timer"/> </service>
 			<any-service> <parent/> </any-service>
 		</route>
 	</start>
 
-	<start name="block_tester">
+	<start name="block_tester" caps="150">
 		<resource name="RAM" quantum="32M"/>
 		<config verbose="yes" report="no" log="yes" stop_on_error="no">
 			<tests>
-				<replay verbose="yes" bulk="no"> <request type="read" lba="0" count="8"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="8"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="read" lba="0" count="8"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="8"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="1" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="2" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="4" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="5" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="6" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="7" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="8" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="1" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="2" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="4" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="6" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="7" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="8" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="1" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="2" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="4" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="6" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="7" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="8" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="16"/> </replay>
+<!--
+				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="17"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="17"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="17"/> </replay>
 
 				<replay verbose="yes" bulk="no"> <request type="read" lba="12" count="1"/> </replay>
 				<replay verbose="yes" bulk="no"> <request type="write" lba="12" count="1"/> </replay>
 				<replay verbose="yes" bulk="no"> <request type="read" lba="12" count="1"/> </replay>
-<!--
+
 				<sequential length="1M" size="4K" synchronous="yes"/>
 				<sequential length="1M" size="8K" synchronous="yes"/>
 				<sequential length="1M" size="16K"/>

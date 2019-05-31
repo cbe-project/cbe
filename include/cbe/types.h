@@ -34,6 +34,7 @@ namespace Cbe {
 		TRANSLATION_TAG    = 0x60,
 		WRITE_BACK_TAG     = 0x70,
 		SYNC_SB_TAG        = 0x80,
+		RECLAIM_TAG        = 0x90,
 	};
 
 	using Number_of_primitives = size_t;
@@ -91,6 +92,8 @@ namespace Cbe {
 	using Physical_block_address = uint64_t;
 	using Virtual_block_address  = uint64_t;
 	using Generation             = uint64_t;
+	using Height                 = uint32_t;
+	using Number_of_leaves       = uint64_t;
 
 	using Timestamp = uint64_t;
 
@@ -125,27 +128,36 @@ namespace Cbe {
 
 	enum { NUM_SUPER_BLOCKS = 8, };
 
+	struct Ro_snapshot
+	{
+		Physical_block_address root;
+		Hash                   hash;
+		Generation             generation;
+		Height                 height;
+		Number_of_leaves       leaves;
+	} __attribute__((packed));
+
 	struct Super_block
 	{
 		enum { NUM_KEYS = 2u };
 		using Number           = uint64_t;
-		using Generation       = Cbe::Generation;
-		using Height           = uint32_t;
 		using Degree           = uint32_t;
-		using Number_of_leaves = uint64_t;
 
 		union {
 			struct {
 				Key key[NUM_KEYS];
 
-				Number           root_number;
-				Hash             root_hash;
-				Generation       generation;
+				Physical_block_address root_number;
+				Hash                   root_hash;
+				Generation             generation;
 				Height           height;
 				Degree           degree;
 				Number_of_leaves leaves;
 
-				Number           free_number;
+				// XXX remove later
+				bool             active;
+
+				Physical_block_address           free_number;
 				Height           free_height;
 				Number_of_leaves free_leaves;
 			};
@@ -155,8 +167,12 @@ namespace Cbe {
 
 	/* XXX (ab-)use generation field for debug type */
 	enum {
-		GEN_TYPE_PARENT = 1ull << 48,
-		GEN_TYPE_CHILD  = 2ull << 48,
+		GEN_TYPE_SHIFT  = 48u,
+		GEN_TYPE_PARENT = 1ull << GEN_TYPE_SHIFT,
+		GEN_TYPE_CHILD  = 2ull << GEN_TYPE_SHIFT,
+
+		GEN_TYPE_MASK   = 0xffull << 48,
+		GEN_VALUE_MASK  = (1ull << GEN_TYPE_SHIFT) -1,
 	};
 
 	struct Type_i_node

@@ -14,6 +14,7 @@
 #include <base/heap.h>
 #include <block/request_stream.h>
 #include <root/root.h>
+#include <timer_session/connection.h>
 #include <util/bit_allocator.h>
 
 #include <terminal_session/connection.h>
@@ -79,6 +80,13 @@ struct Cbe::Block_manager
 {
 	/* gives us 128MiB */
 	enum { ENTRIES = 32u * 1024, };
+	struct Entry /* Cbe::Type_ii_node */
+	{
+		bool reserved { false }; /* reserved => true */
+		Cbe::Generation g_a { 0 };
+		Cbe::Generation g_f { 0 };
+	};
+	Entry _entries[ENTRIES] { };
 	Genode::Bit_array<ENTRIES> _array { };
 	Genode::size_t             _used  { 0 };
 
@@ -97,7 +105,24 @@ struct Cbe::Block_manager
 		            " start block address: ", _start);
 	}
 
-	Cbe::Physical_block_address alloc(size_t count)
+	void dump() const
+	{
+
+		for (Genode::size_t i = 0; i < ENTRIES; i++) {
+			Entry const &e = _entries[i];
+			if (!e.reserved) { continue; }
+
+			Cbe::Generation const f_gen = e.g_f;
+			Cbe::Generation const a_gen = e.g_a;
+
+			Genode::log("\033[35;1m", __func__, ": ", i, ": (", _start + i, ") ", " a: ", a_gen, " f: ", f_gen);
+		}
+	}
+
+	Cbe::Physical_block_address alloc(Cbe::Super_block const *sb,
+	                                  Cbe::Generation const s_gen,
+	                                  Cbe::Generation const curr_gen,
+	                                  size_t count)
 	{
 		for (size_t i = 0; i < ENTRIES; i++) {
 			bool found = false;
@@ -106,19 +131,77 @@ struct Cbe::Block_manager
 
 			if (!found) { continue; }
 
+			bool free = true;
+			for (size_t j = i; j < (i+count); j++) {
+				Entry &e = _entries[j];
+				if (!e.reserved) {
+					continue;
+				} else {
+					Cbe::Generation const f_gen = e.g_f;
+					Cbe::Generation const a_gen = e.g_a;
+
+					if (f_gen <= s_gen) {
+
+						bool in_use = false;
+						for (uint64_t i = 0; i < Cbe::NUM_SUPER_BLOCKS; i++) {
+							Cbe::Super_block const &b = sb[i];
+							if (!b.active) {
+								Genode::warning(__func__, ": ignore inactive super block ", i);
+								continue;
+							}
+							Cbe::Generation const b_gen = b.generation;
+
+							bool const is_free = ((f_gen <= s_gen) && (f_gen <= b_gen || a_gen >= (b_gen + 1)));
+
+							in_use |= !is_free;
+						}
+
+						if (in_use) {
+							free = false;
+							break;
+						}
+					} else {
+						free = false;
+						break;
+					}
+				}
+			}
+			if (!free) { continue; }
+
 			_array.set(i, count);
 			_used += count;
-			return _start + i;
+
+			for (size_t j = i; j < (i+count); j++) {
+				Entry &e = _entries[j];
+				e.reserved = true;
+				e.g_a = curr_gen;
+				e.g_f = 0;
+			}
+			Cbe::Physical_block_address const pba = _start + i;
+			return pba;
 		}
 
 		struct Alloc_failed { };
 		throw Alloc_failed();
 	}
 
-	void free(Cbe::Physical_block_address pba)
+	void free(Cbe::Generation const curr_gen,
+	          Cbe::Physical_block_address pba)
 	{
-		_array.clear(pba - _start, 1);
-		_used--;
+		if (pba < _start) {
+			Genode::error(__func__, ": pba: ", pba, " invalid");
+			return;
+		}
+
+		size_t const i = pba - _start;
+
+		Entry &e = _entries[i];
+		e.g_f = curr_gen;
+
+		try {
+			_array.clear(i, 1);
+			_used--;
+		} catch (...) { Genode::warning(i, " already cleared"); }
 	}
 
 	size_t used()  const { return _used; }
@@ -128,6 +211,19 @@ struct Cbe::Block_manager
 
 struct Cbe::Time
 {
+	Timer::Connection _timer;
+
+	using Timestamp = Genode::uint64_t;
+
+	Time(Genode::Env &env)
+	: _timer(env) { }
+
+	Timestamp timestamp() const
+	{
+		return _timer.elapsed_ms();
+	}
+
+#if 0
 	Timestamp timestamp() const
 	{
 		uint32_t lo, hi;
@@ -144,6 +240,7 @@ struct Cbe::Time
 		);
 		return (uint64_t)hi << 32 | lo;
 	}
+#endif
 };
 
 
@@ -160,10 +257,15 @@ struct Cbe::Time
 #include <write_through_cache_module.h>
 #include <write_back_module.h>
 #include <sync_sb_module.h>
+#include <reclaim_module.h>
+
 
 class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 {
 	private:
+
+		// Main(Main const&) = delete;
+		// Main &operator=(Main const &) = delete;
 
 		Env &_env;
 
@@ -227,10 +329,17 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		using Write_back_Index = Module::Write_back<MAX_LEVEL, Cbe::Type_i_node>::Index;
 		using Sync_sb     = Module::Sync_sb;
 
+		using Reclaim       = Module::Reclaim;
+		using Reclaim_Index = Module::Reclaim_Index;
+		using Reclaim_Data  = Module::Reclaim_Data;
+
 		Pool     _request_pool { };
 		Splitter _splitter     { };
 
-		Time _time { };
+		Time _time { _env };
+		enum { SYNC_TIME_MS = 1u * 500, };
+		Cbe::Time::Timestamp _last_time { _time.timestamp() };
+		Cbe::Generation      _time_gen  { 0 };
 
 		Cache          _cache          { };
 		Cache_Data     _cache_data     { };
@@ -249,6 +358,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Write_back _write_back { };
 		Block_data _write_back_data[MAX_LEVEL] { };
 		Sync_sb    _sync_sb { };
+
+		Reclaim      _reclaim { };
+		Reclaim_Data _reclaim_data { };
 
 		Block::Request convert_from(Cbe::Request const &r)
 		{
@@ -331,6 +443,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 		uint64_t         _current_sb { ~0ull };
 		Cbe::Super_block _super_block[Cbe::NUM_SUPER_BLOCKS] { };
+		Cbe::Generation  _current_generation { 0 };
+		Cbe::Generation  _last_secured_generation    { 0 };
+		uint64_t         _sync_cb_count { 0 };
 
 
 		bool _show_progress { false };
@@ -347,6 +462,18 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			for (;;) {
 
 				bool progress = false;
+
+				/*******************
+				 ** Time handling **
+				 *******************/
+
+				Cbe::Time::Timestamp const curr_time = _time.timestamp();
+				Cbe::Time::Timestamp const diff_time = curr_time - _last_time;
+				if (diff_time >= SYNC_TIME_MS) {
+					Genode::log("\033[93;44m", __func__, " ", "SYNC_TIME_MS triggered" , " !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+					_last_time = curr_time;
+					_time_gen++;
+				}
 
 				/***********************
 				 **  Request handling **
@@ -487,46 +614,75 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 						// _trans->dump();
 
-						Cbe::Primitive::Number n = prim.block_number;
-						Genode::log("STEP 1: ", n);
+						Cbe::Primitive::Number leaf_pba = prim.block_number;
+						Genode::log("STEP 1: ", leaf_pba);
 
 						/*
 						 * 1. check if Write_back module is idle
 						 */
 						if (!_write_back.primitive_acceptable()) { break; }
 
-						Genode::log("STEP 2: ", n);
+						Genode::log("STEP 2: ", leaf_pba);
 
 						/*
-						 * 2. check if allocator has enough blocks left
-						 */
-						uint32_t const new_blocks = _trans->height() + 1;
-						Cbe::Physical_block_address pba = 0;
-						try { pba = _block_manager->alloc(new_blocks); }
-						catch (...) { break; }
-
-						Genode::log("STEP 3: ", n);
-
-						/*
-						 * 3. get old PBA's from Translation module
+						 * 2. get old PBA's from Translation module
 						 */
 						Cbe::Physical_block_address old_pba[Translation::MAX_LEVELS] { };
 						if (!_trans->get_physical_block_addresses(prim, old_pba, Translation::MAX_LEVELS)) {
-
-							/* roll block allocation back */
-							for (uint32_t i = 0; i < new_blocks; i++) {
-								_block_manager->free(pba + i);
-							}
 							break;
 						}
 
 						Cbe::Primitive::Number const vba = _trans->get_virtual_block_address(prim);
-						Genode::log("STEP 4: ", n, " vba: ", vba);
+
+						uint32_t const trans_height = _trans->height() + 1;
+						uint32_t new_blocks = 1;
+						for (uint32_t i = 1; i < trans_height; i++) {
+							Cbe::Physical_block_address const pba = old_pba[i];
+							uint32_t const index = _trans->index(vba, i);
+							Cache_Index     const idx   = _cache.data_index(pba, _time.timestamp());
+							Cbe::Block_data const &data = _cache_data.item[idx.value];
+							Cbe::Type_i_node const &n = reinterpret_cast<Cbe::Type_i_node const&>(data);
+
+							Genode::log("\033[37;41m", __func__, " vba: ", vba,
+							            " check: ", pba, " index: ", index, " ", Genode::Hex(n.gen));
+
+							new_blocks++;
+						}
+
+						Genode::log("STEP 3: ", leaf_pba);
+
+						/*
+						 * 3. check if allocator has enough blocks left
+						 */
+						Cbe::Physical_block_address new_pba[Translation::MAX_LEVELS] { };
+						try {
+							Cbe::Physical_block_address const pba =
+								_block_manager->alloc(_super_block,
+								                      _last_secured_generation,
+								                      _current_generation,
+								                      new_blocks);
+							for (uint32_t i = 0; i < new_blocks; i++) {
+								new_pba[i] = pba + i;
+							}
+						} catch (...) {
+
+							Genode::warning("not enough free blocks left");
+							break;
+						}
+
+
+						for (uint32_t i = 0; i < trans_height; i++) {
+							_block_manager->free(_current_generation, old_pba[i]);
+						}
+
+
+						Genode::log("STEP 4: ", leaf_pba, " vba: ", vba);
 
 						/*
 						 * 4. hand over infos to the Write_back module
 						 */
-						_write_back.submit_primitive(prim, vba, pba, old_pba, new_blocks, *data_ptr);
+						_write_back.submit_primitive(prim, _current_generation, vba,
+						                             new_pba, old_pba, new_blocks, *data_ptr);
 
 						// XXX see _write_back.peek_completed_primitive()
 						_trans->suspend();
@@ -580,40 +736,33 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					Genode::log("Write_back peek_completed_primitive");
 
-					{
-						/* update super block */
-						Cbe::Super_block const &last_sb = _super_block[_current_sb];
+					uint64_t         const  next_sb = (_current_sb + 1) % Cbe::NUM_SUPER_BLOCKS;
+					Cbe::Super_block const &last_sb = _super_block[_current_sb];
+					Cbe::Super_block       &sb      = _super_block[next_sb];
 
-						uint64_t next_sb = (_current_sb + 1) % Cbe::NUM_SUPER_BLOCKS;
-						Cbe::Super_block &sb = _super_block[next_sb];
 
-						/* reclaim */
-						if (next_sb < _current_sb) {
-							Cbe::Physical_block_address const root = sb.root_number;
-							Genode::log("SB cycled");
-							for (unsigned i = 0; i < _trans->height() + 1; i++) {
-								Genode::log(" Might reclaim ", root + i);
-							}
-						}
+					/* update super block */
+					sb.root_number = _write_back.peek_completed_root(prim);
+					Cbe::Hash *root_hash = &sb.root_hash;
+					_write_back.peek_competed_root_hash(prim, *root_hash);
 
-						sb.root_number = _write_back.peek_completed_root(prim);
-						Cbe::Hash *root_hash = &sb.root_hash;
-						_write_back.peek_competed_root_hash(prim, *root_hash);
+					sb.free_leaves = last_sb.free_leaves - _trans->height() + 1;
+					sb.generation = _current_generation;
 
-						sb.free_leaves = last_sb.free_leaves - _trans->height() + 1;
-						sb.generation = last_sb.generation + 1;
+					sb.active = true;
 
-						Cbe::Physical_block_address const last_root = last_sb.root_number;
-						Cbe::Physical_block_address const root      = sb.root_number;
-						Genode::error("last root: ", last_root, " root: ", root);
+					Cbe::Physical_block_address const last_root = last_sb.root_number;
+					Cbe::Physical_block_address const root      = sb.root_number;
+					Genode::error("last root: ", last_root, " root: ", root);
 
-						Cbe::Super_block::Generation const gen = sb.generation;
-						Genode::error("Submit sync super block: ", next_sb, " gen: ", gen);
-						_sync_sb.submit_primitive(prim, next_sb);
+					Cbe::Generation const gen = sb.generation;
+					Genode::error("Submit sync super block: ", next_sb, " gen: ", gen);
+					_sync_sb.submit_primitive(prim, next_sb);
 
-						Genode::error("Switch super block: ", _current_sb, " -> ", next_sb);
-						_current_sb = next_sb;
-					}
+					Genode::error("Switch super block: ", _current_sb, " -> ", next_sb);
+					_current_sb = next_sb;
+					_last_secured_generation  = _current_generation;
+					_current_generation       = _last_secured_generation + 1;
 
 					_write_back.drop_completed_primitive(prim);
 
@@ -648,7 +797,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 							Cache_Index     const idx   = _cache.data_index(prim.block_number,
 							                                                _time.timestamp());
 							Cbe::Block_data const &data = _cache_data.item[idx.value];
-							_write_back.copy_and_update(prim, data, *_trans);
+							_write_back.copy_and_update(prim.block_number, data, *_trans);
 							_progress = true;
 						} else {
 
@@ -703,7 +852,17 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					_sync_sb.drop_completed_primitive(prim);
 
+					for (uint64_t i = 0; i < Cbe::NUM_SUPER_BLOCKS; i++) {
+						Cbe::Super_block &sb = _super_block[i];
+
+						Cbe::Generation const g = sb.generation;
+						Genode::log("\033[35;1m", __func__, ": ", i, ": ", g);
+					}
+					_block_manager->dump();
+
 					_request_pool.mark_completed_primitive(req_prim);
+
+					_sync_cb_count++;
 
 					progress |= true;
 				}
@@ -720,6 +879,42 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					_io.submit_primitive(Tag::SYNC_SB_TAG, prim, sb_data);
 					_sync_sb.drop_generated_primitive(prim);
+					progress |= true;
+				}
+
+				/**********************
+				 ** reclaim handling **
+				 **********************/
+
+				bool reclaim_progress = _reclaim.execute(_reclaim_data);
+				progress |= reclaim_progress;
+				if (_show_progress) {
+					Genode::log("Reclaim progress: ", reclaim_progress);
+				}
+
+				while (true) {
+
+					if (!_reclaim.peek_completed_request()) { break; }
+
+					_reclaim.reclaim_completed_request(*_block_manager, _current_generation);
+					_reclaim.drop_completed_request();
+					progress |= true;
+				}
+
+				while (true) {
+
+					Cbe::Primitive prim = _reclaim.peek_generated_primitive();
+					if (!prim.valid()) { break; }
+					if (!_io.primitive_acceptable()) { break; }
+
+					Reclaim_Index   const idx   = _reclaim.peek_generated_data_index(prim);
+					Cbe::Block_data &data = _reclaim_data.item[idx.value];
+
+					Genode::log("Reclaim I/O idx: ", idx.value, " ", (void*)&data);
+
+					_io.submit_primitive(Tag::RECLAIM_TAG, prim, data);
+					_reclaim.drop_generated_primitive(prim);
+
 					progress |= true;
 				}
 
@@ -813,6 +1008,10 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						Genode::log("SYNC_SB_TAG");
 						_sync_sb.mark_generated_primitive_complete(prim);
 						break;
+					case Tag::RECLAIM_TAG:
+						Genode::log("RECLAIM_TAG");
+						_reclaim.mark_generated_primitive_complete(prim);
+						break;
 					default: break;
 					}
 					if (!_progress) { break; }
@@ -831,14 +1030,14 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		{
 			Cbe::Super_block const &sb = _super_block[_current_sb];
 
-			Cbe::Super_block::Number const root_number      = sb.root_number;
-			Cbe::Super_block::Height const height           = sb.height;
+			Cbe::Physical_block_address const root_number      = sb.root_number;
+			Cbe::Height const height           = sb.height;
 			Cbe::Super_block::Degree const degree           = sb.degree;
-			Cbe::Super_block::Number_of_leaves const leaves = sb.leaves;
+			Cbe::Number_of_leaves const leaves = sb.leaves;
 
-			Cbe::Super_block::Number const free_number           = sb.free_number;
-			Cbe::Super_block::Number_of_leaves const free_leaves = sb.free_leaves;
-			Cbe::Super_block::Number_of_leaves const free_height = sb.free_height;
+			Cbe::Physical_block_address const free_number           = sb.free_number;
+			Cbe::Number_of_leaves const free_leaves = sb.free_leaves;
+			Cbe::Number_of_leaves const free_height = sb.free_height;
 
 			Genode::log("Virtual block-device info in SB[", _current_sb, "]: ",
 			            "tree height: ", height, " ",
@@ -852,7 +1051,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 		void _setup()
 		{
-			Cbe::Super_block::Generation last_gen = 0;
+			Cbe::Generation last_gen = 0;
 			uint64_t most_recent_sb = ~0ull;
 
 			/*
@@ -866,6 +1065,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 				if (dst.root_number != 0 && dst.generation > last_gen) {
 					most_recent_sb = i;
+					last_gen = dst.generation;
 				}
 
 				Sha256_4k::Hash hash { };
@@ -885,12 +1085,16 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 			SB const &sb = _super_block[_current_sb];
 
-			SB::Height const height           = sb.height;
+			Cbe::Height const height           = sb.height;
 			SB::Degree const degree           = sb.degree;
-			SB::Number_of_leaves const leaves = sb.leaves;
+			Cbe::Number_of_leaves const leaves = sb.leaves;
 
-			SB::Number const free_number           = sb.free_number;
-			SB::Number_of_leaves const free_leaves = sb.free_leaves;
+			Cbe::Physical_block_address const free_number = sb.free_number;
+			Cbe::Number_of_leaves const free_leaves       = sb.free_leaves;
+
+			_last_secured_generation = sb.generation;
+			_current_generation      = _last_secured_generation + 1;
+			_time_gen = _current_generation;
 
 			_max_vba = leaves - 1;
 

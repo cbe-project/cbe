@@ -48,6 +48,10 @@ class Cbe::Module::Write_back
 			Cbe::Tag tag { Cbe::Tag::INVALID_TAG };
 		};
 
+		/*
+		 * _entry[0]               -> leaf node
+		 * _entry[1] ... _entry[N] -> inner node
+		 */
 		Entry _entry[N] { };
 
 		uint32_t _levels { 0 };
@@ -55,32 +59,39 @@ class Cbe::Module::Write_back
 
 		Cbe::Primitive _pending_primitive { };
 		Cbe::Virtual_block_address _vba { ~0ull };
+		Cbe::Generation _new_generation { 0 };
 
 	public:
 
 		Write_back() { }
 
-		void copy_and_update(Cbe::Primitive const &p, Cbe::Block_data const &data,
+		void copy_and_update(Cbe::Physical_block_address const pba,
+		                     Cbe::Block_data const &data,
 		                     Cbe::Module::Translation<T> &trans)
 		{
-			Cbe::Primitive::Number const block_number = p.block_number;
-			Genode::error(__func__, ": ", block_number);
-
 			for (Genode::uint32_t i = 0; i < _levels; i++) {
 				Entry &e = _entry[i];
-				if (e.tag != Cbe::Tag::CACHE_TAG || e.old_pba != p.block_number) { continue; }
+
+				if (e.tag != Cbe::Tag::CACHE_TAG || e.old_pba != pba) {
+					continue;
+				}
 
 				/* assert sizeof (e.data) == sizeof (data) */
 				void const *src = (void const*)&data;
 				void       *dst = (void*)&e.data;
 				Genode::memcpy(dst, src, sizeof (e.data));
 
+				/* save as long as only inner nodes in cache */
 				Entry &e1 = _entry[i-1];
+
+				/* get index from VBA in inner node */
 				Genode::uint32_t const index = trans.index(_vba, i);
 				T *t = reinterpret_cast<T*>(&e.data);
 
 				Cbe::Physical_block_address const _old_pba = t[index].pba;
+				Cbe::Generation             const _old_gen = t[index].gen;
 				t[index].pba = e1.new_pba;
+				t[index].gen = (_old_gen & Cbe::GEN_TYPE_MASK) | _new_generation;
 
 				/* calculate hash for child */
 				{
@@ -106,13 +117,15 @@ class Cbe::Module::Write_back
 
 		bool primitive_acceptable() const { return !_pending_primitive.valid(); }
 
-		void submit_primitive(Primitive const &p, Cbe::Virtual_block_address vba,
-		                      Cbe::Physical_block_address new_pba,
+		void submit_primitive(Primitive const &p, Cbe::Generation new_generation,
+		                      Cbe::Virtual_block_address vba,
+		                      Cbe::Physical_block_address *new_pba,
 		                      Cbe::Physical_block_address *old_pba, uint32_t n, Block_data &d)
 		{
 			Genode::log(__func__, " p: ", p.block_number);
 
 			_pending_primitive = p;
+			_new_generation = new_generation;
 			_vba = vba;
 
 			_levels = n;
@@ -126,7 +139,7 @@ class Cbe::Module::Write_back
 				Genode::log(" old[", i, "]: ", phys, " -> ", new_pba + i);
 
 				e.old_pba = old_pba[i];
-				e.new_pba = new_pba + i;
+				e.new_pba = new_pba[i];
 				e.in_progress = false;
 				e.done        = false;
 				e.io_in_progress = false;
