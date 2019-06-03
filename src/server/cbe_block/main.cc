@@ -469,7 +469,7 @@ class Cbe::Vbd
 
 				try {
 					Cbe::Physical_block_address const pba = block_allocator.alloc();
-					Cbe::Generation             const v   = Cbe::GEN_TYPE_CHILD + i;
+					Cbe::Generation             const v   = Cbe::GEN_TYPE_CHILD + 1;
 
 					parent_node[i].pba = pba;
 					parent_node[i].gen = v;
@@ -521,7 +521,7 @@ class Cbe::Vbd
 			for (uint32_t i = 0; i < info.outer_degree; i++) {
 				try {
 					Cbe::Physical_block_address const pba = block_allocator.alloc();
-					Cbe::Generation             const v   = GEN_TYPE_PARENT + i;
+					Cbe::Generation             const v   = GEN_TYPE_PARENT + 1;
 
 					node[i].pba = pba;
 					node[i].gen = v;
