@@ -594,7 +594,7 @@ class Cbe::Vbd
 				Cbe::Hash                    const &root_hash = sb.root_hash;
 				Cbe::Super_block::Number_of_leaves const free_height = sb.free_height;
 				Cbe::Super_block::Number_of_leaves const free_leaves = sb.free_leaves;
-				Genode::log(i == idx ? "Current " : "          ", "SB[", i, "]: gen: ", gen, " root: ", root,
+				Genode::log(i == idx ? "\033[33;1mCurrent " : "          ", "SB[", i, "]: gen: ", gen, " root: ", root,
 				            " free leaves: (", free_leaves, "/", free_height, ")",
 				            " root hash: <", root_hash, ">");
 
