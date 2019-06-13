@@ -31,6 +31,7 @@ using uint32_t = Genode::uint32_t;
 using uint64_t = Genode::uint64_t;
 
 static bool _verbose { false };
+static bool _dump_all { true };
 
 namespace Cbe {
 
@@ -562,21 +563,20 @@ class Cbe::Vbd
 			}
 		}
 
-		void dump()
+		void dump(bool all)
 		{
 			Block_allocator &ba = _tree.block_allocator();
-			Cbe::Super_block::Generation most_recent_gen = 0;
+			Cbe::Generation most_recent_gen = 0;
 			uint64_t idx = ~0ull;
 			for (uint64_t i = 0; i < Cbe::NUM_SUPER_BLOCKS; i++) {
 				Cbe::Super_block &sb = *reinterpret_cast<Cbe::Super_block*>(ba.data(i));
-				Cbe::Super_block::Generation const gen  = sb.generation;
+				Cbe::Generation const gen  = sb.generation;
 				if (gen >= most_recent_gen) {
 					most_recent_gen = gen;
 					idx = i;
 				}
 			}
 
-			bool all = true;
 			for (uint64_t i = 0; i < Cbe::NUM_SUPER_BLOCKS; i++) {
 
 
@@ -584,7 +584,7 @@ class Cbe::Vbd
 
 				Cbe::Super_block &sb = *reinterpret_cast<Cbe::Super_block*>(ba.data(i));
 
-				Cbe::Super_block::Generation const gen  = sb.generation;
+				Cbe::Generation              const gen  = sb.generation;
 				Cbe::Physical_block_address  const root = sb.root_number;
 
 				if (gen == 0 && root == 0) {
@@ -592,8 +592,8 @@ class Cbe::Vbd
 					continue;
 				}
 				Cbe::Hash                    const &root_hash = sb.root_hash;
-				Cbe::Super_block::Number_of_leaves const free_height = sb.free_height;
-				Cbe::Super_block::Number_of_leaves const free_leaves = sb.free_leaves;
+				Cbe::Number_of_leaves const free_height = sb.free_height;
+				Cbe::Number_of_leaves const free_leaves = sb.free_leaves;
 				Genode::log(i == idx ? "\033[33;1mCurrent " : "          ", "SB[", i, "]: gen: ", gen, " root: ", root,
 				            " free leaves: (", free_leaves, "/", free_height, ")",
 				            " root hash: <", root_hash, ">");
@@ -683,7 +683,7 @@ class Cbe::Mmu
 			if (vba < 8 && _current_request.operation.type == Block::Operation::Type::WRITE) {
 				if (_verbose) {
 					Genode::log("Super block changed, dump tree");
-					_vbd.dump();
+					_vbd.dump(_dump_all);
 				}
 			}
 
@@ -814,6 +814,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			bool const initialize = config.attribute_value("initialize", false);
 
 			_verbose = config.attribute_value("verbose", _verbose);
+			_dump_all = config.attribute_value("dump_all", _dump_all);
 
 			struct Missing_parameters { };
 			struct Invalid_parameters { };
