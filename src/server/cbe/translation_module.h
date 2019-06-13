@@ -169,7 +169,7 @@ class Cbe::Module::Translation
 			_next_pba  = Cbe::INVALID_PBA;
 		}
 
-		bool execute(Translation_Data &tdata)
+		bool execute(Translation_Data &trans_data)
 		{
 			/* no active translation request */
 			if (!_current.valid()) { return false; }
@@ -195,10 +195,10 @@ class Cbe::Module::Translation
 
 					/* or use previous level data to get next level */
 					uint32_t const i = _get_index(_current.block_number, _level+1);
-					_next_pba = _get_pba(tdata.item[0], i);
+					_next_pba = _get_pba(trans_data.item[0], i);
 
 					Genode::memcpy(_walk_hash[_level].values,
-					               _get_hash(tdata.item[0], i),
+					               _get_hash(trans_data.item[0], i),
 					               sizeof (Cbe::Hash));
 				}
 
@@ -213,7 +213,7 @@ class Cbe::Module::Translation
 			struct Hash_mismatch { };
 			Sha256_4k::Hash hash { };
 			Sha256_4k::Data const &data =
-				*reinterpret_cast<Sha256_4k::Data const*>(&tdata.item[0]);
+				*reinterpret_cast<Sha256_4k::Data const*>(&trans_data.item[0]);
 			Sha256_4k::hash(data, hash);
 
 			Cbe::Hash const *h = nullptr;
@@ -225,7 +225,10 @@ class Cbe::Module::Translation
 			}
 
 			if (Genode::memcmp(hash.values, h->values, sizeof (Cbe::Hash))) {
-				Genode::error("level: ", _level, " <", hash, "> != <", *h, ">");
+				Genode::error("level: ", _level, " pba: ", _walk[_level], " <", hash, "> != <", *h, ">");
+				for (uint32_t l = 0; l < _height+1; l++) {
+					Genode::error("node[", l, "]: ", _walk[l], " <", _walk_hash[l], ">");
+				}
 				throw Hash_mismatch();
 			}
 
@@ -235,11 +238,11 @@ class Cbe::Module::Translation
 			 */
 			if (--_level == 0) {
 				uint32_t const i = _get_index(_current.block_number, 1);
-				_data_pba = _get_pba(tdata.item[0], i);
+				_data_pba = _get_pba(trans_data.item[0], i);
 
 				_walk[_level] = _data_pba;
 				Genode::memcpy(_walk_hash[_level].values,
-				               _get_hash(tdata.item[0], i),
+				               _get_hash(trans_data.item[0], i),
 				               sizeof (Cbe::Hash));
 			}
 
@@ -358,7 +361,7 @@ class Cbe::Module::Translation
 		 */
 		void mark_generated_primitive_complete(Cbe::Primitive const  &p,
 		                                       Cbe::Block_data const &data,
-		                                       Translation_Data &tdata)
+		                                       Translation_Data &trans_data)
 		{
 			if (p.block_number != _next_pba) {
 				Genode::error(__func__, " invalid primitive");
@@ -366,7 +369,7 @@ class Cbe::Module::Translation
 			}
 
 			_data.set_available(_level);
-			Genode::memcpy(&tdata.item[0], &data, sizeof (Cbe::Block_data));
+			Genode::memcpy(&trans_data.item[0], &data, sizeof (Cbe::Block_data));
 		}
 };
 
