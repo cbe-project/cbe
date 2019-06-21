@@ -1,0 +1,167 @@
+
+exec rm -rf var/libcache/cbe
+
+build {
+	core init timer
+	server/ram_block
+	server/cbe
+	server/cbe_block
+	app/block_tester
+	server/log_terminal
+	server/report_rom
+}
+
+create_boot_directory
+
+install_config {
+<config verbose="yes">
+	<parent-provides>
+		<service name="ROM"/>
+		<service name="RAM"/>
+		<service name="IRQ"/>
+		<service name="IO_MEM"/>
+		<service name="IO_PORT"/>
+		<service name="PD"/>
+		<service name="RM"/>
+		<service name="CPU"/>
+		<service name="LOG"/>
+	</parent-provides>
+
+	<default-route>
+		<any-service> <parent/> <any-child/> </any-service>
+	</default-route>
+
+	<default caps="200"/>
+
+	<start name="timer">
+		<resource name="RAM" quantum="1M"/>
+		<provides><service name="Timer"/></provides>
+	</start>
+
+	<start name="report_rom">
+		<resource name="RAM" quantum="1M"/>
+		<provides> <service name="Report"/> <service name="ROM"/> </provides>
+		<config verbose="yes"/>
+	</start>
+
+	<start name="log_terminal">
+		<resource name="RAM" quantum="1M"/>
+		<provides><service name="Terminal"/></provides>
+	</start>
+
+	<start name="runtime" caps="1000">
+
+		<binary name="init"/>
+		<resource name="RAM" quantum="1G"/>
+		<config verbose="no">
+
+			<parent-provides>
+				<service name="ROM"/>
+				<service name="RAM"/>
+				<service name="IRQ"/>
+				<service name="IO_MEM"/>
+				<service name="IO_PORT"/>
+				<service name="PD"/>
+				<service name="RM"/>
+				<service name="CPU"/>
+				<service name="LOG"/>
+				<service name="Report"/>
+				<service name="Timer"/>
+				<service name="Terminal"/>
+			</parent-provides>
+
+			<default-route>
+				<any-service> <parent/> <any-child/> </any-service>
+			</default-route>
+
+			<default caps="200"/>
+
+			<start name="cbe_block">
+				<resource name="RAM" quantum="1G"/>
+				<provides><service name="Block"/></provides>
+				<config verbose="no" report="yes" backing_size="512M" vbd_size="64K" outer_degree="4" initialize="yes">
+					<state>
+						<super-block id="0" is_current="true" generation="1" leafs="16" degree="4" height="2" free-number="2192" free-leafs="32768" free-height="32768" root-number="128">
+							<i-node id="0" pba="129" gen="281474976710656">
+								<leaf id="0" pba="130" gen="562949953421312" vba="0"/>
+								<leaf id="1" pba="131" gen="562949953421313" vba="1"/>
+								<leaf id="2" pba="132" gen="562949953421314" vba="2"/>
+								<leaf id="3" pba="133" gen="562949953421315" vba="3"/>
+							</i-node>
+							<i-node id="1" pba="134" gen="281474976710657">
+								<leaf id="0" pba="135" gen="562949953421312" vba="4"/>
+								<leaf id="1" pba="136" gen="562949953421313" vba="5"/>
+								<leaf id="2" pba="137" gen="562949953421314" vba="6"/>
+								<leaf id="3" pba="138" gen="562949953421315" vba="7"/>
+							</i-node>
+							<i-node id="2" pba="139" gen="281474976710658">
+								<leaf id="0" pba="140" gen="562949953421312" vba="8"/>
+								<leaf id="1" pba="141" gen="562949953421313" vba="9"/>
+								<leaf id="2" pba="142" gen="562949953421314" vba="10"/>
+								<leaf id="3" pba="143" gen="562949953421315" vba="11"/>
+							</i-node>
+							<i-node id="3" pba="144" gen="281474976710659">
+								<leaf id="0" pba="145" gen="562949953421312" vba="12"/>
+								<leaf id="1" pba="146" gen="562949953421313" vba="13"/>
+								<leaf id="2" pba="147" gen="562949953421314" vba="14"/>
+								<leaf id="3" pba="148" gen="562949953421315" vba="15"/>
+							</i-node>
+						</super-block>
+						<super-block id="1" is_current="false" generation="0" leafs="16" degree="4" height="2" free-number="2192" free-leafs="32768" free-height="32768" root-number="0"/>
+						<super-block id="2" is_current="false" generation="0" leafs="16" degree="4" height="2" free-number="2192" free-leafs="32768" free-height="32768" root-number="0"/>
+						<super-block id="3" is_current="false" generation="0" leafs="16" degree="4" height="2" free-number="2192" free-leafs="32768" free-height="32768" root-number="0"/>
+						<super-block id="4" is_current="false" generation="0" leafs="16" degree="4" height="2" free-number="2192" free-leafs="32768" free-height="32768" root-number="0"/>
+						<super-block id="5" is_current="false" generation="0" leafs="16" degree="4" height="2" free-number="2192" free-leafs="32768" free-height="32768" root-number="0"/>
+						<super-block id="6" is_current="false" generation="0" leafs="16" degree="4" height="2" free-number="2192" free-leafs="32768" free-height="32768" root-number="0"/>
+						<super-block id="7" is_current="false" generation="0" leafs="16" degree="4" height="2" free-number="2192" free-leafs="32768" free-height="32768" root-number="0"/>
+					</state>
+				</config>
+			</start>
+
+			<start name="cbe">
+				<resource name="RAM" quantum="4M"/>
+				<provides><service name="Block"/></provides>
+				<config show_progress="no"/>
+				<route>
+					<service name="Block"> <child name="cbe_block"/> </service>
+					<any-service> <parent/> </any-service>
+				</route>
+			</start>
+
+			<start name="block_tester">
+				<resource name="RAM" quantum="32M"/>
+				<config verbose="yes" report="no" log="yes" stop_on_error="no">
+					<tests>
+						<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="8"/> </replay>
+						<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="8"/> </replay>
+					</tests>
+				</config>
+				<route>
+					<service name="Block"> <child name="cbe"/> </service>
+					<any-service> <parent/> <any-child/> </any-service>
+				</route>
+			</start>
+
+		</config>
+
+		<route>
+			<service name="Report">   <child name="report_rom"/> </service>
+			<service name="Terminal"> <child name="log_terminal"/> </service>
+			<service name="Timer">    <child name="timer"/> </service>
+			<any-service> <parent/> </any-service>
+		</route>
+	</start>
+
+</config>}
+
+
+build_boot_image {
+	core init timer ram_block block_tester cbe_block cbe
+	ld.lib.so spark.lib.so libsparkcrypto.lib.so
+	log_terminal report_rom
+}
+
+
+append qemu_args " -nographic -m 1280 "
+
+run_genode_until {.*child "block_tester" exited with exit value 1.*\n} 60
