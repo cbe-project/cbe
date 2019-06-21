@@ -33,10 +33,6 @@ using uint64_t = Genode::uint64_t;
 
 namespace Cbe {
 
-	enum {
-		BLOCK_DEVICE_SIZE = 1u << 30,
-	};
-
 	struct Size       { uint64_t value; };
 	struct Block_size { uint32_t value; };
 
@@ -44,28 +40,8 @@ namespace Cbe {
 
 	class Tree;
 
-	template <Genode::size_t, typename> class Stack;
-
 	struct Block_session_component;
 	class Main;
-
-	struct Node_type2
-	{
-		union {
-			struct {
-				Cbe::Physical_block_address physical_block_address;
-				Cbe::Virtual_block_address last_vba;
-
-				Generation alloc_gen;
-				Generation free_gen;
-				uint32_t last_key_id;
-				bool reserved;
-			};
-
-			char data[64];
-		};
-	} __attribute__((packed));
-
 
 	struct Data
 	{
@@ -82,43 +58,6 @@ namespace Cbe {
 	using namespace Genode;
 
 } /* namespace Cbe */
-
-
-template <Genode::size_t N, typename T>
-class Cbe::Stack
-{
-	private:
-
-		T _data[N];
-		Genode::size_t _count;
-
-	public:
-
-		struct Stack_empty { };
-		struct Stack_full { };
-
-		Stack() : _count(0) { }
-
-		bool empty() const { return _count == 0; }
-
-		T pop()
-		{
-			if (!_count) { throw Stack_empty(); }
-			return _data[--_count];
-		}
-
-		void push(T d)
-		{
-			if (_count >= N) { throw Stack_full(); }
-			_data[_count++] = d;
-		}
-
-		T peek() const
-		{
-			if (empty()) { throw Stack_empty(); }
-			return _data[_count-1];
-		}
-};
 
 
 struct Cbe::Block_allocator
@@ -195,73 +134,6 @@ struct Cbe::Block_session_component : Rpc_object<Block::Session>,
 
 	Capability<Tx> tx_cap() override { return Request_stream::tx_cap(); }
 };
-
-
-struct Old_entry
-{
-	Cbe::Physical_block_address         physical_block_address;
-	Cbe::Virtual_block_address         vba;
-	Cbe::Generation  g;
-};
-
-
-Cbe::Physical_block_address find_free_type2(Cbe::Virtual_block_address start)
-{
-	(void)start;
-	return 0;
-}
-
-
-#if 0
-static uint32_t _global_current_key_id = 42;
-static uint64_t _global_current_generation = 1;
-
-bool allocte_new_blocks(uint64_t n, Old_entry e[])
-{
-	uint64_t n_total = n;
-	uint64_t n_found = 0;
-
-	/* we are looking only for 1 branch that satisfies the request */
-	Cbe::Virtual_block_address b    = 0;
-	uint64_t nvol = 0;
-
-	Cbe::Virtual_block_address start = 0;
-	Cbe::Virtual_block_address const step = 0b0100;
-
-	do {
-
-		Cbe::Physical_block_address x = find_free_type2(start);
-		start +=step;
-
-		uint64_t free = get_free_blocks(x);
-		uint64_t nvol = get_non_volatile_blocks(x);
-
-		n_found += free;
-		n_total += nvol;
-
-		b = x;
-	} while (n_found < n_total);
-
-	Cbe::Node_type2 &nt2 = *reinterpret_cast<Cbe::Node_type2*>(_block_allocator.data(b));
-
-	uint64_t nvcol_i = 0;
-	for (uint32_t i = height; i > 0; i--) {
-		if (block_volatile(x, i)) {
-			nt2[nvcol_i].pba = 
-
-	}
-	/* assert nvcol_i == nvol */
-
-	for (uint64_t i = 0; i < n; i++) {
-		nt2[nvol+i].pba         = e[i].pba;
-		nt2[nvol+i].last_vba    = e[i].vba;
-		nt2[nvol+i].alloc_gen   = e[i].g;
-		nt2[nvol+i].free_gen    = _global_current_generation;
-		nt2[nvol+i].last_key_id = _global_current_key_id;
-		nt2[nvol+i].reserved    = true;
-	}
-}
-#endif
 
 
 class Cbe::Tree
