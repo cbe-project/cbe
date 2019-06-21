@@ -31,10 +31,6 @@
 using uint32_t = Genode::uint32_t;
 using uint64_t = Genode::uint64_t;
 
-static bool _verbose { false };
-static bool _verbose_report { false };
-static bool _dump_all { true };
-
 namespace Cbe {
 
 	enum {
@@ -403,6 +399,7 @@ class Cbe::Vbd
 		uint64_t                    _report_leaves { 0 };
 		uint64_t                    _leaves        { 0 };
 		Cbe::Tree                  &_tree;
+		bool                 const  _verbose;
 
 		/**
 		 * Report information about a given leaf node and its sub-nodes
@@ -788,10 +785,14 @@ class Cbe::Vbd
 
 	public:
 
-		Vbd(Genode::Env &env, Cbe::Tree &tree, bool initialize = false)
+		Vbd(Genode::Env &env,
+		    Cbe::Tree   &tree,
+		    bool         verbose,
+		    bool         initialize)
 		:
-			_env  { env },
-			_tree { tree }
+			_env     { env },
+			_tree    { tree },
+			_verbose { verbose }
 		{
 			if (initialize) {
 				_initialize(_tree.info(), _tree.root(), _tree.block_allocator(), _tree.info().height);
@@ -886,16 +887,27 @@ class Cbe::Mmu
 {
 	private:
 
-		Cbe::Vbd &_vbd;
-
+		Cbe::Vbd       &_vbd;
+		bool     const  _report;
+		bool     const  _verbose;
+		bool     const  _dump_all;
 		Block::Request  _current_request { };
-		bool            _completed { false };
-		bool            _pending   { false };
-		void           *_data      { nullptr };
+		bool            _completed       { false };
+		bool            _pending         { false };
+		void           *_data            { nullptr };
 
 	public:
 
-		Mmu(Cbe::Vbd &vbd) : _vbd(vbd) { }
+		Mmu(Cbe::Vbd &vbd,
+		    bool      report,
+		    bool      verbose,
+		    bool      dump_all)
+		:
+			_vbd      { vbd },
+			_report   { report },
+			_verbose  { verbose },
+			_dump_all { dump_all }
+		{ }
 
 		bool acceptable() const
 		{
@@ -949,7 +961,7 @@ class Cbe::Mmu
 					Genode::log("Super block changed, dump tree");
 					_vbd.dump(_dump_all);
 				}
-				if (_verbose_report) {
+				if (_report) {
 					_vbd.report();
 				}
 			}
@@ -984,24 +996,22 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 {
 	private:
 
-		Env &_env;
+		Env                    &_env;
+		Attached_rom_dataspace  _config_rom      { _env, "config" };
+		Xml_node                _config          { _config_rom.xml() };
+		bool             const  _verbose         { _config.attribute_value("verbose",  false) };
+		bool             const  _report          { _config.attribute_value("report",   false) };
+		bool             const  _dump_all        { _config.attribute_value("dump_all", false) };
+		Signal_handler<Main>    _request_handler { _env.ep(), *this, &Main::_handle_requests };
+		Block::Request          _current_request { };
 
-		Attached_rom_dataspace _config_rom { _env, "config" };
-
-		Constructible<Attached_ram_dataspace>  _backing_store { };
-		Constructible<Attached_ram_dataspace>  _block_ds { };
-		Constructible<Block_session_component> _block_session { };
-
-		Constructible<Cbe::Block_allocator> _block_allocator { };
-		Constructible<Cbe::Tree>            _tree { };
-		Constructible<Cbe::Vbd>             _vbd  { };
-
-		Constructible<Cbe::Mmu> _mmu { };
-
-		Signal_handler<Main> _request_handler {
-			_env.ep(), *this, &Main::_handle_requests };
-
-		Block::Request _current_request { };
+		Constructible<Attached_ram_dataspace>  _backing_store   { };
+		Constructible<Attached_ram_dataspace>  _block_ds        { };
+		Constructible<Block_session_component> _block_session   { };
+		Constructible<Cbe::Block_allocator>    _block_allocator { };
+		Constructible<Cbe::Tree>               _tree            { };
+		Constructible<Cbe::Vbd>                _vbd             { };
+		Constructible<Cbe::Mmu>                _mmu             { };
 
 		void _handle_requests()
 		{
@@ -1080,10 +1090,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			uint32_t const outer_degree = config.attribute_value("outer_degree",   0u);
 			bool const initialize = config.attribute_value("initialize", false);
 
-			_verbose        = config.attribute_value("verbose", _verbose);
-			_verbose_report = config.attribute_value("report", _verbose_report);
-			_dump_all = config.attribute_value("dump_all", _dump_all);
-
 			struct Missing_parameters { };
 			struct Invalid_parameters { };
 			struct Invalid_size       { };
@@ -1114,12 +1120,12 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				throw;
 			}
 			_tree.construct(*_block_allocator, root_pba, info);
-			_vbd.construct(_env, *_tree, initialize);
+			_vbd.construct(_env, *_tree, _verbose, initialize);
 
 			if (config.has_sub_node("state")) {
 				_vbd->write_state(config.sub_node("state")); }
 
-			_mmu.construct(*_vbd);
+			_mmu.construct(*_vbd, _report, _verbose, _dump_all);
 
 			log("Created virtual block device with size ", info.size);
 			if (_report) {
