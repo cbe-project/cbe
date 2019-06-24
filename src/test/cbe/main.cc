@@ -1,6 +1,7 @@
 /*
- * \brief  Test for the init component
+ * \brief  Scripted test for the CBE component
  * \author Norman Feske
+ * \author Martin Stein
  * \date   2017-02-16
  */
 
@@ -95,24 +96,8 @@ struct Test::Log_message_handler : Interface
 {
 	typedef String<Log_session::MAX_STRING_LEN> Message;
 
-	enum Result { EXPECTED, UNEXPECTED, IGNORED };
-
-	virtual Result handle_log_message(Message const &message) = 0;
+	virtual void handle_log_message(Message const &message) = 0;
 };
-
-
-namespace Genode
-{
-	static inline void print(Output &output, Test::Log_message_handler::Result result)
-	{
-		using Genode::print;
-		switch (result) {
-		case Test::Log_message_handler::EXPECTED:   print(output, "expected"); break;
-		case Test::Log_message_handler::UNEXPECTED: print(output, "expected"); break;
-		case Test::Log_message_handler::IGNORED:    print(output, "ignored");  break;
-		}
-	}
-}
 
 
 class Test::Log_session_component : public Rpc_object<Log_session>
@@ -133,16 +118,15 @@ class Test::Log_session_component : public Rpc_object<Log_session>
 		{
 			/* strip known line delimiter from incoming message */
 			unsigned n = 0;
-			Genode::String<16> const pattern("\033[0m\n");
+			static char                          const delim[] { "\033[0m\n" };
+			static Genode::String<sizeof(delim)> const pattern { delim };
 			for (char const *s = string.string(); s[n] && pattern != s + n; n++);
 
 			Log_message_handler::Message const
 				message("[", _label, "] ", Cstring(string.string(), n));
 
-			Log_message_handler::Result const result =
-				_handler.handle_log_message(message);
-
-			log(message, " (", result, ")");
+			_handler.handle_log_message(message);
+			log(message);
 
 			return strlen(string.string());
 		}
@@ -173,18 +157,20 @@ class Test::Log_root : public Root_component<Log_session_component>
 
 struct Test::Main : Log_message_handler
 {
-	Env                    &_env;
-	Timer::Connection       _timer                { _env };
-	bool                    _timer_scheduled      { false };
-	Expanding_reporter      _init_config_reporter { _env, "config", "init.config" };
-	Attached_rom_dataspace  _config               { _env, "config" };
-	size_t            const _num_steps            { _config.xml().num_sub_nodes() };
-	unsigned                _curr_step            { 0 };
-	Attached_rom_dataspace  _block_state          { _env, "block_state" };
-	Signal_handler<Main>    _block_state_handler  { _env.ep(), *this, &Main::_handle_block_state };
-	Signal_handler<Main>    _timer_handler        { _env.ep(), *this, &Main::_handle_timer };
-	Sliced_heap             _sliced_heap          { _env.ram(), _env.rm() };
-	Log_root                _log_root             { _env.ep(), _sliced_heap, *this };
+	Env                          &_env;
+	Timer::Connection             _timer                { _env };
+	bool                          _timer_scheduled      { false };
+	Expanding_reporter            _init_config_reporter { _env, "config", "init.config" };
+	Attached_rom_dataspace        _config               { _env, "config" };
+	size_t            const       _num_steps            { _config.xml().num_sub_nodes() };
+	unsigned                      _curr_step            { 0 };
+	Attached_rom_dataspace        _block_state          { _env, "block_state" };
+	Signal_handler<Main>          _block_state_handler  { _env.ep(), *this, &Main::_handle_block_state };
+	Signal_handler<Main>          _timer_handler        { _env.ep(), *this, &Main::_handle_timer };
+	Sliced_heap                   _sliced_heap          { _env.ram(), _env.rm() };
+	Log_root                      _log_root             { _env.ep(), _sliced_heap, *this };
+	bool                          _expect_log           { false };
+	Log_message_handler::Message  _expect_log_msg       { };
 
 	void _publish_report(Expanding_reporter &reporter, Xml_node node)
 	{
@@ -229,8 +215,11 @@ struct Test::Main : Log_message_handler
 
 			log("step ", _curr_step, " (", step.type(), ")");
 
-			if (step.type() == "expect_log")
+			if (step.type() == "expect_log") {
+				_expect_log     = true;
+				_expect_log_msg = _curr_step_xml().attribute_value("string", Log_message_handler::Message());
 				return;
+			}
 
 			if (step.type() == "expect_block_state") {
 				if (xml_matches(step, _block_state.xml())) {
@@ -279,21 +268,17 @@ struct Test::Main : Log_message_handler
 	/**
 	 * Log_message_handler interface
 	 */
-	Result handle_log_message(Log_message_handler::Message const &message) override
+	void handle_log_message(Log_message_handler::Message const &message) override
 	{
-		typedef Log_message_handler::Message Message;
+		if (!_expect_log)
+			return;
 
-		if (_curr_step_xml().type() != "expect_log")
-			return IGNORED;
+		if (_expect_log_msg != message)
+			return;
 
-		Message const expected = _curr_step_xml().attribute_value("string", Message());
-
-		if (message != expected)
-			return IGNORED;
-
+		_expect_log = false;
 		_advance_step();
 		_execute_curr_step();
-		return EXPECTED;
 	}
 
 	/*
