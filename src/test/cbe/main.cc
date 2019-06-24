@@ -30,7 +30,6 @@ namespace Test {
 
 	using namespace Genode;
 
-	static bool xml_attribute_matches(Xml_node, Xml_node);
 	static bool xml_matches(Xml_node, Xml_node);
 }
 
@@ -39,64 +38,56 @@ namespace Test {
  ** Utilities **
  ***************/
 
-static inline bool Test::xml_attribute_matches(Xml_node condition, Xml_node node)
+static bool Test::xml_matches(Xml_node exp_parent, Xml_node got_parent)
 {
-	typedef String<32> Name;
-	typedef String<64> Value;
+	/* compare all children of the parent node */
+	try {
+		for (unsigned child_idx = 0; child_idx < ~(unsigned)0; child_idx++) {
+			Xml_node const exp_child { exp_parent.sub_node(child_idx) };
+			try {
+				/* compare child type */
+				Xml_node const got_child { got_parent.sub_node(child_idx) };
+				if (exp_child.type() != got_child.type()) {
+					return false;
+				}
+				/* compare all child attributes */
+				try {
+					for (unsigned child_attr_idx = 0; child_attr_idx < ~(unsigned)0; child_attr_idx++) {
+						Xml_attribute const exp_child_attr { exp_child.attribute(child_attr_idx) };
+						struct Mismatch : Genode::Exception { };
+						try {
+							/* compare attribute name */
+							Xml_attribute const got_child_attr { got_child.attribute(child_attr_idx) };
+							if (exp_child_attr.name() != got_child_attr.name()) {
+								return false;
+							}
+							/* compare attribute value */
+							exp_child_attr.with_raw_value([&] (char const *exp_val, size_t exp_val_size) {
+								got_child_attr.with_raw_value([&] (char const *got_val, size_t got_val_size) {
+									if (exp_val_size != got_val_size) {
+										throw Mismatch();
+									}
+									if (memcmp(exp_val, got_val, exp_val_size)) {
+										throw Mismatch();
+									}
+								});
+							});
+						}
+						catch (Xml_node::Nonexistent_attribute) { return false; }
+						catch (Mismatch)                        { return false; }
+					}
+				}
+				catch (Xml_node::Nonexistent_attribute) { }
 
-	Name const name { condition.attribute_value("name",  Name()) };
-
-	if (condition.has_attribute("value")) {
-		Value const value = condition.attribute_value("value", Value());
-		return node.attribute_value(name.string(), Value()) == value;
-	}
-
-	if (condition.has_attribute("higher")) {
-		size_t const value = condition.attribute_value("higher", Number_of_bytes());
-		return (size_t)node.attribute_value(name.string(), Number_of_bytes()) > value;
-	}
-
-	if (condition.has_attribute("lower")) {
-		size_t const value = condition.attribute_value("lower", Number_of_bytes());
-		return (size_t)node.attribute_value(name.string(), Number_of_bytes()) < value;
-	}
-
-	error("missing condition in <attribute> node");
-	return false;
-}
-
-
-/**
- * Return true if 'node' has expected content
- *
- * \expected  description of the XML content expected in 'node'
- */
-static inline bool Test::xml_matches(Xml_node expected, Xml_node node)
-{
-	bool matches { true };
-
-	expected.for_each_sub_node([&] (Xml_node condition) {
-
-		if (condition.type() == "attribute")
-			matches = matches && xml_attribute_matches(condition, node);
-
-		if (condition.type() == "node") {
-
-			typedef String<32> Name;
-			Name const name = condition.attribute_value("name", Name());
-
-			bool at_least_one_sub_node_matches = false;
-			node.for_each_sub_node(name.string(), [&] (Xml_node sub_node) {
-				if (xml_matches(condition, sub_node))
-					at_least_one_sub_node_matches = true; });
-
-			matches = matches && at_least_one_sub_node_matches;
+				/* compare child content */
+				if (!xml_matches(exp_child, got_child)) {
+					return false; }
+			}
+			catch (Xml_node::Nonexistent_sub_node) { return false; }
 		}
-
-		if (condition.type() == "not")
-			matches = matches && !xml_matches(condition, node);
-	});
-	return matches;
+	}
+	catch (Xml_node::Nonexistent_sub_node) { return true; }
+	return false;
 }
 
 
@@ -185,22 +176,24 @@ struct Test::Main : Log_message_handler
 	Env                    &_env;
 	Timer::Connection       _timer                { _env };
 	bool                    _timer_scheduled      { false };
-	Reporter                _init_config_reporter { _env, "config",  "init.config" };
+	Expanding_reporter      _init_config_reporter { _env, "config", "init.config" };
 	Attached_rom_dataspace  _config               { _env, "config" };
-	unsigned          const _num_steps            { _config.xml().num_sub_nodes() };
+	size_t            const _num_steps            { _config.xml().num_sub_nodes() };
 	unsigned                _curr_step            { 0 };
-	Attached_rom_dataspace  _init_state           { _env, "state" };
-	Signal_handler<Main>    _init_state_handler   { _env.ep(), *this, &Main::_handle_init_state };
+	Attached_rom_dataspace  _block_state          { _env, "block_state" };
+	Signal_handler<Main>    _block_state_handler  { _env.ep(), *this, &Main::_handle_block_state };
 	Signal_handler<Main>    _timer_handler        { _env.ep(), *this, &Main::_handle_timer };
 	Sliced_heap             _sliced_heap          { _env.ram(), _env.rm() };
 	Log_root                _log_root             { _env.ep(), _sliced_heap, *this };
 
-	void _publish_report(Reporter &reporter, Xml_node node)
+	void _publish_report(Expanding_reporter &reporter, Xml_node node)
 	{
 		typedef String<64> Version;
 		Version const version = node.attribute_value("version", Version());
 
-		Reporter::Xml_generator xml(reporter, [&] () {
+		reporter.generate([&] (Genode::Xml_generator &xml) {
+
+			xml.attribute("verbose", "yes");
 
 			if (version.valid())
 				xml.attribute("version", version);
@@ -212,9 +205,9 @@ struct Test::Main : Log_message_handler
 
 	Xml_node _curr_step_xml() const { return _config.xml().sub_node(_curr_step); }
 
-	void _handle_init_state()
+	void _handle_block_state()
 	{
-		_init_state.update();
+		_block_state.update();
 		_execute_curr_step();
 	}
 
@@ -239,12 +232,12 @@ struct Test::Main : Log_message_handler
 			if (step.type() == "expect_log")
 				return;
 
-			if (step.type() == "expect_init_state") {
-				if (xml_matches(step, _init_state.xml())) {
+			if (step.type() == "expect_block_state") {
+				if (xml_matches(step, _block_state.xml())) {
 					_advance_step();
 					continue;
 				} else {
-					warning("init state does not match: ", _init_state.xml());
+					warning("init state does not match: ", _block_state.xml());
 					warning("expected condition: ", step);
 				}
 				return;
@@ -322,8 +315,7 @@ struct Test::Main : Log_message_handler
 	Main(Env &env) : _env(env)
 	{
 		_timer.sigh(_timer_handler);
-		_init_config_reporter.enabled(true);
-		_init_state.sigh(_init_state_handler);
+		_block_state.sigh(_block_state_handler);
 		_execute_curr_step();
 		_env.parent().announce(_env.ep().manage(_log_root));
 	}
