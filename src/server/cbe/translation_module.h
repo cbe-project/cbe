@@ -134,13 +134,13 @@ class Cbe::Module::Translation
 
 		void suspend()
 		{
-			Genode::log(__func__, " SUSPEND TRANSLATION");
+			// Genode::log(__func__, " SUSPEND TRANSLATION");
 			_suspended = true;
 		}
 
 		void resume()
 		{
-			Genode::log(__func__, " RESUME TRANSLATION");
+			// Genode::log(__func__, " RESUME TRANSLATION");
 			_suspended = false;
 		}
 
