@@ -108,12 +108,26 @@ namespace Cbe {
 	{
 		char values[32];
 
+		/* hash as hex value plus "0x" prefix and terminating null */
+		using String = Genode::String<sizeof(values) * 2 + 3>;
+
 		void print(Genode::Output &out) const
 		{
 			using namespace Genode;
-
+			Genode::print(out, "0x");
+			bool leading_zero = true;
 			for (char const c : values) {
-				Genode::print(out, Hex(c, Hex::OMIT_PREFIX, Hex::PAD));
+				if (leading_zero) {
+					if (c) {
+						leading_zero = false;
+						Genode::print(out, Hex(c, Hex::OMIT_PREFIX));
+					}
+				} else {
+					Genode::print(out, Hex(c, Hex::OMIT_PREFIX, Hex::PAD));
+				}
+			}
+			if (leading_zero) {
+				Genode::print(out, "0");
 			}
 		}
 	};
@@ -143,6 +157,8 @@ namespace Cbe {
 		using Number           = uint64_t;
 		using Degree           = uint32_t;
 
+		enum : Number { INVALID_ROOT_NUMBER = 0 };
+
 		union {
 			struct {
 				Key key[NUM_KEYS];
@@ -163,6 +179,9 @@ namespace Cbe {
 			};
 			char data[BLOCK_SIZE];
 		};
+
+		bool valid() { return root_number != INVALID_ROOT_NUMBER; }
+
 	} __attribute__((packed));
 
 	/* XXX (ab-)use generation field for debug type */

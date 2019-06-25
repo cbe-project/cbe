@@ -20,6 +20,7 @@
 #include <block/request_stream.h>
 #include <root/root.h>
 #include <util/misc_math.h>
+#include <os/reporter.h>
 
 /* repo includes */
 #include <util/sha256_4k.h>
@@ -31,6 +32,7 @@ using uint32_t = Genode::uint32_t;
 using uint64_t = Genode::uint64_t;
 
 static bool _verbose { false };
+static bool _verbose_report { false };
 static bool _dump_all { true };
 
 namespace Cbe {
@@ -393,7 +395,241 @@ class Cbe::Vbd
 {
 	private:
 
-		uint64_t _dump_leaves { 0 };
+		struct Bad_i_node_child_id : Genode::Exception { };
+
+		Genode::Env                &_env;
+		Genode::Expanding_reporter  _reporter      { _env, "state", "state" };
+		uint64_t                    _dump_leaves   { 0 };
+		uint64_t                    _report_leaves { 0 };
+		uint64_t                    _leaves        { 0 };
+		Cbe::Tree                  &_tree;
+
+		/**
+		 * Report information about a given leaf node and its sub-nodes
+		 */
+		bool _report_leaf(Genode::Xml_generator             &xml,
+		                  Cbe::Tree::Info             const &info,
+		                  Cbe::Physical_block_address const  parent,
+		                  Cbe::Block_allocator              &blk_alloc)
+		{
+			/* finish early in case we already initialized all required leaves */
+			if (_report_leaves >= info.leaves) {
+				return true; }
+
+			bool finished { false };
+			Type_i_node *parent_node {
+				reinterpret_cast<Cbe::Type_i_node*>(blk_alloc.data(parent)) };
+
+			for (uint32_t id = 0; id < info.outer_degree; id++) {
+				xml.node("leaf", [&] () {
+					xml.attribute("id",   id);
+					xml.attribute("pba",  parent_node[id].pba);
+					xml.attribute("gen",  parent_node[id].gen);
+					xml.attribute("vba",  _report_leaves);
+					xml.attribute("hash", Hash::String(parent_node[id].hash));
+				});
+				if ((++_report_leaves) >= info.leaves) {
+					finished = true;
+					break;
+				}
+			}
+			return finished;
+		}
+
+		/**
+		 * Report information about a given type-i node and its sub-nodes
+		 */
+		bool _report_i_node(Genode::Xml_generator             &xml,
+		                    Cbe::Tree::Info             const &info,
+		                    Cbe::Physical_block_address const  parent,
+		                    Cbe::Block_allocator              &blk_alloc,
+		                    uint32_t                           height)
+		{
+			height--;
+			bool finished { false };
+			Cbe::Type_i_node *node {
+				reinterpret_cast<Cbe::Type_i_node*>(blk_alloc.data(parent)) };
+
+			for (uint32_t id = 0; id < info.outer_degree && !finished; id++) {
+				xml.node("i-node", [&] () {
+					xml.attribute("id",   id);
+					xml.attribute("pba",  node[id].pba);
+					xml.attribute("gen",  node[id].gen);
+					xml.attribute("hash", Hash::String(node[id].hash));
+
+					finished = (height == 1) ?
+						_report_leaf(xml, info, node[id].pba, blk_alloc) :
+						_report_i_node(xml, info, node[id].pba, blk_alloc, height);
+				});
+			}
+			return finished;
+		}
+
+		/**
+		 * Report information about a given super-block and its sub-nodes
+		 */
+		void _report_super_block(Genode::Xml_generator &xml,
+		                         uint64_t               sb_id,
+		                         uint64_t               curr_sb_id,
+		                         Block_allocator       &blk_alloc)
+		{
+			/* get reference to super-block */
+			Cbe::Super_block &sb {
+				*reinterpret_cast<Cbe::Super_block*>(blk_alloc.data(sb_id)) };
+
+			/* add super-block tag */
+			xml.node("super-block", [&] () {
+				xml.attribute("id",          sb_id);
+				xml.attribute("is_current",  sb_id == curr_sb_id);
+				xml.attribute("generation",  sb.generation);
+				xml.attribute("leafs",       sb.leaves);
+				xml.attribute("degree",      sb.degree);
+				xml.attribute("height",      sb.height);
+				xml.attribute("free-number", sb.free_number);
+				xml.attribute("free-leafs",  sb.free_leaves);
+				xml.attribute("free-height", sb.free_height);
+				xml.attribute("root-number", sb.root_number);
+
+				/* skip sub-nodes for invalid super blocks */
+				if (!sb.valid()) {
+					return; }
+
+				/* report information about sub-nodes */
+				xml.attribute("root-hash", Hash::String(sb.root_hash));
+				_report_leaves = 0;
+				_report_i_node(xml, _tree.info(), sb.root_number,
+				               _tree.block_allocator(), _tree.info().height);
+			});
+		}
+
+		/**
+		 * Report state of the super blocks and trees of the block device
+		 */
+		void _report(Genode::Xml_generator &xml)
+		{
+			/* determine the most recent super block */
+			Block_allocator &ba { _tree.block_allocator() };
+			Cbe::Generation most_recent_gen { 0 };
+			uint64_t curr_sb_id { ~0ull };
+			for (uint64_t sb_id = 0; sb_id < Cbe::NUM_SUPER_BLOCKS; sb_id++) {
+
+				Cbe::Super_block &sb {
+					*reinterpret_cast<Cbe::Super_block*>(ba.data(sb_id)) };
+
+				Cbe::Generation const gen { sb.generation };
+				if (gen >= most_recent_gen) {
+					curr_sb_id = sb_id;
+					most_recent_gen = gen;
+				}
+			}
+			/* iterate over super blocks and report each of them */
+			for (uint64_t sb_id = 0; sb_id < Cbe::NUM_SUPER_BLOCKS; sb_id++) {
+				_report_super_block(xml, sb_id, curr_sb_id, ba); }
+		}
+
+		/**
+		 * Add a child and its sub-tree given through XML to a type-i node
+		 */
+		void _write_i_node_child(Cbe::Type_i_node      *node,
+		                         Xml_node        const &child_xml,
+		                         Cbe::Tree::Info const &info,
+		                         uint32_t               height,
+		                         Cbe::Block_allocator  &blk_alloc)
+		{
+			/* get index of child info inside the i-node */
+			uint32_t const child_id {
+				child_xml.attribute_value("id", info.outer_degree + 1) };
+
+			/* skip children with invalid index */
+			if (child_id > info.outer_degree) {
+				throw Bad_i_node_child_id(); }
+
+			/* read child info from config to buffer */
+			Cbe::Type_i_node child;
+			child_xml.attribute("pba").value(&child.pba);
+			child_xml.attribute("gen").value(&child.gen);
+
+			/* write child sub-tree */
+			if (height) {
+				_write_i_node(child_xml, blk_alloc, info, height, child.pba); }
+
+			/* get reference to child node */
+			Sha256_4k::Data &data {
+				*reinterpret_cast<Sha256_4k::Data*>(
+					blk_alloc.data(child.pba)) };
+
+			/* calculate and buffer child hash */
+			Sha256_4k::Hash hash { };
+			Sha256_4k::hash(data, hash);
+			Genode::memcpy(child.hash.values, hash.values, sizeof(hash));
+
+			/* write buffer content to the parent i-node */
+			node[child_id] = child;
+		}
+
+		/**
+		 * Write a type-i node given through XML to the device
+		 */
+		void _write_i_node(Xml_node                    const &xml,
+		                   Cbe::Block_allocator              &blk_alloc,
+		                   Cbe::Tree::Info             const &info,
+		                   uint32_t                           height,
+		                   Cbe::Physical_block_address const  pba)
+		{
+			/* get base address of i-node */
+			Cbe::Type_i_node *node {
+				reinterpret_cast<Cbe::Type_i_node*>(blk_alloc.data(pba)) };
+
+			/* write info of all child i-nodes and write their sub-trees */
+			height--;
+			char const *child_type { height ? "i-node" : "leaf" };
+			xml.for_each_sub_node(child_type, [&] (Xml_node const &child_xml) {
+				try { _write_i_node_child(node, child_xml, info, height, blk_alloc); }
+				catch (...) {
+					warning("failed to write ", child_type, " according to config");
+				}
+			});
+		}
+
+		/**
+		 * Write a super block and its sub-tree given through XML
+		 */
+		void _write_super_block(Xml_node        const &xml,
+		                        Cbe::Tree::Info const &info,
+		                        Cbe::Block_allocator  &blk_alloc)
+		{
+			/* read super-block information from config to buffer */
+			Cbe::Super_block sb;
+			xml.attribute("generation" ).value(&sb.generation);
+			xml.attribute("leafs"      ).value(&sb.leaves);
+			xml.attribute("degree"     ).value(&sb.degree);
+			xml.attribute("height"     ).value(&sb.height);
+			xml.attribute("free-number").value(&sb.free_number);
+			xml.attribute("free-leafs" ).value(&sb.free_leaves);
+			xml.attribute("free-height").value(&sb.free_height);
+			xml.attribute("root-number").value(&sb.root_number);
+
+			/* consider root node and sub-tree only for valid super blocks */
+			if (sb.valid()) {
+
+				/* write root node and its sub-tree */
+				_write_i_node(xml, blk_alloc, info, info.height, sb.root_number);
+
+				/* get reference to root */
+				Sha256_4k::Data &data {
+					*reinterpret_cast<Sha256_4k::Data*>(
+						blk_alloc.data(sb.root_number)) };
+
+				/* calculate and buffer root hash */
+				Sha256_4k::Hash hash { };
+				Sha256_4k::hash(data, hash);
+				Genode::memcpy(sb.root_hash.values, hash.values, sizeof(hash));
+			}
+			/* write buffer content to block device */
+			*reinterpret_cast<Cbe::Super_block*>(
+				blk_alloc.data(xml.attribute_value(
+					"id", (Cbe::Physical_block_address)0))) = sb;
+		}
 
 		bool _dump_data(Cbe::Tree::Info             const &info,
 		                Cbe::Physical_block_address const  parent,
@@ -453,8 +689,6 @@ class Cbe::Vbd
 
 			return finished;
 		}
-
-		uint64_t _leaves { 0 };
 
 		bool _initialize_data(Cbe::Tree::Info             const &info,
 		                      Cbe::Physical_block_address const  parent,
@@ -552,15 +786,45 @@ class Cbe::Vbd
 			return finished;
 		}
 
-		Cbe::Tree &_tree;
-
 	public:
 
-		Vbd(Cbe::Tree &tree, bool initialize = false) : _tree(tree)
+		Vbd(Genode::Env &env, Cbe::Tree &tree, bool initialize = false)
+		:
+			_env  { env },
+			_tree { tree }
 		{
 			if (initialize) {
 				_initialize(_tree.info(), _tree.root(), _tree.block_allocator(), _tree.info().height);
 			}
+		}
+
+		/**
+		 * Apply a block-device state given through XML
+		 */
+		void write_state(Xml_node const &xml)
+		{
+			/* write all super blocks and their sub-trees */
+			xml.for_each_sub_node("super-block", [&] (Xml_node const &sb_xml) {
+				try {
+					/* write current super block and its sub-tree */
+					_write_super_block(sb_xml, _tree.info(),
+					                   _tree.block_allocator());
+				} catch (...) {
+					warning("failed to write super-block according to config");
+				}
+			});
+		}
+
+		/**
+		 * Report state of the super blocks and trees of the block device
+		 */
+		void report()
+		{
+			try {
+				_reporter.generate([&] (Genode::Xml_generator &xml) {
+					_report(xml); });
+			} catch (Xml_generator::Buffer_exceeded) {
+				error("failed to generate report"); }
 		}
 
 		void dump(bool all)
@@ -684,6 +948,9 @@ class Cbe::Mmu
 				if (_verbose) {
 					Genode::log("Super block changed, dump tree");
 					_vbd.dump(_dump_all);
+				}
+				if (_verbose_report) {
+					_vbd.report();
 				}
 			}
 
@@ -813,7 +1080,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			uint32_t const outer_degree = config.attribute_value("outer_degree",   0u);
 			bool const initialize = config.attribute_value("initialize", false);
 
-			_verbose = config.attribute_value("verbose", _verbose);
+			_verbose        = config.attribute_value("verbose", _verbose);
+			_verbose_report = config.attribute_value("report", _verbose_report);
 			_dump_all = config.attribute_value("dump_all", _dump_all);
 
 			struct Missing_parameters { };
@@ -846,49 +1114,17 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				throw;
 			}
 			_tree.construct(*_block_allocator, root_pba, info);
-			_vbd.construct(*_tree, initialize);
+			_vbd.construct(_env, *_tree, initialize);
+
+			if (config.has_sub_node("state")) {
+				_vbd->write_state(config.sub_node("state")); }
 
 			_mmu.construct(*_vbd);
 
-			/* initialise first super block slot */
-			Cbe::Super_block &sb = *reinterpret_cast<Cbe::Super_block*>(_block_allocator->data(0));
-			sb.height      = info.height;
-			sb.degree      = info.outer_degree;
-			sb.leaves      = info.leaves;
-			/* 
-			 * Eventually we will use 0 for the first generation but for now
-			 * we use 1.
-			 */
-			sb.generation  = 1;
-			sb.root_number = root_pba;
-
-			Sha256_4k::Data *data = reinterpret_cast<Sha256_4k::Data*>(_block_allocator->data(root_pba));
-			Sha256_4k::Hash hash { };
-			Sha256_4k::hash(*data, hash);
-			Genode::memcpy(sb.root_hash.values, hash.values, sizeof (hash));
-
-			/* XXX just reserve some memory for allocating blocks */
-			sb.free_number = start_pba + (avail / 2) + 2048;
-			sb.free_leaves = (backing_size / 2) / 2 / vbd_block_size;
-			/* abuse height as max leaves for now */
-			sb.free_height = sb.free_leaves;
-
-			/* clear other super block slots */
-			for (uint64_t i = 1; i < Cbe::NUM_SUPER_BLOCKS; i++) {
-				Cbe::Super_block &sbX = *reinterpret_cast<Cbe::Super_block*>(_block_allocator->data(i));
-				Genode::memset(&sbX, 0, sizeof(sbX));
-				/* explicitly set to 0 to mark the SB as free */
-				sbX.root_number = 0;
-				sbX.generation  = 0;
-				sbX.height      = sb.height;
-				sbX.degree      = sb.degree;
-				sbX.leaves      = sb.leaves;
-				sbX.free_number = sb.free_number;
-				sbX.free_height = sb.free_height;
-				sbX.free_leaves = sb.free_leaves;
-			}
-
 			log("Created virtual block device with size ", info.size);
+			if (_report) {
+				_vbd->report();
+			}
 		}
 
 		/********************
