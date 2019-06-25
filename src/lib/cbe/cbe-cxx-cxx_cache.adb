@@ -54,6 +54,17 @@ is
 	end Data_Index;
 
 	--
+	-- Invalidate
+	--
+	procedure Invalidate(
+		Obj : in out Cache.Object_Type;
+		Pba :        CXX_Physical_Block_Address_Type)
+	is
+	begin
+		Cache.Invalidate(Obj, Physical_Block_Address_Type(Pba));
+	end Invalidate;
+
+	--
 	-- Primitive_Acceptable
 	--
 	function Request_Acceptable(

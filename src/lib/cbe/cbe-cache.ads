@@ -46,6 +46,13 @@ is
 	return Cache_Index_Type;
 
 	--
+	-- Invalidate
+	--
+	procedure Invalidate(
+		Obj : in out Object_Type;
+		Pba :        Physical_Block_Address_Type);
+
+	--
 	-- Request_Acceptable
 	--
 	function Request_Acceptable(
@@ -151,6 +158,8 @@ private
 		procedure Set_Ts(
 			Obj : in out Cache_Item_Type;
 			Ts  :        Timestamp_Type);
+
+		procedure Invalidate(Obj : in out Cache_Item_Type);
 
 	private
 

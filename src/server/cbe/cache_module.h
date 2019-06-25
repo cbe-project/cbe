@@ -70,6 +70,13 @@ struct Cbe::Module::Cache : Cbe::Spark_object<424>
 	                       Cbe::Timestamp current_time);
 
 	/**
+	 * Invalid cache entry containg the physical block address
+	 *
+	 * \param  pba  physical block address
+	 */
+	void invalidate(Cbe::Physical_block_address const pba);
+
+	/**
 	 * Check if the module can accept a request to cache a block 
 	 *
 	 * The check depends on the state of the Job queue rather than the

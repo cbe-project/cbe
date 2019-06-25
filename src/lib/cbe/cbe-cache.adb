@@ -67,6 +67,12 @@ is
 		begin
 			Obj.Ts := Ts;
 		end Set_Ts;
+
+		procedure Invalidate(Obj : in out Cache_Item_Type)
+		is
+		begin
+			Obj.State := Unused;
+		end Invalidate;
 	end Cache_Item;
 
 
@@ -230,6 +236,23 @@ is
 
 		return Cache_Index_Type'Last; -- XXX make proper INVALID
 	end Data_Index;
+
+	--
+	-- Invalidate
+	--
+	procedure Invalidate(
+		Obj : in out Object_Type;
+		Pba :        Physical_Block_Address_Type)
+	is
+	begin
+		for Cache_Item_Id in Obj.Cache_Items'Range loop
+			if Cache_Item.Used(Obj.Cache_Items(Cache_Item_Id)) and
+			   Cache_Item.Pba(Obj.Cache_Items(Cache_Item_Id)) = Pba
+			then
+				Cache_Item.Invalidate(Obj.Cache_Items(Cache_Item_Id));
+			end if;
+		end loop;
+	end Invalidate;
 
 	--
 	-- Request_Acceptable
