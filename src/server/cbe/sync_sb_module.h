@@ -29,6 +29,7 @@ class Cbe::Module::Sync_sb
 
 			Cbe::Primitive primitive;
 			uint64_t id;
+			Cbe::Generation gen;
 
 			bool pending;
 			bool complete;
@@ -42,14 +43,17 @@ class Cbe::Module::Sync_sb
 
 		bool primitive_acceptable() const { return !_curr_primitive.valid(); }
 
-		void submit_primitive(Primitive const &p, uint64_t id)
+		void submit_primitive(Primitive const &p, uint64_t id, Cbe::Generation const gen)
 		{
 			if (_curr_primitive.valid()) {
 				Genode::error("current primitive already valid");
 				throw -1;
 			}
 
-			_entry[0] = Entry { .primitive = p, .id = id, .pending = false, .complete = false };
+			_entry[0] = Entry {
+				.primitive = p, .id = id, .gen = gen,
+				.pending = false, .complete = false
+			};
 
 			_curr_primitive = Primitive {
 				.tag          = Cbe::Tag::SYNC_SB_TAG,
@@ -80,6 +84,16 @@ class Cbe::Module::Sync_sb
 			return Primitive { };
 		}
 
+		Cbe::Generation peek_completed_generation(Cbe::Primitive const &p)
+		{
+			if (_entry[0].complete && p.block_number == _curr_primitive.block_number) {
+				return _entry[0].gen;
+			}
+
+			Genode::error(__func__, ": invalid primitive");
+			throw -1;
+		}
+
 		void drop_completed_primitive(Cbe::Primitive const &p)
 		{
 			if (p.block_number != _curr_primitive.block_number) {
@@ -87,7 +101,7 @@ class Cbe::Module::Sync_sb
 				throw -1;
 			}
 
-			_entry[0] = Entry { .primitive = Primitive { }, .id = ~0ull, .pending = false, .complete = false };
+			_entry[0] = Entry { .primitive = Primitive { }, .id = ~0ull, .gen = 0, .pending = false, .complete = false };
 
 			_curr_primitive = Primitive { };
 		}

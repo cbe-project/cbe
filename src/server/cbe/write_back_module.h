@@ -65,10 +65,12 @@ class Cbe::Module::Write_back
 
 		Write_back() { }
 
-		void copy_and_update(Cbe::Physical_block_address const pba,
+		bool copy_and_update(Cbe::Physical_block_address const pba,
 		                     Cbe::Block_data const &data,
 		                     Cbe::Module::Translation<T> &trans)
 		{
+			bool invalidate = false;
+
 			for (Genode::uint32_t i = 0; i < _levels; i++) {
 				Entry &e = _entry[i];
 
@@ -109,10 +111,16 @@ class Cbe::Module::Write_back
 				// 	Genode::log(__func__, ": ", pba);
 				// }
 
+				if (e.old_pba == e.new_pba) {
+					invalidate |= true;
+				}
+
 				// Genode::log(__func__, ": ", i, " done");
 				e.done = true;
 				break;
 			}
+
+			return invalidate;
 		}
 
 		bool primitive_acceptable() const { return !_pending_primitive.valid(); }
@@ -136,7 +144,7 @@ class Cbe::Module::Write_back
 				Entry &e = _entry[i];
 
 				// Cbe::Physical_block_address phys = old_pba[i];
-				// Genode::log(" old[", i, "]: ", phys, " -> ", new_pba + i);
+				// Genode::log(" old[", i, "]: ", phys, " -> ", new_pba[i]);
 
 				e.old_pba = old_pba[i];
 				e.new_pba = new_pba[i];

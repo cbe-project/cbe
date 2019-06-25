@@ -146,7 +146,7 @@ struct Cbe::Block_manager
 						for (uint64_t i = 0; i < Cbe::NUM_SUPER_BLOCKS; i++) {
 							Cbe::Super_block const &b = sb[i];
 							if (!b.active) {
-								Genode::warning(__func__, ": ignore inactive super block ", i);
+								// Genode::warning(__func__, ": ignore inactive super block ", i);
 								continue;
 							}
 							Cbe::Generation const b_gen = b.generation;
@@ -221,6 +221,16 @@ struct Cbe::Time
 	Timestamp timestamp() const
 	{
 		return _timer.elapsed_ms();
+	}
+
+	void sigh(Genode::Signal_context_capability cap)
+	{
+		_timer.sigh(cap);
+	}
+
+	void trigger(uint64_t msec)
+	{
+		_timer.trigger_once(msec * 1000);
 	}
 
 #if 0
@@ -337,7 +347,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Splitter _splitter     { };
 
 		Time _time { _env };
-		enum { SYNC_TIME_MS = 1u * 500, };
+		enum { SYNC_INTERVAL = 0ull, };
+		uint64_t _sync_interval { SYNC_INTERVAL };
 		Cbe::Time::Timestamp _last_time { _time.timestamp() };
 		Cbe::Generation      _time_gen  { 0 };
 
@@ -446,6 +457,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Cbe::Generation  _current_generation { 0 };
 		Cbe::Generation  _last_secured_generation    { 0 };
 		uint64_t         _sync_cb_count { 0 };
+		bool             _need_to_sync { false };
 
 
 		bool _show_progress { false };
@@ -469,10 +481,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 				Cbe::Time::Timestamp const curr_time = _time.timestamp();
 				Cbe::Time::Timestamp const diff_time = curr_time - _last_time;
-				if (diff_time >= SYNC_TIME_MS) {
-					// Genode::log("\033[93;44m", __func__, " ", "SYNC_TIME_MS triggered" , " !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-					_last_time = curr_time;
-					_time_gen++;
+				if (diff_time >= _sync_interval && !_need_to_sync) {
+					Genode::log("\033[93;44m", __func__, " seal current ", _current_generation, " generation");
+					_need_to_sync = true;
 				}
 
 				/***********************
@@ -634,17 +645,28 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 						Cbe::Primitive::Number const vba = _trans->get_virtual_block_address(prim);
 
+						Cbe::Physical_block_address new_pba[Translation::MAX_LEVELS] { };
+						Genode::memset(new_pba, 0, sizeof(new_pba));
+
 						uint32_t const trans_height = _trans->height() + 1;
 						uint32_t new_blocks = 1;
-						for (uint32_t i = 1; i < trans_height; i++) {
-							// Cbe::Physical_block_address const pba = old_pba[i];
-							// uint32_t const index = _trans->index(vba, i);
-							// Cache_Index     const idx   = _cache.data_index(pba, _time.timestamp());
-							// Cbe::Block_data const &data = _cache_data.item[idx.value];
-							// Cbe::Type_i_node const &n = reinterpret_cast<Cbe::Type_i_node const&>(data);
 
-							// Genode::log("\033[37;41m", __func__, " vba: ", vba,
-							//             " check: ", pba, " index: ", index, " ", Genode::Hex(n.gen));
+						Cbe::Physical_block_address free_pba[Translation::MAX_LEVELS] { };
+						uint32_t free_blocks = 0;
+
+						for (uint32_t i = 1; i < trans_height; i++) {
+							Cbe::Physical_block_address const pba = old_pba[i];
+							Cache_Index     const idx   = _cache.data_index(pba, _time.timestamp());
+							Cbe::Block_data const &data = _cache_data.item[idx.value];
+							Cbe::Type_i_node const &n = reinterpret_cast<Cbe::Type_i_node const&>(data);
+
+							if ((n.gen & GEN_VALUE_MASK) == _current_generation) {
+
+								new_pba[i] = pba;
+								continue;
+							}
+
+							free_pba[free_blocks++] = pba;
 
 							new_blocks++;
 						}
@@ -654,15 +676,29 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						/*
 						 * 3. check if allocator has enough blocks left
 						 */
-						Cbe::Physical_block_address new_pba[Translation::MAX_LEVELS] { };
 						try {
 							Cbe::Physical_block_address const pba =
 								_block_manager->alloc(_super_block,
 								                      _last_secured_generation,
 								                      _current_generation,
 								                      new_blocks);
-							for (uint32_t i = 0; i < new_blocks; i++) {
-								new_pba[i] = pba + i;
+
+							uint32_t j = 0;
+							for (uint32_t i = 0; i < trans_height; i++) {
+								if (!new_pba[i]) {
+									new_pba[i] = pba + j;
+
+									if (_cache.data_available(pba + j)) {
+										_cache.invalidate(pba + j);
+									}
+
+									j++;
+
+									if (j > new_blocks) {
+										Genode::error("BUG");
+										throw -1;
+									}
+								}
 							}
 						} catch (...) {
 
@@ -670,18 +706,18 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 							break;
 						}
 
-
-						for (uint32_t i = 0; i < trans_height; i++) {
-							_block_manager->free(_current_generation, old_pba[i]);
+						/* mark old physical blocks as reserved */
+						for (uint32_t i = 0; i < free_blocks; i++) {
+							_block_manager->free(_current_generation, free_pba[i]);
 						}
 
-						// Genode::log("STEP 4: ", leaf_pba, " vba: ", vba);
+						// Genode::log("STEP 4: ", " vba: ", vba);
 
 						/*
 						 * 4. hand over infos to the Write_back module
 						 */
 						_write_back.submit_primitive(prim, _current_generation, vba,
-						                             new_pba, old_pba, new_blocks, *data_ptr);
+						                             new_pba, old_pba, trans_height, *data_ptr);
 
 						// XXX see _write_back.peek_completed_primitive()
 						_trans->suspend();
@@ -731,44 +767,65 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					Cbe::Primitive prim = _write_back.peek_completed_primitive();
 					if (!prim.valid()) { break; }
-					if (!_sync_sb.primitive_acceptable()) { break; }
 
 					// Genode::log("Write_back peek_completed_primitive");
 
-					uint64_t         const  next_sb = (_current_sb + 1) % Cbe::NUM_SUPER_BLOCKS;
-					Cbe::Super_block const &last_sb = _super_block[_current_sb];
-					Cbe::Super_block       &sb      = _super_block[next_sb];
+					if (_need_to_sync) {
 
+						if (!_sync_sb.primitive_acceptable()) { break; }
 
-					/* update super block */
-					sb.root_number = _write_back.peek_completed_root(prim);
-					Cbe::Hash *root_hash = &sb.root_hash;
-					_write_back.peek_competed_root_hash(prim, *root_hash);
+						uint64_t         const  next_sb = (_current_sb + 1) % Cbe::NUM_SUPER_BLOCKS;
+						Cbe::Super_block const &last_sb = _super_block[_current_sb];
+						Cbe::Super_block       &sb      = _super_block[next_sb];
 
-					sb.free_leaves = last_sb.free_leaves - _trans->height() + 1;
-					sb.generation = _current_generation;
+						/* update super block */
+						sb.root_number = _write_back.peek_completed_root(prim);
+						Cbe::Hash *root_hash = &sb.root_hash;
+						_write_back.peek_competed_root_hash(prim, *root_hash);
 
-					sb.active = true;
+						sb.free_leaves = last_sb.free_leaves - _trans->height() + 1;
+						sb.generation = _current_generation;
 
-					// Cbe::Physical_block_address const last_root = last_sb.root_number;
-					// Cbe::Physical_block_address const root      = sb.root_number;
-					// Genode::error("last root: ", last_root, " root: ", root);
+						sb.active = true;
 
-					// Cbe::Generation const gen = sb.generation;
-					// Genode::error("Submit sync super block: ", next_sb, " gen: ", gen);
+						// Cbe::Physical_block_address const last_root = last_sb.root_number;
+						// Cbe::Physical_block_address const root      = sb.root_number;
+						// Genode::error("last root: ", last_root, " root: ", root);
 
-					_sync_sb.submit_primitive(prim, next_sb);
+						// Cbe::Generation const gen = sb.generation;
+						// Genode::error("Submit sync super block: ", next_sb, " gen: ", gen);
 
-					// Genode::error("Switch super block: ", _current_sb, " -> ", next_sb);
-					_current_sb = next_sb;
-					_last_secured_generation  = _current_generation;
-					_current_generation       = _last_secured_generation + 1;
+						_sync_sb.submit_primitive(prim, next_sb, _current_generation);
+
+						// Genode::error("Switch super block: ", _current_sb, " -> ", next_sb);
+						_current_sb = next_sb;
+						_current_generation = _current_generation + 1;
+
+						_need_to_sync = false;
+						_last_time = curr_time;
+						_time.trigger(_sync_interval);
+					} else {
+
+						Cbe::Super_block &sb = _super_block[_current_sb];
+
+						/* update super block */
+						sb.root_number = _write_back.peek_completed_root(prim);
+						Cbe::Hash *root_hash = &sb.root_hash;
+						_write_back.peek_competed_root_hash(prim, *root_hash);
+
+						sb.free_leaves = sb.free_leaves - _trans->height() + 1;
+
+						// XXX for now we re-use the sync path to trigger the request ack
+						//     in the request pool as well as tree dumping within the
+						//     cbe_block
+						_sync_sb.submit_primitive(prim, _current_sb, _current_generation);
+					}
 
 					_write_back.drop_completed_primitive(prim);
 
 					/*
- 					 * XXX stalling translation as long as the write-back takes places
- 					 *     is not a good idea
+					 * XXX stalling translation as long as the write-back takes places
+					 *     is not a good idea
 					 */
 					_trans->resume();
 
@@ -797,7 +854,10 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 							Cache_Index     const idx   = _cache.data_index(prim.block_number,
 							                                                _time.timestamp());
 							Cbe::Block_data const &data = _cache_data.item[idx.value];
-							_write_back.copy_and_update(prim.block_number, data, *_trans);
+							if (_write_back.copy_and_update(prim.block_number, data, *_trans)) {
+								_cache.invalidate(prim.block_number);
+							}
+
 							_progress = true;
 						} else {
 
@@ -849,6 +909,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					Cbe::Primitive req_prim = _sync_sb.peek_completed_request_primitive(prim);
 					if (!req_prim.valid()) { Genode::error("BUG"); }
+
+					_last_secured_generation = _sync_sb.peek_completed_generation(prim);
 
 					_sync_sb.drop_completed_primitive(prim);
 
@@ -1118,7 +1180,13 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			if (_config_rom.valid()) {
 				_show_progress =
 					_config_rom.xml().attribute_value("show_progress", false);
+
+				_sync_interval = 1000 * 
+					_config_rom.xml().attribute_value("sync_interval", (uint64_t)SYNC_INTERVAL);
 			}
+
+			_time.sigh(_request_handler);
+			_time.trigger(_sync_interval);
 
 			_setup();
 			_dump_current_sb_info();

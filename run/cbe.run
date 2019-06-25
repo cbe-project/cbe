@@ -51,7 +51,7 @@ install_config {
 	<start name="cbe_block">
 		<resource name="RAM" quantum="1G"/>
 		<provides><service name="Block"/></provides>
-		<config report="yes" verbose="no" backing_size="512M" vbd_size="64K" outer_degree="4" initialize="yes">
+		<config report="no" verbose="no" backing_size="512M" vbd_size="256M" outer_degree="64" initialize="yes">
 		</config>
 		<route>
 			<service name="Report"> <child name="report_rom"/> </service>
@@ -62,7 +62,7 @@ install_config {
 	<start name="cbe">
 		<resource name="RAM" quantum="4M"/>
 		<provides><service name="Block"/></provides>
-		<config show_progress="no"/>
+		<config show_progress="no" sync_interval="5"/>
 		<route>
 			<service name="Block"> <child name="cbe_block"/> </service>
 			<service name="Terminal"> <child name="log_terminal"/> </service>
@@ -75,33 +75,9 @@ install_config {
 		<resource name="RAM" quantum="32M"/>
 		<config verbose="yes" report="no" log="yes" stop_on_error="no">
 			<tests>
-				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="8"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="1" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="2" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="4" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="5" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="6" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="7" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="8" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="1" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="2" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="4" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="6" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="7" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="8" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="1" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="2" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="4" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="6" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="7" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="8" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="16"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="8192"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="8192"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="8192"/> </replay>
 <!--
 				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="17"/> </replay>
 				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="17"/> </replay>
@@ -138,4 +114,4 @@ build_boot_image {
 
 append qemu_args " -nographic -m 1280 "
 
-run_genode_until {.*child "block_tester" exited with exit value 1.*\n} 60
+run_genode_until {.*child "block_tester" exited with exit value 0.*\n} 240
