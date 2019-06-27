@@ -573,7 +573,7 @@ class Cbe::Vbd
 
 				try {
 					Cbe::Physical_block_address const pba = block_allocator.alloc();
-					Cbe::Generation             const v   = Cbe::GEN_TYPE_CHILD + 1;
+					Cbe::Generation             const v   = Cbe::GEN_TYPE_CHILD + 0;
 
 					parent_node[i].pba = pba;
 					parent_node[i].gen = v;
@@ -625,7 +625,7 @@ class Cbe::Vbd
 			for (uint32_t i = 0; i < info.outer_degree; i++) {
 				try {
 					Cbe::Physical_block_address const pba = block_allocator.alloc();
-					Cbe::Generation             const v   = GEN_TYPE_PARENT + 1;
+					Cbe::Generation             const v   = GEN_TYPE_PARENT + 0;
 
 					node[i].pba = pba;
 					node[i].gen = v;
@@ -708,7 +708,7 @@ class Cbe::Vbd
 			for (uint64_t i = 0; i < Cbe::NUM_SUPER_BLOCKS; i++) {
 				Cbe::Super_block &sb = *reinterpret_cast<Cbe::Super_block*>(ba.data(i));
 				Cbe::Generation const gen  = sb.generation;
-				if (gen >= most_recent_gen) {
+				if (sb.root_number != 0 && gen >= most_recent_gen) {
 					most_recent_gen = gen;
 					idx = i;
 				}
@@ -724,7 +724,7 @@ class Cbe::Vbd
 				Cbe::Generation              const gen  = sb.generation;
 				Cbe::Physical_block_address  const root = sb.root_number;
 
-				if (gen == 0 && root == 0) {
+				if (root == 0) {
 					Genode::log("          SB[", i, "] invalid");
 					continue;
 				}
@@ -1005,11 +1005,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				sb.height      = info.height;
 				sb.degree      = info.outer_degree;
 				sb.leaves      = info.leaves;
-				/*
-				 * Eventually we will use 0 for the first generation but for now
-				 * we use 1.
-				 */
-				sb.generation  = 1;
+				sb.generation  = 0;
 				sb.root_number = root_pba;
 
 				Sha256_4k::Data *data = reinterpret_cast<Sha256_4k::Data*>(_block_allocator->data(root_pba));
