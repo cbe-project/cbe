@@ -640,7 +640,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						Genode::memset(new_pba, 0, sizeof(new_pba));
 
 						uint32_t const trans_height = _trans->height() + 1;
-						uint32_t new_blocks = 1;
+						uint32_t new_blocks = 0;
+
+						_trans->dump();
 
 						Cbe::Physical_block_address free_pba[Translation::MAX_LEVELS] { };
 						uint32_t free_blocks = 0;
@@ -651,15 +653,37 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 							Cbe::Block_data const &data = _cache_data.item[idx.value];
 							Cbe::Type_i_node const &n = reinterpret_cast<Cbe::Type_i_node const&>(data);
 
-							if ((n.gen & GEN_VALUE_MASK) == _current_generation) {
+							uint64_t const gen = (n.gen & GEN_VALUE_MASK);
+							if (gen == _current_generation || gen == 0) {
+								Cbe::Physical_block_address const npba = n.pba;
+								Genode::error("in place pba: ", pba, " gen: ", gen, " npba: ", npba);
 
-								new_pba[i] = pba;
+								new_pba[i-1] = old_pba[i-1];
 								continue;
 							}
 
 							free_pba[free_blocks++] = pba;
 
 							new_blocks++;
+						}
+
+						// assert
+						if (old_pba[trans_height-1] != _super_block[_current_sb].root_number) {
+							Genode::error("BUG");
+						}
+
+						Cbe::Super_block const &sb = _super_block[_current_sb];
+						Cbe::Generation const sb_gen = sb.generation;
+						Genode::error("sb_gen: ", sb_gen, " _current_generation: ", _current_generation);
+						if (sb.generation == _current_generation || sb.generation == 0) {
+							new_pba[trans_height-1] = old_pba[trans_height-1];
+						} else {
+							new_blocks++;
+						}
+
+						Genode::error("new_blocks: ", new_blocks);
+						for (uint32_t i = 0; i < trans_height; i++) {
+							Genode::error("new_pba[", i, "] = ", new_pba[i]);
 						}
 
 						/*
@@ -678,6 +702,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 									new_pba[i] = pba + j;
 
 									if (_cache.data_available(pba + j)) {
+										Genode::error("cache invalidate: ", pba + j);
 										_cache.invalidate(pba + j);
 									}
 
@@ -755,9 +780,12 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					Cbe::Primitive prim = _write_back.peek_completed_primitive();
 					if (!prim.valid()) { break; }
 
+					Genode::error("SYNC SUPER-BLOCK currently BROKEN!!!!");
+
 					if (_need_to_sync) {
 
 						if (!_sync_sb.primitive_acceptable()) { break; }
+
 
 						uint64_t         const  next_sb = (_current_sb + 1) % Cbe::NUM_SUPER_BLOCKS;
 						Cbe::Super_block const &last_sb = _super_block[_current_sb];
@@ -776,6 +804,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						_sync_sb.submit_primitive(prim, next_sb, _current_generation);
 
 						_current_sb = next_sb;
+						Genode::error("-------- _need_to_sync ------ _current_generation: ", _current_generation, " next: ", _current_generation+1);
 						_current_generation = _current_generation + 1;
 
 						_need_to_sync = false;
@@ -789,6 +818,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						sb.root_number = _write_back.peek_completed_root(prim);
 						Cbe::Hash *root_hash = &sb.root_hash;
 						_write_back.peek_competed_root_hash(prim, *root_hash);
+
+						Genode::error("-------- replace root ------ _current_generation: ", _current_generation);
 
 						sb.free_leaves = sb.free_leaves - _trans->height() + 1;
 
@@ -1085,7 +1116,12 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				Cbe::Super_block &dst = _super_block[i];
 				Genode::memcpy(&dst, src, BLOCK_SIZE);
 
-				if (dst.root_number != 0 && dst.generation > last_gen) {
+				/*
+				 * For now this always selects the last SB if the generation
+				 * is the same and is mostly used for finding the initial SB
+				 * with generation == 0.
+				 */
+				if (dst.root_number != 0 && dst.generation >= last_gen) {
 					most_recent_sb = i;
 					last_gen = dst.generation;
 				}
