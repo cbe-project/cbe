@@ -90,32 +90,22 @@ class Cbe::Module::Write_back
 				Genode::uint32_t const index = trans.index(_vba, i);
 				T *t = reinterpret_cast<T*>(&e.data);
 
-				// Cbe::Physical_block_address const _old_pba = t[index].pba;
 				Cbe::Generation             const _old_gen = t[index].gen;
 				t[index].pba = e1.new_pba;
 				t[index].gen = (_old_gen & Cbe::GEN_TYPE_MASK) | _new_generation;
 
 				/* calculate hash for child */
 				{
-					// Genode::error(__func__, ": ", _old_pba, " -> ", e1.new_pba, " hash");
 					Sha256_4k::Data *data = reinterpret_cast<Sha256_4k::Data*>(&e1.data);
 					Sha256_4k::Hash hash { };
 					Sha256_4k::hash(*data, hash);
 					Genode::memcpy(t[index].hash.values, hash.values, sizeof (hash));
 				};
 
-				// Genode::error(i, ": ", _vba, " ", e.old_pba, " -> ", e.new_pba, " ", index);
-
-				// for (Genode::uint32_t i = 0; i < 4; i++) {
-				// 	Cbe::Physical_block_address pba = t[i].pba;
-				// 	Genode::log(__func__, ": ", pba);
-				// }
-
 				if (e.old_pba == e.new_pba) {
 					invalidate |= true;
 				}
 
-				// Genode::log(__func__, ": ", i, " done");
 				e.done = true;
 				break;
 			}
@@ -130,8 +120,6 @@ class Cbe::Module::Write_back
 		                      Cbe::Physical_block_address *new_pba,
 		                      Cbe::Physical_block_address *old_pba, uint32_t n, Block_data &d)
 		{
-			// Genode::log(__func__, " p: ", p.block_number);
-
 			_pending_primitive = p;
 			_new_generation = new_generation;
 			_vba = vba;
@@ -142,9 +130,6 @@ class Cbe::Module::Write_back
 			/* handle common members */
 			for (Genode::uint32_t i = 0; i < n; i++) {
 				Entry &e = _entry[i];
-
-				// Cbe::Physical_block_address phys = old_pba[i];
-				// Genode::log(" old[", i, "]: ", phys, " -> ", new_pba[i]);
 
 				e.old_pba = old_pba[i];
 				e.new_pba = new_pba[i];
@@ -172,14 +157,11 @@ class Cbe::Module::Write_back
 			for (Genode::uint32_t i = 0; i < _levels; i++) {
 				Entry &e = _entry[i];
 				if (!e.done) {
-					// Genode::error(__func__, ": ", i, " not done");
 					done = false;
 					break;
 				}
 			}
 			if (!done) { return false; }
-
-			// Genode::log("------------------- switch to I/O ----------------");
 
 			/* arm I/O and rebrand entries */
 			for (Genode::uint32_t i = 0; i < _levels; i++) {
@@ -193,8 +175,6 @@ class Cbe::Module::Write_back
 
 		Primitive peek_completed_primitive()
 		{
-			// Genode::log(__func__);
-
 			Primitive p { };
 			if (!_pending_primitive.valid()) { return p; }
 
@@ -218,7 +198,6 @@ class Cbe::Module::Write_back
 		Cbe::Physical_block_address peek_completed_root(Cbe::Primitive const &p) const
 		{
 			(void)p;
-			// Genode::log(__func__, "p: ", p.block_number);
 
 			Entry const &e = _entry[_levels-1];
 			return e.new_pba;
@@ -227,7 +206,6 @@ class Cbe::Module::Write_back
 		void peek_competed_root_hash(Cbe::Primitive const &p, Cbe::Hash &hash) const
 		{
 			(void)p;
-			// Genode::log(__func__, "p: ", p.block_number);
 
 			Entry const &e = _entry[_levels-1];
 			Sha256_4k::Data const *data = reinterpret_cast<Sha256_4k::Data const*>(&e.data);
@@ -237,8 +215,6 @@ class Cbe::Module::Write_back
 
 		void drop_completed_primitive(Cbe::Primitive const &p)
 		{
-			// Genode::log(__func__, " p: ", p.block_number);
-
 			if (p.block_number == _pending_primitive.block_number) {
 				_pending_primitive = Cbe::Primitive { };
 				return;
@@ -250,8 +226,6 @@ class Cbe::Module::Write_back
 
 		Primitive peek_generated_primitive()
 		{
-			// Genode::log(__func__);
-
 			Primitive p { };
 			for (Genode::uint32_t i = 0; i < _levels; i++) {
 				Entry &e = _entry[i];
@@ -273,8 +247,6 @@ class Cbe::Module::Write_back
 
 		Cbe::Block_data &peek_generated_data(Cbe::Primitive const &p)
 		{
-			// Genode::log(__func__, " p: ", p.block_number);
-
 			for (Genode::uint32_t i = 0; i < _levels; i++) {
 				Entry &e = _entry[i];
 				bool const cache = e.tag == Cbe::Tag::CACHE_TAG;
@@ -288,8 +260,6 @@ class Cbe::Module::Write_back
 
 		void drop_generated_primitive(Cbe::Primitive const &p)
 		{
-			// Genode::log(__func__, " p: ", p.block_number);
-
 			for (Genode::uint32_t i = 0; i < _levels; i++) {
 				Entry &e = _entry[i];
 				bool const cache = e.tag == Cbe::Tag::CACHE_TAG;
@@ -306,8 +276,6 @@ class Cbe::Module::Write_back
 
 		void mark_completed_crypto_primitive(Cbe::Primitive const &p)
 		{
-			// Genode::log(__func__, " p: ", p.block_number);
-
 			for (Genode::uint32_t i = 0; i < _levels; i++) {
 				Entry &e = _entry[i];
 				bool const crypto = e.tag == Cbe::Tag::CRYPTO_TAG_ENCRYPT;
@@ -324,8 +292,6 @@ class Cbe::Module::Write_back
 
 		Primitive peek_generated_io_primitive()
 		{
-			// Genode::log(__func__);
-
 			Primitive p { };
 
 			if (!_io) { return p; }
@@ -349,8 +315,6 @@ class Cbe::Module::Write_back
 
 		Cbe::Block_data &peek_generated_io_data(Cbe::Primitive const &p)
 		{
-			// Genode::log(__func__, " p: ", p.block_number);
-
 			for (Genode::uint32_t i = 0; i < _levels; i++) {
 				Entry &e = _entry[i];
 				bool const match = p.block_number == e.new_pba;
@@ -363,8 +327,6 @@ class Cbe::Module::Write_back
 
 		void drop_generated_io_primitive(Cbe::Primitive const &p)
 		{
-			// Genode::log(__func__, " p: ", p.block_number);
-
 			for (Genode::uint32_t i = 0; i < _levels; i++) {
 				Entry &e = _entry[i];
 				bool const io = e.tag == Cbe::Tag::IO_TAG;
@@ -381,8 +343,6 @@ class Cbe::Module::Write_back
 
 		void mark_completed_io_primitive(Cbe::Primitive const &p)
 		{
-			// Genode::log(__func__, " p: ", p.block_number);
-
 			for (Genode::uint32_t i = 0; i < _levels; i++) {
 				Entry &e = _entry[i];
 				bool const io = e.tag == Cbe::Tag::IO_TAG;

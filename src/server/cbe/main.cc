@@ -146,7 +146,6 @@ struct Cbe::Block_manager
 						for (uint64_t i = 0; i < Cbe::NUM_SUPER_BLOCKS; i++) {
 							Cbe::Super_block const &b = sb[i];
 							if (!b.active) {
-								// Genode::warning(__func__, ": ignore inactive super block ", i);
 								continue;
 							}
 							Cbe::Generation const b_gen = b.generation;
@@ -616,24 +615,16 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					if (prim.read()) {
 						if (!_io.primitive_acceptable()) { break; }
-						// _trans->dump();
 
 						_io.submit_primitive(Tag::CRYPTO_TAG_DECRYPT, prim, *data_ptr);
 					} else
 
 					if (prim.write()) {
 
-						// _trans->dump();
-
-						// Cbe::Primitive::Number leaf_pba = prim.block_number;
-						// Genode::log("STEP 1: ", leaf_pba);
-
 						/*
 						 * 1. check if Write_back module is idle
 						 */
 						if (!_write_back.primitive_acceptable()) { break; }
-
-						// Genode::log("STEP 2: ", leaf_pba);
 
 						/*
 						 * 2. get old PBA's from Translation module
@@ -670,8 +661,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 							new_blocks++;
 						}
-
-						// Genode::log("STEP 3: ", leaf_pba);
 
 						/*
 						 * 3. check if allocator has enough blocks left
@@ -710,8 +699,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						for (uint32_t i = 0; i < free_blocks; i++) {
 							_block_manager->free(_current_generation, free_pba[i]);
 						}
-
-						// Genode::log("STEP 4: ", " vba: ", vba);
 
 						/*
 						 * 4. hand over infos to the Write_back module
@@ -768,8 +755,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					Cbe::Primitive prim = _write_back.peek_completed_primitive();
 					if (!prim.valid()) { break; }
 
-					// Genode::log("Write_back peek_completed_primitive");
-
 					if (_need_to_sync) {
 
 						if (!_sync_sb.primitive_acceptable()) { break; }
@@ -788,16 +773,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 						sb.active = true;
 
-						// Cbe::Physical_block_address const last_root = last_sb.root_number;
-						// Cbe::Physical_block_address const root      = sb.root_number;
-						// Genode::error("last root: ", last_root, " root: ", root);
-
-						// Cbe::Generation const gen = sb.generation;
-						// Genode::error("Submit sync super block: ", next_sb, " gen: ", gen);
-
 						_sync_sb.submit_primitive(prim, next_sb, _current_generation);
 
-						// Genode::error("Switch super block: ", _current_sb, " -> ", next_sb);
 						_current_sb = next_sb;
 						_current_generation = _current_generation + 1;
 
@@ -840,7 +817,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					bool _progress = false;
 					switch (prim.tag) {
 					case Tag::CRYPTO_TAG_ENCRYPT:
-						// Genode::log("Write_back CRYPTO_TAG_ENCRYPT");
 						if (_crypto.primitive_acceptable()) {
 							Cbe::Block_data &data = _write_back.peek_generated_data(prim);
 							_crypto.submit_primitive(prim, data, _crypto_data);
@@ -848,7 +824,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						}
 						break;
 					case Tag::CACHE_TAG:
-						// Genode::log("Write_back CACHE_TAG");
 						if (_cache.data_available(prim.block_number)) {
 
 							Cache_Index     const idx   = _cache.data_index(prim.block_number,
@@ -881,10 +856,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					if (!prim.valid()) { break; }
 					if (!_io.primitive_acceptable()) { break; }
 
-					// Cbe::Tag const tag = prim.tag;
-					// Cbe::Primitive::Number const number = prim.block_number;
-					// Genode::log("Write_back peek_generated_io_primitive: ", (uint32_t)tag, " ", number);
-
 					Cbe::Block_data &data = _write_back.peek_generated_io_data(prim);
 					_io.submit_primitive(Tag::WRITE_BACK_TAG, prim, data);
 
@@ -913,14 +884,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					_last_secured_generation = _sync_sb.peek_completed_generation(prim);
 
 					_sync_sb.drop_completed_primitive(prim);
-
-					// for (uint64_t i = 0; i < Cbe::NUM_SUPER_BLOCKS; i++) {
-					// 	Cbe::Super_block &sb = _super_block[i];
-
-					// 	Cbe::Generation const g = sb.generation;
-					// 	Genode::log("\033[35;1m", __func__, ": ", i, ": ", g);
-					// }
-					// _block_manager->dump();
 
 					_request_pool.mark_completed_primitive(req_prim);
 
@@ -1063,15 +1026,12 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						_cache.mark_completed_primitive(prim);
 						break;
 					case Tag::WRITE_BACK_TAG:
-						// Genode::log("_write_back.mark_completed_io_primitive");
 						_write_back.mark_completed_io_primitive(prim);
 						break;
 					case Tag::SYNC_SB_TAG:
-						// Genode::log("SYNC_SB_TAG");
 						_sync_sb.mark_generated_primitive_complete(prim);
 						break;
 					case Tag::RECLAIM_TAG:
-						// Genode::log("RECLAIM_TAG");
 						_reclaim.mark_generated_primitive_complete(prim);
 						break;
 					default: break;

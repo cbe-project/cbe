@@ -134,13 +134,11 @@ class Cbe::Module::Translation
 
 		void suspend()
 		{
-			// Genode::log(__func__, " SUSPEND TRANSLATION");
 			_suspended = true;
 		}
 
 		void resume()
 		{
-			// Genode::log(__func__, " RESUME TRANSLATION");
 			_suspended = false;
 		}
 
@@ -158,9 +156,6 @@ class Cbe::Module::Translation
 
 			_data.reset();
 
-			// Cbe::Virtual_block_address const vba = p.block_number;
-			// Genode::log("vba: ", vba);
-
 			_root      = r;
 			Genode::memcpy(_root_hash.values, root_hash.values, sizeof (Cbe::Hash));
 			_current   = p;
@@ -176,10 +171,6 @@ class Cbe::Module::Translation
 
 			/* request already translated */
 			if (_data_pba != Cbe::INVALID_PBA) { return false; }
-
-			// bool const data_available = _data.available(_level);
-			// Genode::log("data available level ", _level, " ", data_available, " ",
-			//             data_available ? _walk[_level] : 0);
 
 			if (!_data.available(_level)) {
 
@@ -202,7 +193,6 @@ class Cbe::Module::Translation
 					               sizeof (Cbe::Hash));
 				}
 
-				// Genode::log("next pba: ", _next_pba);
 				_walk[_level] = _next_pba;
 				return true;
 			}

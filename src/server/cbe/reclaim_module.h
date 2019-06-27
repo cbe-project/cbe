@@ -138,11 +138,6 @@ struct Cbe::Module::Reclaim
 
 	void drop_completed_request()
 	{
-		// if (sb.root_number != _root || sb.generation == _generation) {
-		// 	struct Invalid_super_block { };
-		// 	throw Invalid_super_block();
-		// }
-
 		_root       = 0;
 		_generation = 0;
 		_height     = 0;
