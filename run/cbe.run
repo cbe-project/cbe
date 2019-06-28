@@ -62,7 +62,7 @@ install_config {
 	<start name="cbe">
 		<resource name="RAM" quantum="4M"/>
 		<provides><service name="Block"/></provides>
-		<config show_progress="no" sync_interval="1"/>
+		<config show_progress="no" sync_interval="0"/>
 		<route>
 			<service name="Block"> <child name="cbe_block"/> </service>
 			<service name="Terminal"> <child name="log_terminal"/> </service>
@@ -71,29 +71,98 @@ install_config {
 		</route>
 	</start>
 
-	<start name="block_tester" caps="150">
-		<resource name="RAM" quantum="32M"/>
+	<start name="block_tester" caps="200">
+		<resource name="RAM" quantum="80M"/>
 		<config verbose="yes" report="no" log="yes" stop_on_error="no">
 			<tests>
 				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="4"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="4"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="4"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="4"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="4"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="4"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="4"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="4"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="4"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="4"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="4"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="4"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="4"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="4"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="4"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="15" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="1" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="2" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="read"  lba="1" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="read"  lba="2" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="read"  lba="3" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="1" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="2" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="read"  lba="1" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="read"  lba="2" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="read"  lba="3" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="1" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="2" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="read"  lba="1" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="read"  lba="2" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="read"  lba="3" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="1" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="2" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="read"  lba="1" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="read"  lba="2" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="read"  lba="3" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="15" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="15" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="4"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="4"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="4"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="4"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="4"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="4"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="4"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="4"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="4"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="4"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="4"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="4"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="4"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="4"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="4"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="4"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="4"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="4"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="4"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="4"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="4"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="4"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="4"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="4"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="4"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="4"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="4"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="3" count="4"/> </replay>
+<!--
+				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="5" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="5" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="5" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="5" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="5" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
 				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
 				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
 				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="4"/> </replay>
-<!--
+
 				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="17"/> </replay>
 				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="17"/> </replay>
 				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="17"/> </replay>
