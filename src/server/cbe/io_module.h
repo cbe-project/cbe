@@ -188,6 +188,8 @@ class Cbe::Module::Block_io : Noncopyable
 						: Primitive::Success::FALSE;
 
 					_block.tx()->release_packet(_entries[i].packet);
+					Cbe::Physical_block_address const pba = _entries[i].primitive.block_number;
+					Genode::error("ack I/O pba: ", pba);
 					progress = true;
 				}
 			}
@@ -212,6 +214,8 @@ class Cbe::Module::Block_io : Noncopyable
 						_entries[i].packet = packet;
 
 						_block.tx()->submit_packet(_entries[i].packet);
+						Cbe::Physical_block_address const pba = _entries[i].primitive.block_number;
+						Genode::error("submit new I/O pba: ", pba);
 						progress = true;
 					}
 					catch (Fake_sync_primitive) {

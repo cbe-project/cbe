@@ -133,6 +133,8 @@ class Cbe::Module::Write_back
 
 				e.old_pba = old_pba[i];
 				e.new_pba = new_pba[i];
+
+				Genode::log(__func__, ": i: ", i, " old: ", e.old_pba, " new: ", e.new_pba);
 				e.in_progress = false;
 				e.done        = false;
 				e.io_in_progress = false;
@@ -299,7 +301,8 @@ class Cbe::Module::Write_back
 			for (Genode::uint32_t i = 0; i < _levels; i++) {
 				Entry &e = _entry[i];
 
-				if (e.io_in_progress || !e.done) { continue; }
+				if (e.io_in_progress || e.io_done || !e.done) { continue; }
+				Genode::log(__func__, ": i: ", i, " pba: ", e.new_pba);
 
 				p = Primitive {
 					.tag          = Cbe::Tag::IO_TAG,
@@ -349,6 +352,7 @@ class Cbe::Module::Write_back
 				bool const match = p.block_number == e.new_pba;
 				if (!io || !match) { continue; }
 
+				Genode::log(__func__, ": i: ", i, " pba: ", e.new_pba, " io_done");
 				e.io_done = true;
 				return;
 			}

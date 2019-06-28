@@ -302,7 +302,8 @@ class Cbe::Module::Translation
 
 		void dump() const
 		{
-			Genode::error("WALK: ");
+			Cbe::Virtual_block_address const vba = _current.block_number;
+			Genode::error("WALK: vba: ", vba);
 			for (uint32_t l = 0; l < _height+1; l++) {
 				Genode::error("      ", _walk[_height-l], " <", _walk_hash[_height-l], ">");
 			}
