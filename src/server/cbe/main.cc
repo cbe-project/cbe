@@ -1180,6 +1180,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			_max_vba = leaves - 1;
 
 			_trans.construct(height, degree);
+			// XXX use tree
 			_block_manager.construct(free_number, free_leaves);
 		}
 

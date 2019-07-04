@@ -962,32 +962,62 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 			Xml_node config = _config_rom.xml();
 			Number_of_bytes const backing_size   = config.attribute_value("backing_size",   Number_of_bytes(0));
-			Number_of_bytes const vbd_size       = config.attribute_value("vbd_size",       Number_of_bytes(0));
-			Number_of_bytes const vbd_block_size = config.attribute_value("vbd_block_size", Number_of_bytes(4096));
-			uint32_t const outer_degree = config.attribute_value("outer_degree",   0u);
+
+			Number_of_bytes const vbd_size         = config.attribute_value("vbd_size",       Number_of_bytes(0));
+			Number_of_bytes const vbd_block_size   = config.attribute_value("vbd_block_size", Number_of_bytes(4096));
+			uint32_t        const vbd_outer_degree = config.attribute_value("vbd_outer_degree", 0u);
+
+			Number_of_bytes const ft_size         = config.attribute_value("ft_size",       Number_of_bytes(0));
+			Number_of_bytes const ft_block_size   = config.attribute_value("ft_block_size", vbd_block_size);
+			uint32_t        const ft_outer_degree = config.attribute_value("ft_outer_degree", 0u);
+
 			bool const initialize = config.attribute_value("initialize", false);
 
 			struct Missing_parameters { };
 			struct Invalid_parameters { };
 			struct Invalid_size       { };
-			if (!backing_size || !vbd_size || !vbd_block_size || !outer_degree) { throw Missing_parameters(); }
-			if (vbd_block_size < (outer_degree * sizeof (Cbe::Type_i_node)))    { throw Invalid_parameters(); }
-			if (backing_size / 2 < vbd_size)                                    { throw Invalid_size(); }
+
+			if (!backing_size
+			    || !vbd_size || !vbd_block_size || !vbd_outer_degree
+			    || !ft_size  || !ft_block_size  || !ft_outer_degree) {
+				throw Missing_parameters();
+			}
+
+			if (  vbd_block_size < (vbd_outer_degree * sizeof (Cbe::Type_i_node))
+			    || ft_block_size < (ft_outer_degree  * sizeof (Cbe::Type_i_node))) {
+				throw Invalid_parameters();
+			}
 
 			_backing_store.construct(_env.ram(), _env.rm(), backing_size);
+
 			using Info = Cbe::Tree::Info;
-			Info info = Cbe::Tree::calculate(Cbe::Tree::Outer_degree { outer_degree },
+			Info info = Cbe::Tree::calculate(Cbe::Tree::Outer_degree { vbd_outer_degree },
 			                                 Cbe::Block_size         { (uint32_t)vbd_block_size },
 			                                 Cbe::Size               { vbd_size });
 
 			if (_verbose) { log("Info: ", info); }
 
-			Cbe::Physical_block_address const avail = (vbd_size / vbd_block_size) + info.md_size + 1 /* root node */;
-			Cbe::Physical_block_address const start_pba = Cbe::FIRST_PBA;
+			Info free_info = Cbe::Tree::calculate(Cbe::Tree::Outer_degree { ft_outer_degree },
+			                                      Cbe::Block_size         { (uint32_t)ft_block_size },
+			                                      Cbe::Size               { ft_size });
+
+			if (_verbose) { log("Info: ", info); }
+
+			/*
+			 * Make sure there is enough room for all nodes (in case of the FT
+			 * twice the size to rewrite the tree completely).
+			 */
+			Genode::uint64_t const needed_blocks = (vbd_size / vbd_block_size + info.md_size + 1)
+			                                     + (ft_size  / ft_block_size  + (free_info.size * 2 ) + 1);
+			Genode::uint64_t const avail_blocks  = (backing_size / vbd_block_size) - Cbe::FIRST_PBA;
+
+			if (avail_blocks < needed_blocks) {
+			   	throw Invalid_size();
+			}
 
 			_block_allocator.construct(Data { .base = _backing_store->local_addr<void*>(),
 			                                  .size = _backing_store->size() },
-			                           start_pba, avail);
+			                           Cbe::FIRST_PBA, avail_blocks);
 
 			Cbe::Physical_block_address root_pba = ~0;
 			try {
@@ -997,7 +1027,15 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				throw;
 			}
 			_tree.construct(*_block_allocator, root_pba, info);
-			_free_tree.construct(*_block_allocator, root_pba, info);
+
+			Cbe::Physical_block_address tree_root_pba = ~0;
+			try {
+				tree_root_pba = _block_allocator->alloc();
+			} catch (...) {
+				error(__func__, ": alloc failed");
+				throw;
+			}
+			_free_tree.construct(*_block_allocator, tree_root_pba, free_info);
 
 			_vbd.construct(_env, *_tree, *_free_tree, _verbose, initialize);
 
@@ -1020,11 +1058,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				Sha256_4k::hash(*data, hash);
 				Genode::memcpy(sb.root_hash.values, hash.values, sizeof (hash));
 
-				/* XXX just reserve some memory for allocating blocks */
-				sb.free_number = start_pba + (avail / 2) + 2048;
-				sb.free_leaves = (backing_size / 2) / 2 / vbd_block_size;
-				/* abuse height as max leaves for now */
-				sb.free_height = sb.free_leaves;
+				sb.free_number = tree_root_pba;
+				sb.free_leaves = free_info.leaves;
+				sb.free_height = free_info.height;
 
 				/* clear other super block slots */
 				for (uint64_t i = 1; i < Cbe::NUM_SUPER_BLOCKS; i++) {
