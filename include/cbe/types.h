@@ -207,6 +207,22 @@ namespace Cbe {
 		};
 	} __attribute__((packed));
 
+	struct Type_ii_node
+	{
+		union {
+			struct {
+				bool reserved;
+				Cbe::Physical_block_address pba;
+				Cbe::Virtual_block_address  last_vba;
+				Cbe::Generation             alloc_gen;
+				Cbe::Generation             free_gen;
+				Cbe::Number_of_leaves       free_leafs;
+			};
+
+			char data[64];
+		};
+	} __attribute__((packed));
+
 } /* namespace Cbe */
 
 #endif /* _CBE_TYPES_H_ */
