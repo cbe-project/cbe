@@ -295,7 +295,7 @@ class Cbe::Vbd
 					xml.attribute("type", 3u);
 					xml.attribute("id",   id);
 					xml.attribute("pba",  parent_node[id].pba);
-					xml.attribute("gen",  parent_node[id].gen);
+					xml.attribute("gen",  parent_node[id].gen & GEN_VALUE_MASK);
 					xml.attribute("vba",  _report_leaves);
 					xml.attribute("hash", Hash::String(parent_node[id].hash));
 				});
@@ -326,7 +326,7 @@ class Cbe::Vbd
 					xml.attribute("type", 1u);
 					xml.attribute("id",   id);
 					xml.attribute("pba",  node[id].pba);
-					xml.attribute("gen",  node[id].gen);
+					xml.attribute("gen",  node[id].gen & GEN_VALUE_MASK);
 					xml.attribute("hash", Hash::String(node[id].hash));
 
 					finished = (height == 1) ?
