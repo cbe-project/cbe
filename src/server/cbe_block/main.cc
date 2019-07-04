@@ -290,7 +290,8 @@ class Cbe::Vbd
 				reinterpret_cast<Cbe::Type_i_node*>(blk_alloc.data(parent)) };
 
 			for (uint32_t id = 0; id < info.outer_degree; id++) {
-				xml.node("leaf", [&] () {
+				xml.node("node", [&] () {
+					xml.attribute("type", 3u);
 					xml.attribute("id",   id);
 					xml.attribute("pba",  parent_node[id].pba);
 					xml.attribute("gen",  parent_node[id].gen);
@@ -320,7 +321,8 @@ class Cbe::Vbd
 				reinterpret_cast<Cbe::Type_i_node*>(blk_alloc.data(parent)) };
 
 			for (uint32_t id = 0; id < info.outer_degree && !finished; id++) {
-				xml.node("i-node", [&] () {
+				xml.node("node", [&] () {
+					xml.attribute("type", 1u);
 					xml.attribute("id",   id);
 					xml.attribute("pba",  node[id].pba);
 					xml.attribute("gen",  node[id].gen);
@@ -451,11 +453,10 @@ class Cbe::Vbd
 
 			/* write info of all child i-nodes and write their sub-trees */
 			height--;
-			char const *child_type { height ? "i-node" : "leaf" };
-			xml.for_each_sub_node(child_type, [&] (Xml_node const &child_xml) {
+			xml.for_each_sub_node("node", [&] (Xml_node const &child_xml) {
 				try { _write_i_node_child(node, child_xml, info, height, blk_alloc); }
 				catch (...) {
-					warning("failed to write ", child_type, " according to config");
+					warning("failed to write node according to config");
 				}
 			});
 		}
