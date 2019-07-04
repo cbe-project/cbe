@@ -271,6 +271,7 @@ class Cbe::Vbd
 		uint64_t                    _report_leaves { 0 };
 		uint64_t                    _leaves        { 0 };
 		Cbe::Tree                  &_tree;
+		Cbe::Tree                  &_free_tree;
 		bool                 const  _verbose;
 
 		/**
@@ -388,7 +389,7 @@ class Cbe::Vbd
 					*reinterpret_cast<Cbe::Super_block*>(ba.data(sb_id)) };
 
 				Cbe::Generation const gen { sb.generation };
-				if (gen >= most_recent_gen) {
+				if (sb.root_number != 0 && gen >= most_recent_gen) {
 					curr_sb_id = sb_id;
 					most_recent_gen = gen;
 				}
@@ -660,11 +661,13 @@ class Cbe::Vbd
 
 		Vbd(Genode::Env &env,
 		    Cbe::Tree   &tree,
+		    Cbe::Tree   &free_tree,
 		    bool         verbose,
 		    bool         initialize)
 		:
 			_env     { env },
 			_tree    { tree },
+			_free_tree { free_tree },
 			_verbose { verbose }
 		{
 			if (initialize) {
@@ -883,6 +886,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Constructible<Block_session_component> _block_session   { };
 		Constructible<Cbe::Block_allocator>    _block_allocator { };
 		Constructible<Cbe::Tree>               _tree            { };
+		Constructible<Cbe::Tree>               _free_tree       { };
 		Constructible<Cbe::Vbd>                _vbd             { };
 		Constructible<Cbe::Mmu>                _mmu             { };
 
@@ -993,7 +997,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				throw;
 			}
 			_tree.construct(*_block_allocator, root_pba, info);
-			_vbd.construct(_env, *_tree, _verbose, initialize);
+			_free_tree.construct(*_block_allocator, root_pba, info);
+
+			_vbd.construct(_env, *_tree, *_free_tree, _verbose, initialize);
 
 			if (config.has_sub_node("state")) {
 				Genode::log("Use <state> to initalize VBD");
