@@ -132,12 +132,16 @@ namespace Cbe {
 		}
 	};
 
+	struct Key_id
+	{
+		uint32_t value;
+	};
+
 	struct Key
 	{
 		enum { KEY_SIZE = 64u };
-		using Id = uint32_t;
 		char value[KEY_SIZE];
-		Id   id;
+		Key_id id;
 	};
 
 	enum { NUM_SUPER_BLOCKS = 8, };
@@ -216,7 +220,7 @@ namespace Cbe {
 				Cbe::Virtual_block_address  last_vba;
 				Cbe::Generation             alloc_gen;
 				Cbe::Generation             free_gen;
-				Cbe::Number_of_leaves       free_leafs;
+				Cbe::Key_id                 last_key_id;
 			};
 
 			char data[64];
