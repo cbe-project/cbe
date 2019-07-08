@@ -94,6 +94,7 @@ namespace Cbe {
 	using Generation             = uint64_t;
 	using Height                 = uint32_t;
 	using Number_of_leaves       = uint64_t;
+	using Degree                 = uint32_t;
 
 	using Timestamp = uint64_t;
 
@@ -158,10 +159,6 @@ namespace Cbe {
 	struct Super_block
 	{
 		enum { NUM_KEYS = 2u };
-		using Number           = uint64_t;
-		using Degree           = uint32_t;
-
-		enum : Number { INVALID_ROOT_NUMBER = 0 };
 
 		union {
 			struct {
@@ -177,14 +174,15 @@ namespace Cbe {
 				// XXX remove later
 				bool             active;
 
-				Physical_block_address           free_number;
+				Physical_block_address free_number;
 				Height           free_height;
+				Degree           free_degree;
 				Number_of_leaves free_leaves;
 			};
 			char data[BLOCK_SIZE];
 		};
 
-		bool valid() { return root_number != INVALID_ROOT_NUMBER; }
+		bool valid() { return root_number != 0; }
 
 	} __attribute__((packed));
 
