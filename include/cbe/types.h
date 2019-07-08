@@ -156,6 +156,12 @@ namespace Cbe {
 		Number_of_leaves       leaves;
 	} __attribute__((packed));
 
+	struct Snapshot
+	{
+		Ro_snapshot ro_info;
+		bool hold;
+	} __attribute__((packed));
+
 	struct Super_block
 	{
 		enum { NUM_KEYS = 2u };
@@ -163,6 +169,8 @@ namespace Cbe {
 		union {
 			struct {
 				Key key[NUM_KEYS];
+
+				Snapshot snapshots[16];
 
 				Physical_block_address root_number;
 				Hash                   root_hash;
