@@ -1205,6 +1205,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				sb.free_number = tree_root_pba;
 				sb.free_leaves = free_info.leaves;
 				sb.free_height = free_info.height;
+				sb.free_degree = free_info.outer_degree;
 
 				/* clear other super block slots */
 				for (uint64_t i = 1; i < Cbe::NUM_SUPER_BLOCKS; i++) {
@@ -1218,6 +1219,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					sbX.leaves      = sb.leaves;
 					sbX.free_number = sb.free_number;
 					sbX.free_height = sb.free_height;
+					sbX.free_degree = sb.free_degree;
 					sbX.free_leaves = sb.free_leaves;
 				}
 			}
