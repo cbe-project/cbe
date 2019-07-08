@@ -215,12 +215,12 @@ namespace Cbe {
 	{
 		union {
 			struct {
-				bool reserved;
 				Cbe::Physical_block_address pba;
 				Cbe::Virtual_block_address  last_vba;
 				Cbe::Generation             alloc_gen;
 				Cbe::Generation             free_gen;
 				Cbe::Key_id                 last_key_id;
+				bool reserved;
 			};
 
 			char data[64];
