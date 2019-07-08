@@ -25,12 +25,11 @@ namespace Cbe { namespace Module {
 		Cbe::Block_data item[1];
 	} __attribute__((packed));
 
-	template <typename> class Translation;
+	class Translation;
 
 } /* namespace Module */ } /* namespace Cbe */
 
 
-template <typename T>
 class Cbe::Module::Translation
 {
 	public:
@@ -59,13 +58,15 @@ class Cbe::Module::Translation
 
 		Cbe::Primitive::Number _get_pba(Cbe::Block_data const &data, uint32_t i) const
 		{
-			T const *entry = reinterpret_cast<T const*>(&data);
+			using T1 = Cbe::Type_i_node;
+			T1 const *entry = reinterpret_cast<T1 const*>(&data);
 			return entry[i].pba;
 		}
 
 		Cbe::Hash const *_get_hash(Cbe::Block_data const &data, uint32_t i) const
 		{
-			T const *entry = reinterpret_cast<T const*>(&data);
+			using T1 = Cbe::Type_i_node;
+			T1 const *entry = reinterpret_cast<T1 const*>(&data);
 			return &entry[i].hash;
 		}
 
@@ -98,10 +99,13 @@ class Cbe::Module::Translation
 
 		bool _suspended { false };
 
+		bool _free_tree { false };
+
 	public:
 
-		Translation(uint32_t levels, uint32_t degree)
-		: _degree_log2(_log2(degree)), _height(levels) { }
+		Translation(uint32_t levels, uint32_t degree, bool free_tree)
+		: _degree_log2(_log2(degree)), _height(levels), _free_tree(free_tree)
+		{ }
 
 		/**
 		 * Return height of the tree
@@ -226,14 +230,26 @@ class Cbe::Module::Translation
 			 * We query the next level and should it already be the last,
 			 * we have found the pba for the data leave node.
 			 */
-			if (--_level == 0) {
-				uint32_t const i = _get_index(_current.block_number, 1);
-				_data_pba = _get_pba(trans_data.item[0], i);
+			if (!_free_tree) {
+				if (--_level == 0) {
+					uint32_t const i = _get_index(_current.block_number, 1);
+					_data_pba = _get_pba(trans_data.item[0], i);
 
-				_walk[_level] = _data_pba;
-				Genode::memcpy(_walk_hash[_level].values,
-				               _get_hash(trans_data.item[0], i),
-				               sizeof (Cbe::Hash));
+					_walk[_level] = _data_pba;
+					Genode::memcpy(_walk_hash[_level].values,
+					               _get_hash(trans_data.item[0], i),
+					               sizeof (Cbe::Hash));
+				}
+			} else {
+				if (--_level == 1) {
+					uint32_t const i = _get_index(_current.block_number, 2);
+					_data_pba = _get_pba(trans_data.item[0], i);
+
+					_walk[_level] = _data_pba;
+					Genode::memcpy(_walk_hash[_level].values,
+					               _get_hash(trans_data.item[0], i),
+					               sizeof (Cbe::Hash));
+				}
 			}
 
 			return true;

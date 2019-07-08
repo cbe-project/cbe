@@ -203,9 +203,6 @@ struct Cbe::Block_manager
 			_used--;
 		} catch (...) { Genode::warning(i, " already cleared"); }
 	}
-
-	size_t used()  const { return _used; }
-	size_t avail() const { return _size - _used; }
 };
 
 
@@ -284,8 +281,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Constructible<Attached_ram_dataspace>  _block_ds { };
 		Constructible<Block_session_component> _block_session { };
 
-		Constructible<Block_manager> _block_manager { };
-
 		/* back end Block session */
 		enum { TX_BUF_SIZE = Block::Session::TX_QUEUE_SIZE * BLOCK_SIZE, };
 		Heap                _heap        { _env.ram(), _env.rm() };
@@ -324,7 +319,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 		using Pool        = Module::Request_pool;
 		using Splitter    = Module::Splitter;
-		using Translation = Module::Translation<Cbe::Type_i_node>;
+		using Translation = Module::Translation;
 		using Translation_Data = Module::Translation_Data;
 
 		using Cache          = Module::Cache;
@@ -371,6 +366,67 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 		Reclaim      _reclaim { };
 		Reclaim_Data _reclaim_data { };
+
+		struct Free_tree
+		{
+			Module::Cache          _cache { };
+			Module::Cache_Data     _cache_data { };
+			Module::Cache_Job_Data _cache_job_data { };
+
+			using Translation = Module::Translation;
+			Constructible<Translation> _trans { };
+			Translation_Data           _trans_data { };
+
+			Write_back _write_back { };
+			Block_data _write_back_data[MAX_LEVEL] { };
+
+			Constructible<Block_manager> _block_manager { };
+
+			Free_tree(Cbe::Physical_block_address const root,
+			          Cbe::Height const height,
+			          Cbe::Degree const degree,
+			          Cbe::Number_of_leaves const leafs)
+			{
+				_trans.construct(height, degree, true);
+
+				_block_manager.construct(root, leafs);
+			}
+
+			bool request_acceptable() const
+			{
+				return _num_blocks == 0;
+			}
+
+			void submit_request(/*Cbe::Super_block const *active_snapshots,
+			                    Cbe::Generation  const  last_secured,
+			                    Cbe::Generation  const  current,*/
+			                    size_t           const  num_blocks)
+			{
+				if (_num_blocks) {
+					return;
+				}
+			}
+
+			/**************************************************
+			 ** temp Block_manager interface -- REMOVE LATER **
+			 **************************************************/
+
+			Cbe::Physical_block_address alloc(Cbe::Super_block const *sb,
+			                                  Cbe::Generation const s_gen,
+			                                  Cbe::Generation const curr_gen,
+			                                  size_t count)
+			{
+				return _block_manager->alloc(sb, s_gen, curr_gen, count);
+			}
+
+			void free(Cbe::Generation const curr_gen,
+			          Cbe::Physical_block_address pba)
+			{
+				_block_manager->free(curr_gen, pba);
+			}
+		};
+
+		Constructible<Free_tree> _free_tree { };
 
 		Block::Request convert_from(Cbe::Request const &r)
 		{
@@ -483,6 +539,50 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				if (diff_time >= _sync_interval && !_need_to_sync) {
 					Genode::log("\033[93;44m", __func__, " seal current ", _current_generation, " generation");
 					_need_to_sync = true;
+				}
+
+
+				/************************
+				 ** Free-tree handling **
+				 ************************/
+
+				bool const ft_progress = _free_tree->execute();
+				progress |= ft_progress;
+				if (_show_progress) {
+					Genode::log("Free-tree progress: ", ft_progress);
+				}
+
+				while (true) {
+
+					Cbe::Primitive prim = _free_tree->peek_generated_primitive();
+					if (!prim.valid()) { break; }
+
+					bool _progress = false;
+					if (prim.tag == TAG::FREE_TREE_TAG_CACHE) {
+						if (!_io.primitive_acceptable()) { break; }
+
+						Index const idx       = _free_tree->peek_generated_data_index(prim);
+						Cbe::Block_data &data = _free_tree_data[idx.value];
+
+						_free_tree_data->drop_generated_primitive(prim);
+						_io.submit_primitive(TAG::FREE_TREE_TAG_CACHE, prim, data);
+
+						_progress |= true;
+					}
+
+					if (prim.tag == TAG::FREE_TREE_TAG_WB) {
+						if (!_io.primitive_acceptable()) { break; }
+
+						Index const idx       = _free_tree->peek_generated_data_index(prim);
+						Cbe::Block_data &data = _free_tree_data[idx.value];
+
+						_free_tree_data->drop_generated_primitive(prim);
+						_io.submit_primitive(TAG::FREE_TREE_TAG_CACHE, prim, data);
+						_progress |= true;
+					}
+
+					if (!_progress) { break; }
+					progress |= true;
 				}
 
 				/***********************
@@ -699,7 +799,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						 */
 						try {
 							Cbe::Physical_block_address const pba =
-								_block_manager->alloc(_super_block,
+								_free_tree->alloc(_super_block,
 								                      _last_secured_generation,
 								                      _current_generation,
 								                      new_blocks);
@@ -734,7 +834,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						/* mark old physical blocks as reserved */
 						for (uint32_t i = 0; i < free_blocks; i++) {
 							Genode::warning("free_pba[", i, "]: ", free_pba[i]);
-							_block_manager->free(_current_generation, free_pba[i]);
+							_free_tree->free(_current_generation, free_pba[i]);
 						}
 
 						/*
@@ -974,7 +1074,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					if (!_reclaim.peek_completed_request()) { break; }
 
-					_reclaim.reclaim_completed_request(*_block_manager, _current_generation);
+					// _reclaim.reclaim_completed_request(*_block_manager, _current_generation);
 					_reclaim.drop_completed_request();
 					progress |= true;
 				}
@@ -1109,7 +1209,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 			Cbe::Physical_block_address const root_number      = sb.root_number;
 			Cbe::Height const height           = sb.height;
-			Cbe::Super_block::Degree const degree           = sb.degree;
+			Cbe::Degree const degree           = sb.degree;
 			Cbe::Number_of_leaves const leaves = sb.leaves;
 
 			Cbe::Physical_block_address const free_number           = sb.free_number;
@@ -1168,20 +1268,22 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			SB const &sb = _super_block[_current_sb];
 
 			Cbe::Height const height           = sb.height;
-			SB::Degree const degree           = sb.degree;
+			Cbe::Degree const degree           = sb.degree;
 			Cbe::Number_of_leaves const leaves = sb.leaves;
-
-			Cbe::Physical_block_address const free_number = sb.free_number;
-			Cbe::Number_of_leaves const free_leaves       = sb.free_leaves;
 
 			_last_secured_generation = sb.generation;
 			_current_generation      = _last_secured_generation + 1;
 
 			_max_vba = leaves - 1;
 
-			_trans.construct(height, degree);
-			// XXX use tree
-			_block_manager.construct(free_number, free_leaves);
+			_trans.construct(height, degree, false);
+
+			Cbe::Height const free_height                 = sb.free_height;
+			Cbe::Physical_block_address const free_number = sb.free_number;
+			Cbe::Degree const free_degree                 = sb.free_degree;
+			Cbe::Number_of_leaves const free_leafs        = sb.free_leaves;
+
+			_free_tree.construct(free_number, free_height, free_degree, free_leafs);
 		}
 
 	public:

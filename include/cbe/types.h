@@ -35,6 +35,9 @@ namespace Cbe {
 		WRITE_BACK_TAG     = 0x70,
 		SYNC_SB_TAG        = 0x80,
 		RECLAIM_TAG        = 0x90,
+		FREE_TREE_TAG      = 0xA0,
+		FREE_TREE_TAG_CACHE = FREE_TREE_TAG | 0x1,
+		FREE_TREE_TAG_WB    = FREE_TREE_TAG | 0x2,
 	};
 
 	using Number_of_primitives = size_t;
