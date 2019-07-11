@@ -1197,15 +1197,27 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				sb.generation  = 0;
 				sb.root_number = root_pba;
 
-				Sha256_4k::Data *data = reinterpret_cast<Sha256_4k::Data*>(_block_allocator->data(root_pba));
-				Sha256_4k::Hash hash { };
-				Sha256_4k::hash(*data, hash);
-				Genode::memcpy(sb.root_hash.values, hash.values, sizeof (hash));
+				{
+					Sha256_4k::Data *data =
+						reinterpret_cast<Sha256_4k::Data*>(_block_allocator->data(root_pba));
+					Sha256_4k::Hash hash { };
+					Sha256_4k::hash(*data, hash);
+					Genode::memcpy(sb.root_hash.values, hash.values, sizeof (hash));
+				}
 
 				sb.free_number = tree_root_pba;
 				sb.free_leaves = free_info.leaves;
 				sb.free_height = free_info.height;
 				sb.free_degree = free_info.outer_degree;
+
+				{
+					Sha256_4k::Data *data =
+						reinterpret_cast<Sha256_4k::Data*>(_block_allocator->data(tree_root_pba));
+					Sha256_4k::Hash hash { };
+					Sha256_4k::hash(*data, hash);
+					Genode::memcpy(sb.free_hash.values, hash.values, sizeof (hash));
+				}
+
 
 				/* clear other super block slots */
 				for (uint64_t i = 1; i < Cbe::NUM_SUPER_BLOCKS; i++) {

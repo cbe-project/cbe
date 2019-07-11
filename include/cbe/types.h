@@ -186,6 +186,7 @@ namespace Cbe {
 				bool             active;
 
 				Physical_block_address free_number;
+				Hash                   free_hash;
 				Height           free_height;
 				Degree           free_degree;
 				Number_of_leaves free_leaves;
