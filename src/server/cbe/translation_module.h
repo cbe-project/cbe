@@ -212,6 +212,7 @@ class Cbe::Module::Translation
 
 			Cbe::Hash const *h = nullptr;
 			if (_level == _height) {
+				Genode::error("ROOT HASH: ", _root_hash);
 				h = &_root_hash;
 			} else {
 				/* or use previous level data to get next level */

@@ -117,8 +117,8 @@ class Cbe::Module::Write_back
 
 		void submit_primitive(Primitive const &p, Cbe::Generation new_generation,
 		                      Cbe::Virtual_block_address vba,
-		                      Cbe::Physical_block_address *new_pba,
-		                      Cbe::Physical_block_address *old_pba, uint32_t n, Block_data &d)
+		                      Cbe::Physical_block_address const *new_pba,
+		                      Cbe::Physical_block_address const *old_pba, uint32_t n, Block_data const &d)
 		{
 			_pending_primitive = p;
 			_new_generation = new_generation;

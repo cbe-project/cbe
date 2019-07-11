@@ -23,6 +23,7 @@ namespace Cbe {
 	using namespace Genode;
 
 	enum class Tag : Genode::uint32_t {
+		#define CREATE_SUB_TAG(t) (((t) >> 4) & 0xf)
 		INVALID_TAG        = 0x00,
 		IO_TAG             = 0x10,
 		CACHE_TAG          = 0x20,
@@ -36,8 +37,10 @@ namespace Cbe {
 		SYNC_SB_TAG        = 0x80,
 		RECLAIM_TAG        = 0x90,
 		FREE_TREE_TAG      = 0xA0,
-		FREE_TREE_TAG_CACHE = FREE_TREE_TAG | 0x1,
-		FREE_TREE_TAG_WB    = FREE_TREE_TAG | 0x2,
+		FREE_TREE_TAG_IO    = FREE_TREE_TAG | CREATE_SUB_TAG(IO_TAG),
+		FREE_TREE_TAG_CACHE = FREE_TREE_TAG | CREATE_SUB_TAG(CACHE_TAG),
+		FREE_TREE_TAG_WB    = FREE_TREE_TAG | CREATE_SUB_TAG(WRITE_BACK_TAG),
+		#undef CREATE_SUB_TAG
 	};
 
 	using Number_of_primitives = size_t;
@@ -89,6 +92,13 @@ namespace Cbe {
 			    || operation == Operation::WRITE
 			    || operation == Operation::SYNC;
 		}
+
+		bool equal(Cbe::Primitive const &rhs) const
+		{
+			return tag == rhs.tag
+			    && block_number == rhs.block_number
+			    && operation == rhs.operation;
+		}
 	} __attribute__((packed));
 
 	enum { INVALID_PBA = 18446744073709551615ULL, };
@@ -107,6 +117,11 @@ namespace Cbe {
 	{
 		char values[BLOCK_SIZE] { };
 	} __attribute__((packed));
+
+	struct Index
+	{
+		uint64_t value;
+	};
 
 	struct Hash
 	{
@@ -236,6 +251,9 @@ namespace Cbe {
 			char data[64];
 		};
 	} __attribute__((packed));
+
+	constexpr size_t TYPE_1_PER_BLOCK = BLOCK_SIZE / sizeof (Type_i_node);
+	constexpr size_t TYPE_2_PER_BLOCK = BLOCK_SIZE / sizeof (Type_ii_node);
 
 } /* namespace Cbe */
 
