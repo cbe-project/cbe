@@ -38,24 +38,6 @@ class Cbe::Module::Translation
 
 	private:
 
-		static inline uint32_t _log2(uint32_t value)
-		{
-			if (!value) return -1;
-			for (int i = 8 * sizeof(value) - 1; i >= 0; --i)
-				if (((uint32_t)1 << i) & value) return i;
-
-			return -1;
-		}
-
-		uint32_t _degree_log2;
-
-		uint32_t _get_index(Cbe::Primitive::Number const vba,
-		                           uint32_t        const level) const
-		{
-			static uint32_t const mask = (1u << _degree_log2) - 1;
-			return (vba >> (_degree_log2*(level-1))) & mask;
-		}
-
 		Cbe::Primitive::Number _get_pba(Cbe::Block_data const &data, uint32_t i) const
 		{
 			using T1 = Cbe::Type_i_node;
@@ -86,8 +68,6 @@ class Cbe::Module::Translation
 
 		Data _data { };
 
-		uint32_t const _height;
-
 		Cbe::Physical_block_address _root { Cbe::INVALID_PBA };
 		Cbe::Hash              _root_hash { };
 
@@ -101,10 +81,12 @@ class Cbe::Module::Translation
 
 		bool _free_tree { false };
 
+		Cbe::Tree_helper _tree_helper;
+
 	public:
 
 		Translation(uint32_t levels, uint32_t degree, bool free_tree)
-		: _degree_log2(_log2(degree)), _height(levels), _free_tree(free_tree)
+		: _free_tree(free_tree), _tree_helper(degree, levels)
 		{ }
 
 		/**
@@ -112,7 +94,7 @@ class Cbe::Module::Translation
 		 *
 		 * \return height of the tree
 		 */
-		uint32_t height() const { return _height; }
+		uint32_t height() const { return _tree_helper.height(); }
 
 		/**
 		 * Return index for address of given level
@@ -122,7 +104,7 @@ class Cbe::Module::Translation
 		uint32_t index(Cbe::Virtual_block_address const vba,
 		               uint32_t                   const level)
 		{
-			return _get_index(vba, level);
+			return _tree_helper.index(vba, level);
 		}
 
 		/**
@@ -163,7 +145,7 @@ class Cbe::Module::Translation
 			_root      = r;
 			Genode::memcpy(_root_hash.values, root_hash.values, sizeof (Cbe::Hash));
 			_current   = p;
-			_level     = _height;
+			_level     = _tree_helper.height();
 			_data_pba  = Cbe::INVALID_PBA;
 			_next_pba  = Cbe::INVALID_PBA;
 		}
@@ -182,14 +164,14 @@ class Cbe::Module::Translation
 				if (_next_pba != Cbe::INVALID_PBA) { return false; }
 
 				/* otherwise start from root */
-				if (_level == _height) {
+				if (_level == _tree_helper.height()) {
 					_next_pba = _root;
 					Genode::memcpy(_walk_hash[_level].values,
 					               _root_hash.values, sizeof (Cbe::Hash));
 				} else {
 
 					/* or use previous level data to get next level */
-					uint32_t const i = _get_index(_current.block_number, _level+1);
+					uint32_t const i = _tree_helper.index(_current.block_number, _level+1);
 					_next_pba = _get_pba(trans_data.item[0], i);
 
 					Genode::memcpy(_walk_hash[_level].values,
@@ -211,7 +193,7 @@ class Cbe::Module::Translation
 			Sha256_4k::hash(data, hash);
 
 			Cbe::Hash const *h = nullptr;
-			if (_level == _height) {
+			if (_level == _tree_helper.height()) {
 				Genode::error("ROOT HASH: ", _root_hash);
 				h = &_root_hash;
 			} else {
@@ -221,7 +203,7 @@ class Cbe::Module::Translation
 
 			if (Genode::memcmp(hash.values, h->values, sizeof (Cbe::Hash))) {
 				Genode::error("level: ", _level, " pba: ", _walk[_level], " <", hash, "> != <", *h, ">");
-				for (uint32_t l = 0; l < _height+1; l++) {
+				for (uint32_t l = 0; l < _tree_helper.height()+1; l++) {
 					Genode::error("node[", l, "]: ", _walk[l], " <", _walk_hash[l], ">");
 				}
 				throw Hash_mismatch();
@@ -233,7 +215,7 @@ class Cbe::Module::Translation
 			 */
 			if (!_free_tree) {
 				if (--_level == 0) {
-					uint32_t const i = _get_index(_current.block_number, 1);
+					uint32_t const i = _tree_helper.index(_current.block_number, 1);
 					_data_pba = _get_pba(trans_data.item[0], i);
 
 					_walk[_level] = _data_pba;
@@ -243,7 +225,7 @@ class Cbe::Module::Translation
 				}
 			} else {
 				if (--_level == 1) {
-					uint32_t const i = _get_index(_current.block_number, 2);
+					uint32_t const i = _tree_helper.index(_current.block_number, 2);
 					_data_pba = _get_pba(trans_data.item[0], i);
 
 					_walk[_level] = _data_pba;
@@ -310,7 +292,7 @@ class Cbe::Module::Translation
 			    || !pba
 			    || n > MAX_LEVELS) { return false; }
 
-			for (uint32_t l = 0; l < _height+1; l++) {
+			for (uint32_t l = 0; l < _tree_helper.height()+1; l++) {
 				pba[l] = _walk[l];
 			}
 
@@ -321,8 +303,8 @@ class Cbe::Module::Translation
 		{
 			Cbe::Virtual_block_address const vba = _current.block_number;
 			Genode::error("WALK: vba: ", vba);
-			for (uint32_t l = 0; l < _height+1; l++) {
-				Genode::error("      ", _walk[_height-l], " <", _walk_hash[_height-l], ">");
+			for (uint32_t l = 0; l < _tree_helper.height()+1; l++) {
+				Genode::error("      ", _walk[_tree_helper.height()-l], " <", _walk_hash[_tree_helper.height()-l], ">");
 			}
 		}
 

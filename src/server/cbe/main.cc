@@ -401,6 +401,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			Write_back_data _wb_data { };
 
 			Cbe::Physical_block_address _free_pba[Translation::MAX_LEVELS] { };
+			// XXX account for n + m blocks
+			Cbe::Physical_block_address _found_pba[Translation::MAX_LEVELS*2] { };
 
 			Cbe::Physical_block_address _root      { };
 			Cbe::Hash                   _root_hash { };
@@ -530,8 +532,10 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						bool const useable = _leaf_useable(node[i]);
 
 						if (useable) {
-							_found_blocks++;
 							MDBG(FT, __func__, ":", __LINE__, " found free pba: ", pba);
+							_free_pba[_found_blocks] = pba;
+							node[i].alloc_gen = _wb_data.gen;
+							_found_blocks++;
 						}
 
 						if (_num_blocks == _found_blocks) {
@@ -540,6 +544,19 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					}
 
 					_current_type_2.state = Query_type_2::State::INVALID;
+					progress |= true;
+				}
+
+				if (_num_blocks == _found_blocks) {
+					MDBG(FT, __func__, ":", __LINE__, " fill new_pba");
+					uint32_t j = 0;
+					for (uint32_t i = 0; i < _num_blocks && j < _found_blocks; i++) {
+						if (!_wb_data.new_pba[i]) {
+							MDBG(FT, __func__, ":", __LINE__, " new_pba[", i, "]: ", _free_pba[j]);
+							_wb_data.new_pba[i] = _free_pba[j];
+							j++;
+						}
+					}
 					progress |= true;
 				}
 

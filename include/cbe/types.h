@@ -255,6 +255,39 @@ namespace Cbe {
 	constexpr size_t TYPE_1_PER_BLOCK = BLOCK_SIZE / sizeof (Type_i_node);
 	constexpr size_t TYPE_2_PER_BLOCK = BLOCK_SIZE / sizeof (Type_ii_node);
 
+	struct Tree_helper
+	{
+		static inline uint32_t _log2(uint32_t const value)
+		{
+			if (!value) { return -1; }
+
+			for (int i = 8 * sizeof(value) - 1; i >= 0; --i) {
+				if (((uint32_t)1 << i) & value) { return i; }
+			}
+
+			return -1; 
+		}
+
+		Cbe::Degree const _degree;
+		Cbe::Height const _height;
+
+		Cbe::Degree const _degree_log2 { _log2(_degree) };
+		Cbe::Degree const _degree_mask { (1u << _degree_log2) - 1 };
+
+		Tree_helper(Cbe::Degree const degree,
+		            Cbe::Height const height)
+		: _degree(degree), _height(height) { }
+
+		uint32_t index(Cbe::Virtual_block_address const vba,
+		               uint32_t                   const level) const
+		{
+			return (vba >> (_degree_log2 * (level - 1)) & _degree_mask);
+		}
+
+		Cbe::Height height() const { return _height; }
+		Cbe::Degree degree() const { return _degree; }
+	};
+
 } /* namespace Cbe */
 
 #endif /* _CBE_TYPES_H_ */
