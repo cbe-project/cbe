@@ -357,6 +357,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Io         _io                  { _block };
 		Block_data _io_data[IO_ENTRIES] { };
 
+		Constructible<Tree_helper> _trans_helper { };
 		Constructible<Translation> _trans { };
 		Translation_Data           _trans_data { };
 		Bit_allocator<MAX_REQS> _tag_alloc { };
@@ -421,6 +422,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 			Query_type_2 _current_type_2 { 0, Query_type_2::State::INVALID };
 
+			Constructible<Cbe::Tree_helper> _tree_helper { };
+
 			Free_tree(Cbe::Physical_block_address const root,
 			          Cbe::Hash                   const hash,
 			          Cbe::Height const height,
@@ -429,7 +432,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			: _root(root)
 			{
 				Genode::error(hash);
-				_trans.construct(height, degree, true);
+				_tree_helper.construct(degree, height);
+				_trans.construct(*_tree_helper, true);
 
 				_block_manager.construct(root, leafs);
 
@@ -1714,7 +1718,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 			_max_vba = leaves - 1;
 
-			_trans.construct(height, degree, false);
+			_trans_helper.construct(degree, height);
+			_trans.construct(*_trans_helper, false);
 
 			Cbe::Physical_block_address const free_number = sb.free_number;
 			Cbe::Hash                   const free_hash   = sb.free_hash;

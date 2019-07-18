@@ -81,12 +81,12 @@ class Cbe::Module::Translation
 
 		bool _free_tree { false };
 
-		Cbe::Tree_helper _tree_helper;
+		Cbe::Tree_helper &_tree_helper;
 
 	public:
 
-		Translation(uint32_t levels, uint32_t degree, bool free_tree)
-		: _free_tree(free_tree), _tree_helper(degree, levels)
+		Translation(Cbe::Tree_helper &helper, bool free_tree)
+		: _free_tree(free_tree), _tree_helper(helper)
 		{ }
 
 		/**
