@@ -255,6 +255,8 @@ struct Cbe::Time
  ** modules **
  *************/
 
+#define MDBG(mod, ...) do { Genode::log("\033[36m" #mod "> ", __VA_ARGS__); } while (0)
+
 #include <cache_module.h>
 #include <crypto_module.h>
 #include <io_module.h>
@@ -265,8 +267,6 @@ struct Cbe::Time
 #include <write_back_module.h>
 #include <sync_sb_module.h>
 #include <reclaim_module.h>
-
-#define MDBG(mod, ...) do { Genode::log("\033[36m" #mod "> ", __VA_ARGS__); } while (0)
 
 class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 {
