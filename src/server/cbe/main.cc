@@ -24,6 +24,7 @@
 
 /* cbe includes */
 #include <cbe/types.h>
+#include <cbe/util.h>
 
 /* local includes */
 #include <util.h>
@@ -377,75 +378,28 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Cache_Job_Data           _free_tree_cache_job_data { };
 		Query_data               _free_tree_query_data { };
 
-		Block::Request convert_from(Cbe::Request const &r)
+		Block_data* _data(Block::Request_stream const &request_stream,
+		                  Cbe::Request          const &creq,
+		                  Cbe::Primitive        const &p)
 		{
-			auto convert_op = [&] (Cbe::Request::Operation o) {
-				switch (o) {
-				case Cbe::Request::Operation::INVALID: return Block::Operation::Type::INVALID;
-				case Cbe::Request::Operation::READ:    return Block::Operation::Type::READ;
-				case Cbe::Request::Operation::WRITE:   return Block::Operation::Type::WRITE;
-				case Cbe::Request::Operation::SYNC:    return Block::Operation::Type::SYNC;
-				}
-				return Block::Operation::Type::INVALID;
-			};
-			auto convert_success = [&] (Cbe::Request::Success s) {
-				return s == Cbe::Request::Success::TRUE ? true : false;
-			};
-			return Block::Request {
-				.operation = {
-					.type         = convert_op(r.operation),
-					.block_number = r.block_number,
-					.count        = r.count,
-				},
-				.success   = convert_success(r.success),
-				.offset    = (Block::off_t)r.offset,
-				.tag       = { .value = r.tag },
-			};
-		}
-
-		Cbe::Request convert_to(Block::Request const &r)
-		{
-			auto convert_op = [&] (Block::Operation::Type t) {
-				switch (t) {
-				case Block::Operation::Type::INVALID: return Cbe::Request::Operation::INVALID;
-				case Block::Operation::Type::READ:    return Cbe::Request::Operation::READ;
-				case Block::Operation::Type::WRITE:   return Cbe::Request::Operation::WRITE;
-				case Block::Operation::Type::SYNC:    return Cbe::Request::Operation::SYNC;
-				case Block::Operation::Type::TRIM:    return Cbe::Request::Operation::INVALID; // XXX fix
-				}
-				return Cbe::Request::Operation::INVALID;
-			};
-			auto convert_success = [&] (bool success) {
-				return success ? Cbe::Request::Success::TRUE : Cbe::Request::Success::FALSE;
-			};
-
-			return Cbe::Request {
-				.operation    = convert_op(r.operation.type),
-				.success      = convert_success(r.success),
-				.block_number = r.operation.block_number,
-				.offset       = (Genode::uint64_t)r.offset,
-				.count        = (Genode::uint32_t)r.operation.count,
-				.tag          = (Genode::uint32_t)r.tag.value,
-			};
-		}
-
-		Block_data* _data(Block::Request_stream::Payload const &payload,
-		                  Pool const &pool, Primitive const p)
-		{
-			Cbe::Request const client_req = pool.request_for_tag(p.tag);
-			Block::Request request { };
-			request.offset = client_req.offset + (p.index * BLOCK_SIZE);
-			request.operation.count  = 1;
+			using Payload = Block::Request_stream::Payload;
 
 			Block_data *data { nullptr };
-			payload.with_content(request, [&] (void *addr, Genode::size_t size) {
+			request_stream.with_payload([&] (Payload const &payload) {
 
-				if (size != BLOCK_SIZE) {
-					Genode::error("content size and block size differ");
-					return;
-				}
+				Block::Request request { };
+				request.offset = creq.offset + (p.index * BLOCK_SIZE);
+				request.operation.count  = 1;
 
-				data = reinterpret_cast<Block_data*>(addr);
+				payload.with_content(request, [&] (void *addr, Genode::size_t size) {
+
+					if (size != BLOCK_SIZE) {
+						Genode::error("content size and block size differ");
+						return;
+					}
+
+					data = reinterpret_cast<Block_data*>(addr);
+				});
 			});
 
 			if (data == nullptr) {
@@ -679,11 +633,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					// XXX defer all operations for now
 					// if (_need_to_sync) { break; }
 
-					using Payload = Block::Request_stream::Payload;
-					Cbe::Block_data *data_ptr = nullptr;
-					block_session.with_payload([&] (Payload const &payload) {
-						data_ptr = _data(payload, _request_pool, prim);
-					});
+					Cbe::Request const creq = _request_pool.request_for_tag(prim.tag);
+					Cbe::Block_data *data_ptr = _data(block_session, creq, prim);
 
 					if (prim.read()) {
 						if (!_io.primitive_acceptable()) { break; }
@@ -1051,11 +1002,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					_crypto.drop_completed_primitive(prim);
 					if (prim.read()) {
 
-						using Payload = Block::Request_stream::Payload;
-						Cbe::Block_data *data_ptr = nullptr;
-						block_session.with_payload([&] (Payload const &payload) {
-							data_ptr = _data(payload, _request_pool, prim);
-						});
+						Cbe::Request const creq = _request_pool.request_for_tag(prim.tag);
+						Cbe::Block_data *data_ptr = _data(block_session, creq, prim);
 						_crypto.copy_completed_data(prim, *data_ptr);
 						_request_pool.mark_completed_primitive(prim);
 
