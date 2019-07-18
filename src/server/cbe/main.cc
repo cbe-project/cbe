@@ -1029,15 +1029,16 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					Cbe::Primitive p = _trans->peek_generated_primitive();
 					if (!p.valid()) { break; }
 
-					if (!_cache.data_available(p.block_number)) {
+					Cbe::Physical_block_address const pba = p.block_number;
+					if (!_cache.data_available(pba)) {
 
-						if (_cache.request_acceptable(p.block_number)) {
-							_cache.submit_request(p.block_number);
+						if (_cache.request_acceptable(pba)) {
+							_cache.submit_request(pba);
 						}
 						break;
 					} else {
 
-						Cache_Index     const idx   = _cache.data_index(p.block_number,
+						Cache_Index     const idx   = _cache.data_index(pba,
 						                                                _time.timestamp());
 						Cbe::Block_data const &data = _cache_data.item[idx.value];
 						_trans->mark_generated_primitive_complete(p, data, _trans_data);
@@ -1400,25 +1401,27 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						}
 						break;
 					case Tag::CACHE_TAG:
-						if (_cache.data_available(prim.block_number)) {
+					{
+						Cbe::Physical_block_address const pba = prim.block_number;
+						if (_cache.data_available(pba)) {
 
-							Cache_Index     const idx   = _cache.data_index(prim.block_number,
+							Cache_Index     const idx   = _cache.data_index(pba,
 							                                                _time.timestamp());
 							Cbe::Block_data const &data = _cache_data.item[idx.value];
-							if (_write_back.copy_and_update(prim.block_number, data, *_trans)) {
-								Cbe::Physical_block_address const pba = prim.block_number;
+							if (_write_back.copy_and_update(pba, data, *_trans)) {
 								Genode::error("updated cached entry, cache invalidate: ", pba);
-								_cache.invalidate(prim.block_number);
+								_cache.invalidate(pba);
 							}
 
 							_progress = true;
 						} else {
 
-							if (_cache.request_acceptable(prim.block_number)) {
-								_cache.submit_request(prim.block_number);
+							if (_cache.request_acceptable(pba)) {
+								_cache.submit_request(pba);
 							}
 						}
 						break;
+					}
 					default: break;
 					}
 
