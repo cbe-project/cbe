@@ -118,7 +118,7 @@ class Cbe::Module::Write_back
 		void submit_primitive(Primitive const &p, Cbe::Generation new_generation,
 		                      Cbe::Virtual_block_address vba,
 		                      Cbe::Physical_block_address const *new_pba,
-		                      Cbe::Physical_block_address const *old_pba, uint32_t n, Block_data const &d)
+		                      Cbe::Type_1_node_info const *old_pba, uint32_t n, Block_data const &d)
 		{
 			_pending_primitive = p;
 			_new_generation = new_generation;
@@ -131,7 +131,7 @@ class Cbe::Module::Write_back
 			for (Genode::uint32_t i = 0; i < n; i++) {
 				Entry &e = _entry[i];
 
-				e.old_pba = old_pba[i];
+				e.old_pba = old_pba[i].pba;
 				e.new_pba = new_pba[i];
 
 				Genode::log(__func__, ": i: ", i, " old: ", e.old_pba, " new: ", e.new_pba);

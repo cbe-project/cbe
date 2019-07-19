@@ -452,6 +452,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					                             wb.new_pba, wb.old_pba, wb.tree_height,
 					                             *wb.block_data);
 
+					MDBG(FT, __func__, ":", __LINE__, " drop_completed_primitive");
 					_free_tree->drop_completed_primitive(prim);
 					progress |= true;
 				}
@@ -567,8 +568,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					Cbe::Physical_block_address root = _super_block[_current_sb].root_number;
 					Cbe::Hash const &root_hash = _super_block[_current_sb].root_hash;
+					Cbe::Generation const root_gen = _super_block[_current_sb].root_gen;
 
-					_trans->submit_primitive(root, root_hash, p);
+					_trans->submit_primitive(root, root_gen, root_hash, p);
 					progress |= true;
 				}
 
@@ -633,8 +635,13 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						/*
 						 * 2. get old PBA's from Translation module and mark volatile blocks
 						 */
-						Cbe::Physical_block_address old_pba[Translation::MAX_LEVELS] { };
-						if (!_trans->get_physical_block_addresses(prim, old_pba, Translation::MAX_LEVELS)) {
+						// Cbe::Physical_block_address old_pba[Translation::MAX_LEVELS] { };
+						// if (!_trans->get_physical_block_addresses(prim, old_pba, Translation::MAX_LEVELS)) {
+						// 	break;
+						// }
+
+						Cbe::Type_1_node_info old_pba[Translation::MAX_LEVELS] { };
+						if (!_trans->get_type_1_info(prim, old_pba, Translation::MAX_LEVELS)) {
 							break;
 						}
 
@@ -650,7 +657,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						uint32_t free_blocks = 0;
 
 						for (uint32_t i = 1; i < trans_height; i++) {
-							Cbe::Physical_block_address const pba = old_pba[i];
+							Cbe::Physical_block_address const pba = old_pba[i].pba;
 							Cache_Index     const idx   = _cache.data_index(pba, _time.timestamp());
 							Cbe::Block_data const &data = _cache_data.item[idx.value];
 
@@ -662,17 +669,17 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 								Cbe::Physical_block_address const npba = n[id].pba;
 								Genode::error("in place pba: ", pba, " gen: ", gen, " npba: ", npba);
 
-								new_pba[i-1] = old_pba[i-1];
+								new_pba[i-1] = old_pba[i-1].pba;
 								continue;
 							}
 
-							free_pba[free_blocks++] = old_pba[i-1];
+							free_pba[free_blocks++] = old_pba[i-1].pba;
 
 							new_blocks++;
 						}
 
 						// assert
-						if (old_pba[trans_height-1] != _super_block[_current_sb].root_number) {
+						if (old_pba[trans_height-1].pba != _super_block[_current_sb].root_number) {
 							Genode::error("BUG");
 						}
 
@@ -680,9 +687,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						Cbe::Generation const sb_gen = sb.generation;
 						Genode::error("sb_gen: ", sb_gen, " _current_generation: ", _current_generation);
 						if (sb.generation == _current_generation || sb.generation == 0) {
-							new_pba[trans_height-1] = old_pba[trans_height-1];
+							new_pba[trans_height-1] = old_pba[trans_height-1].pba;
 						} else {
-							free_pba[free_blocks++] = old_pba[trans_height-1];
+							free_pba[free_blocks++] = old_pba[trans_height-1].pba;
 							new_blocks++;
 						}
 
@@ -1157,12 +1164,13 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			_trans.construct(*_trans_helper, false);
 
 			Cbe::Physical_block_address const free_number = sb.free_number;
+			Cbe::Generation             const free_gen    = sb.free_gen;
 			Cbe::Hash                   const free_hash   = sb.free_hash;
 			Cbe::Height const free_height                 = sb.free_height;
 			Cbe::Degree const free_degree                 = sb.free_degree;
 			Cbe::Number_of_leaves const free_leafs        = sb.free_leaves;
 
-			_free_tree.construct(free_number, free_hash, free_height,
+			_free_tree.construct(free_number, free_gen, free_hash, free_height,
 			                     free_degree, free_leafs);
 		}
 

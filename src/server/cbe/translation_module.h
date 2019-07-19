@@ -38,6 +38,13 @@ class Cbe::Module::Translation
 
 	private:
 
+		Cbe::Type_i_node const &_get_node(Cbe::Block_data const &data, uint32_t i) const
+		{
+			using T1 = Cbe::Type_i_node;
+			T1 const *entry = reinterpret_cast<T1 const*>(&data);
+			return entry[i];
+		}
+
 		Cbe::Primitive::Number _get_pba(Cbe::Block_data const &data, uint32_t i) const
 		{
 			using T1 = Cbe::Type_i_node;
@@ -63,12 +70,14 @@ class Cbe::Module::Translation
 			void reset() { _avail = 0u; }
 		};
 
-		Cbe::Physical_block_address _walk[MAX_LEVELS] { };
+		// Cbe::Physical_block_address _walk[MAX_LEVELS] { };
+		Cbe::Type_1_node_info       _walk[MAX_LEVELS] { };
 		Cbe::Hash                   _walk_hash[MAX_LEVELS] { };
 
 		Data _data { };
 
 		Cbe::Physical_block_address _root { Cbe::INVALID_PBA };
+		Cbe::Generation             _root_gen { };
 		Cbe::Hash              _root_hash { };
 
 		Cbe::Primitive  _current    { };
@@ -135,6 +144,7 @@ class Cbe::Module::Translation
 		 * \param p  referencet to the primitive
 		 */
 		void submit_primitive(Cbe::Physical_block_address r,
+		                      Cbe::Generation root_gen,
 		                      Cbe::Hash const &root_hash,
 		                      Cbe::Primitive const &p)
 		{
@@ -143,6 +153,7 @@ class Cbe::Module::Translation
 			_data.reset();
 
 			_root      = r;
+			_root_gen  = root_gen;
 			Genode::memcpy(_root_hash.values, root_hash.values, sizeof (Cbe::Hash));
 			_current   = p;
 			_level     = _tree_helper.height();
@@ -165,21 +176,24 @@ class Cbe::Module::Translation
 
 				/* otherwise start from root */
 				if (_level == _tree_helper.height()) {
-					_next_pba = _root;
+					_walk[_level].pba = _root;
+					_walk[_level].gen = _root_gen;
+
 					Genode::memcpy(_walk_hash[_level].values,
 					               _root_hash.values, sizeof (Cbe::Hash));
 				} else {
 
 					/* or use previous level data to get next level */
 					uint32_t const i = _tree_helper.index(_current.block_number, _level+1);
-					_next_pba = _get_pba(trans_data.item[0], i);
+					Cbe::Type_i_node const &n = _get_node(trans_data.item[0], i);
 
-					Genode::memcpy(_walk_hash[_level].values,
-					               _get_hash(trans_data.item[0], i),
+					_walk[_level].pba = n.pba;
+					_walk[_level].gen = n.gen;
+
+					Genode::memcpy(_walk_hash[_level].values, n.hash.values,
 					               sizeof (Cbe::Hash));
 				}
-
-				_walk[_level] = _next_pba;
+				_next_pba = _walk[_level].pba;
 				return true;
 			}
 
@@ -202,9 +216,9 @@ class Cbe::Module::Translation
 			}
 
 			if (Genode::memcmp(hash.values, h->values, sizeof (Cbe::Hash))) {
-				Genode::error("level: ", _level, " pba: ", _walk[_level], " <", hash, "> != <", *h, ">");
+				Genode::error("level: ", _level, " pba: ", _walk[_level].pba, " <", hash, "> != <", *h, ">");
 				for (uint32_t l = 0; l < _tree_helper.height()+1; l++) {
-					Genode::error("node[", l, "]: ", _walk[l], " <", _walk_hash[l], ">");
+					Genode::error("node[", l, "]: ", _walk[l].pba, " <", _walk_hash[l], ">");
 				}
 				throw Hash_mismatch();
 			}
@@ -218,7 +232,7 @@ class Cbe::Module::Translation
 					uint32_t const i = _tree_helper.index(_current.block_number, 1);
 					_data_pba = _get_pba(trans_data.item[0], i);
 
-					_walk[_level] = _data_pba;
+					_walk[_level].pba = _data_pba;
 					Genode::memcpy(_walk_hash[_level].values,
 					               _get_hash(trans_data.item[0], i),
 					               sizeof (Cbe::Hash));
@@ -228,12 +242,14 @@ class Cbe::Module::Translation
 					uint32_t const i = _tree_helper.index(_current.block_number, 2);
 					_data_pba = _get_pba(trans_data.item[0], i);
 
-					_walk[_level] = _data_pba;
+					_walk[_level].pba = _data_pba;
 					Genode::memcpy(_walk_hash[_level].values,
 					               _get_hash(trans_data.item[0], i),
 					               sizeof (Cbe::Hash));
 				}
 			}
+
+			MDBG(TM, __func__, ":", __LINE__);
 
 			return true;
 		}
@@ -283,7 +299,6 @@ class Cbe::Module::Translation
 			return _current.block_number;
 		}
 
-
 		bool get_physical_block_addresses(Cbe::Primitive const &p,
 		                                  Cbe::Physical_block_address *pba, size_t n)
 		{
@@ -293,7 +308,22 @@ class Cbe::Module::Translation
 			    || n > MAX_LEVELS) { return false; }
 
 			for (uint32_t l = 0; l < _tree_helper.height()+1; l++) {
-				pba[l] = _walk[l];
+				pba[l] = _walk[l].pba;
+			}
+
+			return true;
+		}
+
+		bool get_type_1_info(Cbe::Primitive const &p,
+		                     Cbe::Type_1_node_info *info, size_t n)
+		{
+			if (_data_pba == Cbe::INVALID_PBA
+			    || p.block_number != _data_pba
+			    || !info
+			    || n > MAX_LEVELS) { return false; }
+
+			for (uint32_t l = 0; l < _tree_helper.height()+1; l++) {
+				info[l] = _walk[l];
 			}
 
 			return true;
@@ -304,7 +334,7 @@ class Cbe::Module::Translation
 			Cbe::Virtual_block_address const vba = _current.block_number;
 			Genode::error("WALK: vba: ", vba);
 			for (uint32_t l = 0; l < _tree_helper.height()+1; l++) {
-				Genode::error("      ", _walk[_tree_helper.height()-l], " <", _walk_hash[_tree_helper.height()-l], ">");
+				Genode::error("      ", _walk[_tree_helper.height()-l].pba, " <", _walk_hash[_tree_helper.height()-l], ">");
 			}
 		}
 

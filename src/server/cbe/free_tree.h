@@ -54,7 +54,7 @@ struct Cbe::Free_tree
 		Cbe::Block_data const *block_data;
 
 		Cbe::Physical_block_address new_pba[Translation::MAX_LEVELS];
-		Cbe::Physical_block_address old_pba[Translation::MAX_LEVELS];
+		Cbe::Type_1_node_info old_pba[Translation::MAX_LEVELS];
 	};
 
 	Write_back_data _wb_data { };
@@ -65,6 +65,7 @@ struct Cbe::Free_tree
 
 	Cbe::Physical_block_address _root      { };
 	Cbe::Hash                   _root_hash { };
+	Cbe::Generation             _root_gen  { };
 
 	struct Query_type_2
 	{
@@ -83,11 +84,12 @@ struct Cbe::Free_tree
 	Constructible<Cbe::Tree_helper> _tree_helper { };
 
 	Free_tree(Cbe::Physical_block_address const root,
+	          Cbe::Generation             const root_gen,
 	          Cbe::Hash                   const hash,
 	          Cbe::Height const height,
 	          Cbe::Degree const degree,
 	          Cbe::Number_of_leaves const leafs)
-	: _root(root)
+	: _root(root), _root_gen(root_gen)
 	{
 		Genode::error(hash);
 		_tree_helper.construct(degree, height);
@@ -109,7 +111,7 @@ struct Cbe::Free_tree
 	                    uint32_t                    const  num_blocks,
 	                    /* refer to tree_height for number of valid elements */
 	                    Cbe::Physical_block_address const  new_pba[Translation::MAX_LEVELS],
-	                    Cbe::Physical_block_address const  old_pba[Translation::MAX_LEVELS],
+	                    Cbe::Type_1_node_info       const  old_pba[Translation::MAX_LEVELS],
 	                    Cbe::Height                 const  tree_height,
 	                    Cbe::Physical_block_address const  free_pba[Translation::MAX_LEVELS],
 	                    uint32_t                    const  free_blocks,
@@ -152,7 +154,7 @@ struct Cbe::Free_tree
 			.index        = 0,
 		};
 
-		_trans->submit_primitive(_root, _root_hash, prim);
+		_trans->submit_primitive(_root, _root_gen, _root_hash, prim);
 	}
 
 	bool _leaf_useable(Cbe::Type_ii_node const &node) const
@@ -184,7 +186,7 @@ struct Cbe::Free_tree
 
 		if (_current_type_2.complete()) {
 
-			MDBG(FT, __func__, ":", __LINE__, " pba: ");
+			MDBG(FT, __func__, ":", __LINE__, " complete pba: ");
 			Cbe::Type_ii_node *node =
 				reinterpret_cast<Cbe::Type_ii_node*>(&query_data.item[0]);
 			for (size_t i = 0; i < Cbe::TYPE_2_PER_BLOCK; i++) {
@@ -195,7 +197,7 @@ struct Cbe::Free_tree
 
 				if (useable) {
 					MDBG(FT, __func__, ":", __LINE__, " found free pba: ", pba);
-					_free_pba[_found_blocks] = pba;
+					_found_pba[_found_blocks] = pba;
 					node[i].alloc_gen = _wb_data.gen;
 					_found_blocks++;
 				}
@@ -214,8 +216,8 @@ struct Cbe::Free_tree
 			uint32_t j = 0;
 			for (uint32_t i = 0; i < _num_blocks && j < _found_blocks; i++) {
 				if (!_wb_data.new_pba[i]) {
-					MDBG(FT, __func__, ":", __LINE__, " new_pba[", i, "]: ", _free_pba[j]);
-					_wb_data.new_pba[i] = _free_pba[j];
+					MDBG(FT, __func__, ":", __LINE__, " new_pba[", i, "]: ", _found_pba[j]);
+					_wb_data.new_pba[i] = _found_pba[j];
 					j++;
 				}
 			}
@@ -363,6 +365,7 @@ struct Cbe::Free_tree
 	{
 		if (_num_blocks && _num_blocks == _found_blocks) {
 			Genode::log("YAY");
+			MDBG(FT, __func__, ":", __LINE__, " ");
 			return _wb_data.prim;
 		}
 		return Cbe::Primitive { };
@@ -375,6 +378,7 @@ struct Cbe::Free_tree
 			throw -1;
 		}
 
+		MDBG(FT, __func__, ":", __LINE__, " ");
 		return _wb_data;
 	}
 
@@ -385,6 +389,7 @@ struct Cbe::Free_tree
 			throw -1;
 		}
 
+		MDBG(FT, __func__, ":", __LINE__, " --- ");
 		_num_blocks = 0;
 	}
 

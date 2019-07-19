@@ -187,7 +187,10 @@ namespace Cbe {
 
 				Physical_block_address root_number;
 				Hash                   root_hash;
-				Generation             generation;
+				union {
+					Generation             generation;
+					Generation             root_gen;
+				};
 				Height           height;
 				Degree           degree;
 				Number_of_leaves leaves;
@@ -196,6 +199,7 @@ namespace Cbe {
 				bool             active;
 
 				Physical_block_address free_number;
+				Generation             free_gen;
 				Hash                   free_hash;
 				Height           free_height;
 				Degree           free_degree;
@@ -230,6 +234,12 @@ namespace Cbe {
 			char data[64];
 		};
 	} __attribute__((packed));
+
+	struct Type_1_node_info
+	{
+		Cbe::Physical_block_address pba;
+		Cbe::Generation             gen;
+	};
 
 	struct Type_ii_node
 	{
