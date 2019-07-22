@@ -59,6 +59,10 @@ struct Cbe::Free_tree
 
 		Cbe::Physical_block_address new_pba[Translation::MAX_LEVELS];
 		Cbe::Type_1_node_info old_pba[Translation::MAX_LEVELS];
+
+		bool finished;
+
+		bool valid() const { return finished; }
 	};
 
 	Write_back_data _wb_data { };
@@ -164,6 +168,7 @@ struct Cbe::Free_tree
 		/* assert sizeof (_free_pba) == sizeof (free_pba) */
 		Genode::memcpy(_free_pba, free_pba, sizeof (_free_pba));
 
+		_wb_data.finished    = false;
 		_wb_data.prim        = req_prim;
 		_wb_data.gen         = current;
 		_wb_data.vba         = vba;
@@ -189,8 +194,8 @@ struct Cbe::Free_tree
 	bool _leaf_useable(Cbe::Type_ii_node const &node) const
 	{
 		if (node.reserved) {
-			Genode::error("TODO");
-			throw -1;
+			Genode::error(__func__, ": reserved leaf: TODO");
+			return false;
 		}
 
 		return true;
@@ -299,9 +304,19 @@ struct Cbe::Free_tree
 				}
 			}
 
+			if (_found_blocks < _num_blocks) {
+				Genode::warning("could not find enough usable leafs: ", _num_blocks - _found_blocks, " missing");
+				_wb_data.finished = true;
+				_wb_data.prim.success = Cbe::Primitive::Success::FALSE;
+			}
+
 			_current_type_2.state = Query_type_2::State::INVALID;
 			progress |= true;
 		}
+
+		/********************************
+		 ** Update meta-data in branch **
+		 ********************************/
 
 		if (_do_update) {
 
@@ -396,6 +411,10 @@ struct Cbe::Free_tree
 			}
 		}
 
+		/**********************************
+		 ** Write-back of changed branch **
+		 **********************************/
+
 		if (_do_wb) {
 			bool wb_ongoing = false;
 			for (uint32_t i = 0; i < Translation::MAX_LEVELS; i++) {
@@ -404,6 +423,8 @@ struct Cbe::Free_tree
 
 			if (!wb_ongoing && !_wb_done) {
 				_wb_done = true;
+				_wb_data.finished = true;
+				_wb_data.prim.success = Cbe::Primitive::Success::TRUE;
 				progress |= true;
 			}
 		}
@@ -554,7 +575,7 @@ struct Cbe::Free_tree
 
 	Cbe::Primitive peek_completed_primitive()
 	{
-		if (_num_blocks && _num_blocks == _found_blocks && _wb_done) {
+		if (_wb_data.valid()) {
 			return _wb_data.prim;
 		}
 		return Cbe::Primitive { };
@@ -579,6 +600,7 @@ struct Cbe::Free_tree
 		}
 
 		MDBG(FT, __func__, ":", __LINE__);
+		_wb_data.finished = false;
 		_num_blocks = 0;
 	}
 };

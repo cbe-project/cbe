@@ -238,6 +238,7 @@ struct Cbe::Time
  *************/
 
 #define MDBG(mod, ...) do { Genode::log("\033[36m" #mod "> ", __VA_ARGS__); } while (0)
+#define DBG(mod, ...) do { Genode::log("\033[35m" #mod "> ", __VA_ARGS__); } while (0)
 
 #include <cache_module.h>
 #include <crypto_module.h>
@@ -344,7 +345,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Constructible<Tree_helper> _trans_helper { };
 		Constructible<Translation> _trans { };
 		Translation_Data           _trans_data { };
-		Bit_allocator<MAX_REQS> _tag_alloc { };
 
 		Write_back _write_back { };
 		Block_data _write_back_data[MAX_LEVEL] { };
@@ -446,15 +446,23 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					Cbe::Primitive prim = _free_tree->peek_completed_primitive();
 					if (!prim.valid()) { break; }
-					if (!_write_back.primitive_acceptable()) { break; }
 
-					Free_tree::Write_back_data const &wb = _free_tree->peek_completed_wb_data(prim);
+					if (prim.success == Cbe::Primitive::Success::FALSE) {
+						Genode::error("allocating new blocks failed");
+						_request_pool.mark_completed_primitive(prim);
+						// XXX
+						_trans->resume();
+					} else {
 
-					_write_back.submit_primitive(wb.prim, wb.gen, wb.vba,
-					                             wb.new_pba, wb.old_pba, wb.tree_height,
-					                             *wb.block_data);
+						if (!_write_back.primitive_acceptable()) { break; }
 
-					MDBG(FT, __func__, ":", __LINE__, " drop_completed_primitive");
+						Free_tree::Write_back_data const &wb = _free_tree->peek_completed_wb_data(prim);
+						_write_back.submit_primitive(wb.prim, wb.gen, wb.vba,
+						                             wb.new_pba, wb.old_pba, wb.tree_height,
+						                             *wb.block_data);
+
+						MDBG(FT, __func__, ":", __LINE__, " drop_completed_primitive");
+					}
 					_free_tree->drop_completed_primitive(prim);
 					progress |= true;
 				}
@@ -523,7 +531,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					}
 
 					Cbe::Request req = convert_to(request);
-					req.tag = _tag_alloc.alloc();
 
 					Number_of_primitives const num = _splitter.number_of_primitives(req);
 					_request_pool.submit_request(req, num);
@@ -538,7 +545,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					if (!req.operation_defined()) { return; }
 
 					_request_pool.drop_completed_request(req);
-					_tag_alloc.free(req.tag);
 
 					Block::Request request = convert_from(req);
 					ack.submit(request);
@@ -567,18 +573,19 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 * Give primitive to the translation module
 				 */
 
-				while (_splitter.peek_generated_primitive().valid()) {
+				while (true) {
 
+					Cbe::Primitive prim = _splitter.peek_generated_primitive();
+					if (!prim.valid()) { break; }
 					if (!_trans->acceptable()) { break; }
 
-					Cbe::Primitive p = _splitter.peek_generated_primitive();
-					_splitter.drop_generated_primitive(p);
+					_splitter.drop_generated_primitive(prim);
 
 					Cbe::Physical_block_address root = _super_block[_current_sb].root_number;
 					Cbe::Hash const &root_hash = _super_block[_current_sb].root_hash;
 					Cbe::Generation const root_gen = _super_block[_current_sb].root_gen;
 
-					_trans->submit_primitive(root, root_gen, root_hash, p);
+					_trans->submit_primitive(root, root_gen, root_hash, prim);
 					progress |= true;
 				}
 
@@ -713,7 +720,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 							                           free_pba, free_blocks,
 							                           prim, vba, *data_ptr);
 						} else {
-
 							/* ... or hand over infos to the Write_back module */
 							_write_back.submit_primitive(prim, _current_generation, vba,
 							                             new_pba, old_pba, trans_height, *data_ptr);

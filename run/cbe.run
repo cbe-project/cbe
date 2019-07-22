@@ -51,7 +51,7 @@ install_config {
 	<start name="cbe_block">
 		<resource name="RAM" quantum="1G"/>
 		<provides><service name="Block"/></provides>
-		<config report="yes" verbose="yes" backing_size="512M"
+		<config report="yes" verbose="no" backing_size="512M"
 		        vbd_size="64K" vbd_outer_degree="4"
 		        ft_size="32K" ft_outer_degree="4"
 		        initialize="yes">
@@ -80,6 +80,8 @@ install_config {
 			<tests>
 				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="1"/> </replay>
 				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="1"/> </replay>
 				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
 				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="1"/> </replay>
 <!--
