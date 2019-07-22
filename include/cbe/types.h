@@ -18,7 +18,6 @@ namespace Cbe {
 	using namespace Genode;
 
 	enum class Tag : Genode::uint32_t {
-		#define CREATE_SUB_TAG(t) (((t) >> 4) & 0xf)
 		INVALID_TAG        = 0x00,
 		IO_TAG             = 0x10,
 		CACHE_TAG          = 0x20,
@@ -31,11 +30,12 @@ namespace Cbe {
 		WRITE_BACK_TAG     = 0x70,
 		SYNC_SB_TAG        = 0x80,
 		RECLAIM_TAG        = 0x90,
-		FREE_TREE_TAG      = 0xA0,
-		FREE_TREE_TAG_IO    = FREE_TREE_TAG | CREATE_SUB_TAG(IO_TAG),
-		FREE_TREE_TAG_CACHE = FREE_TREE_TAG | CREATE_SUB_TAG(CACHE_TAG),
-		FREE_TREE_TAG_WB    = FREE_TREE_TAG | CREATE_SUB_TAG(WRITE_BACK_TAG),
-		#undef CREATE_SUB_TAG
+
+		VBD_TAG             = 0x100,
+		FREE_TREE_TAG       = 0x200,
+		FREE_TREE_TAG_IO    = FREE_TREE_TAG | IO_TAG,
+		FREE_TREE_TAG_CACHE = FREE_TREE_TAG | CACHE_TAG,
+		FREE_TREE_TAG_WB    = FREE_TREE_TAG | WRITE_BACK_TAG,
 	};
 
 	using Number_of_primitives = size_t;
@@ -239,6 +239,7 @@ namespace Cbe {
 	{
 		Cbe::Physical_block_address pba;
 		Cbe::Generation             gen;
+		Cbe::Hash                   hash;
 	};
 
 	struct Type_ii_node

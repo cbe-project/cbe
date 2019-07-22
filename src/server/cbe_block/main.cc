@@ -426,11 +426,13 @@ class Cbe::Vbd
 				if (!sb.valid()) {
 					return; }
 
-				/* report information about sub-nodes */
 				xml.attribute("root-hash", Hash::String(sb.root_hash));
+				/* report information about sub-nodes */
 				uint64_t leafs = 0;
 				xml.node("block-device", [&] () {
 					xml.attribute("pba", sb.root_number);
+					xml.attribute("type", 1U);
+					xml.attribute("hash", Hash::String(sb.root_hash));
 					_report_i_node(xml, _tree.info(), sb.root_number,
 					               _tree.block_allocator(), _tree.info().height,
 					               leafs, false);
@@ -439,6 +441,8 @@ class Cbe::Vbd
 				leafs = 0;
 				xml.node("free-list", [&] () {
 					xml.attribute("pba", sb.free_number);
+					xml.attribute("type", 1U);
+					xml.attribute("hash", Hash::String(sb.free_hash));
 					_report_i_node(xml, _free_tree.info(), sb.free_number,
 					               _free_tree.block_allocator(), _free_tree.info().height,
 					               leafs, true);
