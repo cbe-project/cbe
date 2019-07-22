@@ -150,6 +150,8 @@ struct Cbe::Module::Cache : Cbe::Spark_object<424>
 	 * \param  p  reference to primitive the data belongs to
 	 *
 	 * \return index of data buffer
+	 *
+	 * XXX remove later as this is a merely a convenience method
 	 */
 	Cache_Index peek_generated_data_index(Cbe::Primitive const &p);
 

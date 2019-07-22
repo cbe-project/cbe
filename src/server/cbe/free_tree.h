@@ -39,6 +39,10 @@ struct Cbe::Free_tree
 	Constructible<Translation> _trans { };
 
 	// Module::Write_back _write_back { };
+	bool _do_update   { false };
+	bool _do_wb       { false };
+	bool _wb_done     { false };
+	Cbe::Type_1_node_info _last_trans_info[Translation::MAX_LEVELS] { };
 
 	Constructible<Block_manager> _block_manager { };
 
@@ -74,12 +78,16 @@ struct Cbe::Free_tree
 		Cbe::Physical_block_address pba;
 		State state;
 
+		Cache_Index index;
+
 		bool pending()     const { return state == State::PENDING; }
 		bool in_progress() const { return state == State::IN_PROGRESS; }
 		bool complete()    const { return state == State::COMPLETE; }
 	};
 
-	Query_type_2 _current_type_2 { 0, Query_type_2::State::INVALID };
+	Query_type_2 _current_type_2 { 0, Query_type_2::State::INVALID, 0 };
+
+	Query_type_2 _wb_io[Translation::MAX_LEVELS] { };
 
 	Constructible<Cbe::Tree_helper> _tree_helper { };
 
@@ -99,6 +107,20 @@ struct Cbe::Free_tree
 
 		Genode::memcpy(_root_hash.values, hash.values, sizeof (Cbe::Hash));
 	}
+
+	Cbe::Hash const &root_hash() const
+	{
+		return _root_hash;
+	}
+
+	Cbe::Physical_block_address root_number() const
+	{
+		return _root;
+	}
+
+	/**********************
+	 ** Module interface **
+	 **********************/
 
 	bool request_acceptable() const
 	{
@@ -127,7 +149,14 @@ struct Cbe::Free_tree
 			return;
 		}
 
-		_current_type_2 = { 0, Query_type_2::State::INVALID };
+		_do_update = false;
+		_do_wb     = false;
+
+		_current_type_2 = { 0, Query_type_2::State::INVALID, 0 };
+
+		for (uint32_t i = 0; i < Translation::MAX_LEVELS; i++) {
+			_wb_io[i].state = Query_type_2::State::INVALID;
+		}
 
 		_num_blocks = num_blocks;
 		_found_blocks = 0;
@@ -174,55 +203,11 @@ struct Cbe::Free_tree
 	             Time             &time)
 	{
 		/* nothing to do, return early */
-		if (!_num_blocks || _found_blocks == _num_blocks) {
+		if (!_num_blocks) {
 			return false;
 		}
 
 		bool progress = false;
-
-		/***************************
-		 ** Query free leaf nodes **
-		 ***************************/
-
-		if (_current_type_2.complete()) {
-
-			MDBG(FT, __func__, ":", __LINE__, " complete pba: ");
-			Cbe::Type_ii_node *node =
-				reinterpret_cast<Cbe::Type_ii_node*>(&query_data.item[0]);
-			for (size_t i = 0; i < Cbe::TYPE_2_PER_BLOCK; i++) {
-				Cbe::Physical_block_address const pba = node[i].pba;
-				if (!pba) { continue; }
-
-				bool const useable = _leaf_useable(node[i]);
-
-				if (useable) {
-					MDBG(FT, __func__, ":", __LINE__, " found free pba: ", pba);
-					_found_pba[_found_blocks] = pba;
-					node[i].alloc_gen = _wb_data.gen;
-					_found_blocks++;
-				}
-
-				if (_num_blocks == _found_blocks) {
-					break;
-				}
-			}
-
-			_current_type_2.state = Query_type_2::State::INVALID;
-			progress |= true;
-		}
-
-		if (_num_blocks == _found_blocks) {
-			MDBG(FT, __func__, ":", __LINE__, " fill new_pba");
-			uint32_t j = 0;
-			for (uint32_t i = 0; i < _num_blocks && j < _found_blocks; i++) {
-				if (!_wb_data.new_pba[i]) {
-					MDBG(FT, __func__, ":", __LINE__, " new_pba[", i, "]: ", _found_pba[j]);
-					_wb_data.new_pba[i] = _found_pba[j];
-					j++;
-				}
-			}
-			progress |= true;
-		}
 
 		/**************************
 		 ** Translation handling **
@@ -258,12 +243,16 @@ struct Cbe::Free_tree
 			Cbe::Primitive prim = _trans->peek_completed_primitive();
 			if (!prim.valid()) { break; }
 
-			Cbe::Physical_block_address const pba = prim.block_number;
-			MDBG(FT, __func__, ":", __LINE__, " pba: ", pba);
 			_current_type_2 = {
 				.pba   = prim.block_number,
-				.state = Query_type_2::State::PENDING
+				.state = Query_type_2::State::PENDING,
+				.index = Cache_Index { 0 },
 			};
+
+			if (!_trans->get_type_1_info(prim, _last_trans_info, Translation::MAX_LEVELS)) {
+				Genode::error(__func__, ":", __LINE__);
+			}
+
 
 			_trans->drop_completed_primitive(prim);
 			progress |= true;
@@ -273,10 +262,152 @@ struct Cbe::Free_tree
 		 ** Cache handling **
 		 ********************/
 
-		MDBG(FT, __func__, ":", __LINE__);
 		progress |= _cache.execute(cache_data, cache_job_data,
 		                           time.timestamp());
-		MDBG(FT, __func__, ":", __LINE__);
+
+		/***************************
+		 ** Query free leaf nodes **
+		 ***************************/
+
+		if (_current_type_2.complete()) {
+
+			Cbe::Type_ii_node *node =
+				reinterpret_cast<Cbe::Type_ii_node*>(&query_data.item[0]);
+			for (size_t i = 0; i < Cbe::TYPE_2_PER_BLOCK; i++) {
+				Cbe::Physical_block_address const pba = node[i].pba;
+				if (!pba) { continue; }
+
+				bool const useable = _leaf_useable(node[i]);
+
+				if (useable) {
+					_found_pba[_found_blocks] = pba;
+					node[i].alloc_gen = _wb_data.gen;
+					_found_blocks++;
+				}
+
+				if (_num_blocks == _found_blocks) {
+					_do_update = true;
+
+					for (uint32_t i = 0, j = 0; i < _num_blocks && j < _found_blocks; i++) {
+						if (!_wb_data.new_pba[i]) {
+							_wb_data.new_pba[i] = _found_pba[j];
+							j++;
+						}
+					}
+
+					break;
+				}
+			}
+
+			_current_type_2.state = Query_type_2::State::INVALID;
+			progress |= true;
+		}
+
+		if (_do_update) {
+
+			bool data_available = true;
+
+			// the FT translation only cares about the inner nodes
+			for (uint32_t i = 1; i <= _tree_helper->height(); i++) {
+				Cbe::Physical_block_address const pba = _last_trans_info[i].pba;
+
+				if (!_cache.data_available(pba)) {
+
+					if (_cache.request_acceptable(pba)) {
+						_cache.submit_request(pba);
+						progress |= true;
+					}
+					data_available = false;
+					break;
+				}
+			}
+
+			if (data_available) {
+
+				for (uint32_t i = 1; i <= _tree_helper->height(); i++) {
+
+					Cbe::Physical_block_address const pba = _last_trans_info[i].pba;
+					Cache_Index     const idx   = _cache.data_index(pba, time.timestamp());
+					Cbe::Block_data &data = cache_data.item[idx.value];
+					bool const type2_node = (i == 1);
+
+					if (type2_node) {
+
+						using T = Cbe::Type_ii_node;
+						T *t = reinterpret_cast<T*>(&data);
+						for (Cbe::Degree i = 0; i < _tree_helper->degree(); i++) {
+							T &entry = t[i];
+
+							for (uint32_t i = 0; i < _found_blocks; i++) {
+								using Node_info = Cbe::Type_1_node_info;
+								Node_info &old_entry = _wb_data.old_pba[i];
+
+								Cbe::Physical_block_address const new_pba = _wb_data.new_pba[i];
+
+								if (entry.pba == new_pba) {
+									entry.pba       = old_entry.pba;
+									entry.alloc_gen = old_entry.gen;
+									entry.free_gen  = _wb_data.gen;
+									entry.reserved  = true;
+								}
+							}
+						}
+					} else {
+						uint32_t const pre_level = i - 1;
+
+						Cbe::Physical_block_address const pre_pba = _last_trans_info[pre_level].pba;
+
+						Cache_Index     const idx = _cache.data_index(pre_pba, time.timestamp());
+						Cbe::Block_data &pre_data = cache_data.item[idx.value];
+
+						Sha256_4k::Hash hash { };
+
+						Sha256_4k::Data const &pre_hash_data =
+							*reinterpret_cast<Sha256_4k::Data const*>(&pre_data);
+						Sha256_4k::hash(pre_hash_data, hash);
+
+						using T = Cbe::Type_i_node;
+						T *t = reinterpret_cast<T*>(&data);
+						for (Cbe::Degree i = 0; i < _tree_helper->degree(); i++) {
+							T &entry = t[i];
+
+							if (entry.pba == pre_pba) {
+								Genode::memcpy(entry.hash.values, hash.values, sizeof (Cbe::Hash));
+							}
+						}
+
+						if (i == _tree_helper->height()) {
+
+							Sha256_4k::Data const &hash_data =
+								*reinterpret_cast<Sha256_4k::Data const*>(&data);
+							Sha256_4k::hash(hash_data, hash);
+							Genode::memcpy(_root_hash.values, hash.values, sizeof (Cbe::Hash));
+						}
+					}
+
+					_wb_io[i].pba = pba;
+					_wb_io[i].state = Query_type_2::State::PENDING;
+					_wb_io[i].index = idx;
+				}
+
+				_do_wb = true;
+				_do_update = false;
+				progress |= true;
+			}
+		}
+
+		if (_do_wb) {
+			bool wb_ongoing = false;
+			for (uint32_t i = 0; i < Translation::MAX_LEVELS; i++) {
+				wb_ongoing |= (_wb_io[i].pending() || _wb_io[i].in_progress());
+			}
+
+			if (!wb_ongoing && !_wb_done) {
+				_wb_done = true;
+				progress |= true;
+			}
+		}
+
 		return progress;
 	}
 
@@ -299,6 +430,21 @@ struct Cbe::Free_tree
 			};
 		}
 
+		/* write-back I/O */
+		if (_do_wb) {
+			for (uint32_t i = 0; i < Translation::MAX_LEVELS; i++) {
+				if (_wb_io[i].pending()) {
+					return Cbe::Primitive {
+						.tag          = Tag::WRITE_BACK_TAG,
+						.operation    = Cbe::Primitive::Operation::WRITE,
+						.success      = Cbe::Primitive::Success::FALSE,
+						.block_number = _wb_io[i].pba,
+						.index        = 0
+					};
+				}
+			}
+		}
+
 		return Cbe::Primitive { };
 	}
 
@@ -309,13 +455,25 @@ struct Cbe::Free_tree
 		switch (prim.tag) {
 		case Tag::CACHE_TAG:
 		{
-			Cache_Index const cidx = _cache.peek_generated_data_index(prim);
-			idx.value = cidx.value;
+			idx.value = 0;
 			break;
 		}
 		case Tag::IO_TAG:
 			idx.value = 0;
 			break;
+		case Tag::WRITE_BACK_TAG:
+		{
+			for (uint32_t i = 0; i < Translation::MAX_LEVELS; i++) {
+				if (prim.block_number == _wb_io[i].pba) {
+					if (_wb_io[i].pending()) {
+						idx.value = _wb_io[i].index.value;
+					} else {
+						Genode::warning(__func__, ": ignore invalid WRITE_BACK_TAG primitive");
+					}
+				}
+			}
+			break;
+		}
 		default: break;
 		}
 
@@ -333,6 +491,19 @@ struct Cbe::Free_tree
 		case Tag::IO_TAG:
 			_current_type_2.state = Query_type_2::State::IN_PROGRESS;
 			break;
+		case Tag::WRITE_BACK_TAG:
+		{
+			for (uint32_t i = 0; i < Translation::MAX_LEVELS; i++) {
+				if (prim.block_number == _wb_io[i].pba) {
+					if (_wb_io[i].pending()) {
+						_wb_io[i].state = Query_type_2::State::IN_PROGRESS;
+					} else {
+						Genode::warning(__func__, ": ignore invalid WRITE_BACK_TAG primitive");
+					}
+				}
+			}
+			break;
+		}
 		default:
 			Genode::error(__func__, ": invalid primitive");
 		break;
@@ -344,7 +515,6 @@ struct Cbe::Free_tree
 		switch (prim.tag) {
 		case Tag::CACHE_TAG:
 		{
-			MDBG(FT, __func__, ":", __LINE__);
 			_cache.mark_completed_primitive(prim);
 			break;
 		}
@@ -355,6 +525,27 @@ struct Cbe::Free_tree
 				Genode::error(__func__, ": I/O primitive not in progress");
 			}
 			break;
+		case Tag::WRITE_BACK_TAG:
+		{
+			for (uint32_t i = 0; i < Translation::MAX_LEVELS; i++) {
+				if (prim.block_number == _wb_io[i].pba) {
+					if (_wb_io[i].in_progress()) {
+						_wb_io[i].state = Query_type_2::State::COMPLETE;
+
+						// XXX invalidate cache
+						_cache.invalidate(_wb_io[i].pba);
+
+						if (prim.success == Cbe::Primitive::Success::FALSE) {
+							Genode::error(__func__, ": primitive failed");
+						}
+					} else {
+						Genode::warning(__func__, ": ignore invalid WRITE_BACK_TAG primitive ",
+						                i, " pba: ", _wb_io[i].pba, " state: ", (uint32_t)_wb_io[i].state);
+					}
+				}
+			}
+			break;
+		}
 		default:
 			Genode::error(__func__, ": invalid primitive");
 		break;
@@ -363,9 +554,7 @@ struct Cbe::Free_tree
 
 	Cbe::Primitive peek_completed_primitive()
 	{
-		if (_num_blocks && _num_blocks == _found_blocks) {
-			Genode::log("YAY");
-			MDBG(FT, __func__, ":", __LINE__, " ");
+		if (_num_blocks && _num_blocks == _found_blocks && _wb_done) {
 			return _wb_data.prim;
 		}
 		return Cbe::Primitive { };
@@ -378,7 +567,7 @@ struct Cbe::Free_tree
 			throw -1;
 		}
 
-		MDBG(FT, __func__, ":", __LINE__, " ");
+		MDBG(FT, __func__, ":", __LINE__);
 		return _wb_data;
 	}
 
@@ -389,26 +578,8 @@ struct Cbe::Free_tree
 			throw -1;
 		}
 
-		MDBG(FT, __func__, ":", __LINE__, " --- ");
+		MDBG(FT, __func__, ":", __LINE__);
 		_num_blocks = 0;
-	}
-
-	/**************************************************
-	 ** temp Block_manager interface -- REMOVE LATER **
-	 **************************************************/
-
-	Cbe::Physical_block_address alloc(Cbe::Super_block const *sb,
-	                                  Cbe::Generation const s_gen,
-	                                  Cbe::Generation const curr_gen,
-	                                  size_t count)
-	{
-		return _block_manager->alloc(sb, s_gen, curr_gen, count);
-	}
-
-	void free(Cbe::Generation const curr_gen,
-	          Cbe::Physical_block_address pba)
-	{
-		_block_manager->free(curr_gen, pba);
 	}
 };
 

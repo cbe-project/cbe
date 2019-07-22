@@ -45,21 +45,6 @@ class Cbe::Module::Translation
 			return entry[i];
 		}
 
-		Cbe::Primitive::Number _get_pba(Cbe::Block_data const &data, uint32_t i) const
-		{
-			using T1 = Cbe::Type_i_node;
-			T1 const *entry = reinterpret_cast<T1 const*>(&data);
-			return entry[i].pba;
-		}
-
-		Cbe::Hash const *_get_hash(Cbe::Block_data const &data, uint32_t i) const
-		{
-			using T1 = Cbe::Type_i_node;
-			T1 const *entry = reinterpret_cast<T1 const*>(&data);
-			return &entry[i].hash;
-		}
-
-
 		struct Data
 		{
 			uint32_t _avail { 0u };
@@ -70,15 +55,9 @@ class Cbe::Module::Translation
 			void reset() { _avail = 0u; }
 		};
 
-		// Cbe::Physical_block_address _walk[MAX_LEVELS] { };
-		Cbe::Type_1_node_info       _walk[MAX_LEVELS] { };
-		Cbe::Hash                   _walk_hash[MAX_LEVELS] { };
+		Cbe::Type_1_node_info _walk[MAX_LEVELS] { };
 
 		Data _data { };
-
-		Cbe::Physical_block_address _root { Cbe::INVALID_PBA };
-		Cbe::Generation             _root_gen { };
-		Cbe::Hash              _root_hash { };
 
 		Cbe::Primitive  _current    { };
 		uint32_t        _level      { ~0u };
@@ -152,13 +131,19 @@ class Cbe::Module::Translation
 
 			_data.reset();
 
-			_root      = r;
-			_root_gen  = root_gen;
-			Genode::memcpy(_root_hash.values, root_hash.values, sizeof (Cbe::Hash));
+			_level = _tree_helper.height();
+
+			for (uint32_t i = 0; i < _level; i++) {
+				_walk[i].pba = Cbe::INVALID_PBA;
+			}
+
+			_walk[_level].pba = r;
+			_walk[_level].gen = root_gen;
+			Genode::memcpy(_walk[_level].hash.values, root_hash.values, sizeof (Cbe::Hash));
+
 			_current   = p;
-			_level     = _tree_helper.height();
 			_data_pba  = Cbe::INVALID_PBA;
-			_next_pba  = Cbe::INVALID_PBA;
+			_next_pba  = _walk[_level].pba;
 		}
 
 		bool execute(Translation_Data &trans_data)
@@ -174,25 +159,16 @@ class Cbe::Module::Translation
 				/* data request already pending */
 				if (_next_pba != Cbe::INVALID_PBA) { return false; }
 
-				/* otherwise start from root */
-				if (_level == _tree_helper.height()) {
-					_walk[_level].pba = _root;
-					_walk[_level].gen = _root_gen;
+				/* or use previous level data to get next level */
+				uint32_t const i = _tree_helper.index(_current.block_number, _level+1);
+				Cbe::Type_i_node const &n = _get_node(trans_data.item[0], i);
 
-					Genode::memcpy(_walk_hash[_level].values,
-					               _root_hash.values, sizeof (Cbe::Hash));
-				} else {
+				_walk[_level].pba = n.pba;
+				_walk[_level].gen = n.gen;
 
-					/* or use previous level data to get next level */
-					uint32_t const i = _tree_helper.index(_current.block_number, _level+1);
-					Cbe::Type_i_node const &n = _get_node(trans_data.item[0], i);
+				Genode::memcpy(_walk[_level].hash.values, n.hash.values,
+				               sizeof (Cbe::Hash));
 
-					_walk[_level].pba = n.pba;
-					_walk[_level].gen = n.gen;
-
-					Genode::memcpy(_walk_hash[_level].values, n.hash.values,
-					               sizeof (Cbe::Hash));
-				}
 				_next_pba = _walk[_level].pba;
 				return true;
 			}
@@ -206,50 +182,36 @@ class Cbe::Module::Translation
 				*reinterpret_cast<Sha256_4k::Data const*>(&trans_data.item[0]);
 			Sha256_4k::hash(data, hash);
 
-			Cbe::Hash const *h = nullptr;
-			if (_level == _tree_helper.height()) {
-				Genode::error("ROOT HASH: ", _root_hash);
-				h = &_root_hash;
-			} else {
-				/* or use previous level data to get next level */
-				h = &_walk_hash[_level];
-			}
+			Cbe::Hash const &h = _walk[_level].hash;
 
-			if (Genode::memcmp(hash.values, h->values, sizeof (Cbe::Hash))) {
-				Genode::error("level: ", _level, " pba: ", _walk[_level].pba, " <", hash, "> != <", *h, ">");
+			if (Genode::memcmp(hash.values, h.values, sizeof (Cbe::Hash))) {
+				Genode::error("level: ", _level, " pba: ", _walk[_level].pba, " <", hash, "> != <", h, ">");
 				for (uint32_t l = 0; l < _tree_helper.height()+1; l++) {
-					Genode::error("node[", l, "]: ", _walk[l].pba, " <", _walk_hash[l], ">");
+					Genode::error("node[", l, "]: ", _walk[l].pba, " <", _walk[l].hash, ">");
 				}
 				throw Hash_mismatch();
 			}
 
 			/*
 			 * We query the next level and should it already be the last,
-			 * we have found the pba for the data leave node.
+			 * we have found the pba for the data node.
+			 *
+			 * For the VBD we are interested in the pba of the leaf
+			 * but for the FT we look for the pba of the type 2 node.
 			 */
-			if (!_free_tree) {
-				if (--_level == 0) {
-					uint32_t const i = _tree_helper.index(_current.block_number, 1);
-					_data_pba = _get_pba(trans_data.item[0], i);
+			uint32_t const data_level = _free_tree ? 1 : 0;
+			if (--_level == data_level) {
+				uint32_t const parent_level = data_level + 1;
+				uint32_t const i = _tree_helper.index(_current.block_number, parent_level);
+				Cbe::Type_i_node const &n = _get_node(trans_data.item[0], i);
 
-					_walk[_level].pba = _data_pba;
-					Genode::memcpy(_walk_hash[_level].values,
-					               _get_hash(trans_data.item[0], i),
-					               sizeof (Cbe::Hash));
-				}
-			} else {
-				if (--_level == 1) {
-					uint32_t const i = _tree_helper.index(_current.block_number, 2);
-					_data_pba = _get_pba(trans_data.item[0], i);
+				_walk[_level].pba = n.pba;
+				_walk[_level].gen = n.gen;
+				Genode::memcpy(_walk[_level].hash.values, n.hash.values,
+				               sizeof (Cbe::Hash));
 
-					_walk[_level].pba = _data_pba;
-					Genode::memcpy(_walk_hash[_level].values,
-					               _get_hash(trans_data.item[0], i),
-					               sizeof (Cbe::Hash));
-				}
+				_data_pba = _walk[_level].pba;
 			}
-
-			MDBG(TM, __func__, ":", __LINE__);
 
 			return true;
 		}
@@ -323,6 +285,7 @@ class Cbe::Module::Translation
 			    || n > MAX_LEVELS) { return false; }
 
 			for (uint32_t l = 0; l < _tree_helper.height()+1; l++) {
+				MDBG(TRANS, __func__, ":", __LINE__, " _walk[", l, "]: ", _walk[l].pba);
 				info[l] = _walk[l];
 			}
 
@@ -334,7 +297,7 @@ class Cbe::Module::Translation
 			Cbe::Virtual_block_address const vba = _current.block_number;
 			Genode::error("WALK: vba: ", vba);
 			for (uint32_t l = 0; l < _tree_helper.height()+1; l++) {
-				Genode::error("      ", _walk[_tree_helper.height()-l].pba, " <", _walk_hash[_tree_helper.height()-l], ">");
+				Genode::error("      ", _walk[_tree_helper.height()-l].pba, " <", _walk[_tree_helper.height()-l].hash, ">");
 			}
 		}
 
@@ -347,11 +310,11 @@ class Cbe::Module::Translation
 		{
 			if (_next_pba != Cbe::INVALID_PBA) {
 				return Cbe::Primitive {
-					.tag          = _current.tag,
+					.tag          = Tag::TRANSLATION_TAG,
 					.operation    = Cbe::Primitive::Operation::READ,
 					.success      = Cbe::Primitive::Success::FALSE,
 					.block_number = _next_pba,
-					.index        = _current.index,
+					.index        = 0,
 				};
 			}
 

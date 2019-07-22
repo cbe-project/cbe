@@ -418,12 +418,14 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 ** Time handling **
 				 *******************/
 
-				Cbe::Time::Timestamp const curr_time = _time.timestamp();
-				Cbe::Time::Timestamp const diff_time = curr_time - _last_time;
-				if (diff_time >= _sync_interval && !_need_to_sync) {
-					Genode::log("\033[93;44m", __func__, " seal current ", _current_generation, " generation");
-					_need_to_sync = true;
-				}
+				// Cbe::Time::Timestamp const curr_time = _time.timestamp();
+				// Cbe::Time::Timestamp const diff_time = curr_time - _last_time;
+				// if (diff_time >= _sync_interval && !_need_to_sync) {
+				// 	Genode::log("\033[93;44m", __func__, " seal current ", _current_generation, " generation");
+				// 	_need_to_sync = true;
+				// }
+
+				_need_to_sync = true;
 
 
 				/************************
@@ -476,13 +478,19 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						tag = Tag::FREE_TREE_TAG_CACHE;
 						data = &_free_tree_cache_job_data.item[idx.value];
 						break;
-					case Tag::WRITE_BACK_TAG: tag = Tag::FREE_TREE_TAG_WB;    break;
+					case Tag::WRITE_BACK_TAG: tag = Tag::FREE_TREE_TAG_WB;
+						data = &_free_tree_cache_data.item[idx.value];
+						break;
 					case Tag::IO_TAG:         tag = Tag::FREE_TREE_TAG_IO;
 						data = &_free_tree_query_data.item[idx.value];
 						break;
 					default: break;
 					}
 
+					if (data == nullptr) {
+						Genode::error("BUG: invalid data index");
+						throw -1;
+					}
 					_io.submit_primitive(tag, prim, *data);
 
 					_free_tree->drop_generated_primitive(prim);
@@ -635,10 +643,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						/*
 						 * 2. get old PBA's from Translation module and mark volatile blocks
 						 */
-						// Cbe::Physical_block_address old_pba[Translation::MAX_LEVELS] { };
-						// if (!_trans->get_physical_block_addresses(prim, old_pba, Translation::MAX_LEVELS)) {
-						// 	break;
-						// }
 
 						Cbe::Type_1_node_info old_pba[Translation::MAX_LEVELS] { };
 						if (!_trans->get_type_1_info(prim, old_pba, Translation::MAX_LEVELS)) {
@@ -784,6 +788,10 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						sb.free_leaves = last_sb.free_leaves - _trans->height() + 1;
 						sb.generation = _current_generation;
 
+						sb.free_number = _free_tree->root_number();
+						Cbe::Hash const &free_hash = _free_tree->root_hash();
+						Genode::memcpy(sb.free_hash.values, free_hash.values, sizeof (Cbe::Hash));
+
 						sb.active = true;
 
 						_sync_sb.submit_primitive(prim, next_sb, _current_generation);
@@ -791,9 +799,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						_current_sb = next_sb;
 						_current_generation = _current_generation + 1;
 
-						_need_to_sync = false;
-						_last_time = curr_time;
-						_time.trigger(_sync_interval);
+						// _need_to_sync = false;
+						// _last_time = curr_time;
+						// _time.trigger(_sync_interval);
 					} else {
 
 						Cbe::Super_block &sb = _super_block[_current_sb];
