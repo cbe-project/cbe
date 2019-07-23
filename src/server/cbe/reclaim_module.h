@@ -26,7 +26,148 @@ namespace Cbe { namespace Module {
 	} __attribute__((packed));
 
 	struct Reclaim;
-} /* namespace Module */ } /* namespace Cbe */
+} /* namespace Module */
+
+	struct Block_manager;
+
+} /* namespace Cbe */
+
+/**********************************
+ ** Temporary free block manager **
+ **********************************/
+
+#include <util/bit_array.h>
+
+struct Cbe::Block_manager
+{
+	/* gives us 128MiB */
+	enum { ENTRIES = 32u * 1024, };
+	struct Entry /* Cbe::Type_ii_node */
+	{
+		bool reserved { false }; /* reserved => true */
+		Cbe::Generation g_a { 0 };
+		Cbe::Generation g_f { 0 };
+	};
+	Entry _entries[ENTRIES] { };
+	Genode::Bit_array<ENTRIES> _array { };
+	Genode::size_t             _used  { 0 };
+
+	Cbe::Physical_block_address _start { 0 };
+	Genode::size_t _size { 0 };
+
+	Block_manager(Cbe::Physical_block_address start, size_t size)
+	: _start(start), _size(size)
+	{
+		if (_size > ENTRIES) {
+			Genode::warning("limit entries to ", (unsigned)ENTRIES);
+			_size = ENTRIES;
+		}
+
+		Genode::log("Free Block manager entries: ", _size,
+		            " start block address: ", _start);
+	}
+
+	void dump() const
+	{
+
+		for (Genode::size_t i = 0; i < ENTRIES; i++) {
+			Entry const &e = _entries[i];
+			if (!e.reserved) { continue; }
+
+			Cbe::Generation const f_gen = e.g_f;
+			Cbe::Generation const a_gen = e.g_a;
+
+			Genode::log("\033[35;1m", __func__, ": ", i, ": (", _start + i, ") ", " a: ", a_gen, " f: ", f_gen);
+		}
+	}
+
+	Cbe::Physical_block_address alloc(Cbe::Super_block const *sb,
+	                                  Cbe::Generation const s_gen,
+	                                  Cbe::Generation const curr_gen,
+	                                  size_t count)
+	{
+		for (size_t i = 0; i < ENTRIES; i++) {
+			bool found = false;
+			try { found = !_array.get(i, count); }
+			catch (...) { }
+
+			if (!found) { continue; }
+
+			bool free = true;
+			for (size_t j = i; j < (i+count); j++) {
+				Entry &e = _entries[j];
+				if (!e.reserved) {
+					continue;
+				} else {
+					Cbe::Generation const f_gen = e.g_f;
+					Cbe::Generation const a_gen = e.g_a;
+
+					if (f_gen <= s_gen) {
+
+						bool in_use = false;
+						for (uint64_t i = 0; i < Cbe::NUM_SUPER_BLOCKS; i++) {
+							Cbe::Super_block const &b = sb[i];
+							if (!b.active) {
+								continue;
+							}
+							Cbe::Generation const b_gen = b.generation;
+
+							bool const is_free = ((f_gen <= s_gen) && (f_gen <= b_gen || a_gen >= (b_gen + 1)));
+
+							in_use |= !is_free;
+						}
+
+						if (in_use) {
+							free = false;
+							break;
+						}
+						Genode::error("REUSE PBA: ", _start + j, " f: ", f_gen, " a: ", a_gen);
+					} else {
+						free = false;
+						break;
+					}
+				}
+			}
+			if (!free) { continue; }
+
+			_array.set(i, count);
+			_used += count;
+
+			for (size_t j = i; j < (i+count); j++) {
+				Entry &e = _entries[j];
+				e.reserved = true;
+				e.g_a = curr_gen;
+				e.g_f = 0;
+			}
+			Cbe::Physical_block_address const pba = _start + i;
+			return pba;
+		}
+
+		struct Alloc_failed { };
+		throw Alloc_failed();
+	}
+
+	void free(Cbe::Generation const curr_gen,
+	          Cbe::Physical_block_address pba)
+	{
+		if (pba < _start) {
+			Genode::warning("attempt to free invalid pba: ", pba);
+			return;
+		}
+
+		size_t const i = pba - _start;
+
+		Entry &e = _entries[i];
+		e.g_f = curr_gen;
+
+		try {
+			_array.clear(i, 1);
+			_used--;
+		} catch (...) { Genode::warning(i, " already cleared"); }
+	}
+};
+
+
 
 struct Cbe::Module::Reclaim
 {
