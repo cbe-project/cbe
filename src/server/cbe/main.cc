@@ -1174,7 +1174,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 			_max_vba = leaves - 1;
 
-			_trans_helper.construct(degree, height);
+			_trans_helper.construct(degree, height, leaves);
 			_trans.construct(*_trans_helper, false);
 
 			Cbe::Physical_block_address const free_number = sb.free_number;

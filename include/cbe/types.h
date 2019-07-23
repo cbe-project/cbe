@@ -96,7 +96,10 @@ namespace Cbe {
 		}
 	} __attribute__((packed));
 
-	enum { INVALID_PBA = 18446744073709551615ULL, };
+	enum {
+		INVALID_PBA = 18446744073709551615ULL,
+		INVALID_VBA = 18446744073709551615ULL,
+	};
 	using Physical_block_address = uint64_t;
 	using Virtual_block_address  = uint64_t;
 	using Generation             = uint64_t;
@@ -276,13 +279,15 @@ namespace Cbe {
 
 		Cbe::Degree const _degree;
 		Cbe::Height const _height;
+		Cbe::Number_of_leaves const _leafs;
 
 		Cbe::Degree const _degree_log2 { _log2(_degree) };
 		Cbe::Degree const _degree_mask { (1u << _degree_log2) - 1 };
 
-		Tree_helper(Cbe::Degree const degree,
-		            Cbe::Height const height)
-		: _degree(degree), _height(height) { }
+		Tree_helper(Cbe::Degree           const degree,
+		            Cbe::Height           const height,
+		            Cbe::Number_of_leaves const leafs)
+		: _degree(degree), _height(height), _leafs(leafs) { }
 
 		uint32_t index(Cbe::Virtual_block_address const vba,
 		               uint32_t                   const level) const
@@ -290,8 +295,9 @@ namespace Cbe {
 			return (vba >> (_degree_log2 * (level - 1)) & _degree_mask);
 		}
 
-		Cbe::Height height() const { return _height; }
-		Cbe::Degree degree() const { return _degree; }
+		Cbe::Height height()          const { return _height; }
+		Cbe::Degree degree()          const { return _degree; }
+		Cbe::Number_of_leaves leafs() const { return _leafs; }
 	};
 
 } /* namespace Cbe */

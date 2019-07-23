@@ -44,8 +44,6 @@ struct Cbe::Free_tree
 	bool _wb_done     { false };
 	Cbe::Type_1_node_info _last_trans_info[Translation::MAX_LEVELS] { };
 
-	Constructible<Block_manager> _block_manager { };
-
 	uint32_t _num_blocks { 0 };
 	uint32_t _found_blocks { 0 };
 
@@ -69,6 +67,20 @@ struct Cbe::Free_tree
 
 	Cbe::Physical_block_address _free_pba[Translation::MAX_LEVELS] { };
 	// XXX account for n + m blocks
+	// XXX number of pba depends on degree
+	enum { MAX_FREE_BLOCKS = 64, };
+	struct Query_branch
+	{
+		Cbe::Type_1_node_info trans_info[Translation::MAX_LEVELS];
+
+		Cbe::Physical_block_address pba[MAX_FREE_BLOCKS];
+		uint32_t free_blocks;
+		Cbe::Virtual_block_address  vba;
+	};
+	enum { MAX_QUERY_BRANCHES = 8, };
+	Query_branch _query_branch[MAX_QUERY_BRANCHES] { };
+	uint32_t     _current_query_branch { 0 };
+
 	Cbe::Physical_block_address _found_pba[Translation::MAX_LEVELS*2] { };
 
 	Cbe::Physical_block_address _root      { };
@@ -91,6 +103,8 @@ struct Cbe::Free_tree
 
 	Query_type_2 _current_type_2 { 0, Query_type_2::State::INVALID, 0 };
 
+	Cbe::Primitive _current_query_prim { };
+
 	Query_type_2 _wb_io[Translation::MAX_LEVELS] { };
 
 	Constructible<Cbe::Tree_helper> _tree_helper { };
@@ -104,10 +118,8 @@ struct Cbe::Free_tree
 	: _root(root), _root_gen(root_gen)
 	{
 		Genode::error(hash);
-		_tree_helper.construct(degree, height);
+		_tree_helper.construct(degree, height, leafs);
 		_trans.construct(*_tree_helper, true);
-
-		_block_manager.construct(root, leafs);
 
 		Genode::memcpy(_root_hash.values, hash.values, sizeof (Cbe::Hash));
 	}
@@ -180,7 +192,7 @@ struct Cbe::Free_tree
 		/* assert sizeof (_wb_data.old_pba) == sizeof (old_pba) */
 		Genode::memcpy(_wb_data.old_pba, old_pba, sizeof (_wb_data.old_pba));
 
-		Cbe::Primitive prim {
+		_current_query_prim = Cbe::Primitive {
 			.tag          = Tag::INVALID_TAG,
 			.operation    = Cbe::Primitive::Operation::READ,
 			.success      = Cbe::Primitive::Success::FALSE,
@@ -188,7 +200,17 @@ struct Cbe::Free_tree
 			.index        = 0,
 		};
 
-		_trans->submit_primitive(_root, _root_gen, _root_hash, prim);
+		/* reset query branches */
+		// XXX instead of resetting eager maybe do it lazy after submitting
+		//     request to translation module
+		_current_query_branch = 0;
+		for (uint32_t b = 0; b < MAX_QUERY_BRANCHES; b++) {
+			_query_branch[b].vba         = Cbe::INVALID_VBA;
+			_query_branch[b].free_blocks = 0;
+			for (uint32_t n = 0; n < MAX_FREE_BLOCKS; n++) {
+				_query_branch[b].pba[n] = Cbe::INVALID_PBA;
+			}
+		}
 	}
 
 	bool _leaf_useable(Cbe::Type_ii_node const &node) const
@@ -217,6 +239,16 @@ struct Cbe::Free_tree
 		/**************************
 		 ** Translation handling **
 		 **************************/
+
+		while (true) {
+			if (!_trans->acceptable()) { break; }
+			if (!_current_query_prim.valid()) { break; }
+
+			_trans->submit_primitive(_root, _root_gen, _root_hash, _current_query_prim);
+
+			_current_query_prim.operation = Cbe::Primitive::Operation::INVALID;
+			progress |= true;
+		}
 
 		progress |= _trans->execute(trans_data);
 		while (true) {
@@ -254,10 +286,10 @@ struct Cbe::Free_tree
 				.index = Cache_Index { 0 },
 			};
 
+			// Cbe::Type_1_node_info *info = _query_branch[_current_query_branch].trans_info;
 			if (!_trans->get_type_1_info(prim, _last_trans_info, Translation::MAX_LEVELS)) {
 				Genode::error(__func__, ":", __LINE__);
 			}
-
 
 			_trans->drop_completed_primitive(prim);
 			progress |= true;
@@ -276,6 +308,8 @@ struct Cbe::Free_tree
 
 		if (_current_type_2.complete()) {
 
+			_current_query_prim.operation = Cbe::Primitive::Operation::INVALID;
+
 			Cbe::Type_ii_node *node =
 				reinterpret_cast<Cbe::Type_ii_node*>(&query_data.item[0]);
 			for (size_t i = 0; i < Cbe::TYPE_2_PER_BLOCK; i++) {
@@ -285,34 +319,66 @@ struct Cbe::Free_tree
 				bool const useable = _leaf_useable(node[i]);
 
 				if (useable) {
-					_found_pba[_found_blocks] = pba;
-					node[i].alloc_gen = _wb_data.gen;
+					/* store current VBA */
+					if (_query_branch[_current_query_branch].vba == Cbe::INVALID_VBA) {
+						_query_branch[_current_query_branch].vba = _current_query_prim.block_number;
+					}
+
+					uint32_t &free_blocks = _query_branch[_current_query_branch].free_blocks;
+					_query_branch[_current_query_branch].pba[free_blocks] = pba;
+					_query_branch[_current_query_branch].free_blocks++;
+
+					MDBG(FT, __func__, ":", __LINE__, ": _query_branch[",
+					     _current_query_branch, "]: ", _query_branch[_current_query_branch].vba, " ", pba);
 					_found_blocks++;
 				}
 
+				/* break off early */
 				if (_num_blocks == _found_blocks) {
-					_do_update = true;
-
-					for (uint32_t i = 0, j = 0; i < _num_blocks && j < _found_blocks; i++) {
-						if (!_wb_data.new_pba[i]) {
-							_wb_data.new_pba[i] = _found_pba[j];
-							j++;
-						}
-					}
-
 					break;
 				}
 			}
-
-			if (_found_blocks < _num_blocks) {
-				Genode::warning("could not find enough usable leafs: ", _num_blocks - _found_blocks, " missing");
-				_wb_data.finished = true;
-				_wb_data.prim.success = Cbe::Primitive::Success::FALSE;
-			}
+			_current_query_branch++;
 
 			_current_type_2.state = Query_type_2::State::INVALID;
+
+			bool const end_of_tree = (_current_query_prim.block_number + _tree_helper->degree() >= _tree_helper->leafs());
+			if (_found_blocks < _num_blocks) {
+				if (end_of_tree || true) {
+					Genode::warning("could not find enough usable leafs: ", _num_blocks - _found_blocks, " missing");
+					_wb_data.finished = true;
+					_wb_data.prim.success = Cbe::Primitive::Success::FALSE;
+				} else {
+
+					_current_query_prim.block_number += _tree_helper->degree();
+					Cbe::Virtual_block_address const vba = _current_query_prim.block_number;
+					MDBG(FT, __func__, ":", __LINE__, ": query next branch: ", vba);
+					_current_query_prim.operation = Cbe::Primitive::Operation::READ;
+				}
+			} else if (_num_blocks == _found_blocks) {
+
+				MDBG(FT, __func__, ":", __LINE__, ": FOUND ENOUGH FREE LEAFS");
+				uint32_t i = 0;
+				for (uint32_t b = 0; b < _current_query_branch; b++) {
+					for (uint32_t n = 0; n < _query_branch[b].free_blocks; n++) {
+
+						MDBG(FT, __func__, ":", __LINE__, ": n: ", n, " ", _query_branch[b].pba[n]);
+						if (i < _num_blocks) {
+							if (!_wb_data.new_pba[i]) {
+								_wb_data.new_pba[i] = _query_branch[b].pba[n];
+								MDBG(FT, __func__, ":", __LINE__, ": pba: ", _wb_data.new_pba[i]);
+								i++;
+							}
+						}
+					}
+				}
+
+				_do_update = true;
+			}
+
 			progress |= true;
 		}
+
 
 		/********************************
 		 ** Update meta-data in branch **
