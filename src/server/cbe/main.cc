@@ -213,8 +213,10 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Block_data _write_back_data[MAX_LEVEL] { };
 		Sync_sb    _sync_sb { };
 
+#if 0
 		Reclaim      _reclaim { };
 		Reclaim_Data _reclaim_data { };
+#endif
 
 		Constructible<Cbe::Free_tree> _free_tree { };
 		Translation_Data         _free_tree_trans_data { };
@@ -815,6 +817,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 ** reclaim handling **
 				 **********************/
 
+#if 0
 				bool reclaim_progress = _reclaim.execute(_reclaim_data);
 				progress |= reclaim_progress;
 				if (_show_progress) {
@@ -848,6 +851,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					progress |= true;
 				}
+#endif
 
 				/*********************
 				 ** Crypto handling **
@@ -935,7 +939,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						_sync_sb.mark_generated_primitive_complete(prim);
 						break;
 					case Tag::RECLAIM_TAG:
+#if 0
 						_reclaim.mark_generated_primitive_complete(prim);
+#endif
 						break;
 					// XXX check for FREE_TREE_TAG
 					case Tag::FREE_TREE_TAG_CACHE:
