@@ -268,7 +268,6 @@ class Cbe::Vbd
 		Genode::Env                &_env;
 		Genode::Expanding_reporter  _reporter      { _env, "state", "state" };
 		uint64_t                    _dump_leaves   { 0 };
-		uint64_t                    _report_leaves { 0 };
 
 		uint64_t                    _leaves        { 0 };
 		Cbe::Tree                  &_tree;
@@ -294,7 +293,7 @@ class Cbe::Vbd
 					xml.attribute("id",   id);
 					xml.attribute("pba",  parent_node[id].pba);
 					xml.attribute("gen",  parent_node[id].gen & GEN_VALUE_MASK);
-					xml.attribute("vba",  _report_leaves);
+					xml.attribute("vba",  leafs);
 					xml.attribute("hash", Hash::String(parent_node[id].hash));
 				});
 				if ((++leafs) >= info.leaves) {
