@@ -322,6 +322,21 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						if (!_write_back.primitive_acceptable()) { break; }
 
 						Free_tree::Write_back_data const &wb = _free_tree->peek_completed_wb_data(prim);
+
+						DBG(HR, __func__, ":", __LINE__, ": ----------------------->>> WRITE-BACK <<<----");
+						DBG(HR, __func__, ":", __LINE__, ": gen: ", wb.gen, " vba: ", wb.vba);
+
+						for (Cbe::Height h = 0; h < wb.tree_height; h++) {
+							DBG(HR, __func__, ":", __LINE__, ": new: ", wb.new_pba[h], " old: ", wb.old_pba[h].pba);
+						}
+
+						for (Cbe::Height h = 0; h < wb.tree_height; h++) {
+							if (wb.new_pba[h] == 0) {
+								Genode::error(__func__, ":", __LINE__, " new pba invalid");
+								throw -1;
+							}
+						}
+
 						_write_back.submit_primitive(wb.prim, wb.gen, wb.vba,
 						                             wb.new_pba, wb.old_pba, wb.tree_height,
 						                             *wb.block_data);
@@ -517,7 +532,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						 */
 
 						Cbe::Type_1_node_info old_pba[Translation::MAX_LEVELS] { };
-						if (!_trans->get_type_1_info(prim, old_pba, Translation::MAX_LEVELS)) {
+						if (!_trans->get_type_1_info(prim, old_pba)) {
 							break;
 						}
 
@@ -543,14 +558,15 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 							uint64_t const gen = (n[id].gen & GEN_VALUE_MASK);
 							if (gen == _current_generation || gen == 0) {
 								Cbe::Physical_block_address const npba = n[id].pba;
-								Genode::error("in place pba: ", pba, " gen: ", gen, " npba: ", npba);
+								DBG(__func__, ":", __LINE__, ": IN PLACE pba: ", pba, " gen: ", gen, " npba: ", npba);
 
 								new_pba[i-1] = old_pba[i-1].pba;
 								continue;
 							}
 
-							free_pba[free_blocks++] = old_pba[i-1].pba;
-
+							free_pba[free_blocks] = old_pba[i-1].pba;
+							DBG(__func__, ":", __LINE__, ": FREE PBA: ", free_pba[free_blocks]);
+							free_blocks++;
 							new_blocks++;
 						}
 
@@ -560,12 +576,15 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						}
 
 						Cbe::Super_block const &sb = _super_block[_current_sb];
-						Cbe::Generation const sb_gen = sb.generation;
-						Genode::error("sb_gen: ", sb_gen, " _current_generation: ", _current_generation);
+						// Cbe::Generation const sb_gen = sb.generation;
+						// Genode::error("sb_gen: ", sb_gen, " _current_generation: ", _current_generation);
 						if (sb.generation == _current_generation || sb.generation == 0) {
+							DBG(__func__, ":", __LINE__, ": IN PLACE root pba: ", old_pba[trans_height-1].pba);
 							new_pba[trans_height-1] = old_pba[trans_height-1].pba;
 						} else {
-							free_pba[free_blocks++] = old_pba[trans_height-1].pba;
+							free_pba[free_blocks] = old_pba[trans_height-1].pba;
+							DBG(__func__, ":", __LINE__, ": FREE PBA: ", free_pba[free_blocks]);
+							free_blocks++;
 							new_blocks++;
 						}
 

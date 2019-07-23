@@ -198,6 +198,10 @@ class Cbe::Module::Translation
 			 *
 			 * For the VBD we are interested in the pba of the leaf
 			 * but for the FT we look for the pba of the type 2 node.
+			 *
+			 * XXX currently the free-tree MUST HAVE a height at least of 2,
+			 *     otherwise the entry in the type 2 node is treated as the
+			 *     type 2 node itself.
 			 */
 			uint32_t const data_level = _free_tree ? 1 : 0;
 			if (--_level == data_level) {
@@ -261,28 +265,13 @@ class Cbe::Module::Translation
 			return _current.block_number;
 		}
 
-		bool get_physical_block_addresses(Cbe::Primitive const &p,
-		                                  Cbe::Physical_block_address *pba, size_t n)
-		{
-			if (_data_pba == Cbe::INVALID_PBA
-			    || p.block_number != _data_pba
-			    || !pba
-			    || n > MAX_LEVELS) { return false; }
-
-			for (uint32_t l = 0; l < _tree_helper.height()+1; l++) {
-				pba[l] = _walk[l].pba;
-			}
-
-			return true;
-		}
-
 		bool get_type_1_info(Cbe::Primitive const &p,
-		                     Cbe::Type_1_node_info *info, size_t n)
+		                     Cbe::Type_1_node_info info[Translation::MAX_LEVELS])
 		{
 			if (_data_pba == Cbe::INVALID_PBA
 			    || p.block_number != _data_pba
-			    || !info
-			    || n > MAX_LEVELS) { return false; }
+			    || !info) {
+				return false; }
 
 			for (uint32_t l = 0; l < _tree_helper.height()+1; l++) {
 				MDBG(TRANS, __func__, ":", __LINE__, " _walk[", l, "]: ", _walk[l].pba);
@@ -290,15 +279,6 @@ class Cbe::Module::Translation
 			}
 
 			return true;
-		}
-
-		void dump() const
-		{
-			Cbe::Virtual_block_address const vba = _current.block_number;
-			Genode::error("WALK: vba: ", vba);
-			for (uint32_t l = 0; l < _tree_helper.height()+1; l++) {
-				Genode::error("      ", _walk[_tree_helper.height()-l].pba, " <", _walk[_tree_helper.height()-l].hash, ">");
-			}
 		}
 
 		/**

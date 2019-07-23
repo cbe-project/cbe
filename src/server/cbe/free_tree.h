@@ -182,6 +182,12 @@ struct Cbe::Free_tree
 
 		/* assert sizeof (_free_pba) == sizeof (free_pba) */
 		Genode::memcpy(_free_pba, free_pba, sizeof (_free_pba));
+		for (uint32_t i = 0; i < Translation::MAX_LEVELS; i++) {
+			if (free_pba[i]) {
+				MDBG(FT, __func__, ":", __LINE__, " free[", i, "]: ", free_pba[i]);
+			}
+		}
+
 
 		_wb_data.finished    = false;
 		_wb_data.prim        = req_prim;
@@ -192,8 +198,20 @@ struct Cbe::Free_tree
 
 		/* assert sizeof (_wb_data.new_pba) == sizeof (new_pba) */
 		Genode::memcpy(_wb_data.new_pba, new_pba, sizeof (_wb_data.new_pba));
+		for (uint32_t i = 0; i < Translation::MAX_LEVELS; i++) {
+			if (new_pba[i]) {
+				MDBG(FT, __func__, ":", __LINE__, " new[", i, "]: ", new_pba[i]);
+			}
+		}
+
 		/* assert sizeof (_wb_data.old_pba) == sizeof (old_pba) */
 		Genode::memcpy(_wb_data.old_pba, old_pba, sizeof (_wb_data.old_pba));
+
+		for (uint32_t i = 0; i < Translation::MAX_LEVELS; i++) {
+			if (old_pba[i].pba) {
+				MDBG(FT, __func__, ":", __LINE__, " old[", i, "]: ", old_pba[i].pba);
+			}
+		}
 
 		_current_query_prim = Cbe::Primitive {
 			.tag          = Tag::INVALID_TAG,
@@ -289,10 +307,8 @@ struct Cbe::Free_tree
 				.index = Cache_Index { 0 },
 			};
 
-			// Cbe::Type_1_node_info *info = _query_branch[_current_query_branch].trans_info;
 			if (!_trans->get_type_1_info(prim,
-			                             _query_branch[_current_query_branch].trans_info,
-			                             Translation::MAX_LEVELS)) {
+			                             _query_branch[_current_query_branch].trans_info)) {
 				Genode::error(__func__, ":", __LINE__);
 			}
 
@@ -333,8 +349,6 @@ struct Cbe::Free_tree
 					_query_branch[_current_query_branch].pba[free_blocks] = pba;
 					_query_branch[_current_query_branch].free_blocks++;
 
-					MDBG(FT, __func__, ":", __LINE__, ": _query_branch[",
-					     _current_query_branch, "]: ", _query_branch[_current_query_branch].vba, " ", pba);
 					_found_blocks++;
 				}
 
@@ -356,23 +370,19 @@ struct Cbe::Free_tree
 				} else {
 
 					_current_query_prim.block_number += _tree_helper->degree();
-					Cbe::Virtual_block_address const vba = _current_query_prim.block_number;
-					MDBG(FT, __func__, ":", __LINE__, ": query next branch: ", vba);
 					_current_query_prim.operation = Cbe::Primitive::Operation::READ;
 				}
 			} else if (_num_blocks == _found_blocks) {
 
-				MDBG(FT, __func__, ":", __LINE__, ": FOUND ENOUGH FREE LEAFS");
 				uint32_t i = 0;
 				for (uint32_t b = 0; b < _current_query_branch; b++) {
 					for (uint32_t n = 0; n < _query_branch[b].free_blocks; n++) {
 
-						MDBG(FT, __func__, ":", __LINE__, ": n: ", n, " ", _query_branch[b].pba[n]);
-						if (i < _num_blocks) {
+						/* store iterator out-side so we start from the last set entry */
+						for (; i < Translation::MAX_LEVELS; i++) {
 							if (!_wb_data.new_pba[i]) {
 								_wb_data.new_pba[i] = _query_branch[b].pba[n];
-								MDBG(FT, __func__, ":", __LINE__, ": pba: ", _wb_data.new_pba[i]);
-								i++;
+								break;
 							}
 						}
 					}
@@ -400,8 +410,6 @@ struct Cbe::Free_tree
 				for (uint32_t i = 1; i <= _tree_helper->height(); i++) {
 					Cbe::Physical_block_address const pba = qb.trans_info[i].pba;
 
-					MDBG(FT, __func__, ":", __LINE__, ": check b: ", b, " i: ", i, " pba: ", pba, " hot: ",
-					     _cache.data_available(pba));
 					if (!_cache.data_available(pba)) {
 
 						if (_cache.request_acceptable(pba)) {
@@ -415,7 +423,6 @@ struct Cbe::Free_tree
 			}
 
 			if (data_available) {
-
 
 				//////////////////////////////////////
 				// XXX CHANGE HOW THE WB LIST IS POPULATED:
@@ -442,7 +449,11 @@ struct Cbe::Free_tree
 							for (Cbe::Degree i = 0; i < _tree_helper->degree(); i++) {
 								T &entry = t[i];
 
-								for (uint32_t i = 0; i < _found_blocks; i++) {
+								/*
+								 * The old and new PBA array contains data and inner node,
+								 * therefor we have to check tree height + 1.
+								 */
+								for (uint32_t i = 0; i <= _tree_helper->height(); i++) {
 									using Node_info = Cbe::Type_1_node_info;
 									Node_info &old_entry = _wb_data.old_pba[i];
 
@@ -508,10 +519,6 @@ struct Cbe::Free_tree
 					}
 				}
 
-				for (uint32_t i = 0; i < wb_cnt; i++) {
-					MDBG(FT, __func__, ":", __LINE__, ": write-back pba: ", _wb_io[i].pba);
-				}
-
 				_do_wb = true;
 				_do_update = false;
 				progress |= true;
@@ -529,7 +536,6 @@ struct Cbe::Free_tree
 
 				if (wb_ongoing) { break; }
 			}
-			DBG(FT, __func__, ":", __LINE__, ": write-back on-going: ", wb_ongoing);
 
 			if (!wb_ongoing && !_wb_done) {
 				_do_wb = false;
@@ -665,7 +671,6 @@ struct Cbe::Free_tree
 						_wb_io[i].state = Query_type_2::State::COMPLETE;
 
 						// XXX invalidate cache
-						MDBG(FT, __func__, ":", __LINE__, ": INVALIDATE pba: ", _wb_io[i].pba);
 						_cache.invalidate(_wb_io[i].pba);
 
 						if (prim.success == Cbe::Primitive::Success::FALSE) {
