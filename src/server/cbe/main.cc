@@ -76,22 +76,35 @@ struct Cbe::Time
 
 	using Timestamp = Genode::uint64_t;
 
+	Timer::One_shot_timeout<Time> _timeout {
+		_timer, *this, &Time::_handle_timeout };
+
+	void _handle_timeout(Genode::Duration)
+	{
+		if (_sig_cap.valid()) {
+			Genode::error(__func__, ":", __LINE__);
+			Genode::Signal_transmitter(_sig_cap).submit();
+		}
+	}
+
+	Genode::Signal_context_capability _sig_cap { };
+
 	Time(Genode::Env &env)
 	: _timer(env) { }
 
-	Timestamp timestamp() const
+	Timestamp timestamp()
 	{
-		return _timer.elapsed_ms();
+		return _timer.curr_time().trunc_to_plain_ms().value;
 	}
 
 	void sigh(Genode::Signal_context_capability cap)
 	{
-		_timer.sigh(cap);
+		_sig_cap = cap;
 	}
 
 	void trigger(uint64_t msec)
 	{
-		_timer.trigger_once(msec * 1000);
+		_timeout.schedule(Genode::Microseconds { msec * 1000 });
 	}
 };
 
@@ -283,106 +296,11 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 ** Time handling **
 				 *******************/
 
-				// Cbe::Time::Timestamp const curr_time = _time.timestamp();
-				// Cbe::Time::Timestamp const diff_time = curr_time - _last_time;
-				// if (diff_time >= _sync_interval && !_need_to_sync) {
-				// 	Genode::log("\033[93;44m", __func__, " seal current ", _current_generation, " generation");
-				// 	_need_to_sync = true;
-				// }
-
-				_need_to_sync = true;
-
-
-				/************************
-				 ** Free-tree handling **
-				 ************************/
-
-				bool const ft_progress = _free_tree->execute(_free_tree_trans_data,
-				                                             _free_tree_cache_data,
-				                                             _free_tree_cache_job_data,
-				                                             _free_tree_query_data,
-				                                             _time);
-				progress |= ft_progress;
-				if (_show_progress) {
-					Genode::log("Free-tree progress: ", ft_progress);
-				}
-
-				while (true) {
-
-					Cbe::Primitive prim = _free_tree->peek_completed_primitive();
-					if (!prim.valid()) { break; }
-
-					if (prim.success == Cbe::Primitive::Success::FALSE) {
-						Genode::error("allocating new blocks failed");
-						_request_pool.mark_completed_primitive(prim);
-						// XXX
-						_trans->resume();
-					} else {
-
-						if (!_write_back.primitive_acceptable()) { break; }
-
-						Free_tree::Write_back_data const &wb = _free_tree->peek_completed_wb_data(prim);
-
-						DBG(HR, __func__, ":", __LINE__, ": ----------------------->>> WRITE-BACK <<<----");
-						DBG(HR, __func__, ":", __LINE__, ": gen: ", wb.gen, " vba: ", wb.vba);
-
-						for (Cbe::Height h = 0; h < wb.tree_height; h++) {
-							DBG(HR, __func__, ":", __LINE__, ": new: ", wb.new_pba[h], " old: ", wb.old_pba[h].pba);
-						}
-
-						for (Cbe::Height h = 0; h < wb.tree_height; h++) {
-							if (wb.new_pba[h] == 0) {
-								Genode::error(__func__, ":", __LINE__, " new pba invalid");
-								throw -1;
-							}
-						}
-
-						_write_back.submit_primitive(wb.prim, wb.gen, wb.vba,
-						                             wb.new_pba, wb.old_pba, wb.tree_height,
-						                             *wb.block_data);
-
-						MDBG(FT, __func__, ":", __LINE__, " drop_completed_primitive");
-					}
-					_free_tree->drop_completed_primitive(prim);
-					progress |= true;
-				}
-
-				while (true) {
-
-					Cbe::Primitive prim = _free_tree->peek_generated_primitive();
-					if (!prim.valid()) { break; }
-					if (!_io.primitive_acceptable()) { break; }
-
-					Index const idx = _free_tree->peek_generated_data_index(prim);
-					if (idx.value == ~0u) {
-						Genode::error("BUG: invalid data index");
-						throw -1;
-					}
-
-					Cbe::Block_data *data = nullptr;
-					Cbe::Tag tag { Tag::INVALID_TAG };
-					switch (prim.tag) {
-					case Tag::CACHE_TAG:
-						tag = Tag::FREE_TREE_TAG_CACHE;
-						data = &_free_tree_cache_job_data.item[idx.value];
-						break;
-					case Tag::WRITE_BACK_TAG: tag = Tag::FREE_TREE_TAG_WB;
-						data = &_free_tree_cache_data.item[idx.value];
-						break;
-					case Tag::IO_TAG:         tag = Tag::FREE_TREE_TAG_IO;
-						data = &_free_tree_query_data.item[idx.value];
-						break;
-					default: break;
-					}
-
-					if (data == nullptr) {
-						Genode::error("BUG: invalid data index");
-						throw -1;
-					}
-					_io.submit_primitive(tag, prim, *data);
-
-					_free_tree->drop_generated_primitive(prim);
-					progress |= true;
+				Cbe::Time::Timestamp const curr_time = _time.timestamp();
+				Cbe::Time::Timestamp const diff_time = curr_time - _last_time;
+				if (diff_time >= _sync_interval && !_need_to_sync) {
+					Genode::log("\033[93;44m", __func__, " seal current ", _current_generation, " generation");
+					_need_to_sync = true;
 				}
 
 				/***********************
@@ -431,6 +349,84 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					progress |= true;
 				});
+
+				/************************
+				 ** Free-tree handling **
+				 ************************/
+
+				bool const ft_progress = _free_tree->execute(_free_tree_trans_data,
+				                                             _free_tree_cache_data,
+				                                             _free_tree_cache_job_data,
+				                                             _free_tree_query_data,
+				                                             _time);
+				progress |= ft_progress;
+				if (_show_progress) {
+					Genode::log("Free-tree progress: ", ft_progress);
+				}
+
+				while (true) {
+
+					Cbe::Primitive prim = _free_tree->peek_completed_primitive();
+					if (!prim.valid()) { break; }
+
+					if (prim.success == Cbe::Primitive::Success::FALSE) {
+						Genode::error("allocating new blocks failed");
+						_request_pool.mark_completed_primitive(prim);
+						// XXX
+						_trans->resume();
+					} else {
+
+						if (!_write_back.primitive_acceptable()) { break; }
+
+						Free_tree::Write_back_data const &wb = _free_tree->peek_completed_wb_data(prim);
+
+						_write_back.submit_primitive(wb.prim, wb.gen, wb.vba,
+						                             wb.new_pba, wb.old_pba, wb.tree_height,
+						                             *wb.block_data);
+
+						MDBG(FT, __func__, ":", __LINE__, " drop_completed_primitive");
+					}
+					_free_tree->drop_completed_primitive(prim);
+					progress |= true;
+				}
+
+				while (true) {
+
+					Cbe::Primitive prim = _free_tree->peek_generated_primitive();
+					if (!prim.valid()) { break; }
+					if (!_io.primitive_acceptable()) { break; }
+
+					Index const idx = _free_tree->peek_generated_data_index(prim);
+					if (idx.value == ~0u) {
+						Genode::error("BUG: invalid data index");
+						throw -1;
+					}
+
+					Cbe::Block_data *data = nullptr;
+					Cbe::Tag tag { Tag::INVALID_TAG };
+					switch (prim.tag) {
+					case Tag::CACHE_TAG:
+						tag = Tag::FREE_TREE_TAG_CACHE;
+						data = &_free_tree_cache_job_data.item[idx.value];
+						break;
+					case Tag::WRITE_BACK_TAG: tag = Tag::FREE_TREE_TAG_WB;
+						data = &_free_tree_cache_data.item[idx.value];
+						break;
+					case Tag::IO_TAG:         tag = Tag::FREE_TREE_TAG_IO;
+						data = &_free_tree_query_data.item[idx.value];
+						break;
+					default: break;
+					}
+
+					if (data == nullptr) {
+						Genode::error("BUG: invalid data index");
+						throw -1;
+					}
+					_io.submit_primitive(tag, prim, *data);
+
+					_free_tree->drop_generated_primitive(prim);
+					progress |= true;
+				}
 
 				/*******************************
 				 ** Put request into splitter **
@@ -517,8 +513,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					if (prim.read()) {
 						if (!_io.primitive_acceptable()) { break; }
 
-						Cbe::Physical_block_address const pba = prim.block_number;
-						Genode::error("_trans->peek_completed_primitive(): pba: ", pba);
+						// Cbe::Physical_block_address const pba = prim.block_number;
+						// Genode::error("_trans->peek_completed_primitive(): pba: ", pba);
 						_io.submit_primitive(Tag::CRYPTO_TAG_DECRYPT, prim, *data_ptr);
 					} else
 
@@ -638,8 +634,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					Cbe::Block_data &data = _cache_job_data.item[idx.value];
 
 					_cache.drop_generated_primitive(prim);
-					Cbe::Physical_block_address const pba = prim.block_number;
-					Genode::error("_cache.peek_generated_primitive(): pba: ", pba);
+					// Cbe::Physical_block_address const pba = prim.block_number;
+					// Genode::error("_cache.peek_generated_primitive(): pba: ", pba);
 					_io.submit_primitive(Tag::CACHE_TAG, prim, data);
 
 					progress |= true;
@@ -686,12 +682,14 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 						_sync_sb.submit_primitive(prim, next_sb, _current_generation);
 
+						Genode::log("\033[93;44m", __func__, " sync SB curr: ", _current_generation,
+						            " next: ", _current_generation + 1);
 						_current_sb = next_sb;
 						_current_generation = _current_generation + 1;
 
-						// _need_to_sync = false;
-						// _last_time = curr_time;
-						// _time.trigger(_sync_interval);
+						_need_to_sync = false;
+						_last_time = curr_time;
+						_time.trigger(_sync_interval);
 					} else {
 
 						Cbe::Super_block &sb = _super_block[_current_sb];
@@ -1061,6 +1059,11 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			_current_generation      = _last_secured_generation + 1;
 
 			_max_vba = leaves - 1;
+
+			if (height > Module::Translation::MAX_LEVELS) {
+				Genode::error("tree height of ", height, " not supported");
+				throw -1;
+			}
 
 			_trans_helper.construct(degree, height, leaves);
 			_trans.construct(*_trans_helper, false);
