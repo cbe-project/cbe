@@ -196,9 +196,11 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		using Write_back_Index = Module::Write_back<MAX_LEVEL, Cbe::Type_i_node>::Index;
 		using Sync_sb     = Module::Sync_sb;
 
+#if 0
 		using Reclaim       = Module::Reclaim;
 		using Reclaim_Index = Module::Reclaim_Index;
 		using Reclaim_Data  = Module::Reclaim_Data;
+#endif
 
 		Pool     _request_pool { };
 		Splitter _splitter     { };
