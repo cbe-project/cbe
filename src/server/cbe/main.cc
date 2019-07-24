@@ -128,6 +128,7 @@ struct Cbe::Time
 #include <reclaim_module.h>
 
 #include "free_tree.h"
+#include "virtual_block_device.h"
 
 class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 {
