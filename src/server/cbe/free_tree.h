@@ -6,8 +6,8 @@
  * version 3.
  */
 
-#ifndef _CBE_TREE_TREE_H_
-#define _CBE_TREE_TREE_H_
+#ifndef _CBE_FREE_TREE_H_
+#define _CBE_FREE_TREE_H_
 
 /* local includes */
 #include <cbe/types.h>
@@ -722,4 +722,4 @@ struct Cbe::Free_tree
 	}
 };
 
-#endif 	/* _CBE_TREE_TREE_H_ */
+#endif 	/* _CBE_FREE_TREE_H_ */
