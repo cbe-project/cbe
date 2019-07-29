@@ -197,12 +197,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		using Write_back_Index = Module::Write_back<MAX_LEVEL, Cbe::Type_i_node>::Index;
 		using Sync_sb     = Module::Sync_sb;
 
-#if 0
-		using Reclaim       = Module::Reclaim;
-		using Reclaim_Index = Module::Reclaim_Index;
-		using Reclaim_Data  = Module::Reclaim_Data;
-#endif
-
 		Pool     _request_pool { };
 		Splitter _splitter     { };
 
@@ -226,11 +220,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Write_back _write_back { };
 		Block_data _write_back_data[MAX_LEVEL] { };
 		Sync_sb    _sync_sb { };
-
-#if 0
-		Reclaim      _reclaim { };
-		Reclaim_Data _reclaim_data { };
-#endif
 
 		Constructible<Cbe::Free_tree> _free_tree { };
 		Translation_Data         _free_tree_trans_data { };
@@ -794,46 +783,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					progress |= true;
 				}
 
-				/**********************
-				 ** reclaim handling **
-				 **********************/
-
-#if 0
-				bool reclaim_progress = _reclaim.execute(_reclaim_data);
-				progress |= reclaim_progress;
-				if (_show_progress) {
-					Genode::log("Reclaim progress: ", reclaim_progress);
-				}
-
-				while (true) {
-
-					if (!_reclaim.peek_completed_request()) { break; }
-
-					// _reclaim.reclaim_completed_request(*_block_manager, _current_generation);
-					_reclaim.drop_completed_request();
-					progress |= true;
-				}
-
-				while (true) {
-
-					Cbe::Primitive prim = _reclaim.peek_generated_primitive();
-					if (!prim.valid()) { break; }
-					if (!_io.primitive_acceptable()) { break; }
-
-					Reclaim_Index   const idx   = _reclaim.peek_generated_data_index(prim);
-					Cbe::Block_data &data = _reclaim_data.item[idx.value];
-
-					Genode::log("Reclaim I/O idx: ", idx.value, " ", (void*)&data);
-
-					Cbe::Physical_block_address const pba = prim.block_number;
-					Genode::error("_reclaim.peek_generated_primitive(): pba: ", pba);
-					_io.submit_primitive(Tag::RECLAIM_TAG, prim, data);
-					_reclaim.drop_generated_primitive(prim);
-
-					progress |= true;
-				}
-#endif
-
 				/*********************
 				 ** Crypto handling **
 				 *********************/
@@ -919,11 +868,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						break;
 					case Tag::SYNC_SB_TAG:
 						_sync_sb.mark_generated_primitive_complete(prim);
-						break;
-					case Tag::RECLAIM_TAG:
-#if 0
-						_reclaim.mark_generated_primitive_complete(prim);
-#endif
 						break;
 					// XXX check for FREE_TREE_TAG
 					case Tag::FREE_TREE_TAG_CACHE:
