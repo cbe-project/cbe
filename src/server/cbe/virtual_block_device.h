@@ -45,6 +45,76 @@ struct Cbe::Virtual_block_device
 		_trans.construct(*_trans_helper, false);
 	}
 
+	/**********************************
+	 ** Translation module interface **
+	 **********************************/
+
+	void trans_inhibit_translation()
+	{
+		_trans->suspend();
+	}
+
+	void trans_resume_translation()
+	{
+		_trans->resume();
+	}
+
+	Cbe::Primitive::Number trans_get_virtual_block_address(Cbe::Primitive const &p)
+	{
+		return _trans->get_virtual_block_address(p);
+	}
+
+	bool trans_get_type_1_info(Cbe::Primitive const &p,
+	                           Cbe::Type_1_node_info info[Translation::MAX_LEVELS])
+	{
+		return _trans->get_type_1_info(p, info);
+	}
+
+	Cbe::Height tree_height() const
+	{
+		return _trans_helper->height();
+	}
+
+	uint32_t index_for_level(Cbe::Virtual_block_address const vba,
+	                         uint32_t                   const level) const
+	{
+		return _trans_helper->index(vba, level);
+	}
+
+	Cbe::Tree_helper const &tree_helper() const
+	{
+		return *_trans_helper;
+	}
+
+	/****************************
+	 ** Cache module interface **
+	 ****************************/
+
+	Cache_Index cache_data_index(Cbe::Physical_block_address const pba,
+	                             Cbe::Time::Timestamp        const ts)
+	{
+		return _cache.data_index(pba, ts);
+	}
+
+	bool cache_data_available(Cbe::Physical_block_address const pba) const
+	{
+		return _cache.data_available(pba);
+	}
+
+	void cache_try_submit_request(Cbe::Physical_block_address const pba)
+	{
+		if (!_cache.request_acceptable(pba)) {
+			return;
+		}
+
+		_cache.submit_request(pba);
+	}
+
+	void cache_invalidate(Cbe::Physical_block_address const pba)
+	{
+		return _cache.invalidate(pba);
+	}
+
 	/**********************
 	 ** Module interface **
 	 **********************/
@@ -54,10 +124,10 @@ struct Cbe::Virtual_block_device
 		return _trans->acceptable();
 	}
 
-	void submit_request(Cbe::Physical_block_address const  pba,
-	                    Cbe::Generation             const  gen,
-	                    Cbe::Hash                   const &hash,
-	                    Cbe::Primitive              const &prim)
+	void submit_primitive(Cbe::Physical_block_address const  pba,
+	                      Cbe::Generation             const  gen,
+	                      Cbe::Hash                   const &hash,
+	                      Cbe::Primitive              const &prim)
 	{
 		_trans->submit_primitive(pba, gen, hash, prim);
 	}
@@ -179,7 +249,6 @@ struct Cbe::Virtual_block_device
 			if (prim.valid()) { return prim; }
 		}
 
-		Genode::error(__func__, ": invalid primitive");
 		return Cbe::Primitive { };
 	}
 

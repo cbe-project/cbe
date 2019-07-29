@@ -67,7 +67,7 @@ class Cbe::Module::Write_back
 
 		bool copy_and_update(Cbe::Physical_block_address const pba,
 		                     Cbe::Block_data const &data,
-		                     Cbe::Module::Translation &trans)
+		                     Cbe::Tree_helper const &trans)
 		{
 			bool invalidate = false;
 

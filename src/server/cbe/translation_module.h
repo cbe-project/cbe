@@ -187,7 +187,7 @@ class Cbe::Module::Translation
 			if (Genode::memcmp(hash.values, h.values, sizeof (Cbe::Hash))) {
 				Genode::error("level: ", _level, " pba: ", _walk[_level].pba, " <", hash, "> != <", h, ">");
 				for (uint32_t l = 0; l < _tree_helper.height()+1; l++) {
-					Genode::error("node[", l, "]: ", _walk[l].pba, " <", _walk[l].hash, ">");
+					Genode::error("Translation: ", "node[", l, "]: ", _walk[l].pba, " <", _walk[l].hash, ">");
 				}
 				throw Hash_mismatch();
 			}

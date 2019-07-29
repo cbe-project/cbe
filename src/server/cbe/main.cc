@@ -211,19 +211,17 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		uint64_t _sync_interval { SYNC_INTERVAL };
 		Cbe::Time::Timestamp _last_time { _time.timestamp() };
 
-		Cache          _cache          { };
-		Cache_Data     _cache_data     { };
-		Cache_Job_Data _cache_job_data { };
-
 		Crypto   _crypto       { "All your base are belong to us  " };
 		Block_data _crypto_data { };
 
 		Io         _io                  { _block };
 		Block_data _io_data[IO_ENTRIES] { };
 
-		Constructible<Tree_helper> _trans_helper { };
-		Constructible<Translation> _trans { };
+
+		Cache_Data     _cache_data     { };
+		Cache_Job_Data _cache_job_data { };
 		Translation_Data           _trans_data { };
+		Constructible<Cbe::Virtual_block_device> _vbd { };
 
 		Write_back _write_back { };
 		Block_data _write_back_data[MAX_LEVEL] { };
@@ -376,7 +374,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						Genode::error("allocating new blocks failed");
 						_request_pool.mark_completed_primitive(prim);
 						// XXX
-						_trans->resume();
+						_vbd->trans_resume_translation();
 					} else {
 
 						if (!_write_back.primitive_acceptable()) { break; }
@@ -456,7 +454,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					Cbe::Primitive prim = _splitter.peek_generated_primitive();
 					if (!prim.valid()) { break; }
-					if (!_trans->acceptable()) { break; }
+					if (!_vbd->primitive_acceptable()) { break; }
 
 					_splitter.drop_generated_primitive(prim);
 
@@ -464,47 +462,40 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					Cbe::Hash const &root_hash = _super_block[_current_sb].root_hash;
 					Cbe::Generation const root_gen = _super_block[_current_sb].root_gen;
 
-					_trans->submit_primitive(root, root_gen, root_hash, prim);
+					_vbd->submit_primitive(root, root_gen, root_hash, prim);
 					progress |= true;
 				}
 
 				/**************************
-				 ** Translation handling **
+				 ** VBD handling **
 				 **************************/
 
-				bool const trans_progress = _trans->execute(_trans_data);
-				progress |= trans_progress;
+				bool const vbd_progress = _vbd->execute(_trans_data,
+				                                        _cache_data, _cache_job_data,
+				                                        _time);
+				progress |= vbd_progress;
 				if (_show_progress) {
-					Genode::log("Translation progress: ", trans_progress);
+					Genode::log("VBD progress: ", vbd_progress);
 				}
 
 				while (true) {
-					Cbe::Primitive p = _trans->peek_generated_primitive();
-					if (!p.valid()) { break; }
 
-					Cbe::Physical_block_address const pba = p.block_number;
-					if (!_cache.data_available(pba)) {
+					Cbe::Primitive prim = _vbd->peek_generated_primitive();
+					if (!prim.valid()) { break; }
+					if (!_io.primitive_acceptable()) { break; }
 
-						if (_cache.request_acceptable(pba)) {
-							_cache.submit_request(pba);
-						}
-						break;
-					} else {
+					Index const idx = _vbd->peek_generated_data_index(prim);
+					Cbe::Block_data &data = _cache_job_data.item[idx.value];
 
-						Cache_Index     const idx   = _cache.data_index(pba,
-						                                                _time.timestamp());
-						Cbe::Block_data const &data = _cache_data.item[idx.value];
-						_trans->mark_generated_primitive_complete(p, data, _trans_data);
-
-						_trans->discard_generated_primitive(p);
-					}
+					_vbd->drop_generated_primitive(prim);
+					_io.submit_primitive(Tag::VBD_CACHE_TAG, prim, data);
 
 					progress |= true;
 				}
 
 				while (true) {
 
-					Cbe::Primitive prim = _trans->peek_completed_primitive();
+					Cbe::Primitive prim = _vbd->peek_completed_primitive();
 					if (!prim.valid()) { break; }
 
 					// XXX defer all operations for now
@@ -531,16 +522,16 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						 */
 
 						Cbe::Type_1_node_info old_pba[Translation::MAX_LEVELS] { };
-						if (!_trans->get_type_1_info(prim, old_pba)) {
+						if (!_vbd->trans_get_type_1_info(prim, old_pba)) {
 							break;
 						}
 
-						Cbe::Primitive::Number const vba = _trans->get_virtual_block_address(prim);
+						Cbe::Primitive::Number const vba = _vbd->trans_get_virtual_block_address(prim);
 
 						Cbe::Physical_block_address new_pba[Translation::MAX_LEVELS] { };
 						Genode::memset(new_pba, 0, sizeof(new_pba));
 
-						uint32_t const trans_height = _trans->height() + 1;
+						uint32_t const trans_height = _vbd->tree_height() + 1;
 						uint32_t new_blocks = 0;
 
 						Cbe::Physical_block_address free_pba[Translation::MAX_LEVELS] { };
@@ -548,10 +539,10 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 						for (uint32_t i = 1; i < trans_height; i++) {
 							Cbe::Physical_block_address const pba = old_pba[i].pba;
-							Cache_Index     const idx   = _cache.data_index(pba, _time.timestamp());
+							Cache_Index     const idx   = _vbd->cache_data_index(pba, _time.timestamp());
 							Cbe::Block_data const &data = _cache_data.item[idx.value];
 
-							uint32_t const id = _trans->index(vba, i);
+							uint32_t const id = _vbd->index_for_level(vba, i);
 							Cbe::Type_i_node const *n = reinterpret_cast<Cbe::Type_i_node const*>(&data);
 
 							uint64_t const gen = (n[id].gen & GEN_VALUE_MASK);
@@ -609,38 +600,10 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						}
 
 						// XXX see _write_back.peek_completed_primitive()
-						_trans->suspend();
+						_vbd->trans_inhibit_translation();
 					}
 
-					_trans->drop_completed_primitive(prim);
-					progress |= true;
-				}
-
-				/********************
-				 ** Cache handling **
-				 ********************/
-
-				bool const cache_progress = _cache.execute(_cache_data, _cache_job_data,
-				                                           _time.timestamp());
-				progress |= cache_progress;
-				if (_show_progress) {
-					Genode::log("Cache progress: ", cache_progress);
-				}
-
-				while (true) {
-
-					Cbe::Primitive prim = _cache.peek_generated_primitive();
-					if (!prim.valid()) { break; }
-					if (!_io.primitive_acceptable()) { break; }
-
-					Cache_Index const idx = _cache.peek_generated_data_index(prim);
-					Cbe::Block_data &data = _cache_job_data.item[idx.value];
-
-					_cache.drop_generated_primitive(prim);
-					// Cbe::Physical_block_address const pba = prim.block_number;
-					// Genode::error("_cache.peek_generated_primitive(): pba: ", pba);
-					_io.submit_primitive(Tag::CACHE_TAG, prim, data);
-
+					_vbd->drop_completed_primitive(prim);
 					progress |= true;
 				}
 
@@ -674,7 +637,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						Cbe::Hash *root_hash = &sb.root_hash;
 						_write_back.peek_competed_root_hash(prim, *root_hash);
 
-						sb.free_leaves = last_sb.free_leaves - _trans->height() + 1;
+						sb.free_leaves = last_sb.free_leaves - _vbd->tree_height() + 1;
 						sb.generation = _current_generation;
 
 						sb.free_number = _free_tree->root_number();
@@ -708,7 +671,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						_write_back.peek_competed_root_hash(prim, *root_hash);
 
 						// XXX wrong
-						sb.free_leaves = sb.free_leaves - _trans->height() + 1;
+						sb.free_leaves = sb.free_leaves - _vbd->tree_height() + 1;
 
 						// XXX for now we re-use the sync path to trigger the request ack
 						//     in the request pool as well as tree dumping within the
@@ -722,7 +685,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					 * XXX stalling translation as long as the write-back takes places
 					 *     is not a good idea
 					 */
-					_trans->resume();
+					_vbd->trans_resume_translation();
 
 					progress |= true;
 				}
@@ -744,22 +707,20 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					case Tag::CACHE_TAG:
 					{
 						Cbe::Physical_block_address const pba = prim.block_number;
-						if (_cache.data_available(pba)) {
+						if (_vbd->cache_data_available(pba)) {
 
-							Cache_Index     const idx   = _cache.data_index(pba,
-							                                                _time.timestamp());
+							Cache_Index     const idx   = _vbd->cache_data_index(pba,
+							                                                     _time.timestamp());
 							Cbe::Block_data const &data = _cache_data.item[idx.value];
-							if (_write_back.copy_and_update(pba, data, *_trans)) {
+							if (_write_back.copy_and_update(pba, data, _vbd->tree_helper())) {
 								Genode::error("updated cached entry, cache invalidate: ", pba);
-								_cache.invalidate(pba);
+								_vbd->cache_invalidate(pba);
 							}
 
 							_progress = true;
 						} else {
 
-							if (_cache.request_acceptable(pba)) {
-								_cache.submit_request(pba);
-							}
+							_vbd->cache_try_submit_request(pba);
 						}
 						break;
 					}
@@ -949,8 +910,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 							_crypto.submit_primitive(prim, data, _crypto_data);
 						}
 						break;
-					case Tag::CACHE_TAG:
-						_cache.mark_completed_primitive(prim);
+					case Tag::VBD_CACHE_TAG:
+						prim.tag = Tag::CACHE_TAG;
+						_vbd->mark_generated_primitive_complete(prim);
 						break;
 					case Tag::WRITE_BACK_TAG:
 						_write_back.mark_completed_io_primitive(prim);
@@ -1068,8 +1030,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				throw -1;
 			}
 
-			_trans_helper.construct(degree, height, leaves);
-			_trans.construct(*_trans_helper, false);
+			_vbd.construct(height, degree, leaves);
+			// _trans.construct(*_trans_helper, false);
 
 			Cbe::Physical_block_address const free_number = sb.free_number;
 			Cbe::Generation             const free_gen    = sb.free_gen;

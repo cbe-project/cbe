@@ -32,6 +32,7 @@ namespace Cbe {
 		RECLAIM_TAG        = 0x90,
 
 		VBD_TAG             = 0x100,
+		VBD_CACHE_TAG       = VBD_TAG | CACHE_TAG,
 		FREE_TREE_TAG       = 0x200,
 		FREE_TREE_TAG_IO    = FREE_TREE_TAG | IO_TAG,
 		FREE_TREE_TAG_CACHE = FREE_TREE_TAG | CACHE_TAG,
