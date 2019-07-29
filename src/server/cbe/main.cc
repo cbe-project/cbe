@@ -76,18 +76,18 @@ struct Cbe::Time
 
 	using Timestamp = Genode::uint64_t;
 
-	Timer::One_shot_timeout<Time> _timeout {
-		_timer, *this, &Time::_handle_timeout };
+	Timer::One_shot_timeout<Time> _sync_timeout {
+		_timer, *this, &Time::_handle_sync_timeout };
 
-	void _handle_timeout(Genode::Duration)
+	void _handle_sync_timeout(Genode::Duration)
 	{
-		if (_sig_cap.valid()) {
+		if (_sync_sig_cap.valid()) {
 			Genode::error(__func__, ":", __LINE__);
-			Genode::Signal_transmitter(_sig_cap).submit();
+			Genode::Signal_transmitter(_sync_sig_cap).submit();
 		}
 	}
 
-	Genode::Signal_context_capability _sig_cap { };
+	Genode::Signal_context_capability _sync_sig_cap { };
 
 	Time(Genode::Env &env)
 	: _timer(env) { }
@@ -97,14 +97,14 @@ struct Cbe::Time
 		return _timer.curr_time().trunc_to_plain_ms().value;
 	}
 
-	void sigh(Genode::Signal_context_capability cap)
+	void sync_sigh(Genode::Signal_context_capability cap)
 	{
-		_sig_cap = cap;
+		_sync_sig_cap = cap;
 	}
 
-	void trigger(uint64_t msec)
+	void schedule_sync_timeout(uint64_t msec)
 	{
-		_timeout.schedule(Genode::Microseconds { msec * 1000 });
+		_sync_timeout.schedule(Genode::Microseconds { msec * 1000 });
 	}
 };
 
@@ -374,7 +374,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						                             wb.new_pba, wb.old_pba, wb.tree_height,
 						                             *wb.block_data);
 
-						MDBG(FT, __func__, ":", __LINE__, " drop_completed_primitive");
+						DBG(FT, __func__, ":", __LINE__, " drop_completed_primitive");
 					}
 					_free_tree->drop_completed_primitive(prim);
 					progress |= true;
@@ -644,7 +644,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 						_need_to_sync = false;
 						_last_time = curr_time;
-						_time.trigger(_sync_interval);
+						_time.schedule_sync_timeout(_sync_interval);
 					} else {
 
 						Cbe::Super_block &sb = _super_block[_current_sb];
@@ -1009,8 +1009,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					_config_rom.xml().attribute_value("sync_interval", (uint64_t)SYNC_INTERVAL);
 			}
 
-			_time.sigh(_request_handler);
-			_time.trigger(_sync_interval);
+			_time.sync_sigh(_request_handler);
+			_time.schedule_sync_timeout(_sync_interval);
 
 			_setup();
 			_dump_current_sb_info();
