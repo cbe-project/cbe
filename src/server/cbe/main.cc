@@ -34,11 +34,10 @@ namespace Cbe {
 
 	struct Time;
 
-
 	struct Block_session_component;
 	struct Main;
 
-} /* namespace Ceb */
+} /* namespace Cbe */
 
 
 struct Cbe::Block_session_component : Rpc_object<Block::Session>,
@@ -387,31 +386,25 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					if (!_io.primitive_acceptable()) { break; }
 
 					Index const idx = _free_tree->peek_generated_data_index(prim);
-					if (idx.value == ~0u) {
-						Genode::error("BUG: invalid data index");
-						throw -1;
-					}
 
 					Cbe::Block_data *data = nullptr;
 					Cbe::Tag tag { Tag::INVALID_TAG };
 					switch (prim.tag) {
 					case Tag::CACHE_TAG:
-						tag = Tag::FREE_TREE_TAG_CACHE;
+						tag  = Tag::FREE_TREE_TAG_CACHE;
 						data = &_free_tree_cache_job_data.item[idx.value];
 						break;
-					case Tag::WRITE_BACK_TAG: tag = Tag::FREE_TREE_TAG_WB;
+					case Tag::WRITE_BACK_TAG:
+						tag  = Tag::FREE_TREE_TAG_WB;
 						data = &_free_tree_cache_data.item[idx.value];
 						break;
-					case Tag::IO_TAG:         tag = Tag::FREE_TREE_TAG_IO;
+					case Tag::IO_TAG:
+						tag  = Tag::FREE_TREE_TAG_IO;
 						data = &_free_tree_query_data.item[idx.value];
 						break;
 					default: break;
 					}
 
-					if (data == nullptr) {
-						Genode::error("BUG: invalid data index");
-						throw -1;
-					}
 					_io.submit_primitive(tag, prim, *data);
 
 					_free_tree->drop_generated_primitive(prim);
@@ -447,9 +440,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					_splitter.drop_generated_primitive(prim);
 
-					Cbe::Physical_block_address root = _super_block[_current_sb].root_number;
-					Cbe::Hash const &root_hash = _super_block[_current_sb].root_hash;
-					Cbe::Generation const root_gen = _super_block[_current_sb].root_gen;
+					Cbe::Physical_block_address const  root      = _super_block[_current_sb].root_number;
+					Cbe::Hash                   const &root_hash = _super_block[_current_sb].root_hash;
+					Cbe::Generation             const  root_gen  = _super_block[_current_sb].root_gen;
 
 					_vbd->submit_primitive(root, root_gen, root_hash, prim);
 					progress |= true;
@@ -618,7 +611,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						if (!_sync_sb.primitive_acceptable()) { break; }
 
 						uint64_t         const  next_sb = (_current_sb + 1) % Cbe::NUM_SUPER_BLOCKS;
-						Cbe::Super_block const &last_sb = _super_block[_current_sb];
 						Cbe::Super_block       &sb      = _super_block[next_sb];
 
 						/* update super block */
@@ -626,7 +618,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						Cbe::Hash *root_hash = &sb.root_hash;
 						_write_back.peek_competed_root_hash(prim, *root_hash);
 
-						sb.free_leaves = last_sb.free_leaves - _vbd->tree_height() + 1;
 						sb.generation = _current_generation;
 
 						sb.free_number = _free_tree->root_number();
@@ -658,9 +649,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						sb.root_number = root_number;
 						Cbe::Hash *root_hash = &sb.root_hash;
 						_write_back.peek_competed_root_hash(prim, *root_hash);
-
-						// XXX wrong
-						sb.free_leaves = sb.free_leaves - _vbd->tree_height() + 1;
 
 						// XXX for now we re-use the sync path to trigger the request ack
 						//     in the request pool as well as tree dumping within the
@@ -753,7 +741,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					if (!prim.valid()) { break; }
 
 					Cbe::Primitive req_prim = _sync_sb.peek_completed_request_primitive(prim);
-					if (!req_prim.valid()) { Genode::error("BUG"); }
 
 					_last_secured_generation = _sync_sb.peek_completed_generation(prim);
 
@@ -975,7 +962,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			}
 
 			_vbd.construct(height, degree, leaves);
-			// _trans.construct(*_trans_helper, false);
 
 			Cbe::Physical_block_address const free_number = sb.free_number;
 			Cbe::Generation             const free_gen    = sb.free_gen;

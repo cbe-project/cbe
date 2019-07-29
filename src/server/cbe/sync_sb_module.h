@@ -81,7 +81,8 @@ class Cbe::Module::Sync_sb
 				return _entry[0].primitive;
 			}
 
-			return Primitive { };
+			Genode::error(__func__, ": invalid primitive");
+			throw -1;
 		}
 
 		Cbe::Generation peek_completed_generation(Cbe::Primitive const &p)

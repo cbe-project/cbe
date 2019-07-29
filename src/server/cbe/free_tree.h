@@ -588,7 +588,7 @@ struct Cbe::Free_tree
 
 	Index peek_generated_data_index(Cbe::Primitive const &prim) /* const */
 	{
-		Index idx { .value = ~0u };
+		Index idx { .value = Cbe::INVALID_INDEX };
 
 		switch (prim.tag) {
 		case Tag::CACHE_TAG:
@@ -602,17 +602,22 @@ struct Cbe::Free_tree
 		case Tag::WRITE_BACK_TAG:
 		{
 			for (uint32_t i = 0; i < Translation::MAX_LEVELS; i++) {
-				if (prim.block_number == _wb_io[i].pba) {
-					if (_wb_io[i].pending()) {
-						idx.value = _wb_io[i].index.value;
-					} else {
-						Genode::warning(__func__, ": ignore invalid WRITE_BACK_TAG primitive");
-					}
+				if (prim.block_number != _wb_io[i].pba) { continue; }
+
+				if (!_wb_io[i].pending()) {
+					Genode::warning(__func__, ": ignore invalid WRITE_BACK_TAG primitive");
 				}
+
+				idx.value = _wb_io[i].index.value;
+				break;
 			}
 			break;
 		}
 		default: break;
+		}
+
+		if (idx.value == Cbe::INVALID_INDEX) {
+			throw -1;
 		}
 
 		return idx;

@@ -18,6 +18,8 @@ namespace Cbe {
 	using namespace Genode;
 
 	enum class Tag : Genode::uint32_t {
+		TYPE_MASK = 0xff,
+
 		INVALID_TAG        = 0x00,
 		IO_TAG             = 0x10,
 		CACHE_TAG          = 0x20,
@@ -117,6 +119,7 @@ namespace Cbe {
 		char values[BLOCK_SIZE] { };
 	} __attribute__((packed));
 
+	enum { INVALID_INDEX = ~0ull, };
 	struct Index
 	{
 		uint64_t value;
