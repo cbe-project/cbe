@@ -78,6 +78,10 @@ class Cbe::Module::Write_back
 					continue;
 				}
 
+				if (e.old_pba == e.new_pba) {
+					invalidate |= true;
+				}
+
 				/* assert sizeof (e.data) == sizeof (data) */
 				void const *src = (void const*)&data;
 				void       *dst = (void*)&e.data;
@@ -101,10 +105,6 @@ class Cbe::Module::Write_back
 					Sha256_4k::hash(*data, hash);
 					Genode::memcpy(t[index].hash.values, hash.values, sizeof (hash));
 				};
-
-				if (e.old_pba == e.new_pba) {
-					invalidate |= true;
-				}
 
 				e.done = true;
 				break;

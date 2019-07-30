@@ -171,9 +171,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 		enum {
 			MAX_REQS      = 16,
-			MAX_PRIM      = 1,
-			MAX_LEVEL     = 6,
-			CACHE_ENTRIES = 16,
 			IO_ENTRIES    = 1,
 		};
 
@@ -192,8 +189,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		using Crypto      = Module::Crypto;
 		using Io          = Module::Block_io<IO_ENTRIES, BLOCK_SIZE>;
 		using Io_index    = Module::Block_io<IO_ENTRIES, BLOCK_SIZE>::Index;
-		using Write_back       = Module::Write_back<MAX_LEVEL, Cbe::Type_i_node>;
-		using Write_back_Index = Module::Write_back<MAX_LEVEL, Cbe::Type_i_node>::Index;
+		using Write_back       = Module::Write_back<Translation::MAX_LEVELS, Cbe::Type_i_node>;
+		using Write_back_Index = Module::Write_back<Translation::MAX_LEVELS, Cbe::Type_i_node>::Index;
 		using Sync_sb     = Module::Sync_sb;
 
 		Pool     _request_pool { };
@@ -210,7 +207,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Io         _io                  { _block };
 		Block_data _io_data[IO_ENTRIES] { };
 
-
 		Cache           _cache          { };
 		Cache_Data      _cache_data     { };
 		Cache_Job_Data  _cache_job_data { };
@@ -219,7 +215,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Constructible<Cbe::Virtual_block_device> _vbd { };
 
 		Write_back _write_back { };
-		Block_data _write_back_data[MAX_LEVEL] { };
+		Block_data _write_back_data[Translation::MAX_LEVELS] { };
 		Sync_sb    _sync_sb { };
 
 		Constructible<Cbe::Free_tree> _free_tree { };
@@ -273,16 +269,11 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 		void _handle_requests()
 		{
-			DBG(HR, __func__, ":", __LINE__);
 			if (!_block_session.constructed()) { return; }
-			DBG(HR, __func__, ":", __LINE__, " show_progress: ", _show_progress);
-
-			_show_progress = true;
 
 			Block_session_component &block_session = *_block_session;
 
 			for (;;) {
-				DBG(HR, __func__, ":", __LINE__);
 
 				bool progress = false;
 
