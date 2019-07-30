@@ -15,7 +15,7 @@ with Spark_Mode
 is
 	pragma Pure;
 
-	type Cache_Index_Type is range 0 .. 15;
+	type Cache_Index_Type is range 0 .. 31;
 	type Cache_Job_Index_Type is range 0 .. 1;
 
 	type Cache_Data_Type is array (Cache_Index_Type'Range) of Block_Data_Type;
