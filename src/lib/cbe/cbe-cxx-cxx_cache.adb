@@ -65,6 +65,40 @@ is
 	end Invalidate;
 
 	--
+	-- Dirty
+	--
+	function Dirty(
+		Obj : Cache.Object_Type;
+		Pba : CXX_Physical_Block_Address_Type)
+	return CXX_Bool_Type
+	is
+	begin
+		return Boolean_To_CXX(Cache.Dirty(Obj, Physical_Block_Address_Type(Pba)));
+	end Dirty;
+
+	--
+	-- Mark_Clean
+	--
+	procedure Mark_Clean(
+		Obj : in out Cache.Object_Type;
+		Pba :        CXX_Physical_Block_Address_Type)
+	is
+	begin
+		Cache.Mark_Clean(Obj, Physical_Block_Address_Type(Pba));
+	end Mark_Clean;
+
+	--
+	-- Mark_Dirty
+	--
+	procedure Mark_Dirty(
+		Obj : in out Cache.Object_Type;
+		Pba :        CXX_Physical_Block_Address_Type)
+	is
+	begin
+		Cache.Mark_Dirty(Obj, Physical_Block_Address_Type(Pba));
+	end Mark_Dirty;
+
+	--
 	-- Primitive_Acceptable
 	--
 	function Request_Acceptable(

@@ -77,6 +77,32 @@ struct Cbe::Module::Cache : Cbe::Spark_object<808>
 	void invalidate(Cbe::Physical_block_address const pba);
 
 	/**
+	 * Check if the entry containing the physical block address is dirty
+	 *
+	 * In case the block belonging to the physical block address is not
+	 * available within the cache, the method will return false.
+	 *
+	 * \param  pba  physical block address
+	 *
+	 * \return  true if the entry is dirty, false otherwise
+	 */
+	bool dirty(Cbe::Physical_block_address const pba) const;
+
+	/**
+	 * Clear dirty flag of the entry containg the physical block address
+	 *
+	 * \param  pba  physical block address
+	 */
+	void mark_clean(Cbe::Physical_block_address const pba);
+
+	/**
+	 * Flag cache entry containg the physical block address as dirty
+	 *
+	 * \param  pba  physical block address
+	 */
+	void mark_dirty(Cbe::Physical_block_address const pba);
+
+	/**
 	 * Check if the module can accept a request to cache a block 
 	 *
 	 * The check depends on the state of the Job queue rather than the

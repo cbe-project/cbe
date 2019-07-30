@@ -26,7 +26,8 @@ is
 		is (
 			Pba   => 0,
 			Ts    => 0,
-			State => Unused);
+			State => Unused,
+			Dirty => False);
 
 		--
 		-- Initialize_Object
@@ -48,6 +49,7 @@ is
 
 		function Unused (Obj : Cache_Item_Type) return Boolean is (Obj.State = Unused);
 		function Used   (Obj : Cache_Item_Type) return Boolean is (Obj.State = Used);
+		function Dirty  (Obj : Cache_Item_Type) return Boolean is (Obj.Dirty);
 
 		function Pba (Obj : Cache_Item_Type) return Physical_Block_Address_Type is (Obj.Pba);
 		function Ts  (Obj : Cache_Item_Type) return Timestamp_Type is (Obj.Ts);
@@ -73,6 +75,19 @@ is
 		begin
 			Obj.State := Unused;
 		end Invalidate;
+
+		procedure Mark_Dirty(Obj : in out Cache_Item_Type)
+		is
+		begin
+			Obj.Dirty := True;
+		end Mark_Dirty;
+
+		procedure Mark_Clean(Obj : in out Cache_Item_Type)
+		is
+		begin
+			Obj.Dirty := False;
+		end Mark_Clean;
+
 	end Cache_Item;
 
 
@@ -253,6 +268,59 @@ is
 			end if;
 		end loop;
 	end Invalidate;
+
+	--
+	-- Dirty
+	--
+	function Dirty(
+		Obj : Object_Type;
+		Pba : Physical_Block_Address_Type)
+	return Boolean
+	is
+	begin
+		for Cache_Item_Id in Obj.Cache_Items'Range loop
+			if Cache_Item.Used(Obj.Cache_Items(Cache_Item_Id)) and
+			   Cache_Item.Pba(Obj.Cache_Items(Cache_Item_Id)) = Pba
+			then
+				return Cache_Item.Dirty(Obj.Cache_Items(Cache_Item_Id));
+			end if;
+		end loop;
+		return False;
+	end Dirty;
+
+	--
+	-- Mark_Clean
+	--
+	procedure Mark_Clean(
+		Obj : in out Object_Type;
+		Pba :        Physical_Block_Address_Type)
+	is
+	begin
+		for Cache_Item_Id in Obj.Cache_Items'Range loop
+			if Cache_Item.Used(Obj.Cache_Items(Cache_Item_Id)) and
+			   Cache_Item.Pba(Obj.Cache_Items(Cache_Item_Id)) = Pba
+			then
+				Cache_Item.Mark_Clean(Obj.Cache_Items(Cache_Item_Id));
+			end if;
+		end loop;
+	end Mark_Clean;
+
+	--
+	-- Mark_Dirty
+	--
+	procedure Mark_Dirty(
+		Obj : in out Object_Type;
+		Pba :        Physical_Block_Address_Type)
+	is
+	begin
+		for Cache_Item_Id in Obj.Cache_Items'Range loop
+			if Cache_Item.Used(Obj.Cache_Items(Cache_Item_Id)) and
+			   Cache_Item.Pba(Obj.Cache_Items(Cache_Item_Id)) = Pba
+			then
+				Cache_Item.Mark_Dirty(Obj.Cache_Items(Cache_Item_Id));
+			end if;
+		end loop;
+	end Mark_Dirty;
 
 	--
 	-- Request_Acceptable

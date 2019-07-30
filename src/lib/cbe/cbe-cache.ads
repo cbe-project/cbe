@@ -53,6 +53,28 @@ is
 		Pba :        Physical_Block_Address_Type);
 
 	--
+	-- Dirty
+	--
+	function Dirty(
+		Obj : Object_Type;
+		Pba : Physical_Block_Address_Type)
+	return Boolean;
+
+	--
+	-- Mark_Dirty
+	--
+	procedure Mark_Dirty(
+		Obj : in out Object_Type;
+		Pba :        Physical_Block_Address_Type);
+
+	--
+	-- Mark_Clean
+	--
+	procedure Mark_Clean(
+		Obj : in out Object_Type;
+		Pba :        Physical_Block_Address_Type);
+
+	--
 	-- Request_Acceptable
 	--
 	function Request_Acceptable(
@@ -147,6 +169,7 @@ private
 
 		function Unused (Obj : Cache_Item_Type) return Boolean;
 		function Used   (Obj : Cache_Item_Type) return Boolean;
+		function Dirty  (Obj : Cache_Item_Type) return Boolean;
 
 		function Pba (Obj : Cache_Item_Type) return Physical_Block_Address_Type;
 		function Ts  (Obj : Cache_Item_Type) return Timestamp_Type;
@@ -161,15 +184,19 @@ private
 
 		procedure Invalidate(Obj : in out Cache_Item_Type);
 
+		procedure Mark_Dirty(Obj : in out Cache_Item_Type);
+		procedure Mark_Clean(Obj : in out Cache_Item_Type);
+
 	private
 
 		--
 		-- Cache_Item_Type
 		--
 		type Cache_Item_Type is record
-			Pba   : Physical_Block_Address_Type;
-			Ts    : Timestamp_Type;
-			State : State_Type;
+			Pba     : Physical_Block_Address_Type;
+			Ts      : Timestamp_Type;
+			State   : State_Type;
+			Dirty   : Boolean;
 		end record;
 
 	end Cache_Item;

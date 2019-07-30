@@ -71,6 +71,40 @@ is
 		External_Name => "_ZN3Cbe6Module5Cache10invalidateEy";
 
 	--
+	-- Dirty
+	--
+	function Dirty(
+		Obj : Cache.Object_Type;
+		Pba : CXX_Physical_Block_Address_Type)
+		return CXX_Bool_Type
+	with
+		Export,
+		Convention    => C,
+		External_Name => "_ZNK3Cbe6Module5Cache5dirtyEy";
+
+	--
+	-- Mark_Clean
+	--
+	procedure Mark_Clean(
+		Obj : in out Cache.Object_Type;
+		Pba :        CXX_Physical_Block_Address_Type)
+	with
+		Export,
+		Convention    => C,
+		External_Name => "_ZN3Cbe6Module5Cache10mark_cleanEy";
+
+	--
+	-- Mark_Dirty
+	--
+	procedure Mark_Dirty(
+		Obj : in out Cache.Object_Type;
+		Pba :        CXX_Physical_Block_Address_Type)
+	with
+		Export,
+		Convention    => C,
+		External_Name => "_ZN3Cbe6Module5Cache10mark_dirtyEy";
+
+	--
 	-- Request_Acceptable
 	--
 	function Request_Acceptable(
