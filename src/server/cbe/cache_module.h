@@ -20,7 +20,7 @@ namespace Cbe { namespace Module {
 
 	struct Cache_Data
 	{
-		Cbe::Block_data item[16];
+		Cbe::Block_data item[32];
 	} __attribute__((packed));
 
 	struct Cache_Job_Data
@@ -40,7 +40,7 @@ namespace Cbe { namespace Module {
 } /* namespace Module */ } /* namespace Cbe */
 
 
-struct Cbe::Module::Cache : Cbe::Spark_object<424>
+struct Cbe::Module::Cache : Cbe::Spark_object<808>
 {
 	/**
 	 * Constructor

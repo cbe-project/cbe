@@ -31,8 +31,6 @@ struct Cbe::Free_tree
 	using Cache_Data     = Module::Cache_Data;
 	using Cache_Job_Data = Module::Cache_Job_Data;
 
-	Cache _cache { };
-
 	using Translation      = Module::Translation;
 	using Translation_Data = Module::Translation_Data;
 
@@ -245,8 +243,8 @@ struct Cbe::Free_tree
 	}
 
 	bool execute(Translation_Data &trans_data,
+	             Cache            &cache,
 	             Cache_Data       &cache_data,
-	             Cache_Job_Data   &cache_job_data,
 	             Query_data       &query_data,
 	             Time             &time)
 	{
@@ -277,16 +275,16 @@ struct Cbe::Free_tree
 			if (!p.valid()) { break; }
 
 			Cbe::Physical_block_address const pba = p.block_number;
-			if (!_cache.data_available(pba)) {
+			if (!cache.data_available(pba)) {
 
-				if (_cache.request_acceptable(pba)) {
-					_cache.submit_request(pba);
+				if (cache.request_acceptable(pba)) {
+					cache.submit_request(pba);
 				}
 				break;
 			} else {
 
-				Cache_Index     const idx   = _cache.data_index(pba,
-				                                                time.timestamp());
+				Cache_Index     const idx   = cache.data_index(pba,
+				                                               time.timestamp());
 				Cbe::Block_data const &data = cache_data.item[idx.value];
 				_trans->mark_generated_primitive_complete(p, data, trans_data);
 
@@ -315,13 +313,6 @@ struct Cbe::Free_tree
 			_trans->drop_completed_primitive(prim);
 			progress |= true;
 		}
-
-		/********************
-		 ** Cache handling **
-		 ********************/
-
-		progress |= _cache.execute(cache_data, cache_job_data,
-		                           time.timestamp());
 
 		/***************************
 		 ** Query free leaf nodes **
@@ -410,10 +401,10 @@ struct Cbe::Free_tree
 				for (uint32_t i = 1; i <= _tree_helper->height(); i++) {
 					Cbe::Physical_block_address const pba = qb.trans_info[i].pba;
 
-					if (!_cache.data_available(pba)) {
+					if (!cache.data_available(pba)) {
 
-						if (_cache.request_acceptable(pba)) {
-							_cache.submit_request(pba);
+						if (cache.request_acceptable(pba)) {
+							cache.submit_request(pba);
 							progress |= true;
 						}
 						data_available = false;
@@ -438,7 +429,7 @@ struct Cbe::Free_tree
 					for (uint32_t i = 1; i <= _tree_helper->height(); i++) {
 
 						Cbe::Physical_block_address const pba = qb.trans_info[i].pba;
-						Cache_Index     const idx   = _cache.data_index(pba, time.timestamp());
+						Cache_Index     const idx   = cache.data_index(pba, time.timestamp());
 						Cbe::Block_data &data = cache_data.item[idx.value];
 						bool const type2_node = (i == 1);
 
@@ -472,7 +463,7 @@ struct Cbe::Free_tree
 
 							Cbe::Physical_block_address const pre_pba = qb.trans_info[pre_level].pba;
 
-							Cache_Index     const idx = _cache.data_index(pre_pba, time.timestamp());
+							Cache_Index     const idx = cache.data_index(pre_pba, time.timestamp());
 							Cbe::Block_data &pre_data = cache_data.item[idx.value];
 
 							Sha256_4k::Hash hash { };
@@ -551,12 +542,6 @@ struct Cbe::Free_tree
 
 	Cbe::Primitive peek_generated_primitive() /* const */
 	{
-		/* cache */
-		{
-			Cbe::Primitive prim = _cache.peek_generated_primitive();
-			if (prim.valid()) { return prim; }
-		}
-
 		/* current type 2 node */
 		if (_current_type_2.pending()) {
 			return Cbe::Primitive {
@@ -626,11 +611,6 @@ struct Cbe::Free_tree
 	void drop_generated_primitive(Cbe::Primitive const &prim)
 	{
 		switch (prim.tag) {
-		case Tag::CACHE_TAG:
-		{
-			_cache.drop_generated_primitive(prim);
-			break;
-		}
 		case Tag::IO_TAG:
 			_current_type_2.state = Query_type_2::State::IN_PROGRESS;
 			break;
@@ -656,11 +636,6 @@ struct Cbe::Free_tree
 	void mark_generated_primitive_complete(Cbe::Primitive const &prim)
 	{
 		switch (prim.tag) {
-		case Tag::CACHE_TAG:
-		{
-			_cache.mark_completed_primitive(prim);
-			break;
-		}
 		case Tag::IO_TAG:
 			if (_current_type_2.in_progress()) {
 				_current_type_2.state = Query_type_2::State::COMPLETE;
@@ -674,9 +649,6 @@ struct Cbe::Free_tree
 				if (prim.block_number == _wb_io[i].pba) {
 					if (_wb_io[i].in_progress()) {
 						_wb_io[i].state = Query_type_2::State::COMPLETE;
-
-						// XXX invalidate cache
-						_cache.invalidate(_wb_io[i].pba);
 
 						if (prim.success == Cbe::Primitive::Success::FALSE) {
 							Genode::error(__func__, ": primitive failed");

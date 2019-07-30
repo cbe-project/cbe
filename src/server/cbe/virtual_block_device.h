@@ -25,14 +25,9 @@ struct Cbe::Virtual_block_device
 	using Cache          = Module::Cache;
 	using Cache_Index    = Module::Cache_Index;
 	using Cache_Data     = Module::Cache_Data;
-	using Cache_Job_Data = Module::Cache_Job_Data;
-
-	Cache _cache { };
 
 	using Translation      = Module::Translation;
 	using Translation_Data = Module::Translation_Data;
-
-	bool _show_progress { false };
 
 	Constructible<Tree_helper> _trans_helper { };
 	Constructible<Translation> _trans { };
@@ -86,35 +81,6 @@ struct Cbe::Virtual_block_device
 		return *_trans_helper;
 	}
 
-	/****************************
-	 ** Cache module interface **
-	 ****************************/
-
-	Cache_Index cache_data_index(Cbe::Physical_block_address const pba,
-	                             Cbe::Time::Timestamp        const ts)
-	{
-		return _cache.data_index(pba, ts);
-	}
-
-	bool cache_data_available(Cbe::Physical_block_address const pba) const
-	{
-		return _cache.data_available(pba);
-	}
-
-	void cache_try_submit_request(Cbe::Physical_block_address const pba)
-	{
-		if (!_cache.request_acceptable(pba)) {
-			return;
-		}
-
-		_cache.submit_request(pba);
-	}
-
-	void cache_invalidate(Cbe::Physical_block_address const pba)
-	{
-		return _cache.invalidate(pba);
-	}
-
 	/**********************
 	 ** Module interface **
 	 **********************/
@@ -130,11 +96,12 @@ struct Cbe::Virtual_block_device
 	                      Cbe::Primitive              const &prim)
 	{
 		_trans->submit_primitive(pba, gen, hash, prim);
+		MDBG(VBD, __func__, ":", __LINE__);
 	}
 
 	bool execute(Translation_Data &trans_data,
+	             Cache            &cache,
 	             Cache_Data       &cache_data,
-	             Cache_Job_Data   &cache_job_data,
 	             Time             &time)
 	{
 		bool progress = false;
@@ -145,9 +112,6 @@ struct Cbe::Virtual_block_device
 
 		bool const trans_progress = _trans->execute(trans_data);
 		progress |= trans_progress;
-		if (_show_progress) {
-			Genode::log("Translation progress: ", trans_progress);
-		}
 
 		while (true) {
 
@@ -155,47 +119,33 @@ struct Cbe::Virtual_block_device
 			if (!p.valid()) { break; }
 
 			Cbe::Physical_block_address const pba = p.block_number;
-			if (!_cache.data_available(pba)) {
+			if (!cache.data_available(pba)) {
 
-				if (_cache.request_acceptable(pba)) {
-					_cache.submit_request(pba);
+				if (cache.request_acceptable(pba)) {
+					cache.submit_request(pba);
 				}
+				MDBG(VBD, __func__, ":", __LINE__, " ");
 				break;
 			} else {
 
-				Cache_Index     const idx   = _cache.data_index(pba,
-				                                                time.timestamp());
+				Cache_Index     const idx   = cache.data_index(pba,
+				                                               time.timestamp());
 				Cbe::Block_data const &data = cache_data.item[idx.value];
 				_trans->mark_generated_primitive_complete(p, data, trans_data);
 
 				_trans->discard_generated_primitive(p);
+				MDBG(VBD, __func__, ":", __LINE__, " ");
 			}
 
 			progress |= true;
 		}
 
-		/********************
-		 ** Cache handling **
-		 ********************/
-
-		bool const cache_progress = _cache.execute(cache_data, cache_job_data,
-		                                           time.timestamp());
-		progress |= cache_progress;
-		if (_show_progress) {
-			Genode::log("Cache progress: ", cache_progress);
-		}
-
+		MDBG(VBD, __func__, ":", __LINE__, " ", progress);
 		return progress;
 	}
 
 	Cbe::Primitive peek_generated_primitive() /* const */
 	{
-		/* cache */
-		{
-			Cbe::Primitive prim = _cache.peek_generated_primitive();
-			if (prim.valid()) { return prim; }
-		}
-
 		return Cbe::Primitive { };
 	}
 
@@ -204,13 +154,6 @@ struct Cbe::Virtual_block_device
 		Index idx { .value = ~0u };
 
 		switch (prim.tag) {
-		case Tag::CACHE_TAG:
-		{
-			// XXX move _cache into _handle_requests so that data_index() can be used
-			Cache_Index const cidx = _cache.peek_generated_data_index(prim);
-			idx.value = cidx.value;
-			break;
-		}
 		default: break;
 		}
 
@@ -220,9 +163,6 @@ struct Cbe::Virtual_block_device
 	void drop_generated_primitive(Cbe::Primitive const &prim)
 	{
 		switch (prim.tag) {
-		case Tag::CACHE_TAG:
-			_cache.drop_generated_primitive(prim);
-			break;
 		default:
 			Genode::error(__func__, ": invalid primitive");
 			break;
@@ -232,9 +172,6 @@ struct Cbe::Virtual_block_device
 	void mark_generated_primitive_complete(Cbe::Primitive const &prim)
 	{
 		switch (prim.tag) {
-		case Tag::CACHE_TAG:
-			_cache.mark_completed_primitive(prim);
-			break;
 		default:
 			Genode::error(__func__, ": invalid primitive");
 		break;
