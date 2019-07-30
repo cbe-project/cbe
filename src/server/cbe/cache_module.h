@@ -86,7 +86,20 @@ struct Cbe::Module::Cache : Cbe::Spark_object<808>
 	 *
 	 * \return  true if the entry is dirty, false otherwise
 	 */
-	bool dirty(Cbe::Physical_block_address const pba) const;
+	bool dirty(Cache_Index const idx) const;
+
+	/**
+	 * Return physical block address for entry that is to be flushed
+	 *
+	 * This method may only be called after executing 'dirty' returned
+	 * true.
+	 *
+	 * \param  idx  index of cache entry
+	 *
+	 * \return  physical block address of block stored entry referenced by
+	 *          given index
+	 */
+	Cbe::Physical_block_address flush(Cache_Index const idx) const;
 
 	/**
 	 * Clear dirty flag of the entry containg the physical block address

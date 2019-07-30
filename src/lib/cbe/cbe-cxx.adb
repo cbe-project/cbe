@@ -26,6 +26,13 @@ package body CBE.CXX with Spark_Mode is
 		(CXX_Index_Type(Index_Value));
 
 	--
+	-- Physical_Block_Address_Type_To_CXX
+	--
+	function Physical_Block_Address_Type_To_CXX(Pba : in Physical_Block_Address_Type)
+	return CXX_Physical_Block_Address_Type is
+		(CXX_Physical_Block_Address_Type(Pba));
+
+	--
 	-- Bits_To_Bytes
 	--
 	function Number_Of_Bits_To_Bytes(Bits : in Number_Of_Bits_Type)

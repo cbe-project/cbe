@@ -75,12 +75,24 @@ is
 	--
 	function Dirty(
 		Obj : Cache.Object_Type;
-		Pba : CXX_Physical_Block_Address_Type)
+		Idx : CXX_Index_Type)
 		return CXX_Bool_Type
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZNK3Cbe6Module5Cache5dirtyEy";
+		External_Name => "_ZNK3Cbe6Module5Cache5dirtyENS0_11Cache_IndexE";
+
+	--
+	-- Flush
+	--
+	function Flush(
+		Obj : Cache.Object_Type;
+		Idx : CXX_Index_Type)
+		return CXX_Physical_Block_Address_Type
+	with
+		Export,
+		Convention    => C,
+		External_Name => "_ZNK3Cbe6Module5Cache5flushENS0_11Cache_IndexE";
 
 	--
 	-- Mark_Clean

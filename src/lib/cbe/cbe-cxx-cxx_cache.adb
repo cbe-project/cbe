@@ -69,12 +69,24 @@ is
 	--
 	function Dirty(
 		Obj : Cache.Object_Type;
-		Pba : CXX_Physical_Block_Address_Type)
+		Idx : CXX_Index_Type)
 	return CXX_Bool_Type
 	is
 	begin
-		return Boolean_To_CXX(Cache.Dirty(Obj, Physical_Block_Address_Type(Pba)));
+		return Boolean_To_CXX(Cache.Dirty(Obj, Cache.Cache_Index_Type(Index_Type(Idx))));
 	end Dirty;
+
+	--
+	-- Flush
+	--
+	function Flush(
+		Obj : Cache.Object_Type;
+		Idx : CXX_Index_Type)
+	return CXX_Physical_Block_Address_Type
+	is
+	begin
+		return Physical_Block_Address_Type_To_CXX( Cache.Flush(Obj, Cache.Cache_Index_Type(Index_Type(Idx))));
+	end Flush;
 
 	--
 	-- Mark_Clean

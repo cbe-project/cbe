@@ -57,8 +57,16 @@ is
 	--
 	function Dirty(
 		Obj : Object_Type;
-		Pba : Physical_Block_Address_Type)
+		Idx : Cache_Index_Type)
 	return Boolean;
+
+	--
+	-- Flush
+	--
+	function Flush(
+		Obj : Object_Type;
+		Idx : Cache_Index_Type)
+	return Physical_Block_Address_Type;
 
 	--
 	-- Mark_Dirty

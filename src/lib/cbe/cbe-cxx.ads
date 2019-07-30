@@ -44,6 +44,12 @@ is
 	function Index_Type_To_CXX(Index_Value : in Index_Type) return CXX_Index_Type;
 
 	--
+	-- Physical_Block_Address_Type_To_CXX
+	--
+	function Physical_Block_Address_Type_To_CXX(Pba : in Physical_Block_Address_Type)
+	return CXX_Physical_Block_Address_Type;
+
+	--
 	-- Correct_Object_Size
 	--
 	function Correct_Object_Size(

@@ -274,19 +274,31 @@ is
 	--
 	function Dirty(
 		Obj : Object_Type;
-		Pba : Physical_Block_Address_Type)
+		Idx : Cache_Index_Type)
 	return Boolean
 	is
 	begin
+		--- XXX remove loop and access directly?
 		for Cache_Item_Id in Obj.Cache_Items'Range loop
-			if Cache_Item.Used(Obj.Cache_Items(Cache_Item_Id)) and
-			   Cache_Item.Pba(Obj.Cache_Items(Cache_Item_Id)) = Pba
+			if Cache_Item_Id = Idx
 			then
 				return Cache_Item.Dirty(Obj.Cache_Items(Cache_Item_Id));
 			end if;
 		end loop;
 		return False;
 	end Dirty;
+
+	--
+	-- Flush
+	--
+	function Flush(
+		Obj : Object_Type;
+		Idx : Cache_Index_Type)
+	return Physical_Block_Address_Type
+	is
+	begin
+		return Cache_Item.Pba(Obj.Cache_Items(Idx));
+	end Flush;
 
 	--
 	-- Mark_Clean
