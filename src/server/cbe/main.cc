@@ -575,6 +575,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 							                           free_pba, free_blocks,
 							                           prim, vba, *data_ptr);
 						} else {
+							DBG(HR, __func__, ":", __LINE__, " UPDATE ALL IN PACE");
 							/* ... or hand over infos to the Write_back module */
 							_write_back.submit_primitive(prim, _current_generation, vba,
 							                             new_pba, old_pba, trans_height, *data_ptr);
@@ -585,6 +586,45 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					}
 
 					_vbd->drop_completed_primitive(prim);
+					progress |= true;
+				}
+
+				/**********************
+				 ** Flusher handling **
+				 **********************/
+
+				bool const flush_progress = _flusher.execute();
+				progress |= flush_progress;
+				if (_show_progress) {
+					Genode::log("Flusher progress: ", flush_progress);
+				}
+
+				while (true) {
+
+					Cbe::Primitive prim = _flusher.peek_completed_primitive();
+					if (!prim.valid()) { break; }
+
+					Cbe::Physical_block_address const pba = prim.block_number;
+					_cache.mark_clear(pba);
+
+					_flusher.drop_completed_primitive(prim);
+
+					progress |= true;
+				}
+
+				while (true) {
+
+					Cbe::Primitive prim = _flusher.peek_generated_primitive();
+					if (!prim.valid()) { break; }
+					if (!_io.primitive_acceptable()) { break; }
+
+					Cache_Index     const  idx  = _flusher.peek_generated_data_index(prim);
+					Cbe::Block_data const &data = _cache_data.item[idx.value];
+
+					_io.submit_primitive(Tag::CACHE_FLUSH_TAG, prim, data);
+
+					_flusher.drop_generated_primitive(prim);
+
 					progress |= true;
 				}
 
@@ -602,6 +642,26 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					Cbe::Primitive prim = _write_back.peek_completed_primitive();
 					if (!prim.valid()) { break; }
+					if (!_flusher.request_acceptable()) { break; }
+
+					size_t const cache_slots = sizeof (Cache_Data) / sizeof (Cbe::Block_data);
+					bool cache_dirty = false;
+					for (size_t i = 0; i < cache_slots; i++) {
+						Cache_Index const idx = Cache_Index { .value = (uint32_t)i };
+						if (_cache.dirty(idx)) {
+							cache_dirty |= true;
+
+							Cbe::Physical_block_address const pba = _cache.flush(idx);
+							MDBG(HR, __func__, ":", __LINE__, " i: ", idx.value, " pba: ", pba, " needs flushing");
+
+							_flusher.submit_request(pba, idx);
+						}
+					}
+
+					if (cache_dirty) {
+						Genode::error(__func__, ":", __LINE__, " CACHE FLUSH NEEDED");
+						break;
+					}
 
 					Genode::error("SYNC SUPER-BLOCK currently BROKEN!!!!");
 
@@ -675,7 +735,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					switch (prim.tag) {
 					case Tag::CRYPTO_TAG_ENCRYPT:
 						if (_crypto.primitive_acceptable()) {
-							Cbe::Block_data &data = _write_back.peek_generated_data(prim);
+							Cbe::Block_data &data = _write_back.peek_generated_crypto_data(prim);
 							_crypto.submit_primitive(prim, data, _crypto_data);
 							_progress = true;
 						}
@@ -687,10 +747,17 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 							Cache_Index     const idx   = _cache.data_index(pba,
 							                                                _time.timestamp());
-							Cbe::Block_data const &data = _cache_data.item[idx.value];
-							if (_write_back.copy_and_update(pba, data, _vbd->tree_helper())) {
-								Genode::error("updated cached entry, cache invalidate: ", pba);
-								_cache.invalidate(pba);
+							// Cbe::Block_data const &data = _cache_data.item[idx.value];
+							// if (_write_back.copy_and_update(pba, data, _vbd->tree_helper())) {
+							// 	Genode::error("updated cached entry, cache invalidate: ", pba);
+							// 	_cache.invalidate(pba);
+							// }
+							Cbe::Block_data &data = _cache_data.item[idx.value];
+
+							DBG(HR, __func__, ":", __LINE__, " pba: ", pba, " ------------- UPDATE ----");
+							if (_write_back.update(pba, _vbd->tree_helper(), data)) {
+								Genode::error("updated cached entry, mark dirty: ", idx.value, " pba: ", pba);
+								_cache.mark_dirty(pba);
 							}
 
 							_progress = true;
@@ -698,6 +765,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 							if (_cache.request_acceptable(pba)) {
 								_cache.submit_request(pba);
+								DBG(HR, __func__, ":", __LINE__, " pba: ", pba, " ------------- SUBMIT ----");
 							}
 						}
 						break;
@@ -796,7 +864,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					} else if (prim.write()) {
 
-						Cbe::Block_data &data = _write_back.peek_generated_data(prim);
+						Cbe::Block_data &data = _write_back.peek_generated_crypto_data(prim);
 						_crypto.copy_completed_data(prim, data);
 						_write_back.mark_completed_crypto_primitive(prim);
 					}
