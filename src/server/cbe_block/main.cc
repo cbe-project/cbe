@@ -421,6 +421,8 @@ class Cbe::Vbd
 				xml.attribute("free-height", sb.free_height);
 				xml.attribute("root-number", sb.root_number);
 
+				if (sb_id != curr_sb_id) { return; }
+
 				/* skip sub-nodes for invalid super blocks */
 				if (!sb.valid()) {
 					return; }

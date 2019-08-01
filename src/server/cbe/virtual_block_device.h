@@ -20,6 +20,8 @@ namespace Cbe {
 } /* namespace Cbe */
 
 
+#define MOD_NAME "VBD"
+
 struct Cbe::Virtual_block_device
 {
 	using Cache          = Module::Cache;
@@ -95,8 +97,8 @@ struct Cbe::Virtual_block_device
 	                      Cbe::Hash                   const &hash,
 	                      Cbe::Primitive              const &prim)
 	{
+		MOD_DBG("pba: ", pba, " gen: ", gen);
 		_trans->submit_primitive(pba, gen, hash, prim);
-		MDBG(VBD, __func__, ":", __LINE__);
 	}
 
 	bool execute(Translation_Data &trans_data,
@@ -113,6 +115,8 @@ struct Cbe::Virtual_block_device
 		bool const trans_progress = _trans->execute(trans_data);
 		progress |= trans_progress;
 
+		// XXX prevent module from checking the cache again and again
+
 		while (true) {
 
 			Cbe::Primitive p = _trans->peek_generated_primitive();
@@ -121,10 +125,11 @@ struct Cbe::Virtual_block_device
 			Cbe::Physical_block_address const pba = p.block_number;
 			if (!cache.data_available(pba)) {
 
+				MOD_DBG("data not available: pba: ", pba);
 				if (cache.request_acceptable(pba)) {
 					cache.submit_request(pba);
+					MOD_DBG("submit cache request: pba: ", pba);
 				}
-				MDBG(VBD, __func__, ":", __LINE__, " ");
 				break;
 			} else {
 
@@ -134,13 +139,12 @@ struct Cbe::Virtual_block_device
 				_trans->mark_generated_primitive_complete(p, data, trans_data);
 
 				_trans->discard_generated_primitive(p);
-				MDBG(VBD, __func__, ":", __LINE__, " ");
+				MOD_DBG("mark_generated_primitive_complete: pba: ", pba);
 			}
 
 			progress |= true;
 		}
 
-		MDBG(VBD, __func__, ":", __LINE__, " ", progress);
 		return progress;
 	}
 
@@ -164,7 +168,7 @@ struct Cbe::Virtual_block_device
 	{
 		switch (prim.tag) {
 		default:
-			Genode::error(__func__, ": invalid primitive");
+			MOD_ERR(": invalid primitive");
 			break;
 		}
 	}
@@ -173,7 +177,7 @@ struct Cbe::Virtual_block_device
 	{
 		switch (prim.tag) {
 		default:
-			Genode::error(__func__, ": invalid primitive");
+			MOD_ERR(": invalid primitive");
 		break;
 		}
 	}
@@ -194,5 +198,7 @@ struct Cbe::Virtual_block_device
 		_trans->drop_completed_primitive(prim);
 	}
 };
+
+#undef MOD_NAME
 
 #endif /* _CBE_VIRTUAL_BLOCK_DEVICE_H_ */

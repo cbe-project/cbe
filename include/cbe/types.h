@@ -23,6 +23,7 @@ namespace Cbe {
 		INVALID_TAG        = 0x00,
 		IO_TAG             = 0x10,
 		CACHE_TAG          = 0x20,
+		CACHE_FLUSH_TAG    = CACHE_TAG | 0x1,
 		CRYPTO_TAG         = 0x30,
 		CRYPTO_TAG_DECRYPT = CRYPTO_TAG | 0x1,
 		CRYPTO_TAG_ENCRYPT = CRYPTO_TAG | 0x2,

@@ -20,16 +20,19 @@ namespace Cbe { namespace Module {
 
 	struct Cache_Data
 	{
-		Cbe::Block_data item[32];
+		enum { NUM_ITEMS = 32, };
+		Cbe::Block_data item[NUM_ITEMS];
 	} __attribute__((packed));
 
 	struct Cache_Job_Data
 	{
-		Cbe::Block_data item[1];
+		enum { NUM_ITEMS = 1, };
+		Cbe::Block_data item[NUM_ITEMS];
 	} __attribute__((packed));
 
 	struct Cache_Index
 	{
+		enum { INVALID = Cache_Data::NUM_ITEMS + 1, };
 		Genode::uint32_t value;
 	};
 
