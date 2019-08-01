@@ -23,6 +23,7 @@ namespace Cbe {
 	struct Free_tree;
 } /* namespace Cbe */
 
+#define MOD_NAME "FT"
 
 struct Cbe::Free_tree
 {
@@ -232,21 +233,52 @@ struct Cbe::Free_tree
 		}
 	}
 
-	bool _leaf_useable(Cbe::Type_ii_node const &node) const
+	bool _leaf_useable(Cbe::Super_block const active[Cbe::NUM_SUPER_BLOCKS],
+	                   Cbe::Generation   const last_secured,
+	                   Cbe::Type_ii_node const &node) const
 	{
-		if (node.reserved) {
-			Genode::error(__func__, ": reserved leaf: TODO");
-			return false;
+		if (!node.reserved) { return true; }
+
+		Cbe::Generation const f_gen = node.free_gen;
+		Cbe::Generation const a_gen = node.alloc_gen;
+		Cbe::Generation const s_gen = last_secured;
+
+		bool free = true;
+		if (f_gen <= s_gen) {
+
+			bool in_use = false;
+			for (uint64_t i = 0; i < Cbe::NUM_SUPER_BLOCKS; i++) {
+				Cbe::Super_block const &b = active[i];
+				if (!b.active) {
+					continue;
+				}
+				Cbe::Generation const b_gen = b.generation;
+
+				bool const is_free = ((f_gen <= s_gen) && (f_gen <= b_gen || a_gen >= (b_gen + 1)));
+
+				in_use |= !is_free;
+			}
+
+			if (in_use) {
+				free = false;
+				break;
+			}
+			Genode::error("REUSE PBA: ", _start + j, " f: ", f_gen, " a: ", a_gen);
+		} else {
+			free = false;
+			break;
 		}
 
-		return true;
+		MOD_DBG
+		return free;
 	}
 
-	bool execute(Translation_Data &trans_data,
-	             Cache            &cache,
-	             Cache_Data       &cache_data,
-	             Query_data       &query_data,
-	             Time             &time)
+	bool execute(Cbe::Super_block const  active_snapshots[Cbe::NUM_SUPER_BLOCKS],
+	             Translation_Data       &trans_data,
+	             Cache                  &cache,
+	             Cache_Data             &cache_data,
+	             Query_data             &query_data,
+	             Time                   &time)
 	{
 		/* nothing to do, return early */
 		if (!_num_blocks) {
@@ -328,7 +360,7 @@ struct Cbe::Free_tree
 				Cbe::Physical_block_address const pba = node[i].pba;
 				if (!pba) { continue; }
 
-				bool const useable = _leaf_useable(node[i]);
+				bool const useable = _leaf_useable(active_snapshots, node[i]);
 
 				if (useable) {
 					/* store current VBA */
@@ -698,5 +730,7 @@ struct Cbe::Free_tree
 		_num_blocks = 0;
 	}
 };
+
+#undef MOD_NAME
 
 #endif 	/* _CBE_FREE_TREE_H_ */

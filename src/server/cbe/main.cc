@@ -352,7 +352,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 ** Free-tree handling **
 				 ************************/
 
-				bool const ft_progress = _free_tree->execute(_free_tree_trans_data,
+				bool const ft_progress = _free_tree->execute(_super_block,
+				                                             _last_secured_generation,
+				                                             _free_tree_trans_data,
 				                                             _cache, _cache_data,
 				                                             _free_tree_query_data,
 				                                             _time);
@@ -395,7 +397,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					Index const idx = _free_tree->peek_generated_data_index(prim);
 
-					Cbe::Block_data *data = nullptr;
+					Cbe::BCbe::Super_block const active[Cbe::NUM_SUPER_BLOCKS],
+	                   lock_data *data = nullptr;
 					Cbe::Tag tag { Tag::INVALID_TAG };
 					switch (prim.tag) {
 					case Tag::WRITE_BACK_TAG:
