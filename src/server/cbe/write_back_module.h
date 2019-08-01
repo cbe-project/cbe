@@ -36,7 +36,6 @@ class Cbe::Module::Write_back
 	private:
 
 		struct Entry {
-			Cbe::Block_data data { };
 			uint32_t level { ~0u };
 			Cbe::Physical_block_address pba { 0 };
 			Cbe::Physical_block_address update_pba { 0 };
@@ -55,6 +54,7 @@ class Cbe::Module::Write_back
 		 * _entry[1] ... _entry[N] -> inner node
 		 */
 		Entry _entry[N] { };
+		Cbe::Block_data _crypto_data { };
 
 		Cbe::Hash _entry_hash[N] { };
 
@@ -115,56 +115,6 @@ class Cbe::Module::Write_back
 			}
 		}
 
-#if 0
-		bool copy_and_update(Cbe::Physical_block_address const pba,
-		                     Cbe::Block_data const &data,
-		                     Cbe::Tree_helper const &trans)
-		{
-			bool invalidate = false;
-
-			for (Genode::uint32_t i = 0; i < _levels; i++) {
-				Entry &e = _entry[i];
-
-				if (e.tag != Cbe::Tag::CACHE_TAG || e.pba != pba) {
-					continue;
-				}
-
-				if (e.pba == e.update_pba) {
-					invalidate |= true;
-				}
-
-				/* assert sizeof (e.data) == sizeof (data) */
-				void const *src = (void const*)&data;
-				void       *dst = (void*)&e.data;
-				Genode::memcpy(dst, src, sizeof (e.data));
-
-				/* save as long as only inner nodes in cache */
-				Entry &e1 = _entry[i-1];
-
-				/* get index from VBA in inner node */
-				Genode::uint32_t const index = trans.index(_vba, i);
-				T *t = reinterpret_cast<T*>(&e.data);
-
-				Cbe::Generation             const _old_gen = t[index].gen;
-				t[index].pba = e1.update_pba;
-				t[index].gen = (_old_gen & Cbe::GEN_TYPE_MASK) | _new_generation;
-
-				/* calculate hash for child */
-				{
-					Sha256_4k::Data *data = reinterpret_cast<Sha256_4k::Data*>(&e1.data);
-					Sha256_4k::Hash hash { };
-					Sha256_4k::hash(*data, hash);
-					Genode::memcpy(t[index].hash.values, hash.values, sizeof (hash));
-				};
-
-				e.done = true;
-				break;
-			}
-
-			return invalidate;
-		}
-#endif
-
 		bool primitive_acceptable() const { return !_pending_primitive.valid(); }
 
 		void submit_primitive(Primitive const &p, Cbe::Generation new_generation,
@@ -199,8 +149,7 @@ class Cbe::Module::Write_back
 			/* the data or rather leave node is special */
 			Entry &e = _entry[0];
 			e.tag = Cbe::Tag::CRYPTO_TAG_ENCRYPT;
-			void *dest = (void*)&e.data;
-			Genode::memcpy(dest, &d, sizeof (e.data));
+			Genode::memcpy(&_crypto_data, &d, sizeof (Cbe::Block_data));
 		}
 
 		bool execute()
@@ -310,7 +259,7 @@ class Cbe::Module::Write_back
 				Entry &e = _entry[i];
 				bool const cache = e.tag == Cbe::Tag::CACHE_TAG;
 				bool const match = p.block_number == (cache ? e.pba : e.update_pba);
-				if (match) { return e.data; }
+				if (match) { return _crypto_data; }
 			}
 
 			MOD_ERR("invalid primitive");
@@ -355,7 +304,7 @@ class Cbe::Module::Write_back
 				bool const match = p.block_number == e.update_pba;
 				if (!crypto || !match) { continue; }
 
-				Sha256_4k::Data *data = reinterpret_cast<Sha256_4k::Data*>(&e.data);
+				Sha256_4k::Data *data = reinterpret_cast<Sha256_4k::Data*>(&_crypto_data);
 				Sha256_4k::Hash hash { };
 				Sha256_4k::hash(*data, hash);
 				Genode::memcpy(_entry_hash[i].values, hash.values, sizeof (hash));
@@ -402,7 +351,7 @@ class Cbe::Module::Write_back
 			for (Genode::uint32_t i = 0; i < _levels; i++) {
 				Entry &e = _entry[i];
 				bool const match = p.block_number == e.update_pba;
-				if (match) { return e.data; }
+				if (match) { return _crypto_data; }
 			}
 
 			MOD_ERR("invalid primitive");
