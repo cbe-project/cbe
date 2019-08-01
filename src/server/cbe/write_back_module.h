@@ -68,12 +68,10 @@ class Cbe::Module::Write_back
 
 	public:
 
-		Write_back() { }
-
 		void update(Cbe::Physical_block_address const pba,
-		            Cbe::Tree_helper const &tree,
-		            Cbe::Block_data &data,
-		            Cbe::Block_data const &old_data)
+		            Cbe::Tree_helper            const &tree,
+		            Cbe::Block_data             const &data,
+		            Cbe::Block_data                   &update_data)
 		{
 			for (Genode::uint32_t i = 0; i < _levels; i++) {
 				Entry &e = _entry[i];
@@ -82,17 +80,17 @@ class Cbe::Module::Write_back
 					continue;
 				}
 
-				T *t = reinterpret_cast<T*>(&data);
+				T *t = reinterpret_cast<T*>(&update_data);
 
 				/* CoW action incoming */
 				if (e.pba != e.update_pba) {
 					MOD_DBG("copy ", e.pba, " -> ", e.update_pba);
-					Genode::memcpy(t, (void const *)&old_data, sizeof (Cbe::Block_data));
+					Genode::memcpy(t, (void const *)&data, sizeof (Cbe::Block_data));
 				}
 
 				/* save as long as only inner nodes in cache */
 				Cbe::Physical_block_address const &child_update_pba = _entry[i-1].update_pba;
-				Cbe::Hash                   const &child_hash    = _entry_hash[i-1];
+				Cbe::Hash                   const &child_hash       = _entry_hash[i-1];
 
 				/* get index from VBA in inner node */
 				Genode::uint32_t const index   = tree.index(_vba, i);
@@ -104,11 +102,9 @@ class Cbe::Module::Write_back
 				MOD_DBG("index: ", index, " child_update_pba: ", child_update_pba, " <", child_hash, ">");
 
 				/* calculate hash */
-				{
-					Sha256_4k::Data *hash_data = reinterpret_cast<Sha256_4k::Data*>(&data);
-					Sha256_4k::Hash &hash = *reinterpret_cast<Sha256_4k::Hash*>(&_entry_hash[i]);
-					Sha256_4k::hash(*hash_data, hash);
-				};
+				Sha256_4k::Data const &hash_data = *reinterpret_cast<Sha256_4k::Data const*>(&update_data);
+				Sha256_4k::Hash &hash = *reinterpret_cast<Sha256_4k::Hash*>(&_entry_hash[i]);
+				Sha256_4k::hash(hash_data, hash);
 
 				e.done = true;
 				break;
@@ -117,10 +113,13 @@ class Cbe::Module::Write_back
 
 		bool primitive_acceptable() const { return !_pending_primitive.valid(); }
 
-		void submit_primitive(Primitive const &p, Cbe::Generation new_generation,
-		                      Cbe::Virtual_block_address vba,
+		void submit_primitive(Cbe::Primitive              const &p,
+		                      Cbe::Generation             const new_generation,
+		                      Cbe::Virtual_block_address  const vba,
 		                      Cbe::Physical_block_address const *update_pba,
-		                      Cbe::Type_1_node_info const *pba, uint32_t n, Block_data const &d)
+		                      Cbe::Type_1_node_info       const *pba,
+		                      uint32_t                    const n,
+		                      Cbe::Block_data             const &d)
 		{
 			_pending_primitive = p;
 			_new_generation = new_generation;
@@ -304,9 +303,9 @@ class Cbe::Module::Write_back
 				bool const match = p.block_number == e.update_pba;
 				if (!crypto || !match) { continue; }
 
-				Sha256_4k::Data *data = reinterpret_cast<Sha256_4k::Data*>(&_crypto_data);
+				Sha256_4k::Data const &data = *reinterpret_cast<Sha256_4k::Data const*>(&_crypto_data);
 				Sha256_4k::Hash hash { };
-				Sha256_4k::hash(*data, hash);
+				Sha256_4k::hash(data, hash);
 				Genode::memcpy(_entry_hash[i].values, hash.values, sizeof (hash));
 
 				MOD_DBG("i: ", i, " update_pba: ", e.update_pba, " <", _entry_hash[i], ">");

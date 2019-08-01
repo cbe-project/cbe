@@ -775,7 +775,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						Cbe::Block_data const &data        = _cache_data.item[idx.value];
 						Cbe::Block_data       &update_data = _cache_data.item[update_idx.value];
 
-						_write_back.update(pba, _vbd->tree_helper(), update_data, data);
+						_write_back.update(pba, _vbd->tree_helper(), data, update_data);
 						_cache.mark_dirty(update_pba);
 
 						_progress = true;
