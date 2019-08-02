@@ -269,16 +269,15 @@ class Cbe::Vbd
 		Genode::Expanding_reporter  _reporter      { _env, "state", "state" };
 		uint64_t                    _dump_leaves   { 0 };
 
-		uint64_t                    _leaves        { 0 };
 		Cbe::Tree                  &_tree;
 
-		uint64_t                    _free_leafs    { 0 };
 		Cbe::Tree                  &_free_tree;
 
 		bool                 const  _verbose;
 
 		bool _report_type_1_leaf(Genode::Xml_generator             &xml,
-		                         Cbe::Tree::Info             const &info,
+		                         Cbe::Degree                 const  degree,
+		                         Cbe::Number_of_leaves       const  max_leafs,
 		                         Cbe::Physical_block_address const  parent,
 		                         Cbe::Block_allocator              &blk_alloc,
 		                         uint64_t                          &leafs)
@@ -287,7 +286,7 @@ class Cbe::Vbd
 			Type_i_node *parent_node {
 				reinterpret_cast<Cbe::Type_i_node*>(blk_alloc.data(parent)) };
 
-			for (uint32_t id = 0; id < info.outer_degree; id++) {
+			for (uint32_t id = 0; id < degree; id++) {
 				xml.node("node", [&] () {
 					xml.attribute("type", 3u);
 					xml.attribute("id",   id);
@@ -296,7 +295,7 @@ class Cbe::Vbd
 					xml.attribute("vba",  leafs);
 					xml.attribute("hash", Hash::String(parent_node[id].hash));
 				});
-				if ((++leafs) >= info.leaves) {
+				if ((++leafs) >= max_leafs) {
 					finished = true;
 					break;
 				}
@@ -305,7 +304,8 @@ class Cbe::Vbd
 		}
 
 		bool _report_type_2_leaf(Genode::Xml_generator             &xml,
-		                         Cbe::Tree::Info             const &info,
+		                         Cbe::Degree                 const  degree,
+		                         Cbe::Number_of_leaves       const  max_leafs,
 		                         Cbe::Physical_block_address const  parent,
 		                         Cbe::Block_allocator              &blk_alloc,
 		                         uint64_t                          &leafs)
@@ -314,7 +314,7 @@ class Cbe::Vbd
 			Type_ii_node *parent_node {
 				reinterpret_cast<Cbe::Type_ii_node*>(blk_alloc.data(parent)) };
 
-			for (uint32_t id = 0; id < info.outer_degree; id++) {
+			for (uint32_t id = 0; id < degree; id++) {
 				xml.node("node", [&] () {
 					xml.attribute("type", 4u);
 					xml.attribute("id",   id);
@@ -325,7 +325,7 @@ class Cbe::Vbd
 					xml.attribute("last_vba",    parent_node[id].last_vba);
 					xml.attribute("last_key_id", parent_node[id].last_key_id.value);
 				});
-				if ((++leafs) >= info.leaves) {
+				if ((++leafs) >= max_leafs) {
 					finished = true;
 					break;
 				}
@@ -337,26 +337,26 @@ class Cbe::Vbd
 		 * Report information about a given leaf node and its sub-nodes
 		 */
 		bool _report_leaf(Genode::Xml_generator             &xml,
-		                  Cbe::Tree::Info             const &info,
+		                  Cbe::Degree                 const  degree,
+		                  Cbe::Number_of_leaves       const  max_leafs,
 		                  Cbe::Physical_block_address const  parent,
 		                  Cbe::Block_allocator              &blk_alloc,
 		                  uint64_t                          &leafs,
 		                  bool                               free_tree)
 		{
 			/* finish early in case we already initialized all required leaves */
-			if (leafs >= info.leaves) {
-				return true;
-			}
+			if (leafs >= max_leafs) { return true; }
 
-			return free_tree ? _report_type_2_leaf(xml, info, parent, blk_alloc, leafs)
-			                 : _report_type_1_leaf(xml, info, parent, blk_alloc, leafs);
+			return free_tree ? _report_type_2_leaf(xml, degree, max_leafs, parent, blk_alloc, leafs)
+			                 : _report_type_1_leaf(xml, degree, max_leafs, parent, blk_alloc, leafs);
 		}
 
 		/**
 		 * Report information about a given type-i node and its sub-nodes
 		 */
 		bool _report_i_node(Genode::Xml_generator             &xml,
-		                    Cbe::Tree::Info             const &info,
+		                    Cbe::Degree                 const  degree,
+		                    Cbe::Number_of_leaves       const  max_leafs,
 		                    Cbe::Physical_block_address const  parent,
 		                    Cbe::Block_allocator              &blk_alloc,
 		                    uint32_t                           height,
@@ -366,8 +366,9 @@ class Cbe::Vbd
 			height--;
 			bool finished { false };
 			if (height == 0) {
-				for (uint32_t id = 0; id < info.outer_degree && !finished; id++) {
-					finished = _report_leaf(xml, info, parent, blk_alloc, leafs, free_tree);
+				for (uint32_t id = 0; id < degree && !finished; id++) {
+					finished = _report_leaf(xml, degree, max_leafs,
+					                        parent, blk_alloc, leafs, free_tree);
 					if (finished) {
 						break;
 					}
@@ -379,7 +380,7 @@ class Cbe::Vbd
 				reinterpret_cast<Cbe::Type_i_node*>(blk_alloc.data(parent)) };
 
 			bool const do_leafs = (height == 1);
-			for (uint32_t id = 0; id < info.outer_degree && !finished; id++) {
+			for (uint32_t id = 0; id < degree && !finished; id++) {
 				xml.node("node", [&] () {
 					xml.attribute("type", 1u);
 					xml.attribute("id",   id);
@@ -387,10 +388,10 @@ class Cbe::Vbd
 					xml.attribute("gen",  node[id].gen & GEN_VALUE_MASK);
 					xml.attribute("hash", Hash::String(node[id].hash));
 
-					finished = do_leafs ? _report_leaf(xml, info, node[id].pba, blk_alloc,
-					                                   leafs, free_tree)
-					                    : _report_i_node(xml, info, node[id].pba, blk_alloc, height,
-					                                     leafs, free_tree);
+					finished = do_leafs ? _report_leaf(xml, degree, max_leafs, node[id].pba,
+					                                  blk_alloc, leafs, free_tree)
+					                    : _report_i_node(xml, degree, max_leafs, node[id].pba,
+					                                     blk_alloc, height, leafs, free_tree);
 				});
 			}
 			return finished;
@@ -412,41 +413,49 @@ class Cbe::Vbd
 			xml.node("super-block", [&] () {
 				xml.attribute("id",          sb_id);
 				xml.attribute("is_current",  sb_id == curr_sb_id);
-				xml.attribute("generation",  sb.generation);
-				xml.attribute("leafs",       sb.leaves);
+				xml.attribute("generation",  sb.last_secured_generation);
+				xml.attribute("snapshot_id", sb.snapshot_id);
 				xml.attribute("degree",      sb.degree);
-				xml.attribute("height",      sb.height);
 				xml.attribute("free-number", sb.free_number);
 				xml.attribute("free-leafs",  sb.free_leaves);
 				xml.attribute("free-height", sb.free_height);
-				xml.attribute("root-number", sb.root_number);
 
 				if (sb_id != curr_sb_id) { return; }
 
 				/* skip sub-nodes for invalid super blocks */
-				if (!sb.valid()) {
-					return; }
+				if (!sb.valid()) { return; }
 
-				xml.attribute("root-hash", Hash::String(sb.root_hash));
-				/* report information about sub-nodes */
+				for (uint32_t j = 0; j < Cbe::NUM_SNAPSHOTS; j++) {
+
+					Snapshot const &snap = sb.snapshots[j];
+
+					if (!snap.valid()) { continue; }
+
+					/* report information about sub-nodes */
+					uint64_t leafs = 0;
+					xml.node("snapshot", [&] () {
+						xml.attribute("id",     snap.id);
+						xml.attribute("gen",    snap.gen);
+						xml.attribute("pba",    snap.pba);
+						xml.attribute("height", snap.height);
+						xml.attribute("leafs",  snap.leaves);
+						xml.attribute("hash",   Hash::String(snap.hash));
+						// xml.attribute("type", 1U);
+
+						_report_i_node(xml, sb.degree, snap.leaves, snap.pba,
+						               _tree.block_allocator(), snap.height,
+						               leafs, false);
+					});
+				}
+
 				uint64_t leafs = 0;
-				xml.node("block-device", [&] () {
-					xml.attribute("pba", sb.root_number);
-					xml.attribute("type", 1U);
-					xml.attribute("hash", Hash::String(sb.root_hash));
-					_report_i_node(xml, _tree.info(), sb.root_number,
-					               _tree.block_allocator(), _tree.info().height,
-					               leafs, false);
-				});
-
-				leafs = 0;
 				xml.node("free-list", [&] () {
 					xml.attribute("pba", sb.free_number);
 					xml.attribute("type", 1U);
 					xml.attribute("hash", Hash::String(sb.free_hash));
-					_report_i_node(xml, _free_tree.info(), sb.free_number,
-					               _free_tree.block_allocator(), _free_tree.info().height,
-					               leafs, true);
+					_report_i_node(xml, sb.free_degree, sb.free_leaves, sb.free_number,
+					               _free_tree.block_allocator(),
+					               sb.free_height, leafs, true);
 				});
 			});
 		}
@@ -465,8 +474,11 @@ class Cbe::Vbd
 				Cbe::Super_block &sb {
 					*reinterpret_cast<Cbe::Super_block*>(ba.data(sb_id)) };
 
-				Cbe::Generation const gen { sb.generation };
-				if (sb.root_number != 0 && gen >= most_recent_gen) {
+				Cbe::Generation const gen { sb.last_secured_generation };
+				Genode::error("sb_id: ", sb_id, " gen: ", gen);
+
+				if (sb.valid() && gen >= most_recent_gen) {
+
 					curr_sb_id = sb_id;
 					most_recent_gen = gen;
 				}
@@ -476,6 +488,7 @@ class Cbe::Vbd
 				_report_super_block(xml, sb_id, curr_sb_id, ba); }
 		}
 
+#if 0
 		/**
 		 * Add a child and its sub-tree given through XML to a type-i node
 		 */
@@ -578,18 +591,20 @@ class Cbe::Vbd
 				blk_alloc.data(xml.attribute_value(
 					"id", (Cbe::Physical_block_address)0))) = sb;
 		}
+#endif
 
-		bool _dump_data(Cbe::Tree::Info             const &info,
+		bool _dump_data(Cbe::Degree                 const  degree,
+		                Cbe::Number_of_leaves       const  max_leafs,
 		                Cbe::Physical_block_address const  parent,
 		                Cbe::Block_allocator              &block_allocator)
 		{
 			/* finish early in case we already initialized all required leaves */
-			if (_dump_leaves >= info.leaves) { return true; }
+			if (_dump_leaves >= max_leafs) { return true; }
 
 			bool finished = false;
 
 			Type_i_node *parent_node = reinterpret_cast<Cbe::Type_i_node*>(block_allocator.data(parent));
-			for (uint32_t i = 0; i < info.outer_degree; i++) {
+			for (uint32_t i = 0; i < degree; i++) {
 				Cbe::Physical_block_address const pba = parent_node[i].pba;
 				Cbe::Generation             const v   = parent_node[i].gen;
 				Cbe::Hash                   const &hash = parent_node[i].hash;
@@ -597,7 +612,7 @@ class Cbe::Vbd
 				log("leave[", i, "]: vba: ", _dump_leaves, " pba: ", pba, " ", Hex(v), " <", hash, ">");
 
 				++_dump_leaves;
-				if (_dump_leaves >= info.leaves) {
+				if (_dump_leaves >= max_leafs) {
 					finished = true;
 					break;
 				}
@@ -605,48 +620,52 @@ class Cbe::Vbd
 			return finished;
 		}
 
-		bool _dump(Cbe::Tree::Info                   const &info,
-		                 Cbe::Physical_block_address const  parent,
-		                 Cbe::Block_allocator              &block_allocator,
-		                 uint32_t                           height)
+		bool _dump(Cbe::Degree                 const  degree,
+		           Cbe::Number_of_leaves       const  max_leafs,
+		           Cbe::Physical_block_address const  parent,
+		           Cbe::Block_allocator              &block_allocator,
+		           uint32_t                           height)
 		{
 			log("parent: ", parent);
 
 			height--;
 			bool finished = false;
 			if (height == 0) {
-				for (uint32_t i = 0; i < info.outer_degree; i++) {
-					finished = _dump_data(info, parent, block_allocator);
+				for (uint32_t i = 0; i < degree; i++) {
+					finished = _dump_data(degree, max_leafs, parent, block_allocator);
 					if (finished) { break; }
 				}
 				return finished;
 			}
 
 			Cbe::Type_i_node *node = reinterpret_cast<Cbe::Type_i_node*>(block_allocator.data(parent));
-			for (uint32_t i = 0; i < info.outer_degree; i++) {
+			for (uint32_t i = 0; i < degree; i++) {
 				Cbe::Physical_block_address const pba = node[i].pba;
 				Cbe::Generation             const v   = node[i].gen;
 				Cbe::Hash                   const &hash = node[i].hash;
 
 				log("child[", i, "]: ", pba, " ", Hex(v), " <", hash, ">");
 
-				finished = height == 1 ? _dump_data(info, node[i].pba, block_allocator)
-				                       : _dump(info, node[i].pba, block_allocator, height);
+				finished = height == 1 ? _dump_data(degree, max_leafs, node[i].pba, block_allocator)
+				                       : _dump     (degree, max_leafs, node[i].pba, block_allocator, height);
 				if (finished) { break; }
 			}
 
 			return finished;
 		}
 
-		bool _initialize_type_1_data(Cbe::Tree::Info             const &info,
+		bool _initialize_type_1_data(Cbe::Degree                 const  degree,
+		                             Cbe::Number_of_leaves       const  max_leafs,
 		                             Cbe::Physical_block_address const  parent,
 		                             Cbe::Block_allocator              &block_allocator,
 		                             uint64_t                          &leafs)
 		{
+			if (leafs >= max_leafs) { return true; }
+
 			bool finished = false;
 
 			Type_i_node *parent_node = reinterpret_cast<Cbe::Type_i_node*>(block_allocator.data(parent));
-			for (uint32_t i = 0; i < info.outer_degree; i++) {
+			for (uint32_t i = 0; i < degree; i++) {
 
 				try {
 					Cbe::Physical_block_address const pba = block_allocator.alloc();
@@ -671,8 +690,7 @@ class Cbe::Vbd
 					throw;
 				}
 
-				++leafs;
-				if (leafs >= info.leaves) {
+				if (++leafs >= max_leafs) {
 					finished = true;
 					break;
 				}
@@ -680,15 +698,17 @@ class Cbe::Vbd
 			return finished;
 		}
 
-		bool _initialize_type_2_data(Cbe::Tree::Info             const &info,
+		bool _initialize_type_2_data(Cbe::Degree                 const  degree,
+		                             Cbe::Number_of_leaves       const  max_leafs,
 		                             Cbe::Physical_block_address const  parent,
 		                             Cbe::Block_allocator              &block_allocator,
 		                             uint64_t                          &leafs)
 		{
+			if (leafs >= max_leafs) { return true; }
 			bool finished = false;
 
 			Type_ii_node *parent_node = reinterpret_cast<Cbe::Type_ii_node*>(block_allocator.data(parent));
-			for (uint32_t i = 0; i < info.outer_degree; i++) {
+			for (uint32_t i = 0; i < degree; i++) {
 
 				try {
 					Cbe::Physical_block_address const pba = block_allocator.alloc();
@@ -708,8 +728,7 @@ class Cbe::Vbd
 					throw;
 				}
 
-				++leafs;
-				if (leafs >= info.leaves) {
+				if (++leafs >= max_leafs) {
 					finished = true;
 					break;
 				}
@@ -717,20 +736,22 @@ class Cbe::Vbd
 			return finished;
 		}
 
-		bool _initialize_data(Cbe::Tree::Info             const &info,
+		bool _initialize_data(Cbe::Degree                 const  degree,
+		                      Cbe::Number_of_leaves       const  max_leafs,
 		                      Cbe::Physical_block_address const  parent,
 		                      Cbe::Block_allocator              &block_allocator,
 		                      uint64_t                          &leafs,
 		                      bool                               free_tree)
 		{
 			/* finish early in case we already initialized all required leaves */
-			if (leafs >= info.leaves) { return true; }
+			if (leafs >= max_leafs) { return true; }
 
-			return free_tree ? _initialize_type_2_data(info, parent, block_allocator, leafs)
-			                 : _initialize_type_1_data(info, parent, block_allocator, leafs);
+			return free_tree ? _initialize_type_2_data(degree, max_leafs, parent, block_allocator, leafs)
+			                 : _initialize_type_1_data(degree, max_leafs, parent, block_allocator, leafs);
 		}
 
-		bool _initialize(Cbe::Tree::Info             const &info,
+		bool _initialize(Cbe::Degree                 const  degree,
+		                 Cbe::Number_of_leaves       const  max_leafs,
 		                 Cbe::Physical_block_address const  parent,
 		                 Cbe::Block_allocator              &block_allocator,
 		                 uint32_t                           height,
@@ -742,15 +763,16 @@ class Cbe::Vbd
 			height--;
 			bool finished = false;
 			if (height == 0) {
-				for (uint32_t i = 0; i < info.outer_degree; i++) {
-					finished = _initialize_data(info, parent, block_allocator, leafs, free_tree);
+				for (uint32_t i = 0; i < degree; i++) {
+					finished = _initialize_data(degree, max_leafs, parent, block_allocator,
+					                            leafs, free_tree);
 					if (finished) { break; }
 				}
 				return finished;
 			}
 
 			Cbe::Type_i_node *node = reinterpret_cast<Cbe::Type_i_node*>(block_allocator.data(parent));
-			for (uint32_t i = 0; i < info.outer_degree; i++) {
+			for (uint32_t i = 0; i < degree; i++) {
 				try {
 					Cbe::Physical_block_address const pba = block_allocator.alloc();
 					Cbe::Generation             const v   = GEN_TYPE_PARENT + 0;
@@ -764,8 +786,11 @@ class Cbe::Vbd
 					throw;
 				}
 
-				finished = height == 1 ? _initialize_data(info, node[i].pba, block_allocator, leafs, free_tree)
-				                       : _initialize(info, node[i].pba, block_allocator, height, leafs, free_tree);
+				bool const do_leafs = height == 1;
+				finished = do_leafs ? _initialize_data(degree, max_leafs, node[i].pba,
+				                                       block_allocator, leafs, free_tree)
+				                    : _initialize     (degree, max_leafs, node[i].pba,
+				                                       block_allocator, height, leafs, free_tree);
 
 				Sha256_4k::Data *data = reinterpret_cast<Sha256_4k::Data*>(block_allocator.data(node[i].pba));
 				Sha256_4k::Hash hash { };
@@ -800,19 +825,23 @@ class Cbe::Vbd
 				if (_verbose) {
 					Genode::log("Initialize VBD tree");
 				}
-				_initialize(_tree.info(), _tree.root(),
-				            _tree.block_allocator(), _tree.info().height,
-				            _leaves, false);
+
+				uint64_t leafs = 0;
+				_initialize(_tree.info().outer_degree, _tree.info().leaves,
+				            _tree.root(), _tree.block_allocator(),
+				            _tree.info().height, leafs, false);
 
 				if (_verbose) {
 					Genode::log("Initialize free list tree");
 				}
-				_initialize(_free_tree.info(), _free_tree.root(),
-				            _free_tree.block_allocator(), _free_tree.info().height,
-				            _free_leafs, true);
+				uint64_t free_leafs = 0;
+				_initialize(_free_tree.info().outer_degree, _free_tree.info().leaves,
+				            _free_tree.root(), _free_tree.block_allocator(),
+				            _free_tree.info().height, free_leafs, true);
 			}
 		}
 
+#if 0
 		/**
 		 * Apply a block-device state given through XML
 		 */
@@ -829,6 +858,7 @@ class Cbe::Vbd
 				}
 			});
 		}
+#endif
 
 		/**
 		 * Report state of the super blocks and trees of the block device
@@ -849,8 +879,8 @@ class Cbe::Vbd
 			uint64_t idx = ~0ull;
 			for (uint64_t i = 0; i < Cbe::NUM_SUPER_BLOCKS; i++) {
 				Cbe::Super_block &sb = *reinterpret_cast<Cbe::Super_block*>(ba.data(i));
-				Cbe::Generation const gen  = sb.generation;
-				if (sb.root_number != 0 && gen >= most_recent_gen) {
+				Cbe::Generation const gen  = sb.last_secured_generation;
+				if (sb.valid() && gen >= most_recent_gen) {
 					most_recent_gen = gen;
 					idx = i;
 				}
@@ -863,27 +893,30 @@ class Cbe::Vbd
 
 				Cbe::Super_block &sb = *reinterpret_cast<Cbe::Super_block*>(ba.data(i));
 
-				Cbe::Generation              const gen  = sb.generation;
-				Cbe::Physical_block_address  const root = sb.root_number;
-
-				if (root == 0) {
+				if (!sb.valid()) {
 					Genode::log("          SB[", i, "] invalid");
 					continue;
 				}
-				Cbe::Hash                    const &root_hash = sb.root_hash;
-				Cbe::Number_of_leaves const free_height = sb.free_height;
-				Cbe::Number_of_leaves const free_leaves = sb.free_leaves;
-				Genode::log(i == idx ? "\033[33;1mCurrent " : "          ", "SB[", i, "]: gen: ", gen, " root: ", root,
-				            " free leaves: (", free_leaves, "/", free_height, ")",
-				            " root hash: <", root_hash, ">");
 
-				_dump_leaves = 0;
+				Cbe::Generation const gen     = sb.last_secured_generation;
+				uint32_t        const snap_id = sb.snapshot_id;
 
-				Genode::log("VBD tree:");
-				_dump(_tree.info(), sb.root_number, _tree.block_allocator(), _tree.info().height);
+				Genode::log(i == idx ? "\033[33;1mCurrent " : "          ",
+				            "SB[", i, "]: gen: ", gen, " snap_id: ", snap_id);
+
+				for (uint32_t j = 0; j < Cbe::NUM_SNAPSHOTS; j++) {
+					if (!sb.snapshots[j].valid()) { continue; }
+
+					Snapshot const &snap = sb.snapshots[j];
+
+					_dump_leaves = 0;
+					Genode::log("Snapshot[", j, "] tree:");
+					_dump(sb.degree, snap.leaves, snap.pba, _tree.block_allocator(), snap.height);
+				}
 
 				Genode::log("Free list tree:");
-				_dump(_free_tree.info(), sb.free_number, _free_tree.block_allocator(), _free_tree.info().height);
+				_dump(sb.free_degree, sb.free_leaves, sb.free_number,
+				      _free_tree.block_allocator(), sb.free_height);
 			}
 		}
 
@@ -1190,24 +1223,36 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 			if (config.has_sub_node("state")) {
 				Genode::log("Use <state> to initalize VBD");
+#if 0
 				_vbd->write_state(config.sub_node("state"));
+#endif
 			} else {
 				Genode::log("Use parameters to initalize VBD");
 
 				/* initialise first super block slot */
 				Cbe::Super_block &sb = *reinterpret_cast<Cbe::Super_block*>(_block_allocator->data(0));
-				sb.height      = info.height;
-				sb.degree      = info.outer_degree;
-				sb.leaves      = info.leaves;
-				sb.generation  = 0;
-				sb.root_number = root_pba;
+				sb.degree                  = info.outer_degree;
+				sb.last_secured_generation = 0;
+				sb.snapshot_id             = 0;
+
+				Snapshot &snap = sb.snapshots[sb.snapshot_id];
+				snap.pba       = root_pba;
+				snap.height    = info.height;
+				snap.leaves    = info.leaves;
+				snap.gen       = sb.last_secured_generation;
+				snap.id        = sb.snapshot_id;
+				snap.flags     = Snapshot::FLAG_KEEP;
 
 				{
-					Sha256_4k::Data *data =
-						reinterpret_cast<Sha256_4k::Data*>(_block_allocator->data(root_pba));
+					Sha256_4k::Data const &data =
+						*reinterpret_cast<Sha256_4k::Data const*>(_block_allocator->data(snap.pba));
 					Sha256_4k::Hash hash { };
-					Sha256_4k::hash(*data, hash);
-					Genode::memcpy(sb.root_hash.values, hash.values, sizeof (hash));
+					Sha256_4k::hash(data, hash);
+					Genode::memcpy(snap.hash.values, hash.values, sizeof (hash));
+				}
+
+				for (uint32_t i = 1; i < Cbe::NUM_SNAPSHOTS; i++) {
+					sb.snapshots[i].id = Cbe::Snapshot::INVALID_ID;
 				}
 
 				sb.free_number = tree_root_pba;
@@ -1223,17 +1268,22 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					Genode::memcpy(sb.free_hash.values, hash.values, sizeof (hash));
 				}
 
-
 				/* clear other super block slots */
 				for (uint64_t i = 1; i < Cbe::NUM_SUPER_BLOCKS; i++) {
+
 					Cbe::Super_block &sbX = *reinterpret_cast<Cbe::Super_block*>(_block_allocator->data(i));
 					Genode::memset(&sbX, 0, sizeof(sbX));
-					/* explicitly set to 0 to mark the SB as free */
-					sbX.root_number = 0;
-					sbX.generation  = 0;
-					sbX.height      = sb.height;
-					sbX.degree      = sb.degree;
-					sbX.leaves      = sb.leaves;
+
+					sbX.last_secured_generation = Cbe::INVALID_GEN;
+					sbX.degree                  = sb.degree;
+
+					Cbe::Generation const gen = sbX.last_secured_generation;
+					Genode::error("i: ", i, " gen: ", gen);
+
+					for (uint32_t i = 0; i < Cbe::NUM_SNAPSHOTS; i++) {
+						sbX.snapshots[i].id = Cbe::Snapshot::INVALID_ID;
+					}
+
 					sbX.free_number = sb.free_number;
 					sbX.free_height = sb.free_height;
 					sbX.free_degree = sb.free_degree;

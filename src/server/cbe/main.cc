@@ -126,7 +126,7 @@ struct Cbe::Time
 #include <write_through_cache_module.h>
 #include <write_back_module.h>
 #include <sync_sb_module.h>
-#include <reclaim_module.h>
+// #include <reclaim_module.h>
 #include <flusher_module.h>
 
 #include "free_tree.h"
@@ -262,7 +262,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		uint64_t         _current_sb { ~0ull };
 		Cbe::Super_block _super_block[Cbe::NUM_SUPER_BLOCKS] { };
 		Cbe::Generation  _current_generation { 0 };
-		Cbe::Generation  _last_secured_generation    { 0 };
+		Cbe::Generation  _last_secured_generation { 0 };
+		uint32_t         _current_snapshot { 0 };
+		uint32_t         _last_snapshot_id { 0 };
 		uint64_t         _sync_cb_count { 0 };
 		bool             _need_to_sync { false };
 
@@ -352,15 +354,19 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 ** Free-tree handling **
 				 ************************/
 
-				bool const ft_progress = _free_tree->execute(_super_block,
-				                                             _last_secured_generation,
-				                                             _free_tree_trans_data,
-				                                             _cache, _cache_data,
-				                                             _free_tree_query_data,
-				                                             _time);
-				progress |= ft_progress;
-				if (_show_progress) {
-					Genode::log("Free-tree progress: ", ft_progress);
+				{
+					Cbe::Super_block const &sb = _super_block[_current_sb];
+
+					bool const ft_progress = _free_tree->execute(sb.snapshots,
+					                                             _last_secured_generation,
+					                                             _free_tree_trans_data,
+					                                             _cache, _cache_data,
+					                                             _free_tree_query_data,
+					                                             _time);
+					progress |= ft_progress;
+					if (_show_progress) {
+						Genode::log("Free-tree progress: ", ft_progress);
+					}
 				}
 
 				while (true) {
@@ -446,11 +452,14 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					_splitter.drop_generated_primitive(prim);
 
-					Cbe::Physical_block_address const  root      = _super_block[_current_sb].root_number;
-					Cbe::Hash                   const &root_hash = _super_block[_current_sb].root_hash;
-					Cbe::Generation             const  root_gen  = _super_block[_current_sb].root_gen;
+					Cbe::Super_block const &sb = _super_block[_current_sb];
+					Cbe::Snapshot    const &snap = sb.snapshots[_current_snapshot];
 
-					_vbd->submit_primitive(root, root_gen, root_hash, prim);
+					Cbe::Physical_block_address const  pba  = snap.pba;
+					Cbe::Hash                   const &hash = snap.hash;
+					Cbe::Generation             const  gen  = snap.gen;
+
+					_vbd->submit_primitive(pba, gen, hash, prim);
 					progress |= true;
 				}
 
@@ -514,6 +523,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 							break;
 						}
 
+						Cbe::Super_block const &sb = _super_block[_current_sb];
+						Cbe::Snapshot    const &snap = sb.snapshots[_current_snapshot];
+
 						Cbe::Primitive::Number const vba = _vbd->trans_get_virtual_block_address(prim);
 
 						Cbe::Physical_block_address new_pba[Translation::MAX_LEVELS] { };
@@ -549,14 +561,11 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						}
 
 						// assert
-						if (old_pba[trans_height-1].pba != _super_block[_current_sb].root_number) {
+						if (old_pba[trans_height-1].pba != snap.pba) {
 							Genode::error("BUG");
 						}
 
-						Cbe::Super_block const &sb = _super_block[_current_sb];
-						// Cbe::Generation const sb_gen = sb.generation;
-						// Genode::error("sb_gen: ", sb_gen, " _current_generation: ", _current_generation);
-						if (sb.generation == _current_generation || sb.generation == 0) {
+						if (snap.gen == _current_generation || snap.gen == 0) {
 							DBG("IN PLACE root pba: ", old_pba[trans_height-1].pba);
 							new_pba[trans_height-1] = old_pba[trans_height-1].pba;
 						} else {
@@ -573,9 +582,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 						/* 3. submit list blocks to free tree module... */
 						if (new_blocks) {
-							_free_tree->submit_request(_super_block,
-							                           _last_secured_generation,
-							                           _current_generation,
+							_free_tree->submit_request(_current_generation,
 							                           new_blocks,
 							                           new_pba, old_pba,
 							                           trans_height,
@@ -671,6 +678,54 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 						if (!_sync_sb.primitive_acceptable()) { break; }
 
+						Cbe::Super_block &sb = _super_block[_current_sb];
+						uint32_t next_snap = _current_snapshot;
+						for (uint32_t i = 0; i < Cbe::NUM_SNAPSHOTS; i++) {
+							next_snap = (next_snap + 1) % Cbe::NUM_SNAPSHOTS;
+							Cbe::Snapshot const &snap = sb.snapshots[next_snap];
+							if (!snap.valid()) { break; }
+						}
+						if (next_snap == _current_snapshot) {
+							Genode::error("could not find free snapshot slot");
+							break;
+						}
+
+						Cbe::Snapshot &snap = sb.snapshots[next_snap];
+						snap.pba = _write_back.peek_completed_root(prim);
+						Cbe::Hash *snap_hash = &snap.hash;
+						_write_back.peek_competed_root_hash(prim, *snap_hash);
+						snap.gen = _current_generation;
+						snap.id  = ++_last_snapshot_id;
+
+						Genode::log("\033[93;44m", __func__, " SYNC CURRENT SB generation: ", _current_generation,
+						            " next: ", _current_generation + 1);
+
+						_current_generation++;
+
+						_need_to_sync = false;
+						_last_time = curr_time;
+						_time.schedule_sync_timeout(_sync_interval);
+					} else {
+						Cbe::Super_block &sb = _super_block[_current_sb];
+						Cbe::Snapshot    &snap = sb.snapshots[_current_snapshot];
+
+						/* update snapshot */
+						Cbe::Physical_block_address const pba = _write_back.peek_completed_root(prim);
+						if (snap.pba != pba) {
+							snap.gen = _current_generation;
+							snap.pba = pba;
+						}
+
+						Cbe::Hash *snap_hash = &snap.hash;
+						_write_back.peek_competed_root_hash(prim, *snap_hash);
+
+						// XXX for now we re-use the sync path to trigger the request ack
+						//     in the request pool as well as tree dumping within the
+						//     cbe_block
+						_sync_sb.submit_primitive(prim, _current_sb, _current_generation);
+					}
+
+#if 0
 						uint64_t         const  next_sb = (_current_sb + 1) % Cbe::NUM_SUPER_BLOCKS;
 						Cbe::Super_block       &sb      = _super_block[next_sb];
 
@@ -716,6 +771,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						//     cbe_block
 						_sync_sb.submit_primitive(prim, _current_sb, _current_generation);
 					}
+#endif
 
 					_write_back.drop_completed_primitive(prim);
 
@@ -991,17 +1047,19 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		void _dump_current_sb_info() const
 		{
 			Cbe::Super_block const &sb = _super_block[_current_sb];
+			Cbe::Snapshot    const &snap = sb.snapshots[_current_snapshot];
 
-			Cbe::Physical_block_address const root_number      = sb.root_number;
-			Cbe::Height const height           = sb.height;
-			Cbe::Degree const degree           = sb.degree;
-			Cbe::Number_of_leaves const leaves = sb.leaves;
+			Cbe::Physical_block_address const root_number = snap.pba;
+			Cbe::Height                 const height      = snap.height;
+			Cbe::Number_of_leaves       const leaves      = snap.leaves;
 
-			Cbe::Physical_block_address const free_number           = sb.free_number;
-			Cbe::Number_of_leaves const free_leaves = sb.free_leaves;
-			Cbe::Number_of_leaves const free_height = sb.free_height;
+			Cbe::Degree                 const degree      = sb.degree;
+			Cbe::Physical_block_address const free_number = sb.free_number;
+			Cbe::Number_of_leaves       const free_leaves = sb.free_leaves;
+			Cbe::Height                 const free_height = sb.free_height;
 
 			Genode::log("Virtual block-device info in SB[", _current_sb, "]: ",
+			            " SNAP[", _current_snapshot, "]: ",
 			            "tree height: ", height, " ",
 			            "edges per node: ", degree, " ",
 			            "leaves: ", leaves, " ",
@@ -1030,9 +1088,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 * is the same and is mostly used for finding the initial SB
 				 * with generation == 0.
 				 */
-				if (dst.root_number != 0 && dst.generation >= last_gen) {
+				if (dst.valid() && dst.last_secured_generation >= last_gen) {
 					most_recent_sb = i;
-					last_gen = dst.generation;
+					last_gen = dst.last_secured_generation;
 				}
 
 				Sha256_4k::Hash hash { };
@@ -1049,14 +1107,36 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			_current_sb = most_recent_sb;
 
 			using SB = Cbe::Super_block;
+			using SS = Cbe::Snapshot;
 
 			SB const &sb = _super_block[_current_sb];
 
-			Cbe::Height const height           = sb.height;
-			Cbe::Degree const degree           = sb.degree;
-			Cbe::Number_of_leaves const leaves = sb.leaves;
+			uint32_t snap_slot = ~0u;
+			for (uint32_t i = 0; i < Cbe::NUM_SNAPSHOTS; i++) {
+				SS const &snap = sb.snapshots[i];
+				if (!snap.valid()) { continue; }
 
-			_last_secured_generation = sb.generation;
+				if (snap.id == sb.snapshot_id) {
+					snap_slot = i;
+					break;
+				}
+			}
+			if (snap_slot == ~0u) {
+				Genode::error("snapshot slot not found");
+				throw -1;
+			}
+
+			_current_snapshot = snap_slot;
+
+			SS const &snap = sb.snapshots[_current_snapshot];
+
+			_last_snapshot_id = snap.id;
+
+			Cbe::Degree           const degree = sb.degree;
+			Cbe::Height           const height = snap.height;
+			Cbe::Number_of_leaves const leaves = snap.leaves;
+
+			_last_secured_generation = sb.last_secured_generation;
 			_current_generation      = _last_secured_generation + 1;
 
 			_max_vba = leaves - 1;

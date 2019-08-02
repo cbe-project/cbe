@@ -101,6 +101,7 @@ namespace Cbe {
 	} __attribute__((packed));
 
 	enum {
+		INVALID_GEN = 18446744073709551615ULL,
 		INVALID_PBA = 18446744073709551615ULL,
 		INVALID_VBA = 18446744073709551615ULL,
 	};
@@ -166,20 +167,20 @@ namespace Cbe {
 		Key_id id;
 	};
 
-	enum { NUM_SUPER_BLOCKS = 8, };
-
-	struct Snapshot_info
-	{
-		Hash                   hash;
-		Physical_block_address pba;
-		Generation             gen;
-		Number_of_leaves       leaves;
-		Height                 height;
-	} __attribute__((packed));
+	enum {
+		NUM_SUPER_BLOCKS = 8,
+		NUM_SNAPSHOTS    = 64,
+	};
 
 	struct Snapshot
 	{
-		Snapshot_info info;
+		struct /* Snapshot_info */{
+			Hash                   hash;
+			Physical_block_address pba;
+			Generation             gen;
+			Number_of_leaves       leaves;
+			Height                 height;
+		};
 		enum { INVALID_ID = ~0U, };
 		uint32_t id;
 		enum {
@@ -201,34 +202,26 @@ namespace Cbe {
 			struct {
 				Key key[NUM_KEYS];
 
-				Snapshot snapshots[48];
+				Snapshot snapshots[NUM_SNAPSHOTS];
 
 				Generation last_secured_generation;
+				uint32_t   snapshot_id;
+				Degree     degree;
 
-				Physical_block_address root_number;
-				Hash                   root_hash;
-				union {
-					Generation generation;
-					Generation root_gen;
-				};
-				Height           height;
-				Degree           degree;
-				Number_of_leaves leaves;
-
-				// XXX remove later
-				bool             active;
-
-				Physical_block_address free_number;
 				Generation             free_gen;
+				Physical_block_address free_number;
 				Hash                   free_hash;
-				Height           free_height;
-				Degree           free_degree;
-				Number_of_leaves free_leaves;
+				Height                 free_height;
+				Degree                 free_degree;
+				Number_of_leaves       free_leaves;
 			};
 			char data[BLOCK_SIZE];
 		};
 
-		bool valid() { return root_number != 0; }
+		bool valid() const
+		{
+			return last_secured_generation != Cbe::INVALID_GEN;
+		}
 
 	} __attribute__((packed));
 
