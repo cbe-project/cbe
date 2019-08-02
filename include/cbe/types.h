@@ -168,19 +168,27 @@ namespace Cbe {
 
 	enum { NUM_SUPER_BLOCKS = 8, };
 
-	struct Ro_snapshot
+	struct Snapshot_info
 	{
-		Physical_block_address root;
 		Hash                   hash;
-		Generation             generation;
-		Height                 height;
+		Physical_block_address pba;
+		Generation             gen;
 		Number_of_leaves       leaves;
+		Height                 height;
 	} __attribute__((packed));
 
 	struct Snapshot
 	{
-		Ro_snapshot ro_info;
-		bool hold;
+		Snapshot_info info;
+		enum { INVALID_ID = ~0U, };
+		uint32_t id;
+		enum {
+			FLAGS_CLEAR = 0u,
+			FLAG_KEEP   = 1u<<0,
+		};
+		uint32_t flags;
+
+		bool valid() const { return id != Snapshot::INVALID_ID; }
 	} __attribute__((packed));
 
 	struct Super_block
@@ -188,16 +196,20 @@ namespace Cbe {
 		enum { NUM_KEYS = 2u };
 
 		union {
+			// XXX w/o snapshots about 265 bytes,
+			//     snapshots about 68 bytes each, all in all 3529 bytes
 			struct {
 				Key key[NUM_KEYS];
 
-				Snapshot snapshots[16];
+				Snapshot snapshots[48];
+
+				Generation last_secured_generation;
 
 				Physical_block_address root_number;
 				Hash                   root_hash;
 				union {
-					Generation             generation;
-					Generation             root_gen;
+					Generation generation;
+					Generation root_gen;
 				};
 				Height           height;
 				Degree           degree;

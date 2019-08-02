@@ -233,47 +233,47 @@ struct Cbe::Free_tree
 		}
 	}
 
-	bool _leaf_useable(Cbe::Super_block const active[Cbe::NUM_SUPER_BLOCKS],
+	bool _leaf_useable(Cbe::Super_block  const active[Cbe::NUM_SUPER_BLOCKS],
 	                   Cbe::Generation   const last_secured,
 	                   Cbe::Type_ii_node const &node) const
 	{
 		if (!node.reserved) { return true; }
 
-		Cbe::Generation const f_gen = node.free_gen;
-		Cbe::Generation const a_gen = node.alloc_gen;
+		Cbe::Generation const f_gen = (node.free_gen  & Cbe::GEN_VALUE_MASK);
+		Cbe::Generation const a_gen = (node.alloc_gen & Cbe::GEN_VALUE_MASK);
 		Cbe::Generation const s_gen = last_secured;
 
-		bool free = true;
+		bool free = false;
+		/*
+		 * If the node was freed before the last secured generation,
+		 * check if there is a active snapshot that might be using the node,
+		 * i.e., its generation is after the allocation generation and before
+		 * the free generation.
+		 */
 		if (f_gen <= s_gen) {
 
 			bool in_use = false;
 			for (uint64_t i = 0; i < Cbe::NUM_SUPER_BLOCKS; i++) {
 				Cbe::Super_block const &b = active[i];
-				if (!b.active) {
-					continue;
-				}
+				if (!b.active) { continue; }
+
 				Cbe::Generation const b_gen = b.generation;
 
-				bool const is_free = ((f_gen <= s_gen) && (f_gen <= b_gen || a_gen >= (b_gen + 1)));
+				bool const is_free = (f_gen <= b_gen || a_gen >= (b_gen + 1));
 
 				in_use |= !is_free;
+				if (in_use) { break; }
 			}
 
-			if (in_use) {
-				free = false;
-				break;
-			}
-			Genode::error("REUSE PBA: ", _start + j, " f: ", f_gen, " a: ", a_gen);
-		} else {
-			free = false;
-			break;
+			free = !in_use;
 		}
-
-		MOD_DBG
+		MOD_DBG(free ? "REUSE" : " RESERVE", " PBA: ", node.pba,
+		        " f: ", f_gen, " a: ", a_gen);
 		return free;
 	}
 
 	bool execute(Cbe::Super_block const  active_snapshots[Cbe::NUM_SUPER_BLOCKS],
+	             Cbe::Generation  const  last_secured,
 	             Translation_Data       &trans_data,
 	             Cache                  &cache,
 	             Cache_Data             &cache_data,
@@ -360,7 +360,7 @@ struct Cbe::Free_tree
 				Cbe::Physical_block_address const pba = node[i].pba;
 				if (!pba) { continue; }
 
-				bool const useable = _leaf_useable(active_snapshots, node[i]);
+				bool const useable = _leaf_useable(active_snapshots, last_secured, node[i]);
 
 				if (useable) {
 					/* store current VBA */

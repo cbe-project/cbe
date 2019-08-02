@@ -397,8 +397,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					Index const idx = _free_tree->peek_generated_data_index(prim);
 
-					Cbe::BCbe::Super_block const active[Cbe::NUM_SUPER_BLOCKS],
-	                   lock_data *data = nullptr;
+					Cbe::Block_data *data = nullptr;
 					Cbe::Tag tag { Tag::INVALID_TAG };
 					switch (prim.tag) {
 					case Tag::WRITE_BACK_TAG:
