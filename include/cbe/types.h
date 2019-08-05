@@ -119,6 +119,15 @@ namespace Cbe {
 	struct Block_data
 	{
 		char values[BLOCK_SIZE] { };
+
+		void print(Genode::Output &out) const
+		{
+			using namespace Genode;
+			for (char const c : values) {
+				Genode::print(out, Hex(c, Hex::OMIT_PREFIX, Hex::PAD), " ");
+			}
+			Genode::print(out, "\n");
+		}
 	} __attribute__((packed));
 
 	enum { INVALID_INDEX = ~0ull, };
@@ -169,7 +178,7 @@ namespace Cbe {
 
 	enum {
 		NUM_SUPER_BLOCKS = 8,
-		NUM_SNAPSHOTS    = 64,
+		NUM_SNAPSHOTS    = 48,
 	};
 
 	struct Snapshot
@@ -225,6 +234,8 @@ namespace Cbe {
 
 	} __attribute__((packed));
 
+	static_assert(sizeof (Super_block) <= sizeof (Block_data), "Super-block too large");
+
 	/* XXX (ab-)use generation field for debug type */
 	enum {
 		GEN_TYPE_SHIFT  = 48u,
@@ -235,6 +246,8 @@ namespace Cbe {
 		GEN_VALUE_MASK  = (1ull << GEN_TYPE_SHIFT) -1,
 	};
 
+	enum { MAX_NODE_SIZE = 64u, };
+
 	struct Type_i_node
 	{
 		union {
@@ -244,9 +257,11 @@ namespace Cbe {
 				Cbe::Hash                   hash;
 			};
 
-			char data[64];
+			char data[MAX_NODE_SIZE];
 		};
 	} __attribute__((packed));
+
+	static_assert(sizeof (Type_i_node) <= MAX_NODE_SIZE, "Type 1 node too large");
 
 	struct Type_1_node_info
 	{
@@ -267,9 +282,11 @@ namespace Cbe {
 				bool reserved;
 			};
 
-			char data[64];
+			char data[MAX_NODE_SIZE];
 		};
 	} __attribute__((packed));
+
+	static_assert(sizeof (Type_i_node) <= MAX_NODE_SIZE, "Type 2 node too large");
 
 	constexpr size_t TYPE_1_PER_BLOCK = BLOCK_SIZE / sizeof (Type_i_node);
 	constexpr size_t TYPE_2_PER_BLOCK = BLOCK_SIZE / sizeof (Type_ii_node);
