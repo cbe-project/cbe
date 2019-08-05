@@ -287,6 +287,7 @@ class Cbe::Vbd
 				reinterpret_cast<Cbe::Type_i_node*>(blk_alloc.data(parent)) };
 
 			for (uint32_t id = 0; id < degree; id++) {
+
 				xml.node("node", [&] () {
 					xml.attribute("type", 3u);
 					xml.attribute("id",   id);
@@ -315,6 +316,7 @@ class Cbe::Vbd
 				reinterpret_cast<Cbe::Type_ii_node*>(blk_alloc.data(parent)) };
 
 			for (uint32_t id = 0; id < degree; id++) {
+
 				xml.node("node", [&] () {
 					xml.attribute("type", 4u);
 					xml.attribute("id",   id);
@@ -381,6 +383,7 @@ class Cbe::Vbd
 
 			bool const do_leafs = (height == 1);
 			for (uint32_t id = 0; id < degree && !finished; id++) {
+
 				xml.node("node", [&] () {
 					xml.attribute("type", 1u);
 					xml.attribute("id",   id);
@@ -429,7 +432,7 @@ class Cbe::Vbd
 
 					Snapshot const &snap = sb.snapshots[j];
 
-					if (!snap.valid()) { continue; }
+					if (!snap.valid() || snap.height == 0) { continue; }
 
 					/* report information about sub-nodes */
 					uint64_t leafs = 0;
