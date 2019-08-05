@@ -115,7 +115,7 @@ struct Cbe::Time
 #define MOD_DBG(...) do { Genode::log("\033[36m" MOD_NAME "> ", __func__, ":", __LINE__, ": ", __VA_ARGS__); } while (0)
 #define MDBG(mod, ...) do { Genode::log("\033[36m" #mod "> ", __VA_ARGS__); } while (0)
 #define DBG_NAME "ML"
-#define DBG(...) do { Genode::log("\033[35m" DBG_NAME "> ", __VA_ARGS__); } while (0)
+#define DBG(...) do { Genode::log("\033[35m" DBG_NAME "> ", __func__, ":", __LINE__, ": ", __VA_ARGS__); } while (0)
 
 #include <cache_module.h>
 #include <crypto_module.h>
@@ -694,13 +694,19 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						snap.pba = _write_back.peek_completed_root(prim);
 						Cbe::Hash *snap_hash = &snap.hash;
 						_write_back.peek_competed_root_hash(prim, *snap_hash);
+						Cbe::Tree_helper const &tree = _vbd->tree_helper();
+						snap.height = tree.height();
+						snap.leaves = tree.leafs();
 						snap.gen = _current_generation;
 						snap.id  = ++_last_snapshot_id;
 
 						Genode::log("\033[93;44m", __func__, " SYNC CURRENT SB generation: ", _current_generation,
 						            " next: ", _current_generation + 1);
 
+						_sync_sb.submit_primitive(prim, _current_sb, _current_generation);
+
 						_current_generation++;
+						_current_snapshot++;
 
 						_need_to_sync = false;
 						_last_time = curr_time;
@@ -901,8 +907,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					Cbe::Super_block &sb      = _super_block[id];
 					Cbe::Block_data  &sb_data = *reinterpret_cast<Cbe::Block_data*>(&sb);
 
-					Cbe::Physical_block_address const pba = prim.block_number;
-					Genode::error("_sync_sb.peek_generated_primitive(): pba: ", pba);
 					_io.submit_primitive(Tag::SYNC_SB_TAG, prim, sb_data);
 					_sync_sb.drop_generated_primitive(prim);
 					progress |= true;
