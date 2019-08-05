@@ -406,8 +406,8 @@ class Cbe::Vbd
 		                         Block_allocator       &blk_alloc)
 		{
 			/* get reference to super-block */
-			Cbe::Super_block &sb {
-				*reinterpret_cast<Cbe::Super_block*>(blk_alloc.data(sb_id)) };
+			Cbe::Super_block const &sb {
+				*reinterpret_cast<Cbe::Super_block const*>(blk_alloc.data(sb_id)) };
 
 			/* add super-block tag */
 			xml.node("super-block", [&] () {
@@ -471,11 +471,9 @@ class Cbe::Vbd
 			uint64_t curr_sb_id { ~0ull };
 			for (uint64_t sb_id = 0; sb_id < Cbe::NUM_SUPER_BLOCKS; sb_id++) {
 
-				Cbe::Super_block &sb {
-					*reinterpret_cast<Cbe::Super_block*>(ba.data(sb_id)) };
-
-				Cbe::Generation const gen { sb.last_secured_generation };
-				Genode::error("sb_id: ", sb_id, " gen: ", gen);
+				Cbe::Super_block const &sb {
+					*reinterpret_cast<Cbe::Super_block const*>(ba.data(sb_id)) };
+				Cbe::Generation  const gen { sb.last_secured_generation };
 
 				if (sb.valid() && gen >= most_recent_gen) {
 
@@ -1276,9 +1274,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					sbX.last_secured_generation = Cbe::INVALID_GEN;
 					sbX.degree                  = sb.degree;
-
-					Cbe::Generation const gen = sbX.last_secured_generation;
-					Genode::error("i: ", i, " gen: ", gen);
 
 					for (uint32_t i = 0; i < Cbe::NUM_SNAPSHOTS; i++) {
 						sbX.snapshots[i].id = Cbe::Snapshot::INVALID_ID;
