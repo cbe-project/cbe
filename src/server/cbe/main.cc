@@ -75,6 +75,10 @@ struct Cbe::Time
 
 	using Timestamp = Genode::uint64_t;
 
+	/*
+	 * Synchronization timeout handling
+	 */
+
 	Timer::One_shot_timeout<Time> _sync_timeout {
 		_timer, *this, &Time::_handle_sync_timeout };
 
@@ -86,6 +90,22 @@ struct Cbe::Time
 	}
 
 	Genode::Signal_context_capability _sync_sig_cap { };
+
+	/*
+	 * Securing timeout handling
+	 */
+
+	Timer::One_shot_timeout<Time> _secure_timeout {
+		_timer, *this, &Time::_handle_secure_timeout };
+
+	void _handle_secure_timeout(Genode::Duration)
+	{
+		if (_secure_sig_cap.valid()) {
+			Genode::Signal_transmitter(_secure_sig_cap).submit();
+		}
+	}
+
+	Genode::Signal_context_capability _secure_sig_cap { };
 
 	Time(Genode::Env &env)
 	: _timer(env) { }
@@ -103,6 +123,16 @@ struct Cbe::Time
 	void schedule_sync_timeout(uint64_t msec)
 	{
 		_sync_timeout.schedule(Genode::Microseconds { msec * 1000 });
+	}
+
+	void secure_sigh(Genode::Signal_context_capability cap)
+	{
+		_secure_sig_cap = cap;
+	}
+
+	void schedule_secure_timeout(uint64_t msec)
+	{
+		_secure_timeout.schedule(Genode::Microseconds { msec * 1000 });
 	}
 };
 
@@ -195,8 +225,12 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Splitter _splitter     { };
 
 		Time _time { _env };
-		enum { SYNC_INTERVAL = 0ull, };
-		uint64_t _sync_interval { SYNC_INTERVAL };
+		enum {
+			SYNC_INTERVAL   = 0ull,
+			SECURE_INTERVAL = 5ull,
+		};
+		uint64_t _sync_interval   { SYNC_INTERVAL };
+		uint64_t _secure_interval { SECURE_INTERVAL };
 		Cbe::Time::Timestamp _last_time { _time.timestamp() };
 
 		Crypto   _crypto       { "All your base are belong to us  " };
@@ -1182,6 +1216,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 				_sync_interval = 1000 *
 					_config_rom.xml().attribute_value("sync_interval", (uint64_t)SYNC_INTERVAL);
+				_secure_interval = 1000 *
+					_config_rom.xml().attribute_value("sync_interval", (uint64_t)SECURE_INTERVAL);
 			}
 
 			_time.sync_sigh(_request_handler);
