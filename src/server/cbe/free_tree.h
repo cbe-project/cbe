@@ -305,8 +305,8 @@ struct Cbe::Free_tree
 			Cbe::Physical_block_address const pba = p.block_number;
 			if (!cache.data_available(pba)) {
 
-				if (cache.request_acceptable(pba)) {
-					cache.submit_request(pba);
+				if (cache.cxx_request_acceptable(pba)) {
+					cache.cxx_submit_request(pba);
 				}
 				break;
 			} else {
@@ -369,6 +369,7 @@ struct Cbe::Free_tree
 					_query_branch[_current_query_branch].free_blocks++;
 
 					_found_blocks++;
+					MOD_DBG("found free pba: ", pba);
 				}
 
 				/* break off early */
@@ -400,7 +401,9 @@ struct Cbe::Free_tree
 						/* store iterator out-side so we start from the last set entry */
 						for (; i < Translation::MAX_LEVELS; i++) {
 							if (!_wb_data.new_pba[i]) {
-								_wb_data.new_pba[i] = _query_branch[b].pba[n];
+								Cbe::Physical_block_address const pba = _query_branch[b].pba[n];
+								_wb_data.new_pba[i] = pba;
+								MOD_DBG("use free branch: ", b, " n: ", n, " pba: ", pba);
 								break;
 							}
 						}
@@ -431,8 +434,8 @@ struct Cbe::Free_tree
 
 					if (!cache.data_available(pba)) {
 
-						if (cache.request_acceptable(pba)) {
-							cache.submit_request(pba);
+						if (cache.cxx_request_acceptable(pba)) {
+							cache.cxx_submit_request(pba);
 							progress |= true;
 						}
 						data_available = false;
@@ -572,26 +575,30 @@ struct Cbe::Free_tree
 	{
 		/* current type 2 node */
 		if (_current_type_2.pending()) {
-			return Cbe::Primitive {
+			Cbe::Primitive p {
 				.tag          = Tag::IO_TAG,
 				.operation    = Cbe::Primitive::Operation::READ,
 				.success      = Cbe::Primitive::Success::FALSE,
 				.block_number = _current_type_2.pba,
 				.index        = 0
 			};
+			MOD_DBG(p);
+			return p;
 		}
 
 		/* write-back I/O */
 		if (_do_wb) {
 			for (uint32_t i = 0; i < Translation::MAX_LEVELS; i++) {
 				if (_wb_io[i].pending()) {
-					return Cbe::Primitive {
+					Cbe::Primitive p {
 						.tag          = Tag::WRITE_BACK_TAG,
 						.operation    = Cbe::Primitive::Operation::WRITE,
 						.success      = Cbe::Primitive::Success::FALSE,
 						.block_number = _wb_io[i].pba,
 						.index        = 0
 					};
+					MOD_DBG(p);
+					return p;
 				}
 			}
 		}
