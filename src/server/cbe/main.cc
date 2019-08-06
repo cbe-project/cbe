@@ -141,11 +141,26 @@ struct Cbe::Time
  ** modules **
  *************/
 
+#define DEBUG 1
+#if defined(DEBUG) && DEBUG > 0
 #define MOD_ERR(...) do { Genode::error(MOD_NAME "> ", __func__, ":", __LINE__, ": ", __VA_ARGS__); } while (0)
 #define MOD_DBG(...) do { Genode::log("\033[36m" MOD_NAME "> ", __func__, ":", __LINE__, ": ", __VA_ARGS__); } while (0)
 #define MDBG(mod, ...) do { Genode::log("\033[36m" #mod "> ", __VA_ARGS__); } while (0)
 #define DBG_NAME "ML"
 #define DBG(...) do { Genode::log("\033[35m" DBG_NAME "> ", __func__, ":", __LINE__, ": ", __VA_ARGS__); } while (0)
+#else
+#define MOD_ERR(...)
+#define MOD_DBG(...)
+#define MDBG(mod, ...)
+#define DBG(...)
+#endif
+
+#define LOG_PROGRESS(v) \
+	do { \
+		if (_show_progress || (_show_if_progress && v)) { \
+			Genode::log(#v, ": ", v); \
+		} \
+	} while (0)
 
 #include <cache_module.h>
 #include <crypto_module.h>
@@ -293,8 +308,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		bool             _need_to_sync { false };
 
 
-		bool _show_progress { false };
-		bool _show_if_progress { true };
+		bool _show_progress    { false };
+		bool _show_if_progress { false };
 
 		Signal_handler<Main> _request_handler {
 			_env.ep(), *this, &Main::_handle_requests };
@@ -310,7 +325,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 				bool progress = false;
 
-				Genode::log("\033[33m", ">>> loop_count: ", ++loop_count);
+				if (_show_if_progress) {
+					Genode::log("\033[33m", ">>> loop_count: ", ++loop_count);
+				}
 
 				/*******************
 				 ** Time handling **
@@ -391,9 +408,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					                                             _free_tree_query_data,
 					                                             _time);
 					progress |= ft_progress;
-					if (_show_progress || (_show_if_progress && ft_progress)) {
-						Genode::log("Free-tree progress: ", ft_progress);
-					}
+					LOG_PROGRESS(ft_progress);
 				}
 
 				while (true) {
@@ -496,9 +511,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				                                        _cache, _cache_data,
 				                                        _time);
 				progress |= vbd_progress;
-				if (_show_progress || (_show_if_progress && vbd_progress)) {
-					Genode::log("VBD progress: ", vbd_progress);
-				}
+				LOG_PROGRESS(vbd_progress);
 
 				while (true) {
 
@@ -553,6 +566,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 							uint64_t const gen = (n[id].gen & GEN_VALUE_MASK);
 							if (gen == _current_generation || gen == 0) {
 								Cbe::Physical_block_address const npba = n[id].pba;
+								(void)npba;
 								DBG("IN PLACE pba: ", pba, " gen: ", gen, " npba: ", npba);
 
 								new_pba[i-1] = old_pba[i-1].pba;
@@ -648,9 +662,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 				bool const write_back_progress = _write_back.execute();
 				progress |= write_back_progress;
-				if (_show_progress || (_show_if_progress && write_back_progress)) {
-					Genode::log("Write-back progress: ", write_back_progress);
-				}
+				LOG_PROGRESS(write_back_progress);
 
 				while (true) {
 
@@ -824,8 +836,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					if (!_io.primitive_acceptable()) { break; }
 
 					Cbe::Block_data &data = _write_back.peek_generated_io_data(prim);
-					Cbe::Physical_block_address const pba = prim.block_number;
-					Genode::error("_write_back.peek_generated_io_primitive(): pba: ", pba);
 					_io.submit_primitive(Tag::WRITE_BACK_TAG, prim, data);
 
 					_write_back.drop_generated_io_primitive(prim);
@@ -838,9 +848,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 				bool const sync_sb_progress = _sync_sb.execute();
 				progress |= sync_sb_progress;
-				if (_show_progress || (_show_if_progress && sync_sb_progress)) {
-					Genode::log("Sync-sb progress: ", sync_sb_progress);
-				}
+				LOG_PROGRESS(sync_sb_progress);
 
 				while (true) {
 
@@ -880,9 +888,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 				bool const crypto_progress = _crypto.foobar();
 				progress |= crypto_progress;
-				if (_show_progress || (_show_if_progress && crypto_progress)) {
-					Genode::log("Crypto progress: ", crypto_progress);
-				}
+				LOG_PROGRESS(crypto_progress);
 
 				while (true) {
 
@@ -912,10 +918,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					Cbe::Primitive prim = _crypto.peek_generated_primitive();
 					if (!prim.valid())     { break; }
-					if (!prim.read()) {
-						Genode::error("BUG: got wrong primitive");
-						throw -12346;
-					}
 
 					_crypto.drop_generated_primitive(prim);
 					_crypto.mark_completed_primitive(prim);
@@ -930,9 +932,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				bool const cache_progress = _cache.execute(_cache_data, _cache_job_data,
 				                                           _time.timestamp());
 				progress |= cache_progress;
-				if (_show_progress || (_show_if_progress && cache_progress)) {
-					Genode::log("Cache progress: ", cache_progress);
-				}
+				LOG_PROGRESS(cache_progress);
 
 				while (true) {
 
@@ -955,9 +955,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 				bool const io_progress = _io.execute();
 				progress |= io_progress;
-				if (_show_progress || (_show_if_progress && io_progress)) {
-					Genode::log("Io progress: ", io_progress);
-				}
+				LOG_PROGRESS(io_progress);
 
 				while (true) {
 
@@ -1007,7 +1005,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				}
 
 				if (!progress) {
-					Genode::log("\033[33m", ">>> break, no progress");
+					if (_show_if_progress) {
+						Genode::log("\033[33m", ">>> break, no progress");
+					}
 					break;
 				}
 			}
