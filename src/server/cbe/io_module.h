@@ -112,9 +112,9 @@ class Cbe::Module::Block_io : Noncopyable
 
 		Block_io(Block::Connection<> &block) : _block(block)
 		{
-			if (_info.block_size > BLOCK_SIZE) {
-				Genode::error("back end block size must either be equal to "
-				              "or be a multiple of ", BLOCK_SIZE);
+			if (_info.block_size > BLOCK_SIZE || _info.block_size % BLOCK_SIZE != 0) {
+				MOD_ERR("back end block size must either be equal to "
+				        "or be a multiple of ", BLOCK_SIZE);
 				throw Block_size_mismatch();
 			}
 		}

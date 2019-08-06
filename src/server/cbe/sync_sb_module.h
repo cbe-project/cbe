@@ -50,7 +50,7 @@ class Cbe::Module::Sync_sb
 		void submit_primitive(Primitive const &p, uint64_t id, Cbe::Generation const gen)
 		{
 			if (_curr_primitive.valid()) {
-				Genode::error("current primitive already valid");
+				MOD_ERR("already have current primitive: ", _curr_primitive);
 				throw -1;
 			}
 
@@ -87,7 +87,7 @@ class Cbe::Module::Sync_sb
 				return _entry[0].primitive;
 			}
 
-			Genode::error(__func__, ": invalid primitive");
+			MOD_ERR("invalid primitive: ", p);
 			throw -1;
 		}
 
@@ -98,18 +98,18 @@ class Cbe::Module::Sync_sb
 				return _entry[0].gen;
 			}
 
-			Genode::error(__func__, ": invalid primitive");
+			MOD_ERR("invalid primitive: ", p);
 			throw -1;
 		}
 
 		void drop_completed_primitive(Cbe::Primitive const &p)
 		{
 			if (p.block_number != _curr_primitive.block_number) {
-				Genode::error(__func__, ": invalid primitive");
+				MOD_ERR("invalid primitive: ", p);
 				throw -1;
 			}
 
-			MOD_DBG("pba: ", p);
+			MOD_DBG(p);
 
 			_entry[0] = Entry {
 				.primitive = Primitive { },
@@ -124,7 +124,7 @@ class Cbe::Module::Sync_sb
 		Primitive peek_generated_primitive()
 		{
 			if (_entry[0].state == Entry::State::PENDING) {
-				MOD_DBG("pba: ", _curr_primitive);
+				MOD_DBG(_curr_primitive);
 				return _curr_primitive;
 			}
 
@@ -134,7 +134,7 @@ class Cbe::Module::Sync_sb
 		uint64_t peek_generated_id(Cbe::Primitive const &p)
 		{
 			if (p.block_number != _curr_primitive.block_number) {
-				Genode::error(__func__, ": invalid primitive");
+				MOD_ERR("invalid primitive: ", p);
 				throw -1;
 			}
 
@@ -144,7 +144,7 @@ class Cbe::Module::Sync_sb
 		void drop_generated_primitive(Cbe::Primitive const &p)
 		{
 			if (p.block_number != _curr_primitive.block_number) {
-				Genode::error(__func__, ": invalid primitive");
+				MOD_ERR("invalid primitive: ", p);
 				throw -1;
 			}
 
@@ -154,7 +154,7 @@ class Cbe::Module::Sync_sb
 		void mark_generated_primitive_complete(Cbe::Primitive const &p)
 		{
 			if (p.block_number != _curr_primitive.block_number) {
-				Genode::error(__func__, ": invalid primitive");
+				MOD_ERR("invalid primitive: ", p);
 				throw -1;
 			}
 

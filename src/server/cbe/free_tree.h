@@ -118,7 +118,6 @@ struct Cbe::Free_tree
 	          Cbe::Number_of_leaves const leafs)
 	: _root(root), _root_gen(root_gen)
 	{
-		Genode::error(hash);
 		_tree_helper.construct(degree, height, leafs);
 		_trans.construct(*_tree_helper, true);
 
@@ -335,7 +334,7 @@ struct Cbe::Free_tree
 
 			if (!_trans->get_type_1_info(prim,
 			                             _query_branch[_current_query_branch].trans_info)) {
-				Genode::error(__func__, ":", __LINE__);
+				MOD_ERR("could not get type 1 info");
 			}
 
 			_trans->drop_completed_primitive(prim);
@@ -656,15 +655,16 @@ struct Cbe::Free_tree
 					if (_wb_io[i].pending()) {
 						_wb_io[i].state = Query_type_2::State::IN_PROGRESS;
 					} else {
-						Genode::warning(__func__, ": ignore invalid WRITE_BACK_TAG primitive");
+						MOD_DBG("ignore invalid WRITE_BACK_TAG primitive: ", prim);
 					}
 				}
 			}
 			break;
 		}
 		default:
-			Genode::error(__func__, ": invalid primitive");
-		break;
+			MOD_ERR("invalid primitive: ", prim);
+			throw -1;
+			break;
 		}
 	}
 
@@ -675,7 +675,7 @@ struct Cbe::Free_tree
 			if (_current_type_2.in_progress()) {
 				_current_type_2.state = Query_type_2::State::COMPLETE;
 			} else {
-				Genode::error(__func__, ": I/O primitive not in progress");
+				MOD_DBG("ignore invalid I/O primitive: ", prim);
 			}
 			break;
 		case Tag::WRITE_BACK_TAG:
@@ -686,18 +686,20 @@ struct Cbe::Free_tree
 						_wb_io[i].state = Query_type_2::State::COMPLETE;
 
 						if (prim.success == Cbe::Primitive::Success::FALSE) {
-							Genode::error(__func__, ": primitive failed");
+							// XXX propagate failure
+							MOD_ERR("failed primitive: ", prim);
 						}
 					} else {
-						Genode::warning(__func__, ": ignore invalid WRITE_BACK_TAG primitive ",
-						                i, " pba: ", _wb_io[i].pba, " state: ", (uint32_t)_wb_io[i].state);
+						MOD_DBG("ignore invalid WRITE_BACK_TAG primitive: ", prim,
+						        " entry: ", i, " state: ", (uint32_t)_wb_io[i].state);
 					}
 				}
 			}
 			break;
 		}
 		default:
-			Genode::error(__func__, ": invalid primitive");
+			MOD_ERR("invalid primitive: ", prim);
+			throw -1;
 		break;
 		}
 	}
@@ -713,22 +715,23 @@ struct Cbe::Free_tree
 	Write_back_data const &peek_completed_wb_data(Cbe::Primitive const &prim) const
 	{
 		if (!prim.equal(_wb_data.prim)) {
-			Genode::error(__func__, ": invalid primitive");
+			MOD_ERR("invalid primitive: ", prim);
 			throw -1;
 		}
 
-		MDBG(FT, __func__, ":", __LINE__);
+		MOD_DBG(prim);
 		return _wb_data;
 	}
 
 	void drop_completed_primitive(Cbe::Primitive const &prim)
 	{
 		if (!prim.equal(_wb_data.prim)) {
-			Genode::error(__func__, ": invalid primitive");
+			MOD_ERR("invalid primitive: ", prim);
 			throw -1;
 		}
 
-		MDBG(FT, __func__, ":", __LINE__);
+		MOD_DBG(prim);
+
 		_wb_data.finished = false;
 		_num_blocks = 0;
 	}

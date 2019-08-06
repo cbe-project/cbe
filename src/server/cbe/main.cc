@@ -304,6 +304,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 
 		bool _show_progress { false };
+		bool _show_if_progress { true };
 
 		Signal_handler<Main> _request_handler {
 			_env.ep(), *this, &Main::_handle_requests };
@@ -340,10 +341,10 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					using namespace Genode;
 
-					if (request.operation.block_number > _max_vba) {
-						Cbe::Virtual_block_address const vba = request.operation.block_number;
-						warning("reject request with out-of-range virtual block address ", vba);
+					Cbe::Virtual_block_address const vba = request.operation.block_number;
 
+					if (vba > _max_vba) {
+						warning("reject request with out-of-range virtual block address ", vba);
 						return Block_session_component::Response::REJECTED;
 					}
 
@@ -352,7 +353,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					}
 
 					if (!request.operation.valid()) {
-						Cbe::Virtual_block_address const vba = request.operation.block_number;
 						warning("reject invalid request for virtual block address ", vba);
 						return Block_session_component::Response::REJECTED;
 					}
@@ -362,8 +362,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					Number_of_primitives const num = _splitter.number_of_primitives(req);
 					_request_pool.submit_request(req, num);
 
-					if (_show_progress) {
-						Genode::log("Accept new request");
+					if (_show_progress || _show_if_progress) {
+						Genode::log("NEW request: ", req);
 					}
 
 					progress |= true;
@@ -380,8 +380,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					Block::Request request = convert_from(req);
 					ack.submit(request);
 
-					if (_show_progress) {
-						Genode::log("ACK request");
+					if (_show_progress || _show_if_progress) {
+						Genode::log("ACK request: ", req);
 					}
 
 					progress |= true;
@@ -401,7 +401,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					                                             _free_tree_query_data,
 					                                             _time);
 					progress |= ft_progress;
-					if (_show_progress) {
+					if (_show_progress || (_show_if_progress && ft_progress)) {
 						Genode::log("Free-tree progress: ", ft_progress);
 					}
 				}
@@ -506,7 +506,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				                                        _cache, _cache_data,
 				                                        _time);
 				progress |= vbd_progress;
-				if (_show_progress) {
+				if (_show_progress || (_show_if_progress && vbd_progress)) {
 					Genode::log("VBD progress: ", vbd_progress);
 				}
 
@@ -658,7 +658,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 				bool const write_back_progress = _write_back.execute();
 				progress |= write_back_progress;
-				if (_show_progress) {
+				if (_show_progress || (_show_if_progress && write_back_progress)) {
 					Genode::log("Write-back progress: ", write_back_progress);
 				}
 
@@ -848,7 +848,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 				bool const sync_sb_progress = _sync_sb.execute();
 				progress |= sync_sb_progress;
-				if (_show_progress) {
+				if (_show_progress || (_show_if_progress && sync_sb_progress)) {
 					Genode::log("Sync-sb progress: ", sync_sb_progress);
 				}
 
@@ -890,7 +890,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 				bool const crypto_progress = _crypto.foobar();
 				progress |= crypto_progress;
-				if (_show_progress) {
+				if (_show_progress || (_show_if_progress && crypto_progress)) {
 					Genode::log("Crypto progress: ", crypto_progress);
 				}
 
@@ -940,7 +940,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				bool const cache_progress = _cache.execute(_cache_data, _cache_job_data,
 				                                           _time.timestamp());
 				progress |= cache_progress;
-				if (_show_progress) {
+				if (_show_progress || (_show_if_progress && cache_progress)) {
 					Genode::log("Cache progress: ", cache_progress);
 				}
 
@@ -965,7 +965,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 				bool const io_progress = _io.execute();
 				progress |= io_progress;
-				if (_show_progress) {
+				if (_show_progress || (_show_if_progress && io_progress)) {
 					Genode::log("Io progress: ", io_progress);
 				}
 
@@ -1017,7 +1017,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				}
 
 				if (!progress) {
-					Genode::log("\033[33m", ">>> no progress");
+					Genode::log("\033[33m", ">>> break, no progress");
 					break;
 				}
 			}

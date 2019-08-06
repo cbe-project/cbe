@@ -29,6 +29,7 @@ namespace Cbe { namespace Module {
 
 } /* namespace Module */ } /* namespace Cbe */
 
+#define MOD_NAME "TRANS"
 
 class Cbe::Module::Translation
 {
@@ -244,7 +245,7 @@ class Cbe::Module::Translation
 		void drop_completed_primitive(Cbe::Primitive const &p)
 		{
 			if (p.block_number != _data_pba) {
-				Genode::error(__func__, " invalid primitive");
+				MOD_ERR("invalid primitive: ", p);
 				throw -1;
 			}
 
@@ -309,7 +310,7 @@ class Cbe::Module::Translation
 		void discard_generated_primitive(Cbe::Primitive const &p)
 		{
 			if (p.block_number != _next_pba) {
-				Genode::error(__func__, " invalid primitive");
+				MOD_ERR("invalid primitive: ", p);
 				throw -1;
 			}
 
@@ -327,7 +328,7 @@ class Cbe::Module::Translation
 		                                       Translation_Data &trans_data)
 		{
 			if (p.block_number != _next_pba) {
-				Genode::error(__func__, " invalid primitive");
+				MOD_ERR("invalid primitive: ", p);
 				throw -1;
 			}
 
@@ -335,5 +336,7 @@ class Cbe::Module::Translation
 			Genode::memcpy(&trans_data.item[0], &data, sizeof (Cbe::Block_data));
 		}
 };
+
+#undef MOD_NAME
 
 #endif /* _CBE_TRANSLATION_MODULE_H_ */
