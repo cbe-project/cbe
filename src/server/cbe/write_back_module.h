@@ -47,6 +47,11 @@ class Cbe::Module::Write_back
 			bool io_done { false };
 
 			Cbe::Tag tag { Cbe::Tag::INVALID_TAG };
+
+			void print(Genode::Output &out) const
+			{
+				Genode::print(out, "pba: ", pba, " update_pba: ", update_pba);
+			}
 		};
 
 		/*
@@ -63,6 +68,7 @@ class Cbe::Module::Write_back
 		bool _io { false };
 
 		Cbe::Primitive _pending_primitive { };
+		bool           _pending_failure   { false };
 		Cbe::Virtual_block_address _vba { ~0ull };
 		Cbe::Generation _new_generation { 0 };
 
@@ -136,7 +142,7 @@ class Cbe::Module::Write_back
 				e.pba = pba[i].pba;
 				e.update_pba = update_pba[i];
 
-				MOD_DBG("i: ", i, " old: ", e.pba, " new: ", e.update_pba);
+				MOD_DBG("entry: ", i, " ", e);
 
 				e.in_progress = false;
 				e.done        = false;
@@ -193,7 +199,9 @@ class Cbe::Module::Write_back
 			}
 
 			if (completed) {
-				_pending_primitive.success = Cbe::Primitive::Success::TRUE;
+				_pending_primitive.success =
+					_pending_failure ? Cbe::Primitive::Success::FALSE
+					                 : Cbe::Primitive::Success::TRUE;
 				return _pending_primitive;
 			}
 
@@ -221,7 +229,7 @@ class Cbe::Module::Write_back
 				return;
 			}
 
-			MOD_DBG("invalid primitive");
+			MOD_DBG("invalid primitive: ", p);
 			throw -1;
 		}
 
@@ -239,15 +247,15 @@ class Cbe::Module::Write_back
 				bool const cache = e.tag == Cbe::Tag::CACHE_TAG;
 				Cbe::Primitive::Number const block_number = cache ? e.pba : e.update_pba;
 
-				MOD_DBG("block_number: ", block_number);
-
-				return Primitive {
+				Cbe::Primitive p {
 					.tag          = e.tag,
 					.operation    = Cbe::Primitive::Operation::WRITE,
 					.success      = Cbe::Primitive::Success::FALSE,
 					.block_number = block_number,
 					.index        = 0,
 				};
+				MOD_DBG(p);
+				return p;
 			}
 			return Cbe::Primitive { };
 		}
@@ -261,7 +269,7 @@ class Cbe::Module::Write_back
 				if (match) { return _crypto_data; }
 			}
 
-			MOD_ERR("invalid primitive");
+			MOD_ERR("invalid primitive: ", p);
 			throw -1;
 		}
 
@@ -274,8 +282,7 @@ class Cbe::Module::Write_back
 				if (match) { return e.update_pba; }
 			}
 
-			Cbe::Physical_block_address const pba = p.block_number;
-			MOD_ERR("invalid primitive: ", pba);
+			MOD_ERR("invalid primitive: ", p);
 			throw -1;
 		}
 
@@ -288,10 +295,11 @@ class Cbe::Module::Write_back
 				if (!match) { continue; }
 				
 				e.in_progress = true;
+				MOD_DBG(p);
 				return;
 			}
 
-			MOD_ERR("invalid primitive");
+			MOD_ERR("invalid primitive: ", p);
 			throw -1;
 		}
 
@@ -308,21 +316,23 @@ class Cbe::Module::Write_back
 				Sha256_4k::hash(data, hash);
 				Genode::memcpy(_entry_hash[i].values, hash.values, sizeof (hash));
 
-				MOD_DBG("i: ", i, " update_pba: ", e.update_pba, " <", _entry_hash[i], ">");
+				MOD_DBG("entry: ", i, " ", e, " <", _entry_hash[i], ">");
 
 				e.done = true;
+				if (p.success == Cbe::Primitive::Success::FALSE) {
+					_pending_failure = true;
+					MOD_ERR(p);
+				}
 				return;
 			}
 
-			MOD_ERR("invalid primitive");
+			MOD_ERR("invalid primitive: ", p);
 			throw -1;
 		}
 
 		Primitive peek_generated_io_primitive()
 		{
-			Primitive p { };
-
-			if (!_io) { return p; }
+			if (!_io) { return Cbe::Primitive { }; }
 
 			for (Genode::uint32_t i = 0; i < _levels; i++) {
 				Entry &e = _entry[i];
@@ -331,18 +341,18 @@ class Cbe::Module::Write_back
 
 				if (e.io_in_progress || e.io_done || !e.done) { continue; }
 
-				MOD_DBG("i: ", i, " pba: ", e.update_pba);
-
-				p = Primitive {
+				Cbe::Primitive p {
 					.tag          = Cbe::Tag::IO_TAG,
 					.operation    = Cbe::Primitive::Operation::WRITE,
 					.success      = Cbe::Primitive::Success::FALSE,
 					.block_number = e.update_pba,
 					.index        = 0,
 				};
-				break;
+				MOD_DBG("i: ", p);
+				return p;
 			}
-			return p;
+
+			return Cbe::Primitive { };
 		}
 
 		Cbe::Block_data &peek_generated_io_data(Cbe::Primitive const &p)
@@ -353,7 +363,7 @@ class Cbe::Module::Write_back
 				if (match) { return _crypto_data; }
 			}
 
-			MOD_ERR("invalid primitive");
+			MOD_ERR("invalid primitive: ", p);
 			throw -1;
 		}
 
@@ -369,7 +379,7 @@ class Cbe::Module::Write_back
 				return;
 			}
 
-			MOD_ERR("invalid primitive");
+			MOD_ERR("invalid primitive: ", p);
 			throw -1;
 		}
 
@@ -381,8 +391,12 @@ class Cbe::Module::Write_back
 				bool const match = p.block_number == e.update_pba;
 				if (!io || !match) { continue; }
 
-				MOD_DBG("i: ", i, " pba: ", e.update_pba, " io_done");
+				MOD_DBG("entry: ", i, " ", e, " io_done");
 				e.io_done = true;
+				if (p.success == Cbe::Primitive::Success::FALSE) {
+					_pending_failure = true;
+					MOD_ERR(p);
+				}
 				return;
 			}
 
