@@ -273,6 +273,18 @@ namespace Cbe {
 		uint32_t flags;
 
 		bool valid() const { return id != Snapshot::INVALID_ID; }
+
+		void print(Genode::Output &out) const
+		{
+			if (!valid()) {
+				Genode::print(out, "<invalid>");
+				return;
+			}
+
+			Genode::print(out, "id: ", id, " gen: ", gen,
+			              " pba: ", pba, " leafs: ", leaves,
+			              " height: ", height, " hash: <", hash, ">");
+		}
 	} __attribute__((packed));
 
 	struct Super_block

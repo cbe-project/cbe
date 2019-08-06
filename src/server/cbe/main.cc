@@ -244,9 +244,10 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			SYNC_INTERVAL   = 0ull,
 			SECURE_INTERVAL = 5ull,
 		};
-		uint64_t _sync_interval   { SYNC_INTERVAL };
-		uint64_t _secure_interval { SECURE_INTERVAL };
+		uint64_t _sync_interval         { SYNC_INTERVAL };
 		Cbe::Time::Timestamp _last_time { _time.timestamp() };
+		uint64_t _secure_interval              { SECURE_INTERVAL };
+		Cbe::Time::Timestamp _last_secure_time { _time.timestamp() };
 
 		Crypto   _crypto       { "All your base are belong to us  " };
 		Block_data _crypto_data { };
@@ -305,8 +306,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Cbe::Generation  _last_secured_generation { 0 };
 		uint32_t         _current_snapshot { 0 };
 		uint32_t         _last_snapshot_id { 0 };
-		uint64_t         _sync_cb_count { 0 };
 		bool             _need_to_sync { false };
+		bool             _need_to_secure { false };
+		bool             _snaps_dirty { false };
 
 
 		bool _show_progress    { false };
@@ -334,8 +336,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 ** Time handling **
 				 *******************/
 
-				Cbe::Time::Timestamp const curr_time = _time.timestamp();
-				Cbe::Time::Timestamp const diff_time = curr_time - _last_time;
+				Cbe::Time::Timestamp const diff_time = _time.timestamp() - _last_time;
 				if (diff_time >= _sync_interval && !_need_to_sync) {
 
 					// XXX move
@@ -355,8 +356,21 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						_need_to_sync = true;
 					} else {
 						DBG("cache is not dirty, re-arm trigger");
-						_last_time = curr_time;
+						_last_time = _time.timestamp();
 						_time.schedule_sync_timeout(_sync_interval);
+					}
+				}
+
+				Cbe::Time::Timestamp const diff_secure_time = _time.timestamp() - _last_secure_time;
+				if (diff_secure_time >= _secure_interval && !_need_to_secure) {
+
+					if (_snaps_dirty) {
+						Genode::log("\033[93;44m", __func__,
+						            " SEAL current super-block: ", _current_sb);
+						_need_to_secure = true;
+					} else {
+						DBG("no snapshots created, re-arm trigger");
+						_last_secure_time = _time.timestamp();
 					}
 				}
 
@@ -509,6 +523,11 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					Cbe::Primitive prim = _splitter.peek_generated_primitive();
 					if (!prim.valid()) { break; }
 					if (!_vbd->primitive_acceptable()) { break; }
+
+					if (_need_to_secure) {
+						DBG("prevent processing new primitives while securing super-block");
+						break;
+					}
 
 					_splitter.drop_generated_primitive(prim);
 
@@ -709,11 +728,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						break;
 					}
 
-					Genode::error("SYNC SUPER-BLOCK currently BROKEN!!!!");
-
 					if (_need_to_sync) {
-
-						if (!_sync_sb.primitive_acceptable()) { break; }
 
 						Cbe::Super_block &sb = _super_block[_current_sb];
 						uint32_t next_snap = _current_snapshot;
@@ -744,16 +759,14 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						snap.gen = _current_generation;
 						snap.id  = ++_last_snapshot_id;
 
-						Genode::log("\033[93;44m", __func__, " SYNC CURRENT SB generation: ", _current_generation,
-						            " next: ", _current_generation + 1);
-
-						// _sync_sb.submit_primitive(prim, _current_sb, _current_generation);
+						DBG("create new snapshot for generation: ", _current_generation,
+						    " snap: ", snap);
 
 						_current_generation++;
 						_current_snapshot++;
 
 						_need_to_sync = false;
-						_last_time = curr_time;
+						_last_time = _time.timestamp();
 						_time.schedule_sync_timeout(_sync_interval);
 					} else {
 						Cbe::Super_block &sb = _super_block[_current_sb];
@@ -769,6 +782,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						Cbe::Hash *snap_hash = &snap.hash;
 						_write_back.peek_competed_root_hash(prim, *snap_hash);
 					}
+
+					_snaps_dirty |= true;
 
 					_request_pool.mark_completed_primitive(prim);
 
@@ -872,6 +887,19 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 ** Super-block handling **
 				 **************************/
 
+				if (_need_to_secure && _sync_sb.primitive_acceptable()) {
+
+					Cbe::Super_block &sb = _super_block[_current_sb];
+
+					sb.last_secured_generation = _current_generation;
+					sb.snapshot_id             = _current_snapshot;
+
+					DBG("secure current super-block gen: ", _current_generation,
+					    " snap_id: ", _current_snapshot);
+
+					_sync_sb.submit_primitive(_current_sb, _current_generation);
+				}
+
 				bool const sync_sb_progress = _sync_sb.execute();
 				progress |= sync_sb_progress;
 				LOG_PROGRESS(sync_sb_progress);
@@ -881,15 +909,23 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					Cbe::Primitive prim = _sync_sb.peek_completed_primitive();
 					if (!prim.valid()) { break; }
 
-					Cbe::Primitive req_prim = _sync_sb.peek_completed_request_primitive(prim);
+					DBG("primitive: ", prim);
+
 					_last_secured_generation = _sync_sb.peek_completed_generation(prim);
 
+					uint32_t next_sb = (_current_sb + 1) % Cbe::NUM_SUPER_BLOCKS;
+					Cbe::Super_block       &next = _super_block[next_sb];
+					Cbe::Super_block const &curr = _super_block[_current_sb];
+					Genode::memcpy(&next, &curr, sizeof (Cbe::Super_block));
+
+					_current_sb = next_sb;
+
+					_snaps_dirty = false;
+					_need_to_secure = false;
+					_last_secure_time = _time.timestamp();
+					_time.schedule_secure_timeout(_secure_interval);
+
 					_sync_sb.drop_completed_primitive(prim);
-					_request_pool.mark_completed_primitive(req_prim);
-					DBG("pool complete:", req_prim);
-
-					_sync_cb_count++;
-
 					progress |= true;
 				}
 
@@ -1181,6 +1217,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 			_time.sync_sigh(_request_handler);
 			_time.schedule_sync_timeout(_sync_interval);
+
+			_time.secure_sigh(_request_handler);
+			_time.schedule_secure_timeout(_secure_interval);
 
 			_setup();
 			_dump_current_sb_info();

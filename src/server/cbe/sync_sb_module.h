@@ -32,7 +32,6 @@ class Cbe::Module::Sync_sb
 		{
 			enum State { INVALID, PENDING, IN_PROGRESS, COMPLETE };
 
-			Cbe::Primitive primitive;
 			uint64_t id;
 			Cbe::Generation gen;
 
@@ -47,7 +46,7 @@ class Cbe::Module::Sync_sb
 
 		bool primitive_acceptable() const { return !_curr_primitive.valid(); }
 
-		void submit_primitive(Primitive const &p, uint64_t id, Cbe::Generation const gen)
+		void submit_primitive(uint64_t id, Cbe::Generation const gen)
 		{
 			if (_curr_primitive.valid()) {
 				MOD_ERR("already have current primitive: ", _curr_primitive);
@@ -55,7 +54,7 @@ class Cbe::Module::Sync_sb
 			}
 
 			_entry[0] = Entry {
-				.primitive = p, .id = id, .gen = gen,
+				.id = id, .gen = gen,
 				.state = Entry::State::PENDING
 			};
 
@@ -74,21 +73,10 @@ class Cbe::Module::Sync_sb
 		Primitive peek_completed_primitive()
 		{
 			if (_entry[0].state == Entry::State::COMPLETE) {
-				MOD_DBG("pba: ", _curr_primitive);
+				MOD_DBG(_curr_primitive);
 				return _curr_primitive;
 			}
 			return Primitive { };
-		}
-
-		Primitive peek_completed_request_primitive(Cbe::Primitive const &p)
-		{
-			if (_entry[0].state == Entry::State::COMPLETE
-			    && p.block_number == _curr_primitive.block_number) {
-				return _entry[0].primitive;
-			}
-
-			MOD_ERR("invalid primitive: ", p);
-			throw -1;
 		}
 
 		Cbe::Generation peek_completed_generation(Cbe::Primitive const &p)
@@ -112,7 +100,6 @@ class Cbe::Module::Sync_sb
 			MOD_DBG(p);
 
 			_entry[0] = Entry {
-				.primitive = Primitive { },
 				.id        = ~0ull,
 				.gen       = 0,
 				.state     = Entry::State::INVALID
@@ -121,14 +108,14 @@ class Cbe::Module::Sync_sb
 			_curr_primitive = Primitive { };
 		}
 
-		Primitive peek_generated_primitive()
+		Cbe::Primitive peek_generated_primitive()
 		{
 			if (_entry[0].state == Entry::State::PENDING) {
 				MOD_DBG(_curr_primitive);
 				return _curr_primitive;
 			}
 
-			return Primitive { };
+			return Cbe::Primitive { };
 		}
 
 		uint64_t peek_generated_id(Cbe::Primitive const &p)
@@ -138,6 +125,7 @@ class Cbe::Module::Sync_sb
 				throw -1;
 			}
 
+			MOD_DBG(p);
 			return _entry[0].id;
 		}
 
@@ -148,6 +136,7 @@ class Cbe::Module::Sync_sb
 				throw -1;
 			}
 
+			MOD_DBG(p);
 			_entry[0].state = Entry::State::IN_PROGRESS;
 		}
 
@@ -157,6 +146,8 @@ class Cbe::Module::Sync_sb
 				MOD_ERR("invalid primitive: ", p);
 				throw -1;
 			}
+
+			MOD_DBG(p);
 
 			_curr_primitive.success = p.success;
 
