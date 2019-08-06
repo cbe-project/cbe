@@ -1000,6 +1000,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 				bool const cache_progress = _cache.execute(_cache_data, _cache_job_data,
 				                                           _time.timestamp());
+				progress |= cache_progress;
 				if (_show_progress) {
 					Genode::log("Cache progress: ", cache_progress);
 				}
