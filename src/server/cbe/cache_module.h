@@ -16,6 +16,7 @@
 #include <cbe/types.h>
 #include <cbe/spark_object.h>
 
+
 namespace Cbe { namespace Module {
 
 	struct Cache_Data
@@ -42,6 +43,8 @@ namespace Cbe { namespace Module {
 
 } /* namespace Module */ } /* namespace Cbe */
 
+
+#define MOD_NAME "CCH"
 
 struct Cbe::Module::Cache : Cbe::Spark_object<808>
 {
@@ -128,6 +131,13 @@ struct Cbe::Module::Cache : Cbe::Spark_object<808>
 	 */
 	bool request_acceptable(Cbe::Physical_block_address pba) const;
 
+	bool cxx_request_acceptable(Cbe::Physical_block_address pba) const
+	{
+		bool const r = request_acceptable(pba);
+		MOD_DBG("pba: ", pba, " acceptable: ", r);
+		return r;
+	}
+
 	/**
 	 * Submit a new request
 	 *
@@ -137,6 +147,12 @@ struct Cbe::Module::Cache : Cbe::Spark_object<808>
 	 * \param pba  physical block address of the block data
 	 */
 	void submit_request(Cbe::Physical_block_address const pba);
+
+	void cxx_submit_request(Cbe::Physical_block_address const pba)
+	{
+		MOD_DBG("pba: ", pba);
+		submit_request(pba);
+	}
 
 	/**
 	 * Fill cache
@@ -211,6 +227,14 @@ struct Cbe::Module::Cache : Cbe::Spark_object<808>
 	 *           the corresponding internal primitive as completed
 	 */
 	void mark_completed_primitive(Cbe::Primitive const &p);
+
+	void cxx_mark_completed_primitive(Cbe::Primitive const &p)
+	{
+		MOD_DBG(p);
+		mark_completed_primitive(p);
+	}
 };
+
+#undef MOD_NAME
 
 #endif /* _CBE_CACHE_MODULE_H_ */
