@@ -19,20 +19,24 @@ namespace Cbe { namespace Module {
 
 } /* namespace Module */ } /* namespace Cbe */
 
+
+#define MOD_NAME "SSB"
+
 class Cbe::Module::Sync_sb
 {
 	private:
 
 		static constexpr uint32_t N = 1;
 
-		struct Entry {
+		struct Entry
+		{
+			enum State { INVALID, PENDING, IN_PROGRESS, COMPLETE };
 
 			Cbe::Primitive primitive;
 			uint64_t id;
 			Cbe::Generation gen;
 
-			bool pending;
-			bool complete;
+			State state;
 		};
 
 		Cbe::Primitive _curr_primitive { };
@@ -52,7 +56,7 @@ class Cbe::Module::Sync_sb
 
 			_entry[0] = Entry {
 				.primitive = p, .id = id, .gen = gen,
-				.pending = false, .complete = false
+				.state = Entry::State::PENDING
 			};
 
 			_curr_primitive = Primitive {
@@ -69,7 +73,8 @@ class Cbe::Module::Sync_sb
 
 		Primitive peek_completed_primitive()
 		{
-			if (_entry[0].complete) {
+			if (_entry[0].state == Entry::State::COMPLETE) {
+				MOD_DBG("pba: ", _curr_primitive);
 				return _curr_primitive;
 			}
 			return Primitive { };
@@ -77,7 +82,8 @@ class Cbe::Module::Sync_sb
 
 		Primitive peek_completed_request_primitive(Cbe::Primitive const &p)
 		{
-			if (_entry[0].complete && p.block_number == _curr_primitive.block_number) {
+			if (_entry[0].state == Entry::State::COMPLETE
+			    && p.block_number == _curr_primitive.block_number) {
 				return _entry[0].primitive;
 			}
 
@@ -87,7 +93,8 @@ class Cbe::Module::Sync_sb
 
 		Cbe::Generation peek_completed_generation(Cbe::Primitive const &p)
 		{
-			if (_entry[0].complete && p.block_number == _curr_primitive.block_number) {
+			if (_entry[0].state == Entry::State::COMPLETE
+			    && p.block_number == _curr_primitive.block_number) {
 				return _entry[0].gen;
 			}
 
@@ -102,14 +109,26 @@ class Cbe::Module::Sync_sb
 				throw -1;
 			}
 
-			_entry[0] = Entry { .primitive = Primitive { }, .id = ~0ull, .gen = 0, .pending = false, .complete = false };
+			MOD_DBG("pba: ", p);
+
+			_entry[0] = Entry {
+				.primitive = Primitive { },
+				.id        = ~0ull,
+				.gen       = 0,
+				.state     = Entry::State::INVALID
+			};
 
 			_curr_primitive = Primitive { };
 		}
 
 		Primitive peek_generated_primitive()
 		{
-			return !_entry[0].pending ? _curr_primitive : Primitive { };
+			if (_entry[0].state == Entry::State::PENDING) {
+				MOD_DBG("pba: ", _curr_primitive);
+				return _curr_primitive;
+			}
+
+			return Primitive { };
 		}
 
 		uint64_t peek_generated_id(Cbe::Primitive const &p)
@@ -129,7 +148,7 @@ class Cbe::Module::Sync_sb
 				throw -1;
 			}
 
-			_entry[0].pending = true;
+			_entry[0].state = Entry::State::IN_PROGRESS;
 		}
 
 		void mark_generated_primitive_complete(Cbe::Primitive const &p)
@@ -141,8 +160,10 @@ class Cbe::Module::Sync_sb
 
 			_curr_primitive.success = p.success;
 
-			_entry[0].complete = true;
+			_entry[0].state = Entry::State::COMPLETE;
 		}
 };
+
+#undef MOD_NAME
 
 #endif /* _CBE_SYNC_SB_MODULE_H_ */
