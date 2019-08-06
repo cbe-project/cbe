@@ -75,6 +75,16 @@ struct Cbe::Module::Cache : Cbe::Spark_object<808>
 	Cache_Index data_index(Cbe::Physical_block_address const pba,
 	                       Cbe::Timestamp current_time);
 
+	/*
+	 * Get number of cache slots
+	 *
+	 * \return slots
+	 */
+	uint32_t cxx_cache_slots() const
+	{
+		return sizeof (Cache_Data) / sizeof (Cbe::Block_data);
+	}
+
 	/**
 	 * Invalid cache entry containg the physical block address
 	 *

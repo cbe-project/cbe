@@ -264,6 +264,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Cache_Data      _cache_data     { };
 		Cache_Job_Data  _cache_job_data { };
 		Flusher         _flusher        { };
+		bool            _cache_dirty    { false };
 
 		Translation_Data       _trans_data     { };
 		Constructible<Cbe::Virtual_block_device> _vbd { };
@@ -336,8 +337,27 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				Cbe::Time::Timestamp const curr_time = _time.timestamp();
 				Cbe::Time::Timestamp const diff_time = curr_time - _last_time;
 				if (diff_time >= _sync_interval && !_need_to_sync) {
-					Genode::log("\033[93;44m", __func__, " SEAL current generation: ", _current_generation);
-					_need_to_sync = true;
+
+					// XXX move
+					bool cache_dirty = false;
+					for (size_t i = 0; i < _cache.cxx_cache_slots(); i++) {
+						Cache_Index const idx = Cache_Index { .value = (uint32_t)i };
+						if (_cache.dirty(idx)) {
+							cache_dirty |= true;
+							break;
+						}
+					}
+
+					_cache_dirty = cache_dirty;
+
+					if (_cache_dirty) {
+						Genode::log("\033[93;44m", __func__, " SEAL current generation: ", _current_generation);
+						_need_to_sync = true;
+					} else {
+						DBG("cache is not dirty, re-arm trigger");
+						_last_time = curr_time;
+						_time.schedule_sync_timeout(_sync_interval);
+					}
 				}
 
 				/***********************
@@ -670,9 +690,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					if (!prim.valid()) { break; }
 					if (!_flusher.request_acceptable()) { break; }
 
-					size_t const cache_slots = sizeof (Cache_Data) / sizeof (Cbe::Block_data);
 					bool cache_dirty = false;
-					for (size_t i = 0; i < cache_slots; i++) {
+					for (uint32_t i = 0; i < _cache.cxx_cache_slots(); i++) {
 						Cache_Index const idx = Cache_Index { .value = (uint32_t)i };
 						if (_cache.dirty(idx)) {
 							cache_dirty |= true;
@@ -701,7 +720,14 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						for (uint32_t i = 0; i < Cbe::NUM_SNAPSHOTS; i++) {
 							next_snap = (next_snap + 1) % Cbe::NUM_SNAPSHOTS;
 							Cbe::Snapshot const &snap = sb.snapshots[next_snap];
-							if (!snap.valid()) { break; }
+							if (!snap.valid()) {
+								break;
+							} else {
+								if (!(snap.flags & Cbe::Snapshot::FLAG_KEEP)) {
+									break;
+								}
+							}
+
 						}
 						if (next_snap == _current_snapshot) {
 							Genode::error("could not find free snapshot slot");
@@ -721,7 +747,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						Genode::log("\033[93;44m", __func__, " SYNC CURRENT SB generation: ", _current_generation,
 						            " next: ", _current_generation + 1);
 
-						_sync_sb.submit_primitive(prim, _current_sb, _current_generation);
+						// _sync_sb.submit_primitive(prim, _current_sb, _current_generation);
 
 						_current_generation++;
 						_current_snapshot++;
@@ -742,9 +768,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 						Cbe::Hash *snap_hash = &snap.hash;
 						_write_back.peek_competed_root_hash(prim, *snap_hash);
-
-						_request_pool.mark_completed_primitive(prim);
 					}
+
+					_request_pool.mark_completed_primitive(prim);
 
 					_write_back.drop_completed_primitive(prim);
 
