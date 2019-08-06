@@ -314,9 +314,12 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 			Block_session_component &block_session = *_block_session;
 
+			uint32_t loop_count = 0;
 			for (;;) {
 
 				bool progress = false;
+
+				Genode::log("\033[33m", ">>> loop_count: ", ++loop_count);
 
 				/*******************
 				 ** Time handling **
@@ -422,8 +425,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						_write_back.submit_primitive(wb.prim, wb.gen, wb.vba,
 						                             wb.new_pba, wb.old_pba, wb.tree_height,
 						                             *wb.block_data);
-
-						DBG("drop_completed_primitive");
 					}
 					_free_tree->drop_completed_primitive(prim);
 					progress |= true;
@@ -509,20 +510,20 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					Genode::log("VBD progress: ", vbd_progress);
 				}
 
-				while (true) {
+// 				while (true) {
 
-					Cbe::Primitive prim = _vbd->peek_generated_primitive();
-					if (!prim.valid()) { break; }
-					if (!_io.primitive_acceptable()) { break; }
+// 					Cbe::Primitive prim = _vbd->peek_generated_primitive();
+// 					if (!prim.valid()) { break; }
+// 					if (!_io.primitive_acceptable()) { break; }
 
-					Index const idx = _vbd->peek_generated_data_index(prim);
-					Cbe::Block_data &data = _cache_job_data.item[idx.value];
+// 					Index const idx = _vbd->peek_generated_data_index(prim);
+// 					Cbe::Block_data &data = _cache_job_data.item[idx.value];
 
-					_vbd->drop_generated_primitive(prim);
-					_io.submit_primitive(Tag::VBD_CACHE_TAG, prim, data);
+// 					_vbd->drop_generated_primitive(prim);
+// 					_io.submit_primitive(Tag::VBD_CACHE_TAG, prim, data);
 
-					progress |= true;
-				}
+// 					progress |= true;
+// 				}
 
 				while (true) {
 
@@ -702,7 +703,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					}
 
 					if (cache_dirty) {
-						DBG("CACHE FLUSH NEEDED");
+						DBG("CACHE FLUSH NEEDED: progress: ", progress);
+						progress |= true;
 						break;
 					}
 
@@ -762,56 +764,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						// XXX for now we re-use the sync path to trigger the request ack
 						//     in the request pool as well as tree dumping within the
 						//     cbe_block
-						_sync_sb.submit_primitive(prim, _current_sb, _current_generation);
+						// _sync_sb.submit_primitive(prim, _current_sb, _current_generation);
+						_request_pool.mark_completed_primitive(prim);
 					}
-
-#if 0
-						uint64_t         const  next_sb = (_current_sb + 1) % Cbe::NUM_SUPER_BLOCKS;
-						Cbe::Super_block       &sb      = _super_block[next_sb];
-
-						/* update super block */
-						sb.root_number = _write_back.peek_completed_root(prim);
-						Cbe::Hash *root_hash = &sb.root_hash;
-						_write_back.peek_competed_root_hash(prim, *root_hash);
-
-						sb.generation = _current_generation;
-
-						sb.free_number = _free_tree->root_number();
-						Cbe::Hash const &free_hash = _free_tree->root_hash();
-						Genode::memcpy(sb.free_hash.values, free_hash.values, sizeof (Cbe::Hash));
-
-						sb.active = true;
-
-						_sync_sb.submit_primitive(prim, next_sb, _current_generation);
-
-						Genode::log("\033[93;44m", __func__, " SYNC CURRENT SB generation: ", _current_generation,
-						            " next: ", _current_generation + 1);
-						_current_sb = next_sb;
-						_current_generation = _current_generation + 1;
-
-						_need_to_sync = false;
-						_last_time = curr_time;
-						_time.schedule_sync_timeout(_sync_interval);
-					} else {
-
-						Cbe::Super_block &sb = _super_block[_current_sb];
-						Cbe::Physical_block_address const sb_root_number = sb.root_number;
-
-						/* update super block */
-						Cbe::Physical_block_address const root_number = _write_back.peek_completed_root(prim);
-						if (sb_root_number != root_number) {
-							sb.generation  = _current_generation;
-						}
-						sb.root_number = root_number;
-						Cbe::Hash *root_hash = &sb.root_hash;
-						_write_back.peek_competed_root_hash(prim, *root_hash);
-
-						// XXX for now we re-use the sync path to trigger the request ack
-						//     in the request pool as well as tree dumping within the
-						//     cbe_block
-						_sync_sb.submit_primitive(prim, _current_sb, _current_generation);
-					}
-#endif
 
 					_write_back.drop_completed_primitive(prim);
 
@@ -836,6 +791,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 							Cbe::Block_data &data = _write_back.peek_generated_crypto_data(prim);
 							_crypto.submit_primitive(prim, data, _crypto_data);
 							_progress = true;
+							_write_back.drop_generated_primitive(prim);
 						}
 						break;
 					case Tag::CACHE_TAG:
@@ -849,23 +805,30 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 						bool cache_miss = false;
 						if (!_cache.data_available(pba)) {
-							if (_cache.request_acceptable(pba)) {
-								_cache.submit_request(pba);
+							DBG("cache miss pba: ", pba);
+							if (_cache.cxx_request_acceptable(pba)) {
+								_cache.cxx_submit_request(pba);
 							}
 							cache_miss |= true;
 						}
 
 						if (pba != update_pba) {
 							if (!_cache.data_available(update_pba)) {
-								if (_cache.request_acceptable(update_pba)) {
-									_cache.submit_request(update_pba);
+								DBG("cache miss update_pba: ", update_pba);
+								if (_cache.cxx_request_acceptable(update_pba)) {
+									_cache.cxx_submit_request(update_pba);
 								}
 								cache_miss |= true;
 							}
 						}
 
 						/* read the needed blocks first */
-						if (cache_miss) { break; }
+						if (cache_miss) {
+							DBG("cache_miss");
+							break;
+						}
+
+						DBG("cache hot pba: ", pba, " update_pba: ", update_pba);
 
 						Cache_Index const idx        = _cache.data_index(pba, _time.timestamp());
 						Cache_Index const update_idx = _cache.data_index(update_pba, _time.timestamp());
@@ -876,6 +839,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						_write_back.update(pba, _vbd->tree_helper(), data, update_data);
 						_cache.mark_dirty(update_pba);
 
+						_write_back.drop_generated_primitive(prim);
 						_progress = true;
 						break;
 					}
@@ -884,7 +848,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					if (!_progress) { break; }
 
-					_write_back.drop_generated_primitive(prim);
 					progress |= true;
 				}
 
@@ -919,12 +882,11 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					if (!prim.valid()) { break; }
 
 					Cbe::Primitive req_prim = _sync_sb.peek_completed_request_primitive(prim);
-
 					_last_secured_generation = _sync_sb.peek_completed_generation(prim);
 
 					_sync_sb.drop_completed_primitive(prim);
-
 					_request_pool.mark_completed_primitive(req_prim);
+					DBG("pool complete:", req_prim);
 
 					_sync_cb_count++;
 
@@ -968,6 +930,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						Cbe::Block_data *data_ptr = _data(block_session, creq, prim);
 						_crypto.copy_completed_data(prim, *data_ptr);
 						_request_pool.mark_completed_primitive(prim);
+						DBG("pool complete: ", prim);
 
 					} else if (prim.write()) {
 
@@ -1049,7 +1012,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						}
 						break;
 					case Tag::CACHE_TAG:
-						_cache.mark_completed_primitive(prim);
+						_cache.cxx_mark_completed_primitive(prim);
 						break;
 					case Tag::CACHE_FLUSH_TAG:
 						_flusher.mark_generated_primitive_complete(prim);
@@ -1077,7 +1040,10 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					progress |= true;
 				}
 
-				if (!progress) { break; }
+				if (!progress) {
+					Genode::log("\033[33m", ">>> no progress");
+					break;
+				}
 			}
 
 			block_session.wakeup_client_if_needed();
