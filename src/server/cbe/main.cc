@@ -510,28 +510,10 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					Genode::log("VBD progress: ", vbd_progress);
 				}
 
-// 				while (true) {
-
-// 					Cbe::Primitive prim = _vbd->peek_generated_primitive();
-// 					if (!prim.valid()) { break; }
-// 					if (!_io.primitive_acceptable()) { break; }
-
-// 					Index const idx = _vbd->peek_generated_data_index(prim);
-// 					Cbe::Block_data &data = _cache_job_data.item[idx.value];
-
-// 					_vbd->drop_generated_primitive(prim);
-// 					_io.submit_primitive(Tag::VBD_CACHE_TAG, prim, data);
-
-// 					progress |= true;
-// 				}
-
 				while (true) {
 
 					Cbe::Primitive prim = _vbd->peek_completed_primitive();
 					if (!prim.valid()) { break; }
-
-					// XXX defer all operations for now
-					// if (_need_to_sync) { break; }
 
 					Cbe::Request const creq = _request_pool.request_for_tag(prim.tag);
 					Cbe::Block_data *data_ptr = _data(block_session, creq, prim);
@@ -539,8 +521,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					if (prim.read()) {
 						if (!_io.primitive_acceptable()) { break; }
 
-						// Cbe::Physical_block_address const pba = prim.block_number;
-						// Genode::error("_trans->peek_completed_primitive(): pba: ", pba);
 						_io.submit_primitive(Tag::CRYPTO_TAG_DECRYPT, prim, *data_ptr);
 					} else
 
@@ -761,10 +741,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						Cbe::Hash *snap_hash = &snap.hash;
 						_write_back.peek_competed_root_hash(prim, *snap_hash);
 
-						// XXX for now we re-use the sync path to trigger the request ack
-						//     in the request pool as well as tree dumping within the
-						//     cbe_block
-						// _sync_sb.submit_primitive(prim, _current_sb, _current_generation);
 						_request_pool.mark_completed_primitive(prim);
 					}
 
