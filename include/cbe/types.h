@@ -18,8 +18,6 @@ namespace Cbe {
 	using namespace Genode;
 
 	enum class Tag : Genode::uint32_t {
-		TYPE_MASK = 0xff,
-
 		INVALID_TAG        = 0x00,
 		IO_TAG             = 0x10,
 		CACHE_TAG          = 0x20,
@@ -97,6 +95,57 @@ namespace Cbe {
 			return tag == rhs.tag
 			    && block_number == rhs.block_number
 			    && operation == rhs.operation;
+		}
+
+		void print(Genode::Output &out) const
+		{
+			if (!valid()) {
+				Genode::print(out, "<invalid>");
+				return;
+			}
+
+			auto tag_string = [](Tag const tag) {
+				switch (tag) {
+				case Tag::INVALID_TAG: return "INVALID_TAG";
+				case Tag::IO_TAG: return "IO_TAG";
+				case Tag::CACHE_TAG: return "CACHE_TAG";
+				case Tag::CACHE_FLUSH_TAG: return "CACHE_FLUSH_TAG";
+				case Tag::CRYPTO_TAG: return "CRYPTO_TAG";
+				case Tag::CRYPTO_TAG_DECRYPT: return "CRYPTO_TAG_DECRYPT";
+				case Tag::CRYPTO_TAG_ENCRYPT: return "CRYPTO_TAG_ENCRYPT";
+				case Tag::POOL_TAG: return "POOL_TAG";
+				case Tag::SPLITTER_TAG: return "SPLITTER_TAG";
+				case Tag::TRANSLATION_TAG: return "TRANSLATION_TAG";
+				case Tag::WRITE_BACK_TAG: return "WRITE_BACK_TAG";
+				case Tag::SYNC_SB_TAG: return "SYNC_SB_TAG";
+				case Tag::RECLAIM_TAG: return "RECLAIM_TAG";
+
+				case Tag::VBD_TAG: return "VBD_TAG";
+				case Tag::VBD_CACHE_TAG: return "VBD_CACHE_TAG";
+				case Tag::FREE_TREE_TAG: return "FREE_TREE_TAG";
+				case Tag::FREE_TREE_TAG_IO: return "FREE_TREE_TAG_IO";
+				case Tag::FREE_TREE_TAG_CACHE: return "FREE_TREE_TAG_CACHE";
+				case Tag::FREE_TREE_TAG_WB: return "FREE_TREE_TAG_WB";
+				}
+				return "<invalid>";
+			};
+			Genode::print(out, "tag: ", tag_string(tag));
+
+			Genode::print(out, " block_number: ", block_number);
+			Genode::print(out, " index: ", index);
+			Genode::print(out, " op: ");
+			switch (operation) {
+			case Operation::READ:  Genode::print(out, "READ"); break;
+			case Operation::WRITE: Genode::print(out, "WRITE"); break;
+			case Operation::SYNC:  Genode::print(out, "SYNC"); break;
+			case Operation::INVALID: [[fallthrough]]
+			default: break;
+			}
+			Genode::print(out, " success: ");
+			switch (success) {
+			case Success::FALSE: Genode::print(out, "no"); break;
+			case Success::TRUE:  Genode::print(out, "yes"); break;
+			}
 		}
 	} __attribute__((packed));
 
