@@ -97,7 +97,7 @@ struct Cbe::Virtual_block_device
 	                      Cbe::Hash                   const &hash,
 	                      Cbe::Primitive              const &prim)
 	{
-		MOD_DBG("pba: ", pba, " gen: ", gen);
+		MOD_DBG("pba: ", pba, " gen: ", gen, " prim: ", prim);
 		_trans->submit_primitive(pba, gen, hash, prim);
 	}
 
@@ -126,10 +126,11 @@ struct Cbe::Virtual_block_device
 			if (!cache.data_available(pba)) {
 
 				MOD_DBG("data not available: pba: ", pba);
-				if (cache.request_acceptable(pba)) {
-					cache.submit_request(pba);
+				if (cache.cxx_request_acceptable(pba)) {
+					cache.cxx_submit_request(pba);
 					MOD_DBG("submit cache request: pba: ", pba);
 				}
+				progress |= true;
 				break;
 			} else {
 
@@ -148,49 +149,9 @@ struct Cbe::Virtual_block_device
 		return progress;
 	}
 
-	Cbe::Primitive peek_generated_primitive() /* const */
-	{
-		return Cbe::Primitive { };
-	}
-
-	Index peek_generated_data_index(Cbe::Primitive const &prim) /* const */
-	{
-		Index idx { .value = ~0u };
-
-		switch (prim.tag) {
-		default: break;
-		}
-
-		return idx;
-	}
-
-	void drop_generated_primitive(Cbe::Primitive const &prim)
-	{
-		switch (prim.tag) {
-		default:
-			MOD_ERR(": invalid primitive");
-			break;
-		}
-	}
-
-	void mark_generated_primitive_complete(Cbe::Primitive const &prim)
-	{
-		switch (prim.tag) {
-		default:
-			MOD_ERR(": invalid primitive");
-		break;
-		}
-	}
-
 	Cbe::Primitive peek_completed_primitive()
 	{
-		/* trans */
-		{
-			Cbe::Primitive prim = _trans->peek_completed_primitive();
-			if (prim.valid()) { return prim; }
-		}
-
-		return Cbe::Primitive { };
+		return _trans->peek_completed_primitive();
 	}
 
 	void drop_completed_primitive(Cbe::Primitive const &prim)
