@@ -22,6 +22,7 @@ namespace Cbe { namespace Module {
 
 } /* namespace Module */ } /* namespace Cbe */
 
+#define MOD_NAME "IO"
 
 template <unsigned N, Genode::size_t BLOCK_SIZE>
 class Cbe::Module::Block_io : Noncopyable
@@ -68,8 +69,6 @@ class Cbe::Module::Block_io : Noncopyable
 
 		Block::Connection<> &_block;
 		Block::Session::Info const _info { _block.info() };
-		// Block::sector_t      _block_count { 0 };
-		// Genode::size_t       _block_size  { 0 };
 
 		struct Fake_sync_primitive     { };
 		struct Invalid_block_operation { };
@@ -149,6 +148,7 @@ class Cbe::Module::Block_io : Noncopyable
 					_entries[i].state     = Internal_entry::PENDING;
 
 					_used_entries++;
+					MOD_DBG("primitive: ", p);
 					return;
 				}
 			}
@@ -188,8 +188,7 @@ class Cbe::Module::Block_io : Noncopyable
 						: Primitive::Success::FALSE;
 
 					_block.tx()->release_packet(_entries[i].packet);
-					// Cbe::Physical_block_address const pba = _entries[i].primitive.block_number;
-					// Genode::error("ack I/O pba: ", pba);
+					MOD_DBG("ACK prim: ", _entries[i].primitive);
 					progress = true;
 				}
 			}
@@ -214,18 +213,19 @@ class Cbe::Module::Block_io : Noncopyable
 						_entries[i].packet = packet;
 
 						_block.tx()->submit_packet(_entries[i].packet);
-						// Cbe::Physical_block_address const pba = _entries[i].primitive.block_number;
-						// Genode::error("submit new I/O pba: ", pba);
+						MOD_DBG("SUBMIT prim: ", _entries[i].primitive);
 						progress = true;
 					}
 					catch (Fake_sync_primitive) {
 						_entries[i].state = Internal_entry::COMPLETE;
 						_entries[i].primitive.success = Primitive::Success::TRUE;
+						MOD_DBG("ACK SYNC prim: ", _entries[i].primitive);
 						break;
 					}
 					catch (Invalid_block_operation) {
 						_entries[i].state = Internal_entry::COMPLETE;
 						_entries[i].primitive.success = Primitive::Success::FALSE;
+						MOD_DBG("ACK INVALID prim: ", _entries[i].primitive);
 						break;
 					}
 					catch (Block::Session::Tx::Source::Packet_alloc_failed) { break; }
@@ -243,15 +243,13 @@ class Cbe::Module::Block_io : Noncopyable
 		 */
 		Primitive peek_completed_primitive()
 		{
-			Primitive p { };
 			for (unsigned i = 0; i < N; i++) {
 				if (_entries[i].state == Internal_entry::COMPLETE) {
-					p = _entries[i].primitive;
-					break;
+					return _entries[i].primitive;
 				}
 			}
 
-			return p;
+			return Cbe::Primitive { };
 		}
 
 		Cbe::Block_data &peek_completed_data(Cbe::Primitive const &p)
@@ -262,6 +260,8 @@ class Cbe::Module::Block_io : Noncopyable
 					return *_entries[i].data;
 				}
 			}
+
+			MOD_ERR("invalid primitive: ", p);
 			throw -1;
 		}
 
@@ -273,6 +273,8 @@ class Cbe::Module::Block_io : Noncopyable
 					return _entries[i].orig_tag;
 				}
 			}
+
+			MOD_ERR("invalid primitive: ", p);
 			throw -1;
 		}
 
@@ -292,10 +294,15 @@ class Cbe::Module::Block_io : Noncopyable
 				    && _equal_primitives(p, _entries[i].primitive)) {
 					_entries[i].state = Internal_entry::UNUSED;
 					_used_entries--;
-					break;
+					return;
 				}
 			}
+
+			MOD_ERR("invalid primitive: ", p);
+			throw -1;
 		}
 };
+
+#undef MOD_NAME
 
 #endif /* _CBE_IO_MODULE_H_ */
