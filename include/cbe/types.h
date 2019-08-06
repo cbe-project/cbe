@@ -61,6 +61,31 @@ namespace Cbe {
 				|| operation == Operation::SYNC;
 		}
 
+		void print(Genode::Output &out) const
+		{
+			if (!operation_defined()) {
+				Genode::print(out, "<invalid>");
+				return;
+			}
+			Genode::print(out, "tag: ", tag);
+
+			Genode::print(out, " block_number: ", block_number);
+			Genode::print(out, " count: ", count);
+			Genode::print(out, " offset: ", offset);
+			Genode::print(out, " op: ");
+			switch (operation) {
+			case Operation::READ:  Genode::print(out, "READ"); break;
+			case Operation::WRITE: Genode::print(out, "WRITE"); break;
+			case Operation::SYNC:  Genode::print(out, "SYNC"); break;
+			case Operation::INVALID: [[fallthrough]]
+			default: Genode::print(out, "INVALID"); break;
+			}
+			Genode::print(out, " success: ");
+			switch (success) {
+			case Success::FALSE: Genode::print(out, "no"); break;
+			case Success::TRUE:  Genode::print(out, "yes"); break;
+			}
+		}
 	} __attribute__((packed));
 
 	struct Primitive
