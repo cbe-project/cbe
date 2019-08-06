@@ -274,21 +274,11 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				request.offset = creq.offset + (p.index * BLOCK_SIZE);
 				request.operation.count  = 1;
 
-				payload.with_content(request, [&] (void *addr, Genode::size_t size) {
-
-					if (size != BLOCK_SIZE) {
-						Genode::error("content size and block size differ");
-						return;
-					}
+				payload.with_content(request, [&] (void *addr, Genode::size_t) {
 
 					data = reinterpret_cast<Block_data*>(addr);
 				});
 			});
-
-			if (data == nullptr) {
-				Genode::error("BUG: data_ptr is nullptr");
-				Genode::sleep_forever();
-			}
 
 			return data;
 		}
