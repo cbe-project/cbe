@@ -215,7 +215,7 @@ struct Cbe::Free_tree
 		Genode::memcpy(_free_pba, free_pba, sizeof (_free_pba));
 		for (uint32_t i = 0; i < Translation::MAX_LEVELS; i++) {
 			if (free_pba[i]) {
-				MDBG(FT, __func__, ":", __LINE__, " free[", i, "]: ", free_pba[i]);
+				MOD_DBG("free[", i, "]: ", free_pba[i]);
 			}
 		}
 
@@ -231,7 +231,7 @@ struct Cbe::Free_tree
 		Genode::memcpy(_wb_data.new_pba, new_pba, sizeof (_wb_data.new_pba));
 		for (uint32_t i = 0; i < Translation::MAX_LEVELS; i++) {
 			if (new_pba[i]) {
-				MDBG(FT, __func__, ":", __LINE__, " new[", i, "]: ", new_pba[i]);
+				MOD_DBG("new[", i, "]: ", new_pba[i]);
 			}
 		}
 
@@ -240,7 +240,7 @@ struct Cbe::Free_tree
 
 		for (uint32_t i = 0; i < Translation::MAX_LEVELS; i++) {
 			if (old_pba[i].pba) {
-				MDBG(FT, __func__, ":", __LINE__, " old[", i, "]: ", old_pba[i].pba);
+				MOD_DBG("old[", i, "]: ", old_pba[i].pba);
 			}
 		}
 

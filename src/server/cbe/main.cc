@@ -137,21 +137,46 @@ struct Cbe::Time
 };
 
 
-/*************
- ** modules **
- *************/
+/******************
+ ** debug macros **
+ ******************/
 
 #define DEBUG 1
 #if defined(DEBUG) && DEBUG > 0
-#define MOD_ERR(...) do { Genode::error(MOD_NAME "> ", __func__, ":", __LINE__, ": ", __VA_ARGS__); } while (0)
-#define MOD_DBG(...) do { Genode::log("\033[36m" MOD_NAME "> ", __func__, ":", __LINE__, ": ", __VA_ARGS__); } while (0)
-#define MDBG(mod, ...) do { Genode::log("\033[36m" #mod "> ", __VA_ARGS__); } while (0)
+
+static inline Genode::uint64_t __timestamp__()
+{
+	Genode::uint32_t lo, hi;
+	/* serialize first */
+	asm volatile ("xorl %%eax,%%eax\n\tcpuid\n\t" ::: "%rax", "%rbx", "%rcx", "%rdx");
+	asm volatile ("rdtsc" : "=a" (lo), "=d" (hi));
+	return (Genode::uint64_t)hi << 32 | lo;
+}
+
+
+#define MOD_ERR(...) \
+	do { \
+		Genode::error(MOD_NAME " ", Genode::Hex(__timestamp__()), "> ", \
+		              __func__, ":", __LINE__, ": ", __VA_ARGS__); \
+	} while (0)
+
+
+#define MOD_DBG(...) \
+	do { \
+		Genode::log("\033[36m" MOD_NAME " ", Genode::Hex(__timestamp__()), "> ", \
+		            __func__, ":", __LINE__, ": ", __VA_ARGS__); \
+	} while (0)
+
+
 #define DBG_NAME "ML"
-#define DBG(...) do { Genode::log("\033[35m" DBG_NAME "> ", __func__, ":", __LINE__, ": ", __VA_ARGS__); } while (0)
+#define DBG(...) \
+	do { \
+		Genode::log("\033[35m" DBG_NAME " ", Genode::Hex(__timestamp__()), "> ", \
+		            __func__, ":", __LINE__, ": ", __VA_ARGS__); \
+	} while (0)
 #else
 #define MOD_ERR(...)
 #define MOD_DBG(...)
-#define MDBG(mod, ...)
 #define DBG(...)
 #endif
 
@@ -161,6 +186,11 @@ struct Cbe::Time
 			Genode::log(#v, ": ", v); \
 		} \
 	} while (0)
+
+
+/*************
+ ** modules **
+ *************/
 
 #include <cache_module.h>
 #include <crypto_module.h>

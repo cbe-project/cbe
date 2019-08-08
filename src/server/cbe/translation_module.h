@@ -275,7 +275,7 @@ class Cbe::Module::Translation
 				return false; }
 
 			for (uint32_t l = 0; l < _tree_helper.height()+1; l++) {
-				MDBG(TRANS, __func__, ":", __LINE__, " _walk[", l, "]: ", _walk[l].pba);
+				MOD_DBG("_walk[", l, "]: ", _walk[l].pba);
 				info[l] = _walk[l];
 			}
 
