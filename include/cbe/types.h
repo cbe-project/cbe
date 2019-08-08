@@ -273,6 +273,9 @@ namespace Cbe {
 		uint32_t flags;
 
 		bool valid() const { return id != Snapshot::INVALID_ID; }
+		bool keep()  const { return flags & FLAG_KEEP; }
+
+		void discard() { id = Snapshot::INVALID_ID; }
 
 		void print(Genode::Output &out) const
 		{

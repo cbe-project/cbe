@@ -275,6 +275,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Sync_sb    _sync_sb { };
 
 		Constructible<Cbe::Free_tree> _free_tree { };
+		enum { FREE_TREE_RETRY_LIMIT = 3u, };
+		uint32_t                      _free_tree_retry_count { 0 };
 		Translation_Data         _free_tree_trans_data { };
 		Query_data               _free_tree_query_data { };
 
@@ -310,6 +312,28 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		bool             _need_to_secure { false };
 		bool             _snaps_dirty { false };
 
+		bool _discard_snapshot(Cbe::Snapshot active[Cbe::NUM_SNAPSHOTS],
+		                       uint32_t      current)
+		{
+			uint32_t lowest_id = Cbe::Snapshot::INVALID_ID;
+			for (uint32_t i = 0; i < Cbe::NUM_SNAPSHOTS; i++) {
+				Cbe::Snapshot const &snap = active[i];
+				if (!snap.valid())      { continue; }
+				if (snap.keep())        { continue; }
+				if (snap.id == current) { continue; }
+
+				lowest_id = Genode::min(lowest_id, snap.id);
+			}
+
+			if (lowest_id == Cbe::Snapshot::INVALID_ID) {
+				return false;
+			}
+
+			Cbe::Snapshot &snap = active[lowest_id];
+			DBG("discard snapshot: ", snap);
+			snap.discard();
+			return true;
+		}
 
 		bool _show_progress    { false };
 		bool _show_if_progress { false };
@@ -451,13 +475,31 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					if (!prim.valid()) { break; }
 
 					if (prim.success == Cbe::Primitive::Success::FALSE) {
-						Genode::error("allocating new blocks failed");
+
+						DBG("allocating new blocks failed: ", _free_tree_retry_count);
+						if (_free_tree_retry_count < FREE_TREE_RETRY_LIMIT) {
+
+							Cbe::Super_block &sb = _super_block[_current_sb];
+							uint32_t const current = sb.snapshots[_current_snapshot].id;
+							if (_discard_snapshot(sb.snapshots, current)) {
+								_free_tree_retry_count++;
+								_free_tree->retry_allocation();
+							}
+							break;
+						}
+
+						Genode::error("could not find enough useable blocks");
 						_request_pool.mark_completed_primitive(prim);
 						// XXX
 						_vbd->trans_resume_translation();
 					} else {
 
 						if (!_write_back.primitive_acceptable()) { break; }
+
+						if (_free_tree_retry_count) {
+							DBG("reset retry count: ", _free_tree_retry_count);
+							_free_tree_retry_count = 0;
+						}
 
 						Free_tree::Write_back_data const &wb = _free_tree->peek_completed_wb_data(prim);
 

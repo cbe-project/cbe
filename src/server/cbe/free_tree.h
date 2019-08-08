@@ -143,6 +143,43 @@ struct Cbe::Free_tree
 		return _num_blocks == 0;
 	}
 
+	void _reset_query_prim()
+	{
+		// XXX instead of discarding already found free blocks
+		//     we could merge the old ones with new ones
+		_found_blocks = 0;
+
+		_current_query_prim = Cbe::Primitive {
+			.tag          = Tag::INVALID_TAG,
+			.operation    = Cbe::Primitive::Operation::READ,
+			.success      = Cbe::Primitive::Success::FALSE,
+			.block_number = 0,
+			.index        = 0,
+		};
+		/* reset query branches */
+		_current_query_branch = 0;
+		for (uint32_t b = 0; b < MAX_QUERY_BRANCHES; b++) {
+			_query_branch[b].vba         = Cbe::INVALID_VBA;
+			_query_branch[b].free_blocks = 0;
+			for (uint32_t n = 0; n < MAX_FREE_BLOCKS; n++) {
+				_query_branch[b].pba[n] = Cbe::INVALID_PBA;
+			}
+		}
+		MOD_DBG(_current_query_prim);
+	};
+
+	void retry_allocation()
+	{
+		MOD_DBG("");
+		_reset_query_prim();
+
+		_do_update = false;
+		_do_wb     = false;
+		_wb_done   = false;
+
+		_wb_data.finished = false;
+	}
+
 	void submit_request(Cbe::Generation             const  current,
 	                    uint32_t                    const  num_blocks,
 	                    /* refer to tree_height for number of valid elements */
@@ -207,25 +244,8 @@ struct Cbe::Free_tree
 			}
 		}
 
-		_current_query_prim = Cbe::Primitive {
-			.tag          = Tag::INVALID_TAG,
-			.operation    = Cbe::Primitive::Operation::READ,
-			.success      = Cbe::Primitive::Success::FALSE,
-			.block_number = 0,
-			.index        = 0,
-		};
+		_reset_query_prim();
 
-		/* reset query branches */
-		// XXX instead of resetting eager maybe do it lazy after submitting
-		//     request to translation module
-		_current_query_branch = 0;
-		for (uint32_t b = 0; b < MAX_QUERY_BRANCHES; b++) {
-			_query_branch[b].vba         = Cbe::INVALID_VBA;
-			_query_branch[b].free_blocks = 0;
-			for (uint32_t n = 0; n < MAX_FREE_BLOCKS; n++) {
-				_query_branch[b].pba[n] = Cbe::INVALID_PBA;
-			}
-		}
 	}
 
 	bool _leaf_useable(Cbe::Snapshot     const active[Cbe::NUM_SNAPSHOTS],
@@ -252,6 +272,7 @@ struct Cbe::Free_tree
 				Cbe::Snapshot const &b = active[i];
 				if (!b.valid()) { continue; }
 
+				MOD_DBG("snap: ", b);
 				Cbe::Generation const b_gen = b.gen;
 
 				bool const is_free = (f_gen <= b_gen || a_gen >= (b_gen + 1));
@@ -290,6 +311,7 @@ struct Cbe::Free_tree
 			if (!_trans->acceptable()) { break; }
 			if (!_current_query_prim.valid()) { break; }
 
+			MOD_DBG("trans submit: ", _current_query_prim);
 			_trans->submit_primitive(_root, _root_gen, _root_hash, _current_query_prim);
 
 			_current_query_prim.operation = Cbe::Primitive::Operation::INVALID;
@@ -301,14 +323,18 @@ struct Cbe::Free_tree
 			Cbe::Primitive p = _trans->peek_generated_primitive();
 			if (!p.valid()) { break; }
 
+			MOD_DBG("trans peek generated: ", p);
+
 			Cbe::Physical_block_address const pba = p.block_number;
 			if (!cache.data_available(pba)) {
+				MOD_DBG("cache data not available: ", pba);
 
 				if (cache.cxx_request_acceptable(pba)) {
 					cache.cxx_submit_request(pba);
 				}
 				break;
 			} else {
+				MOD_DBG("cache data available: ", pba);
 
 				Cache_Index     const idx   = cache.data_index(pba,
 				                                               time.timestamp());
@@ -332,6 +358,8 @@ struct Cbe::Free_tree
 				.index = Cache_Index { 0 },
 			};
 
+			MOD_DBG(prim);
+
 			if (!_trans->get_type_1_info(prim,
 			                             _query_branch[_current_query_branch].trans_info)) {
 				MOD_ERR("could not get type 1 info");
@@ -349,6 +377,7 @@ struct Cbe::Free_tree
 
 			_current_query_prim.operation = Cbe::Primitive::Operation::INVALID;
 
+			MOD_DBG("_current_type_2 complete");
 			Cbe::Type_ii_node *node =
 				reinterpret_cast<Cbe::Type_ii_node*>(&query_data.item[0]);
 			for (size_t i = 0; i < Cbe::TYPE_2_PER_BLOCK; i++) {
@@ -567,6 +596,7 @@ struct Cbe::Free_tree
 			}
 		}
 
+		MOD_DBG("progress: ", progress);
 		return progress;
 	}
 
