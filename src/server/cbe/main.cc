@@ -144,7 +144,7 @@ struct Cbe::Time
 #define DEBUG 1
 #if defined(DEBUG) && DEBUG > 0
 
-static inline Genode::uint64_t __timestamp__()
+static inline Genode::uint64_t __rdtsc__()
 {
 	Genode::uint32_t lo, hi;
 	/* serialize first */
@@ -154,16 +154,23 @@ static inline Genode::uint64_t __timestamp__()
 }
 
 
+static inline Genode::uint64_t __timestamp__()
+{
+	static Genode::uint64_t initial_ts = __rdtsc__();
+	return __rdtsc__() - initial_ts;
+}
+
+
 #define MOD_ERR(...) \
 	do { \
-		Genode::error(MOD_NAME " ", Genode::Hex(__timestamp__()), "> ", \
+		Genode::error(MOD_NAME " ", __timestamp__(), "> ", \
 		              __func__, ":", __LINE__, ": ", __VA_ARGS__); \
 	} while (0)
 
 
 #define MOD_DBG(...) \
 	do { \
-		Genode::log("\033[36m" MOD_NAME " ", Genode::Hex(__timestamp__()), "> ", \
+		Genode::log("\033[36m" MOD_NAME " ", __timestamp__(), "> ", \
 		            __func__, ":", __LINE__, ": ", __VA_ARGS__); \
 	} while (0)
 
@@ -171,7 +178,7 @@ static inline Genode::uint64_t __timestamp__()
 #define DBG_NAME "ML"
 #define DBG(...) \
 	do { \
-		Genode::log("\033[35m" DBG_NAME " ", Genode::Hex(__timestamp__()), "> ", \
+		Genode::log("\033[35m" DBG_NAME " ", __timestamp__(), "> ", \
 		            __func__, ":", __LINE__, ": ", __VA_ARGS__); \
 	} while (0)
 #else
