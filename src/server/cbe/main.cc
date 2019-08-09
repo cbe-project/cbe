@@ -205,10 +205,8 @@ static inline Genode::uint64_t __timestamp__()
 #include <request_pool_module.h>
 #include <splitter_module.h>
 #include <translation_module.h>
-#include <write_through_cache_module.h>
 #include <write_back_module.h>
 #include <sync_sb_module.h>
-// #include <reclaim_module.h>
 #include <flusher_module.h>
 
 #include "free_tree.h"
