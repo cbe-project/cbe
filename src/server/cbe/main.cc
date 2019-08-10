@@ -200,14 +200,15 @@ static inline Genode::uint64_t __timestamp__()
  *************/
 
 #include <cache_module.h>
+#include <cache_flusher_module.h>
 #include <crypto_module.h>
-#include <io_module.h>
 #include <request_pool_module.h>
 #include <splitter_module.h>
+
 #include <translation_module.h>
 #include <write_back_module.h>
 #include <sync_sb_module.h>
-#include <flusher_module.h>
+#include <io_module.h>
 
 #include "free_tree.h"
 #include "virtual_block_device.h"
@@ -243,6 +244,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		bool _check_object_sizes()
 		{
 			Cbe::assert_valid_object_size<Module::Cache>();
+			Cbe::assert_valid_object_size<Module::Cache_flusher>();
 			Cbe::assert_valid_object_size<Module::Crypto>();
 			Cbe::assert_valid_object_size<Module::Request_pool>();
 			Cbe::assert_valid_object_size<Module::Splitter>();
@@ -294,12 +296,12 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		using Cache_Index    = Module::Cache_Index;
 		using Cache_Data     = Module::Cache_Data;
 		using Cache_Job_Data = Module::Cache_Job_Data;
-		using Flusher        = Module::Flusher;
+		using Cache_flusher  = Module::Cache_flusher;
 
 		Cache           _cache          { };
 		Cache_Data      _cache_data     { };
 		Cache_Job_Data  _cache_job_data { };
-		Flusher         _flusher        { };
+		Cache_flusher   _flusher        { };
 		bool            _cache_dirty    { false };
 
 		Translation_Data       _trans_data     { };
@@ -744,30 +746,30 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 				while (true) {
 
-					Cbe::Primitive prim = _flusher.peek_completed_primitive();
+					Cbe::Primitive prim = _flusher.cxx_peek_completed_primitive();
 					if (!prim.valid()) { break; }
 
 					Cbe::Physical_block_address const pba = prim.block_number;
 					_cache.mark_clean(pba);
 					DBG("mark_clean: ", pba);
 
-					_flusher.drop_completed_primitive(prim);
+					_flusher.cxx_drop_completed_primitive(prim);
 
 					progress |= true;
 				}
 
 				while (true) {
 
-					Cbe::Primitive prim = _flusher.peek_generated_primitive();
+					Cbe::Primitive prim = _flusher.cxx_peek_generated_primitive();
 					if (!prim.valid()) { break; }
 					if (!_io.primitive_acceptable()) { break; }
 
-					Cache_Index     const  idx  = _flusher.peek_generated_data_index(prim);
+					Cache_Index     const  idx  = _flusher.cxx_peek_generated_data_index(prim);
 					Cbe::Block_data       &data = _cache_data.item[idx.value];
 
 					_io.submit_primitive(Tag::CACHE_FLUSH_TAG, prim, data);
 
-					_flusher.drop_generated_primitive(prim);
+					_flusher.cxx_drop_generated_primitive(prim);
 
 					progress |= true;
 				}
@@ -784,7 +786,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					Cbe::Primitive prim = _write_back.peek_completed_primitive();
 					if (!prim.valid()) { break; }
-					if (!_flusher.request_acceptable()) { break; }
+					if (!_flusher.cxx_request_acceptable()) { break; }
 
 					bool cache_dirty = false;
 					for (uint32_t i = 0; i < _cache.cxx_cache_slots(); i++) {
@@ -795,7 +797,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 							Cbe::Physical_block_address const pba = _cache.flush(idx);
 							DBG(" i: ", idx.value, " pba: ", pba, " needs flushing");
 
-							_flusher.submit_request(pba, idx);
+							_flusher.cxx_submit_request(pba, idx);
 						}
 					}
 
@@ -1118,7 +1120,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						_cache.cxx_mark_completed_primitive(prim);
 						break;
 					case Tag::CACHE_FLUSH_TAG:
-						_flusher.mark_generated_primitive_complete(prim);
+						_flusher.cxx_mark_generated_primitive_complete(prim);
 						break;
 					case Tag::WRITE_BACK_TAG:
 						_write_back.mark_completed_io_primitive(prim);
