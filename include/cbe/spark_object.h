@@ -43,6 +43,16 @@ namespace Cbe {
 		}
 	}
 
+	template <typename T>
+	static inline void assert_same_object_size()
+	{
+		if (object_size(*(T *)nullptr) != T::bytes()) {
+			Genode::error("need ", object_size(*(T *)nullptr),
+			              " bytes, got ", T::bytes(), " bytes");
+			throw typename T::Object_size_mismatch();
+		}
+	}
+
 } /* namespace Cbe */
 
 #endif /* _CBE_SPARK_OBJECT_H_ */

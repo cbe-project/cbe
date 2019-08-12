@@ -36,7 +36,7 @@ is
 	return CXX_Bool_Type
 	is
 	begin
-		return Boolean_To_CXX(Cache_Flusher.Request_Acceptable(Obj));
+		return CXX_Bool_From_SPARK(Cache_Flusher.Request_Acceptable(Obj));
 	end Request_Acceptable;
 
 	--
@@ -92,7 +92,7 @@ is
 	is
 		Idx : constant Cache.Cache_Index_Type := Cache_Flusher.Peek_Generated_Data_Index(Obj, CXX_Primitive.To_Spark(Prim));
 	begin
-		return Index_Type_To_CXX(Index_Type(Idx));
+		return CXX_Index_From_SPARK(Index_Type(Idx));
 	end Peek_Generated_Data_Index;
 
 	--

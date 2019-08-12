@@ -36,7 +36,8 @@ is
 	return CXX_Bool_Type
 	is
 	begin
-		return Boolean_To_CXX(Cache.Data_Available(Obj, Physical_Block_Address_Type(Pba)));
+		return CXX_Bool_From_SPARK (
+			Cache.Data_Available(Obj, Physical_Block_Address_Type(Pba)));
 	end Data_Available;
 
 	--
@@ -48,9 +49,10 @@ is
 		Ts  :        Timestamp_Type)
 	return CXX_Index_Type
 	is
-		Cache_Idx : constant Cache.Cache_Index_Type := Cache.Data_Index(Obj, Physical_Block_Address_Type(Pba), Ts);
+		Cache_Idx : constant Cache.Cache_Index_Type :=
+			Cache.Data_Index(Obj, Physical_Block_Address_Type(Pba), Ts);
 	begin
-		return Index_Type_To_CXX(Index_Type(Cache_Idx));
+		return CXX_Index_From_SPARK(Index_Type(Cache_Idx));
 	end Data_Index;
 
 	--
@@ -73,7 +75,8 @@ is
 	return CXX_Bool_Type
 	is
 	begin
-		return Boolean_To_CXX(Cache.Dirty(Obj, Cache.Cache_Index_Type(Index_Type(Idx))));
+		return CXX_Bool_From_SPARK(
+			Cache.Dirty(Obj, Cache.Cache_Index_Type(Index_Type(Idx))));
 	end Dirty;
 
 	--
@@ -85,7 +88,8 @@ is
 	return CXX_Physical_Block_Address_Type
 	is
 	begin
-		return Physical_Block_Address_Type_To_CXX( Cache.Flush(Obj, Cache.Cache_Index_Type(Index_Type(Idx))));
+		return CXX_Physical_Block_Address_From_SPARK(
+			Cache.Flush(Obj, Cache.Cache_Index_Type(Index_Type(Idx))));
 	end Flush;
 
 	--
@@ -119,7 +123,8 @@ is
 	return CXX_Bool_Type
 	is
 	begin
-		return Boolean_To_CXX(Cache.Request_Acceptable(Obj, Physical_Block_Address_Type(Pba)));
+		return CXX_Bool_From_SPARK(
+			Cache.Request_Acceptable(Obj, Physical_Block_Address_Type(Pba)));
 	end Request_Acceptable;
 
 	--
@@ -153,7 +158,7 @@ is
 	return CXX_Bool_Type
 	is
 	begin
-		return (Boolean_To_CXX(Cache.Execute_Progress(Obj)));
+		return (CXX_Bool_From_SPARK(Cache.Execute_Progress(Obj)));
 	end Execute_Progress;
 
 	--
@@ -176,7 +181,7 @@ is
 	is
 		Idx : constant Cache.Cache_Index_Type := Cache.Peek_Generated_Data_Index(Obj, CXX_Primitive.To_Spark(Prim));
 	begin
-		return Index_Type_To_CXX(Index_Type(Idx));
+		return CXX_Index_From_SPARK(Index_Type(Idx));
 	end Peek_Generated_Data_Index;
 
 	--

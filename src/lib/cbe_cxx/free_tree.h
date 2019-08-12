@@ -519,7 +519,8 @@ struct Cbe::Free_tree
 		 * Execute the Translation module and depending on the result
 		 * invoke the Cache module.
 		 */
-		progress |= _trans->execute(trans_data);
+		_trans->execute(trans_data);
+		progress |= _trans->execute_progress();
 		while (true) {
 			Cbe::Primitive p = _trans->peek_generated_primitive();
 			if (!p.valid()) { break; }
@@ -574,10 +575,11 @@ struct Cbe::Free_tree
 			 *
 			 * (Currently not implemented.)
 			 */
-			if (!_trans->get_type_1_info(prim,
-			                             _query_branch[_current_query_branch].trans_info)) {
+			if (!_trans->can_get_type_1_info(prim,
+			             _query_branch[_current_query_branch].trans_info)) {
 				MOD_ERR("could not get type 1 info");
 			}
+			_trans->get_type_1_info(_query_branch[_current_query_branch].trans_info);
 
 			_trans->drop_completed_primitive(prim);
 			progress |= true;

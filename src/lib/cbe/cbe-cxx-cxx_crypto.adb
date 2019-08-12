@@ -55,7 +55,7 @@ is
 	--
 	function Primitive_Acceptable(Obj : Crypto.Object_Type)
 	return CXX_Bool_Type
-	is (Boolean_To_CXX(Crypto.Primitive_Acceptable(Obj)));
+	is (CXX_Bool_From_SPARK(Crypto.Primitive_Acceptable(Obj)));
 
 	--
 	-- Submit_Primitive
@@ -145,6 +145,6 @@ is
 
 	function Execute_Progress(Obj : Crypto.Object_Type)
 	return CXX_Bool_Type
-	is (Boolean_To_CXX(Crypto.Execute_Progress(Obj)));
+	is (CXX_Bool_From_SPARK(Crypto.Execute_Progress(Obj)));
 
 end CBE.CXX.CXX_Crypto;

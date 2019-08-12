@@ -44,7 +44,7 @@ is
 	--
 	function Request_Acceptable(Obj : Pool.Object_Type)
 	return CXX_Bool_Type
-	is (Boolean_To_CXX(Pool.request_acceptable(Obj)));
+	is (CXX_Bool_From_SPARK(Pool.request_acceptable(Obj)));
 
 	--
 	-- Submit_Request

@@ -87,6 +87,14 @@ is
 	--
 	function Request_Acceptable(
 		Obj : Object_Type;
+		PBA : Physical_Block_Address_Type)
+	return Boolean;
+
+	--
+	-- Request_Acceptable_Logged
+	--
+	function Request_Acceptable_Logged(
+		Obj : Object_Type;
 		Pba : Physical_Block_Address_Type)
 	return Boolean;
 
@@ -94,6 +102,13 @@ is
 	-- Submit_Request
 	--
 	procedure Submit_Request(
+		Obj : in out Object_Type;
+		Pba : Physical_Block_Address_Type);
+
+	--
+	-- Submit_Request_Logged
+	--
+	procedure Submit_Request_Logged (
 		Obj : in out Object_Type;
 		Pba : Physical_Block_Address_Type);
 

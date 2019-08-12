@@ -44,7 +44,7 @@ is
 		when True => (
 			Operation    => Op_From_Spark(Request.Operation(Obj)),
 			Success      => Success_From_Spark(Request.Success(Obj)),
-			Block_Number => Uint64_Type(Request.Block_Number(Obj)),
+			Block_Number => Block_Number_Type(Request.Block_Number(Obj)),
 			Offset       => Uint64_Type(Request.Offset(Obj)),
 			Count        => Uint32_Type(Request.Count(Obj)),
 			Tag          => Tag_Type(Request.Tag(Obj))),

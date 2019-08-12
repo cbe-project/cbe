@@ -7,6 +7,7 @@
 
 package SHA256_4K with SPARK_Mode
 is
+   pragma Pure;
 
    type Byte is mod 2**8 with Size => 8;
    type Hash_Base_type is array (Natural range <>) of Byte;

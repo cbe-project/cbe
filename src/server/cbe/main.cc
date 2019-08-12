@@ -32,6 +32,8 @@ namespace Cbe {
 	struct Block_session_component;
 	struct Main;
 
+	Genode::uint32_t object_size(Tree_helper const &);
+
 } /* namespace Cbe */
 
 

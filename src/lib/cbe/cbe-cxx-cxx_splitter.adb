@@ -47,7 +47,7 @@ is
 	--
 	function Request_Acceptable(Obj : in Splitter.Object_Type)
 	return CXX_Bool_Type
-	is (Boolean_To_CXX(Splitter.request_acceptable(Obj)));
+	is (CXX_Bool_From_SPARK(Splitter.request_acceptable(Obj)));
 
 
 	--

@@ -251,6 +251,8 @@ namespace Cbe {
 	};
 	struct Tree_helper
 	{
+		struct Object_size_mismatch { };
+
 		static inline uint32_t _log2(uint32_t const value)
 		{
 			if (!value) { return -1; }
@@ -261,6 +263,8 @@ namespace Cbe {
 
 			return -1; 
 		}
+
+		static constexpr Genode::uint32_t bytes() { return sizeof(Tree_helper); }
 
 		Cbe::Degree const _degree;
 		Cbe::Height const _height;

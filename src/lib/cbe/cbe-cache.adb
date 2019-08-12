@@ -335,6 +335,23 @@ is
 	end Mark_Dirty;
 
 	--
+	-- Request_Acceptable_Logged
+	--
+	function Request_Acceptable_Logged (
+		Obj : Object_Type;
+		PBA : Physical_Block_Address_Type)
+	return Boolean
+	is
+		Result : constant Boolean := Request_Acceptable (Obj, PBA);
+	begin
+		-- Print_String ("Cach.ReqAcc: PBA: ");
+		-- Print_Word_Hex (PBA);
+		-- Print_String (" acceptable: ");
+		-- Print_Word_Dec (Result);
+		return Result;
+	end Request_Acceptable_Logged;
+
+	--
 	-- Request_Acceptable
 	--
 	function Request_Acceptable(
@@ -356,6 +373,20 @@ is
 
 		return True;
 	end Request_Acceptable;
+
+	--
+	-- Submit_Request_Logged
+	--
+	procedure Submit_Request_Logged (
+		Obj : in out Object_Type;
+		Pba :        Physical_Block_Address_Type)
+	is
+	begin
+		Submit_Request (Obj, Pba);
+		-- Print_String ("Cach.SubmReq: PBA: ");
+		-- Print_Word_Hex (Pba);
+		-- Print_Line_Break;
+	end Submit_Request_Logged;
 
 	--
 	-- Submit_Request

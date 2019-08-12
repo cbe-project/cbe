@@ -34,7 +34,7 @@ is
 	return CXX_Bool_Type
 	is
 	begin
-		return Boolean_To_CXX(Sync_Superblock.Request_Acceptable(Obj));
+		return CXX_Bool_From_SPARK(Sync_Superblock.Request_Acceptable(Obj));
 	end Request_Acceptable;
 
 	--
@@ -46,7 +46,8 @@ is
 		Gen :        CXX_Generation_Type)
 	is
 	begin
-		Sync_Superblock.Submit_Request(Obj, Superblock_Index_Type(Idx), Generation_Type(Gen));
+		Sync_Superblock.Submit_Request(
+			Obj, Superblock_Index_Type(Idx), Generation_Type(Gen));
 	end Submit_Request;
 
 	--
@@ -56,7 +57,8 @@ is
 	return CXX_Primitive.Object_Type
 	is
 	begin
-		return (CXX_Primitive.From_Spark(Sync_Superblock.Peek_Completed_Primitive(Obj)));
+		return (CXX_Primitive.From_Spark(
+			Sync_Superblock.Peek_Completed_Primitive(Obj)));
 	end Peek_Completed_Primitive;
 
 	--
@@ -68,7 +70,9 @@ is
 	return CXX_Generation_Type
 	is
 	begin
-		return Generation_Type_To_CXX(Sync_Superblock.Peek_Completed_Generation(Obj, CXX_Primitive.To_Spark(Prim)));
+		return CXX_Generation_From_SPARK(
+			Sync_Superblock.Peek_Completed_Generation(
+				Obj, CXX_Primitive.To_Spark(Prim)));
 	end Peek_Completed_Generation;
 
 	--
@@ -79,7 +83,8 @@ is
 		Prim :        CXX_Primitive.Object_Type)
 	is
 	begin
-		Sync_Superblock.Drop_Completed_Primitive(Obj, CXX_Primitive.To_Spark(Prim));
+		Sync_Superblock.Drop_Completed_Primitive(
+			Obj, CXX_Primitive.To_Spark(Prim));
 	end Drop_Completed_Primitive;
 
 	--
@@ -89,7 +94,8 @@ is
 	return CXX_Primitive.Object_Type
 	is
 	begin
-		return (CXX_Primitive.From_Spark(Sync_Superblock.Peek_Generated_Primitive(Obj)));
+		return (CXX_Primitive.From_Spark(
+			Sync_Superblock.Peek_Generated_Primitive(Obj)));
 	end Peek_Generated_Primitive;
 
 	--
@@ -100,9 +106,11 @@ is
 		Prim : CXX_Primitive.Object_Type)
 	return CXX_Superblock_Index_Type
 	is
-		Idx : constant Superblock_Index_Type := Sync_Superblock.Peek_Generated_Index(Obj, CXX_Primitive.To_Spark(Prim));
+		Idx : constant Superblock_Index_Type :=
+			Sync_Superblock.Peek_Generated_Index(
+				Obj, CXX_Primitive.To_Spark(Prim));
 	begin
-		return Superblock_Index_Type_To_CXX(Idx);
+		return CXX_Superblock_Index_From_SPARK(Idx);
 	end Peek_Generated_Index;
 
 	--
@@ -113,7 +121,8 @@ is
 		Prim :        CXX_Primitive.Object_Type)
 	is
 	begin
-		Sync_Superblock.Drop_Generated_Primitive(Obj, CXX_Primitive.To_Spark(Prim));
+		Sync_Superblock.Drop_Generated_Primitive(
+			Obj, CXX_Primitive.To_Spark(Prim));
 	end Drop_Generated_Primitive;
 
 	--
@@ -124,7 +133,8 @@ is
 		Prim :        CXX_Primitive.Object_Type)
 	is
 	begin
-		Sync_Superblock.Mark_Generated_Primitive_Complete(Obj, CXX_Primitive.To_Spark(Prim));
+		Sync_Superblock.Mark_Generated_Primitive_Complete(
+			Obj, CXX_Primitive.To_Spark(Prim));
 	end Mark_Generated_Primitive_Complete;
 
 end CBE.CXX.CXX_Sync_Superblock;
