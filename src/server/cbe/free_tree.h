@@ -252,6 +252,7 @@ struct Cbe::Free_tree
 	                   Cbe::Generation   const last_secured,
 	                   Cbe::Type_ii_node const &node) const
 	{
+		// XXX check could be done outside
 		if (!node.reserved) { return true; }
 
 		Cbe::Generation const f_gen = (node.free_gen  & Cbe::GEN_VALUE_MASK);
@@ -272,7 +273,7 @@ struct Cbe::Free_tree
 				Cbe::Snapshot const &b = active[i];
 				if (!b.valid()) { continue; }
 
-				MOD_DBG("snap: ", b);
+				// MOD_DBG("snap: ", b);
 				Cbe::Generation const b_gen = b.gen;
 
 				bool const is_free = (f_gen <= b_gen || a_gen >= (b_gen + 1));
@@ -283,8 +284,8 @@ struct Cbe::Free_tree
 
 			free = !in_use;
 		}
-		MOD_DBG(free ? "REUSE" : " RESERVE", " PBA: ", node.pba,
-		        " f: ", f_gen, " a: ", a_gen);
+		// MOD_DBG(free ? "REUSE" : " RESERVE", " PBA: ", node.pba,
+		//         " f: ", f_gen, " a: ", a_gen);
 		return free;
 	}
 
