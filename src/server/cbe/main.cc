@@ -199,19 +199,21 @@ static inline Genode::uint64_t __timestamp__()
  ** modules **
  *************/
 
+/* SPARK modules */
 #include <cache_module.h>
 #include <cache_flusher_module.h>
 #include <crypto_module.h>
 #include <request_pool_module.h>
 #include <splitter_module.h>
+#include <sync_superblock_module.h>
 
+/* C++ modules */
 #include <translation_module.h>
 #include <write_back_module.h>
-#include <sync_sb_module.h>
 #include <io_module.h>
-
 #include "free_tree.h"
 #include "virtual_block_device.h"
+
 
 class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 {
@@ -248,6 +250,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			Cbe::assert_valid_object_size<Module::Crypto>();
 			Cbe::assert_valid_object_size<Module::Request_pool>();
 			Cbe::assert_valid_object_size<Module::Splitter>();
+			Cbe::assert_valid_object_size<Module::Sync_superblock>();
 
 			return true;
 		}
@@ -271,7 +274,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		using Io_index    = Module::Block_io<IO_ENTRIES, BLOCK_SIZE>::Index;
 		using Write_back       = Module::Write_back<Translation::MAX_LEVELS, Cbe::Type_i_node>;
 		using Write_back_Index = Module::Write_back<Translation::MAX_LEVELS, Cbe::Type_i_node>::Index;
-		using Sync_sb     = Module::Sync_sb;
+		using Sync_superblock     = Module::Sync_superblock;
 
 		Pool     _request_pool { };
 		Splitter _splitter     { };
@@ -309,7 +312,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 		Write_back _write_back { };
 		Block_data _write_back_data[Translation::MAX_LEVELS] { };
-		Sync_sb    _sync_sb { };
+		Sync_superblock    _sync_sb { };
 
 		Constructible<Cbe::Free_tree> _free_tree { };
 		enum { FREE_TREE_RETRY_LIMIT = 3u, };
@@ -966,7 +969,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 ** Super-block handling **
 				 **************************/
 
-				if (_need_to_secure && _sync_sb.primitive_acceptable()) {
+				if (_need_to_secure && _sync_sb.cxx_request_acceptable()) {
 
 					Cbe::Super_block &sb = _super_block[_current_sb];
 
@@ -976,21 +979,17 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					DBG("secure current super-block gen: ", _current_generation,
 					    " snap_id: ", _current_snapshot);
 
-					_sync_sb.submit_primitive(_current_sb, _current_generation);
+					_sync_sb.cxx_submit_request(_current_sb, _current_generation);
 				}
-
-				bool const sync_sb_progress = _sync_sb.execute();
-				progress |= sync_sb_progress;
-				LOG_PROGRESS(sync_sb_progress);
 
 				while (true) {
 
-					Cbe::Primitive prim = _sync_sb.peek_completed_primitive();
+					Cbe::Primitive prim = _sync_sb.cxx_peek_completed_primitive();
 					if (!prim.valid()) { break; }
 
 					DBG("primitive: ", prim);
 
-					_last_secured_generation = _sync_sb.peek_completed_generation(prim);
+					_last_secured_generation = _sync_sb.cxx_peek_completed_generation(prim);
 
 					uint32_t next_sb = (_current_sb + 1) % Cbe::NUM_SUPER_BLOCKS;
 					Cbe::Super_block       &next = _super_block[next_sb];
@@ -1004,22 +1003,22 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					_last_secure_time = _time.timestamp();
 					_time.schedule_secure_timeout(_secure_interval);
 
-					_sync_sb.drop_completed_primitive(prim);
+					_sync_sb.cxx_drop_completed_primitive(prim);
 					progress |= true;
 				}
 
 				while (true) {
 
-					Cbe::Primitive prim = _sync_sb.peek_generated_primitive();
+					Cbe::Primitive prim = _sync_sb.cxx_peek_generated_primitive();
 					if (!prim.valid()) { break; }
 					if (!_io.primitive_acceptable()) { break; }
 
-					uint64_t   const  id      = _sync_sb.peek_generated_id(prim);
+					uint64_t   const  id      = _sync_sb.cxx_peek_generated_id(prim);
 					Cbe::Super_block &sb      = _super_block[id];
 					Cbe::Block_data  &sb_data = *reinterpret_cast<Cbe::Block_data*>(&sb);
 
 					_io.submit_primitive(Tag::SYNC_SB_TAG, prim, sb_data);
-					_sync_sb.drop_generated_primitive(prim);
+					_sync_sb.cxx_drop_generated_primitive(prim);
 					progress |= true;
 				}
 
@@ -1126,7 +1125,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						_write_back.mark_completed_io_primitive(prim);
 						break;
 					case Tag::SYNC_SB_TAG:
-						_sync_sb.mark_generated_primitive_complete(prim);
+						_sync_sb.cxx_mark_generated_primitive_complete(prim);
 						break;
 					// XXX check for FREE_TREE_TAG
 					case Tag::FREE_TREE_TAG_WB:
