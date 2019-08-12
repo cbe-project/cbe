@@ -33,6 +33,20 @@ package body CBE.CXX with Spark_Mode is
 		(CXX_Physical_Block_Address_Type(Pba));
 
 	--
+	-- Superblock_Index_Type_To_CXX
+	--
+	function Superblock_Index_Type_To_CXX(Index_Value : in Superblock_Index_Type)
+	return CXX_Superblock_Index_Type is
+		(CXX_Superblock_Index_Type(Index_Value));
+
+	--
+	-- Generation_Type_To_CXX
+	--
+	function Generation_Type_To_CXX(Index_Value : in Generation_Type)
+	return CXX_Generation_Type is
+		(CXX_Generation_Type(Index_Value));
+
+	--
 	-- Bits_To_Bytes
 	--
 	function Number_Of_Bits_To_Bytes(Bits : in Number_Of_Bits_Type)

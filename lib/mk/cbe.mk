@@ -11,6 +11,7 @@ SRC_ADB += cbe-cxx-cxx_pool.adb
 SRC_ADB += cbe-cxx-cxx_splitter.adb
 SRC_ADB += cbe-cxx-cxx_primitive.adb
 SRC_ADB += cbe-cxx-cxx_request.adb
+SRC_ADB += cbe-cxx-cxx_sync_superblock.adb
 SRC_ADB += cbe-cxx.adb
 SRC_ADB += cbe-splitter.adb
 SRC_ADB += cbe-primitive.adb
@@ -19,5 +20,6 @@ SRC_ADB += cbe-pool.adb
 SRC_ADB += cbe-crypto.adb
 SRC_ADB += cbe-cache.adb
 SRC_ADB += cbe-cache_flusher.adb
+SRC_ADB += cbe-sync_superblock.adb
 
 vpath % $(REP_DIR)/src/lib/cbe

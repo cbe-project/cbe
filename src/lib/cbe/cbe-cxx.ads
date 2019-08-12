@@ -23,6 +23,9 @@ is
 	type CXX_Index_Type is new Uint32_Type;
 	type CXX_Physical_Block_Address_Type is new Uint64_Type;
 
+	type CXX_Superblock_Index_Type is new Uint64_Type;
+	type CXX_Generation_Type is new Uint64_Type;
+
 	type Number_Of_Bytes_Type          is mod 2**64;
 	type Number_Of_Bits_Type           is new Natural;
 	type CXX_Number_Of_Primitives_Type is new Uint64_Type;
@@ -48,6 +51,18 @@ is
 	--
 	function Physical_Block_Address_Type_To_CXX(Pba : in Physical_Block_Address_Type)
 	return CXX_Physical_Block_Address_Type;
+
+	--
+	-- Superblock_Index_Type_To_CXX
+	--
+	function Superblock_Index_Type_To_CXX(Index_Value : in Superblock_Index_Type)
+	return CXX_Superblock_Index_Type;
+
+	--
+	-- Generation_Type_To_CXX
+	--
+	function Generation_Type_To_CXX(Index_Value : in Generation_Type)
+	return CXX_Generation_Type;
 
 	--
 	-- Correct_Object_Size
