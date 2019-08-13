@@ -54,6 +54,22 @@ namespace Cbe {
 		Genode::uint32_t  count;
 		Genode::uint32_t  tag;
 
+		bool read()  const { return operation == Operation::READ; }
+		bool write() const { return operation == Operation::WRITE; }
+		bool sync()  const { return operation == Operation::SYNC; }
+
+		bool equal(Cbe::Request const &rhs) const
+		{
+			return tag == rhs.tag
+			    && block_number == rhs.block_number
+			    && operation == rhs.operation;
+		}
+
+		bool valid() const
+		{
+			return operation_defined();
+		}
+
 		bool operation_defined() const
 		{
 			return operation == Operation::READ
@@ -290,6 +306,17 @@ namespace Cbe {
 		}
 	} __attribute__((packed));
 
+	struct Super_block_index
+	{
+		enum { INVALID  = 18446744073709551615ULL, };
+		Genode::uint64_t value;
+
+		void print(Genode::Output &out) const
+		{
+			Genode::print(out, value);
+		}
+	};
+
 	struct Super_block
 	{
 		enum { NUM_KEYS = 2u };
@@ -380,6 +407,11 @@ namespace Cbe {
 	constexpr size_t TYPE_1_PER_BLOCK = BLOCK_SIZE / sizeof (Type_i_node);
 	constexpr size_t TYPE_2_PER_BLOCK = BLOCK_SIZE / sizeof (Type_ii_node);
 
+	enum {
+		TREE_MIN_DEGREE = 1,
+		TREE_MIN_HEIGHT = 1,
+		TREE_MAX_HEIGHT = 6,
+	};
 	struct Tree_helper
 	{
 		static inline uint32_t _log2(uint32_t const value)

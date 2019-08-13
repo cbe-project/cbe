@@ -18,7 +18,7 @@
 
 namespace Cbe { namespace Module {
 
-	enum { TRANSLATION_MAX_LEVELS = 6, };
+	enum { TRANSLATION_MAX_LEVELS = Cbe::TREE_MAX_HEIGHT, };
 
 	struct Translation_Data
 	{

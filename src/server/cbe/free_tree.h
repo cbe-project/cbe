@@ -53,6 +53,9 @@ struct Cbe::Free_tree
 		Cbe::Virtual_block_address vba;
 		Cbe::Height tree_height;
 		Cbe::Block_data const *block_data;
+		// XXX remove block_data pointer, use give_write_data when
+		//     _write_back.submit_primitive() is called and probably store
+		//     Cbe::Request
 
 		Cbe::Physical_block_address new_pba[Translation::MAX_LEVELS];
 		Cbe::Type_1_node_info old_pba[Translation::MAX_LEVELS];
@@ -190,7 +193,7 @@ struct Cbe::Free_tree
 	                    uint32_t                    const  free_blocks,
 	                    Cbe::Primitive              const &req_prim,
 	                    Cbe::Virtual_block_address  const  vba,
-	                    Cbe::Block_data             &data)
+	                    Cbe::Block_data             const  &data)
 	{
 		(void)free_blocks;
 
