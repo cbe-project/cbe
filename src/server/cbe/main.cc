@@ -830,9 +830,9 @@ class Cbe::Library
 				bool _progress = false;
 				switch (prim.tag) {
 				case Tag::CRYPTO_TAG_ENCRYPT:
-					if (_crypto.primitive_acceptable()) {
+					if (_crypto.cxx_primitive_acceptable()) {
 						Cbe::Block_data &data = _write_back.peek_generated_crypto_data(prim);
-						_crypto.submit_primitive(prim, data, _crypto_data);
+						_crypto.cxx_submit_primitive(prim, data, _crypto_data);
 						_progress = true;
 						_write_back.drop_generated_primitive(prim);
 					}
@@ -970,31 +970,31 @@ class Cbe::Library
 			 ** Crypto handling **
 			 *********************/
 
-			bool const crypto_progress = _crypto.foobar();
+			bool const crypto_progress = _crypto.cxx_foobar();
 			progress |= crypto_progress;
 			LOG_PROGRESS(crypto_progress);
 
 			while (true) {
 
-				Cbe::Primitive prim = _crypto.peek_completed_primitive();
+				Cbe::Primitive prim = _crypto.cxx_peek_completed_primitive();
 				if (!prim.valid() || prim.read()) { break; }
 
 				Cbe::Block_data &data = _write_back.peek_generated_crypto_data(prim);
-				_crypto.copy_completed_data(prim, data);
+				_crypto.cxx_copy_completed_data(prim, data);
 				_write_back.mark_completed_crypto_primitive(prim);
 
-				_crypto.drop_completed_primitive(prim);
+				_crypto.cxx_drop_completed_primitive(prim);
 
 				progress |= true;
 			}
 
 			while (true) {
 
-				Cbe::Primitive prim = _crypto.peek_generated_primitive();
+				Cbe::Primitive prim = _crypto.cxx_peek_generated_primitive();
 				if (!prim.valid()) { break; }
 
-				_crypto.drop_generated_primitive(prim);
-				_crypto.mark_completed_primitive(prim);
+				_crypto.cxx_drop_generated_primitive(prim);
+				_crypto.cxx_mark_completed_primitive(prim);
 
 				progress |= true;
 			}
@@ -1039,14 +1039,14 @@ class Cbe::Library
 				bool _progress = true;
 				switch (prim.tag) {
 				case Tag::CRYPTO_TAG_DECRYPT:
-					if (!_crypto.primitive_acceptable()) {
+					if (!_crypto.cxx_primitive_acceptable()) {
 						_progress = false;
 					} else {
 						Cbe::Block_data   &data = _io.peek_completed_data(prim);
 						Cbe::Tag const orig_tag = _io.peek_completed_tag(prim);
 
 						prim.tag = orig_tag;
-						_crypto.submit_primitive(prim, data, _crypto_data);
+						_crypto.cxx_submit_primitive(prim, data, _crypto_data);
 					}
 					break;
 				case Tag::CACHE_TAG:
@@ -1118,7 +1118,7 @@ class Cbe::Library
 
 			/* Crypto module */
 			{
-				Cbe::Primitive prim = _crypto.peek_completed_primitive();
+				Cbe::Primitive prim = _crypto.cxx_peek_completed_primitive();
 				if (prim.valid() && prim.read()) {
 					Cbe::Request const req = _request_pool.request_for_tag(prim.tag);
 					_req_prim = Req_prim {
@@ -1156,8 +1156,8 @@ class Cbe::Library
 
 			switch (_req_prim.tag) {
 			case Cbe::Tag::CRYPTO_TAG:
-				_crypto.copy_completed_data(prim, data);
-				_crypto.drop_completed_primitive(prim);
+				_crypto.cxx_copy_completed_data(prim, data);
+				_crypto.cxx_drop_completed_primitive(prim);
 				_request_pool.mark_completed_primitive(prim);
 				DBG("pool complete: ", prim);
 
