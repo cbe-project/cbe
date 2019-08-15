@@ -48,11 +48,13 @@ struct Cbe::Virtual_block_device
 
 	void trans_inhibit_translation()
 	{
+		MOD_DBG("");
 		_trans->suspend();
 	}
 
 	void trans_resume_translation()
 	{
+		MOD_DBG("");
 		_trans->resume();
 	}
 
@@ -151,11 +153,14 @@ struct Cbe::Virtual_block_device
 
 	Cbe::Primitive peek_completed_primitive()
 	{
-		return _trans->peek_completed_primitive();
+		Cbe::Primitive prim = _trans->peek_completed_primitive();
+		if (prim.valid()) { MOD_DBG(prim); }
+		return prim;
 	}
 
 	void drop_completed_primitive(Cbe::Primitive const &prim)
 	{
+		MOD_DBG(prim);
 		_trans->drop_completed_primitive(prim);
 	}
 };
