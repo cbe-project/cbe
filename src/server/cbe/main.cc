@@ -343,8 +343,8 @@ class Cbe::Library
 		Cbe::Generation  _last_secured_generation { 0 };
 		uint32_t         _cur_snap { 0 };
 		uint32_t         _last_snapshot_id { 0 };
-		bool             _need_to_sync { false };
-		bool             _need_to_secure { false };
+		bool             _seal_generation { false };
+		bool             _secure_superblock { false };
 		bool             _snaps_dirty { false };
 
 
@@ -507,7 +507,7 @@ class Cbe::Library
 			 *******************/
 
 			Cbe::Time::Timestamp const diff_time = _time.timestamp() - _last_time;
-			if (diff_time >= _sync_interval && !_need_to_sync) {
+			if (diff_time >= _sync_interval && !_seal_generation) {
 
 				// XXX move
 				bool cache_dirty = false;
@@ -523,7 +523,7 @@ class Cbe::Library
 
 				if (_cache_dirty) {
 					Genode::log("\033[93;44m", __func__, " SEAL current generation: ", _cur_gen);
-					_need_to_sync = true;
+					_seal_generation = true;
 				} else {
 					DBG("cache is not dirty, re-arm trigger");
 					_last_time = _time.timestamp();
@@ -532,12 +532,12 @@ class Cbe::Library
 			}
 
 			Cbe::Time::Timestamp const diff_secure_time = _time.timestamp() - _last_secure_time;
-			if (diff_secure_time >= _secure_interval && !_need_to_secure) {
+			if (diff_secure_time >= _secure_interval && !_secure_superblock) {
 
 				if (_snaps_dirty) {
 					Genode::log("\033[93;44m", __func__,
 					            " SEAL current super-block: ", _cur_sb);
-					_need_to_secure = true;
+					_secure_superblock = true;
 				} else {
 					DBG("no snapshots created, re-arm trigger");
 					_last_secure_time = _time.timestamp();
@@ -658,7 +658,7 @@ class Cbe::Library
 				if (!prim.valid()) { break; }
 				if (!_vbd->primitive_acceptable()) { break; }
 
-				if (_need_to_secure) {
+				if (_secure_superblock) {
 					DBG("prevent processing new primitives while securing super-block");
 					break;
 				}
@@ -728,28 +728,29 @@ class Cbe::Library
 
 				Cbe::Primitive prim = _write_back.peek_completed_primitive();
 				if (!prim.valid()) { break; }
-				if (!_flusher.cxx_request_acceptable()) { break; }
 
-				bool cache_dirty = false;
-				for (uint32_t i = 0; i < _cache.cxx_cache_slots(); i++) {
-					Cache_Index const idx = Cache_Index { .value = (uint32_t)i };
-					if (_cache.dirty(idx)) {
-						cache_dirty |= true;
+				if (_seal_generation) {
 
-						Cbe::Physical_block_address const pba = _cache.flush(idx);
-						DBG(" i: ", idx.value, " pba: ", pba, " needs flushing");
+					if (!_flusher.cxx_request_acceptable()) { break; }
 
-						_flusher.cxx_submit_request(pba, idx);
+					bool cache_dirty = false;
+					for (uint32_t i = 0; i < _cache.cxx_cache_slots(); i++) {
+						Cache_Index const idx = Cache_Index { .value = (uint32_t)i };
+						if (_cache.dirty(idx)) {
+							cache_dirty |= true;
+
+							Cbe::Physical_block_address const pba = _cache.flush(idx);
+							DBG(" i: ", idx.value, " pba: ", pba, " needs flushing");
+
+							_flusher.cxx_submit_request(pba, idx);
+						}
 					}
-				}
 
-				if (cache_dirty) {
-					DBG("CACHE FLUSH NEEDED: progress: ", progress);
-					progress |= true;
-					break;
-				}
-
-				if (_need_to_sync) {
+					if (cache_dirty) {
+						DBG("CACHE FLUSH NEEDED: progress: ", progress);
+						progress |= true;
+						break;
+					}
 
 					Cbe::Super_block &sb = _super_block[_cur_sb.value];
 					uint32_t next_snap = _cur_snap;
@@ -786,7 +787,7 @@ class Cbe::Library
 					_cur_gen++;
 					_cur_snap++;
 
-					_need_to_sync = false;
+					_seal_generation = false;
 					_last_time = _time.timestamp();
 					_time.schedule_sync_timeout(_sync_interval);
 				} else {
@@ -901,7 +902,7 @@ class Cbe::Library
 			 ** Super-block handling **
 			 **************************/
 
-			if (_need_to_secure && _sync_sb.cxx_request_acceptable()) {
+			if (_secure_superblock && _sync_sb.cxx_request_acceptable()) {
 
 				Cbe::Super_block &sb = _super_block[_cur_sb.value];
 
@@ -933,7 +934,7 @@ class Cbe::Library
 				_cur_sb = next_sb;
 
 				_snaps_dirty = false;
-				_need_to_secure = false;
+				_secure_superblock = false;
 				_last_secure_time = _time.timestamp();
 				_time.schedule_secure_timeout(_secure_interval);
 
