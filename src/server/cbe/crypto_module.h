@@ -26,6 +26,9 @@ namespace Cbe { namespace Module {
 } /* namespace Module */ } /* namespace Cbe */
 
 
+#define MOD_NAME "CRY"
+
+
 struct Cbe::Module::Crypto : Cbe::Spark_object<8264>
 {
 	/**
@@ -41,6 +44,12 @@ struct Cbe::Module::Crypto : Cbe::Spark_object<8264>
 	 * \return true if a primitive can be accepted, otherwise false
 	 */
 	bool primitive_acceptable() const;
+	bool cxx_primitive_acceptable() const
+	{
+		bool const res = primitive_acceptable();
+		MOD_DBG("res: ", res);
+		return res;
+	}
 
 	/**
 	 * Submit a new primitive
@@ -55,6 +64,11 @@ struct Cbe::Module::Crypto : Cbe::Spark_object<8264>
 	 * \param c  reference to a Block_data cipher object
 	 */
 	void submit_primitive(Primitive const &p, Block_data &d, Block_data &c);
+	void cxx_submit_primitive(Primitive const &p, Block_data &d, Block_data &c)
+	{
+		MOD_DBG("p: ", p);
+		submit_primitive(p, d, c);
+	}
 
 	/**
 	 * Process all submitted primitives
@@ -74,6 +88,8 @@ struct Cbe::Module::Crypto : Cbe::Spark_object<8264>
 		return execute_progress();
 	}
 
+	bool cxx_foobar() { return foobar(); }
+
 	/**
 	 * Check for any completed primitive
 	 *
@@ -87,6 +103,12 @@ struct Cbe::Module::Crypto : Cbe::Spark_object<8264>
 	 *         completed primitive, otherwise an invalid one
 	 */
 	Primitive peek_completed_primitive() const;
+	Primitive cxx_peek_completed_primitive() const
+	{
+		Cbe::Primitive prim  = peek_completed_primitive();
+		if (prim.valid()) { MOD_DBG(prim); }
+		return prim;
+	}
 
 	/**
 	 * Take the next completed primitive
@@ -98,6 +120,11 @@ struct Cbe::Module::Crypto : Cbe::Spark_object<8264>
 	 *         from the module
 	 */
 	void drop_completed_primitive(Primitive const &prim);
+	void cxx_drop_completed_primitive(Primitive const &prim)
+	{
+		MOD_DBG(prim);
+		drop_completed_primitive(prim);
+	}
 
 	/**
 	 * Check for any generated primitive
@@ -112,6 +139,12 @@ struct Cbe::Module::Crypto : Cbe::Spark_object<8264>
 	 *         completed primitive, otherwise an invalid one
 	 */
 	Primitive  peek_generated_primitive() const;
+	Primitive  cxx_peek_generated_primitive() const
+	{
+		Cbe::Primitive prim  = peek_generated_primitive();
+		if (prim.valid()) { MOD_DBG(prim); }
+		return prim;
+	}
 
 	/**
 	 * Take the next generated crypto primitive
@@ -120,6 +153,11 @@ struct Cbe::Module::Crypto : Cbe::Spark_object<8264>
 	 * 'peek_generated_primitive' returned true.
 	 */
 	void drop_generated_primitive(Primitive const &prim);
+	void cxx_drop_generated_primitive(Primitive const &prim)
+	{
+		MOD_DBG(prim);
+		drop_generated_primitive(prim);
+	}
 
 	/**
 	 * Mark the primitive as completed
@@ -128,6 +166,11 @@ struct Cbe::Module::Crypto : Cbe::Spark_object<8264>
 	 *           the corresponding internal primitive as completed
 	 */
 	void mark_completed_primitive(Primitive const &p);
+	void cxx_mark_completed_primitive(Primitive const &p)
+	{
+		MOD_DBG(p);
+		mark_completed_primitive(p);
+	}
 
 	/**
 	 * Copy the internal data buffer of the completed primitive
@@ -138,6 +181,13 @@ struct Cbe::Module::Crypto : Cbe::Spark_object<8264>
 	 *              should be copied to
 	 */
 	void copy_completed_data(Primitive const &p, Cbe::Block_data &data);
+	void cxx_copy_completed_data(Primitive const &p, Cbe::Block_data &data)
+	{
+		MOD_DBG(p);
+		copy_completed_data(p, data);
+	}
 };
+
+#undef MOD_NAME
 
 #endif /* _CBE_CRYPTO_MODULE_H_ */
