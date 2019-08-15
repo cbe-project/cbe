@@ -204,7 +204,7 @@ namespace Cbe {
 
 	using Timestamp = uint64_t;
 
-	enum { BLOCK_SIZE = 4096u };
+	static constexpr Genode::uint32_t BLOCK_SIZE = 4096;
 
 	struct Block_data
 	{

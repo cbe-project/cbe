@@ -277,12 +277,12 @@ class Cbe::Library
 		/*
 		 * I/O module
 		 */
-		enum { IO_ENTRIES  = 1, };
 		Block::Connection<> &_block;
-		using Io       = Module::Block_io<IO_ENTRIES, BLOCK_SIZE>;
-		using Io_index = Module::Block_io<IO_ENTRIES, BLOCK_SIZE>::Index;
-		Io         _io                  { _block };
-		Block_data _io_data[IO_ENTRIES] { };
+		using Io       = Module::Block_io;
+		using Io_data  = Module::Io_data;
+		using Io_index = Module::Block_io::Index;
+		Io      _io      { _block };
+		Io_data _io_data { };
 
 		/*
 		 * Cache module
@@ -625,7 +625,7 @@ class Cbe::Library
 				default: break;
 				}
 
-				_io.submit_primitive(tag, prim, *data);
+				_io.submit_primitive(tag, prim, _io_data, *data);
 
 				_free_tree->drop_generated_primitive(prim);
 				progress |= true;
@@ -713,7 +713,7 @@ class Cbe::Library
 				Cache_Index     const  idx  = _flusher.cxx_peek_generated_data_index(prim);
 				Cbe::Block_data       &data = _cache_data.item[idx.value];
 
-				_io.submit_primitive(Tag::CACHE_FLUSH_TAG, prim, data);
+				_io.submit_primitive(Tag::CACHE_FLUSH_TAG, prim, _io_data, data);
 
 				_flusher.cxx_drop_generated_primitive(prim);
 
@@ -842,7 +842,7 @@ class Cbe::Library
 
 				Write_back_data_index const idx = _write_back.peek_generated_io_data(prim);
 				Cbe::Block_data           &data = _write_back_data.item[idx.value];
-				_io.submit_primitive(Tag::WRITE_BACK_TAG, prim, data);
+				_io.submit_primitive(Tag::WRITE_BACK_TAG, prim, _io_data, data);
 
 				_write_back.drop_generated_io_primitive(prim);
 				progress |= true;
@@ -952,7 +952,7 @@ class Cbe::Library
 				Cbe::Super_block &sb      = _super_block[id];
 				Cbe::Block_data  &sb_data = *reinterpret_cast<Cbe::Block_data*>(&sb);
 
-				_io.submit_primitive(Tag::SYNC_SB_TAG, prim, sb_data);
+				_io.submit_primitive(Tag::SYNC_SB_TAG, prim, _io_data, sb_data);
 				_sync_sb.cxx_drop_generated_primitive(prim);
 				progress |= true;
 			}
@@ -1013,7 +1013,7 @@ class Cbe::Library
 
 				_cache.drop_generated_primitive(prim);
 
-				_io.submit_primitive(Tag::CACHE_TAG, prim, data);
+				_io.submit_primitive(Tag::CACHE_TAG, prim, _io_data, data);
 				progress |= true;
 			}
 
@@ -1021,7 +1021,7 @@ class Cbe::Library
 			 ** I/O handling **
 			 ******************/
 
-			bool const io_progress = _io.execute();
+			bool const io_progress = _io.execute(_io_data);
 			progress |= io_progress;
 			LOG_PROGRESS(io_progress);
 
@@ -1036,7 +1036,9 @@ class Cbe::Library
 					if (!_crypto.cxx_primitive_acceptable()) {
 						_progress = false;
 					} else {
-						Cbe::Block_data   &data = _io.peek_completed_data(prim);
+						// Genode::uint32_t const idx = _io.peek_completed_data_index(prim);
+						// Cbe::Block_data   &data = _io_data.item[idx];
+						Cbe::Block_data &data = _io.peek_completed_data(prim);
 						Cbe::Tag const orig_tag = _io.peek_completed_tag(prim);
 
 						prim.tag = orig_tag;
@@ -1044,6 +1046,8 @@ class Cbe::Library
 					}
 					break;
 				case Tag::CACHE_TAG:
+					// XXX proper solution pending
+					// Genode::memcpy(&_cache_job_data.item[0], &_io_data.item[0], sizeof (Cbe::Block_data));
 					_cache.cxx_mark_completed_primitive(prim);
 					break;
 				case Tag::CACHE_FLUSH_TAG:
@@ -1159,7 +1163,7 @@ class Cbe::Library
 				return true;
 			case Cbe::Tag::VBD_TAG:
 				if (_io.primitive_acceptable()) {
-					_io.submit_primitive(Tag::CRYPTO_TAG_DECRYPT, prim, data);
+					_io.submit_primitive(Tag::CRYPTO_TAG_DECRYPT, prim, _io_data, data);
 					_vbd->drop_completed_primitive(prim);
 
 					_req_prim = Req_prim { };

@@ -18,16 +18,23 @@
 
 namespace Cbe { namespace Module {
 
-	template <unsigned N, Genode::size_t BLOCK_SIZE> class Block_io;
+	struct Io_data
+	{
+		enum { NUM_ITEMS = 1, };
+		Cbe::Block_data item[NUM_ITEMS];
+	} __attribute__((packed));
+
+	class Block_io;
 
 } /* namespace Module */ } /* namespace Cbe */
 
 #define MOD_NAME "IO"
 
-template <unsigned N, Genode::size_t BLOCK_SIZE>
 class Cbe::Module::Block_io : Noncopyable
 {
 	public:
+
+		static constexpr Genode::uint32_t N = Io_data::NUM_ITEMS;
 
 		struct Index
 		{
@@ -88,9 +95,9 @@ class Cbe::Module::Block_io : Noncopyable
 				}
 			};
 
-			return Block::Packet_descriptor(_block.alloc_packet(BLOCK_SIZE),
+			return Block::Packet_descriptor(_block.alloc_packet(Cbe::BLOCK_SIZE),
 					operation(primitive.operation),
-					primitive.block_number, BLOCK_SIZE / _info.block_size);
+					primitive.block_number, Cbe::BLOCK_SIZE / _info.block_size);
 		}
 
 		bool _equal_packets(Block::Packet_descriptor const &p1,
@@ -112,9 +119,9 @@ class Cbe::Module::Block_io : Noncopyable
 
 		Block_io(Block::Connection<> &block) : _block(block)
 		{
-			if (_info.block_size > BLOCK_SIZE || _info.block_size % BLOCK_SIZE != 0) {
+			if (_info.block_size > Cbe::BLOCK_SIZE || _info.block_size % Cbe::BLOCK_SIZE != 0) {
 				MOD_ERR("back end block size must either be equal to "
-				        "or be a multiple of ", BLOCK_SIZE);
+				        "or be a multiple of ", Cbe::BLOCK_SIZE);
 				throw Block_size_mismatch();
 			}
 		}
@@ -137,20 +144,27 @@ class Cbe::Module::Block_io : Noncopyable
 		 * \param p  reference to the Primitive
 		 * \param d  reference to a Block_data object
 		 */
-		void submit_primitive(Tag const tag, Primitive const &p, Block_data &d)
+		void submit_primitive(Tag const tag, Primitive const &p,
+		                      Io_data &io_data, Block_data &data)
 		{
 			for (unsigned i = 0; i < N; i++) {
-				if (_entries[i].state == Internal_entry::UNUSED) {
-					_entries[i].primitive = p;
-					_entries[i].primitive.tag = tag;
-					_entries[i].orig_tag  = p.tag;
-					_entries[i].data      = &d;
-					_entries[i].state     = Internal_entry::PENDING;
+				Internal_entry &e = _entries[i];
 
-					_used_entries++;
-					MOD_DBG("primitive: ", p);
-					return;
-				}
+				if (e.state != Internal_entry::UNUSED) { continue; }
+
+				e.primitive = p;
+				e.primitive.tag = tag;
+				e.orig_tag  = p.tag;
+				(void)io_data;
+				// if (p.write()) {
+				// 	Genode::memcpy(&io_data.item[i], &data, sizeof (Cbe::Block_data));
+				// }
+				e.data      = &data;
+				e.state     = Internal_entry::PENDING;
+
+				_used_entries++;
+				MOD_DBG("primitive: ", p);
+				return;
 			}
 		}
 
@@ -164,9 +178,11 @@ class Cbe::Module::Block_io : Noncopyable
 		 * \return true if any pending primitive was used to trigger a request
 		 * at the back end Block session.
 		 */
-		bool execute()
+		bool execute(Io_data &io_data)
 		{
 			bool progress = false;
+
+			(void)io_data;
 
 			/* first mark all finished I/O ops */
 			while (_block.tx()->ack_avail()) {
@@ -178,8 +194,9 @@ class Cbe::Module::Block_io : Noncopyable
 
 					if (_entries[i].primitive.read()) {
 						void const * const src = _block.tx()->packet_content(packet);
-						Genode::size_t    size = BLOCK_SIZE;
+						Genode::size_t    size = Cbe::BLOCK_SIZE;
 						void      * const dest = reinterpret_cast<void*>(_entries[i].data);
+						// void      * const dest = reinterpret_cast<void*>(&_io_data.item[i]);
 						Genode::memcpy(dest, src, size);
 					}
 
@@ -195,41 +212,42 @@ class Cbe::Module::Block_io : Noncopyable
 
 			/* second submit new I/O ops */
 			for (unsigned i = 0; i < N; i++) {
-				if (_entries[i].state == Internal_entry::PENDING) {
+				if (_entries[i].state != Internal_entry::PENDING) { continue; }
 
-					if (!_block.tx()->ready_to_submit()) { break; }
 
-					try {
-						Block::Packet_descriptor packet = _convert_from(_entries[i].primitive);
+				if (!_block.tx()->ready_to_submit()) { break; }
 
-						if (_entries[i].primitive.write()) {
-							void const * const src = reinterpret_cast<void*>(_entries[i].data);
-							Genode::size_t    size = BLOCK_SIZE;
-							void      * const dest = _block.tx()->packet_content(packet);
-							Genode::memcpy(dest, src, size);
-						}
+				try {
+					Block::Packet_descriptor packet = _convert_from(_entries[i].primitive);
 
-						_entries[i].state  = Internal_entry::IN_PROGRESS;
-						_entries[i].packet = packet;
-
-						_block.tx()->submit_packet(_entries[i].packet);
-						MOD_DBG("SUBMIT prim: ", _entries[i].primitive);
-						progress = true;
+					if (_entries[i].primitive.write()) {
+						void const * const src = reinterpret_cast<void*>(_entries[i].data);
+						// void const * const src = reinterpret_cast<void*>(&_io_data.item[i]);
+						Genode::size_t    size = Cbe::BLOCK_SIZE;
+						void      * const dest = _block.tx()->packet_content(packet);
+						Genode::memcpy(dest, src, size);
 					}
-					catch (Fake_sync_primitive) {
-						_entries[i].state = Internal_entry::COMPLETE;
-						_entries[i].primitive.success = Primitive::Success::TRUE;
-						MOD_DBG("ACK SYNC prim: ", _entries[i].primitive);
-						break;
-					}
-					catch (Invalid_block_operation) {
-						_entries[i].state = Internal_entry::COMPLETE;
-						_entries[i].primitive.success = Primitive::Success::FALSE;
-						MOD_DBG("ACK INVALID prim: ", _entries[i].primitive);
-						break;
-					}
-					catch (Block::Session::Tx::Source::Packet_alloc_failed) { break; }
+
+					_entries[i].state  = Internal_entry::IN_PROGRESS;
+					_entries[i].packet = packet;
+
+					_block.tx()->submit_packet(_entries[i].packet);
+					MOD_DBG("SUBMIT prim: ", _entries[i].primitive);
+					progress = true;
 				}
+				catch (Fake_sync_primitive) {
+					_entries[i].state = Internal_entry::COMPLETE;
+					_entries[i].primitive.success = Primitive::Success::TRUE;
+					MOD_DBG("ACK SYNC prim: ", _entries[i].primitive);
+					break;
+				}
+				catch (Invalid_block_operation) {
+					_entries[i].state = Internal_entry::COMPLETE;
+					_entries[i].primitive.success = Primitive::Success::FALSE;
+					MOD_DBG("ACK INVALID prim: ", _entries[i].primitive);
+					break;
+				}
+				catch (Block::Session::Tx::Source::Packet_alloc_failed) { break; }
 			}
 
 			return progress;
@@ -244,9 +262,9 @@ class Cbe::Module::Block_io : Noncopyable
 		Primitive peek_completed_primitive()
 		{
 			for (unsigned i = 0; i < N; i++) {
-				if (_entries[i].state == Internal_entry::COMPLETE) {
-					return _entries[i].primitive;
-				}
+				if (_entries[i].state != Internal_entry::COMPLETE) { continue; }
+
+				return _entries[i].primitive;
 			}
 
 			return Cbe::Primitive { };
@@ -255,10 +273,10 @@ class Cbe::Module::Block_io : Noncopyable
 		Cbe::Block_data &peek_completed_data(Cbe::Primitive const &p)
 		{
 			for (unsigned i = 0; i < N; i++) {
-				if (_entries[i].state == Internal_entry::COMPLETE
-				    && _equal_primitives(p, _entries[i].primitive)) {
-					return *_entries[i].data;
-				}
+				if (_entries[i].state != Internal_entry::COMPLETE
+				    || !_equal_primitives(p, _entries[i].primitive)) { continue; }
+
+				return *_entries[i].data;
 			}
 
 			MOD_ERR("invalid primitive: ", p);
@@ -268,10 +286,10 @@ class Cbe::Module::Block_io : Noncopyable
 		Cbe::Tag peek_completed_tag(Cbe::Primitive const &p)
 		{
 			for (unsigned i = 0; i < N; i++) {
-				if (_entries[i].state == Internal_entry::COMPLETE
-				    && _equal_primitives(p, _entries[i].primitive)) {
-					return _entries[i].orig_tag;
-				}
+				if (_entries[i].state != Internal_entry::COMPLETE
+				    || !_equal_primitives(p, _entries[i].primitive)) { continue; }
+
+				return _entries[i].orig_tag;
 			}
 
 			MOD_ERR("invalid primitive: ", p);
@@ -290,12 +308,12 @@ class Cbe::Module::Block_io : Noncopyable
 		void drop_completed_primitive(Cbe::Primitive const &p)
 		{
 			for (unsigned i = 0; i < N; i++) {
-				if (_entries[i].state == Internal_entry::COMPLETE
-				    && _equal_primitives(p, _entries[i].primitive)) {
-					_entries[i].state = Internal_entry::UNUSED;
-					_used_entries--;
-					return;
-				}
+				if (_entries[i].state != Internal_entry::COMPLETE
+				    || !_equal_primitives(p, _entries[i].primitive)) { continue; }
+
+				_entries[i].state = Internal_entry::UNUSED;
+				_used_entries--;
+				return;
 			}
 
 			MOD_ERR("invalid primitive: ", p);
