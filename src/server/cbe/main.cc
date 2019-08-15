@@ -311,11 +311,12 @@ class Cbe::Library
 		/*
 		 * Write-back module
 		 */
-		using Write_back       = Module::Write_back<Translation::MAX_LEVELS, Cbe::Type_i_node>;
-		using Write_back_Index = Module::Write_back<Translation::MAX_LEVELS, Cbe::Type_i_node>::Index;
+		using Write_back            = Module::Write_back<Cbe::Type_i_node>;
+		using Write_back_data       = Module::Write_back_data;
+		using Write_back_data_index = Module::Write_back_data_index;
 
-		Write_back _write_back { };
-		Block_data _write_back_data[Translation::MAX_LEVELS] { };
+		Write_back      _write_back { };
+		Write_back_data _write_back_data { };
 
 		/*
 		 * Sync-superblock module
@@ -596,7 +597,7 @@ class Cbe::Library
 
 					_write_back.submit_primitive(wb.prim, wb.gen, wb.vba,
 					                             wb.new_pba, wb.old_pba, wb.tree_height,
-					                             *wb.block_data);
+					                             *wb.block_data, _write_back_data);
 				}
 				_free_tree->drop_completed_primitive(prim);
 				progress |= true;
@@ -723,10 +724,6 @@ class Cbe::Library
 			 ** Write-back handling **
 			 *************************/
 
-			bool const write_back_progress = _write_back.execute();
-			progress |= write_back_progress;
-			LOG_PROGRESS(write_back_progress);
-
 			while (true) {
 
 				Cbe::Primitive prim = _write_back.peek_completed_primitive();
@@ -824,73 +821,15 @@ class Cbe::Library
 
 			while (true) {
 
-				Cbe::Primitive prim = _write_back.peek_generated_primitive();
+				Cbe::Primitive prim = _write_back.peek_generated_crypto_primitive();
 				if (!prim.valid()) { break; }
+				if (!_crypto.cxx_primitive_acceptable()) { break; }
 
-				bool _progress = false;
-				switch (prim.tag) {
-				case Tag::CRYPTO_TAG_ENCRYPT:
-					if (_crypto.cxx_primitive_acceptable()) {
-						Cbe::Block_data &data = _write_back.peek_generated_crypto_data(prim);
-						_crypto.cxx_submit_primitive(prim, data, _crypto_data);
-						_progress = true;
-						_write_back.drop_generated_primitive(prim);
-					}
-					break;
-				case Tag::CACHE_TAG:
-				{
-					if (!_write_back.crypto_done()) {
-						DBG("XXX stall write-back until crypto is done");
-						break;
-					}
-					Cbe::Physical_block_address const pba        = prim.block_number;
-					Cbe::Physical_block_address const update_pba = _write_back.peek_generated_pba(prim);
+				Write_back_data_index const idx = _write_back.peek_generated_crypto_data(prim);
+				Cbe::Block_data &data = _write_back_data.item[idx.value];
+				_crypto.cxx_submit_primitive(prim, data, _crypto_data);
 
-					bool cache_miss = false;
-					if (!_cache.data_available(pba)) {
-						DBG("cache miss pba: ", pba);
-						if (_cache.cxx_request_acceptable(pba)) {
-							_cache.cxx_submit_request(pba);
-						}
-						cache_miss |= true;
-					}
-
-					if (pba != update_pba) {
-						if (!_cache.data_available(update_pba)) {
-							DBG("cache miss update_pba: ", update_pba);
-							if (_cache.cxx_request_acceptable(update_pba)) {
-								_cache.cxx_submit_request(update_pba);
-							}
-							cache_miss |= true;
-						}
-					}
-
-					/* read the needed blocks first */
-					if (cache_miss) {
-						DBG("cache_miss");
-						break;
-					}
-
-					DBG("cache hot pba: ", pba, " update_pba: ", update_pba);
-
-					Cache_Index const idx        = _cache.data_index(pba, _time.timestamp());
-					Cache_Index const update_idx = _cache.data_index(update_pba, _time.timestamp());
-
-					Cbe::Block_data const &data        = _cache_data.item[idx.value];
-					Cbe::Block_data       &update_data = _cache_data.item[update_idx.value];
-
-					_write_back.update(pba, _vbd->tree_helper(), data, update_data);
-					_cache.mark_dirty(update_pba);
-
-					_write_back.drop_generated_primitive(prim);
-					_progress = true;
-					break;
-				}
-				default: break;
-				}
-
-				if (!_progress) { break; }
-
+				_write_back.drop_generated_crypto_primitive(prim);
 				progress |= true;
 			}
 
@@ -900,10 +839,61 @@ class Cbe::Library
 				if (!prim.valid()) { break; }
 				if (!_io.primitive_acceptable()) { break; }
 
-				Cbe::Block_data &data = _write_back.peek_generated_io_data(prim);
+				Write_back_data_index const idx = _write_back.peek_generated_io_data(prim);
+				Cbe::Block_data           &data = _write_back_data.item[idx.value];
 				_io.submit_primitive(Tag::WRITE_BACK_TAG, prim, data);
 
 				_write_back.drop_generated_io_primitive(prim);
+				progress |= true;
+			}
+
+			while (true) {
+
+				Cbe::Primitive prim = _write_back.peek_generated_cache_primitive();
+				DBG(prim);
+				if (!prim.valid()) { break; }
+
+				using PBA = Cbe::Physical_block_address;
+				PBA const pba        = prim.block_number;
+				PBA const update_pba = _write_back.peek_generated_cache_update_pba(prim);
+
+				bool cache_miss = false;
+				if (!_cache.data_available(pba)) {
+					DBG("cache miss pba: ", pba);
+					if (_cache.cxx_request_acceptable(pba)) {
+						_cache.cxx_submit_request(pba);
+					}
+					cache_miss |= true;
+				}
+
+				if (pba != update_pba) {
+					if (!_cache.data_available(update_pba)) {
+						DBG("cache miss update_pba: ", update_pba);
+						if (_cache.cxx_request_acceptable(update_pba)) {
+							_cache.cxx_submit_request(update_pba);
+						}
+						cache_miss |= true;
+					}
+				}
+
+				/* read the needed blocks first */
+				if (cache_miss) {
+					DBG("cache_miss");
+					break;
+				}
+
+				_write_back.drop_generated_cache_primitive(prim);
+
+				DBG("cache hot pba: ", pba, " update_pba: ", update_pba);
+
+				Cache_Index const idx        = _cache.data_index(pba, _time.timestamp());
+				Cache_Index const update_idx = _cache.data_index(update_pba, _time.timestamp());
+
+				Cbe::Block_data const &data        = _cache_data.item[idx.value];
+				Cbe::Block_data       &update_data = _cache_data.item[update_idx.value];
+
+				_write_back.update(pba, _vbd->tree_helper(), data, update_data);
+				_cache.mark_dirty(update_pba);
 				progress |= true;
 			}
 
@@ -979,9 +969,12 @@ class Cbe::Library
 				Cbe::Primitive prim = _crypto.cxx_peek_completed_primitive();
 				if (!prim.valid() || prim.read()) { break; }
 
-				Cbe::Block_data &data = _write_back.peek_generated_crypto_data(prim);
+				Write_back_data_index const idx = _write_back.peek_generated_crypto_data(prim);
+				Cbe::Block_data &data = _write_back_data.item[idx.value];
+				// XXX instead of copying the data just ask the crypto module for the resulting
+				//     hash and omit further processing in case the operation failed
 				_crypto.cxx_copy_completed_data(prim, data);
-				_write_back.mark_completed_crypto_primitive(prim);
+				_write_back.mark_completed_crypto_primitive(prim, data);
 
 				_crypto.cxx_drop_completed_primitive(prim);
 
@@ -1269,7 +1262,8 @@ class Cbe::Library
 					DBG("UPDATE ALL IN PACE");
 					/* ... or hand over infos to the Write_back module */
 					_write_back.submit_primitive(prim, _cur_gen, vba,
-					                             new_pba, old_pba, trans_height, data);
+					                             new_pba, old_pba, trans_height,
+					                             data, _write_back_data);
 				}
 
 				_vbd->drop_completed_primitive(prim);
@@ -1359,9 +1353,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					Cbe::Request req = convert_to(request);
 					_cbe->submit_request(req);
 
-					if (_show_progress || _show_if_progress) {
+					// if (_show_progress || _show_if_progress) {
 						Genode::log("NEW request: ", req);
-					}
+					// }
 
 					progress |= true;
 					return Block_session_component::Response::ACCEPTED;
@@ -1377,9 +1371,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					Block::Request request = convert_from(req);
 					ack.submit(request);
 
-					if (_show_progress || _show_if_progress) {
+					// if (_show_progress || _show_if_progress) {
 						Genode::log("ACK request: ", req);
-					}
+					// }
 
 					progress |= true;
 				});
