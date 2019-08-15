@@ -216,6 +216,7 @@ class Cbe::Module::Translation
 				               sizeof (Cbe::Hash));
 
 				_data_pba = _walk[_level].pba;
+				MOD_DBG("_data_pba: ", _data_pba, " -----------------------------------------------");
 			}
 
 			return true;
@@ -227,13 +228,16 @@ class Cbe::Module::Translation
 		Cbe::Primitive peek_completed_primitive()
 		{
 			if (_data_pba != Cbe::INVALID_PBA) {
-				return Cbe::Primitive {
+
+				Cbe::Primitive prim {
 					.tag          = _current.tag,
 					.operation    = _current.operation,
 					.success      = Cbe::Primitive::Success::FALSE,
 					.block_number = _data_pba,
 					.index        = _current.index,
 				};
+				MOD_DBG(prim);
+				return prim;
 			}
 
 			return Cbe::Primitive { };
