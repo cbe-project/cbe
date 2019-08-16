@@ -216,7 +216,8 @@ class Cbe::Module::Translation
 				               sizeof (Cbe::Hash));
 
 				_data_pba = _walk[_level].pba;
-				MOD_DBG("_data_pba: ", _data_pba, " -----------------------------------------------");
+				MOD_DBG("_data_pba: ", _data_pba, " ----------------------------------------------- ",
+				        _free_tree ? "FT" : "", " ", _level);
 			}
 
 			return true;
