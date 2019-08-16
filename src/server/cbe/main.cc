@@ -220,7 +220,9 @@ class Cbe::Library
 {
 	public:
 
-		struct Invalid_tree : Genode::Exception { };
+		struct Invalid_tree               : Genode::Exception { };
+		struct Spark_object_size_mismatch : Genode::Exception { };
+		struct Invalid_snapshot_slot      : Genode::Exception { };
 
 		enum {
 			SYNC_INTERVAL   = 0ull,
@@ -399,20 +401,42 @@ class Cbe::Library
 
 	public:
 
+		/**
+		 * Constructor
+		 *
+		 * \param  time    time object used throughout the CBE to query the
+		 *                 current time
+		 * \param  sync    interval in ms after which the current generation
+		 *                 should be sealed
+		 * \param  secure  interval in ms after which the current super-block
+		 *                 should be secured
+		 * \param  block   reference to the Block::Connection used by the I/O
+		 *                 module
+		 * \param  sbs     array of all super-blocks, will be copied
+		 *
+		 * \param  current_sb  super-block that should be used initially
+		 */
 		Library(Cbe::Time              &time,
+		        Time::Timestamp  const  sync,
+		        Time::Timestamp  const  secure,
 		        Block::Connection<>    &block,
-		        Cbe::Super_block        super_block[Cbe::NUM_SUPER_BLOCKS],
+		        Cbe::Super_block        sbs[Cbe::NUM_SUPER_BLOCKS],
 		        Cbe::Super_block_index  current_sb)
-		: _time(time), _block(block)
+		:
+			_time(time), _sync_interval(sync), _secure_interval(secure),
+			_block(block)
 		{
+			/*
+			 * We have to make sure we actually execute the code to check
+			 * if we provide enough space for the SPARK objects.
+			 */
 			if (!_object_sizes_match) {
 				error("object size mismatch");
-				throw -1;
+				throw Spark_object_size_mismatch();
 			}
 
 			for (uint32_t i = 0; i < Cbe::NUM_SUPER_BLOCKS; i++) {
-				Genode::memcpy(&_super_block[i], &super_block[i],
-				               sizeof (Cbe::Super_block));
+				Genode::memcpy(&_super_block[i], &sbs[i], sizeof (Cbe::Super_block));
 			}
 
 			_cur_sb = current_sb;
@@ -422,19 +446,10 @@ class Cbe::Library
 
 			SB const &sb = _super_block[_cur_sb.value];
 
-			uint32_t snap_slot = ~0u;
-			for (uint32_t i = 0; i < Cbe::NUM_SNAPSHOTS; i++) {
-				SS const &snap = sb.snapshots[i];
-				if (!snap.valid()) { continue; }
-
-				if (snap.id == sb.snapshot_id) {
-					snap_slot = i;
-					break;
-				}
-			}
-			if (snap_slot == ~0u) {
+			uint32_t snap_slot = sb.snapshot_slot();
+			if (snap_slot == Super_block::INVALID_SNAPSHOT_SLOT) {
 				Genode::error("snapshot slot not found");
-				throw -1;
+				throw Invalid_snapshot_slot();
 			}
 
 			_cur_snap = snap_slot;
@@ -472,6 +487,15 @@ class Cbe::Library
 			_last_snapshot_id        = snap.id;
 
 			_dump_cur_sb_info();
+
+			/*
+			 * If the timeout intervals were configured set initial timeout.
+			 *
+			 * (It stands to reasons if we should initial or rather only set
+			 *  them when a write request was submitted.)
+			 */
+			if (_sync_interval)   { _time.schedule_sync_timeout(_sync_interval); }
+			if (_secure_interval) { _time.schedule_secure_timeout(_secure_interval); }
 		}
 
 		void dump_cur_sb_info() const { _dump_cur_sb_info(); }
@@ -479,23 +503,6 @@ class Cbe::Library
 		Cbe::Virtual_block_address max_vba() const
 		{
 			return _super_block[_cur_sb.value].snapshots[_cur_snap].leaves - 1;
-		}
-
-		void set_timeout_handler(Time::Timestamp const sync,
-		                         Time::Timestamp const secure,
-		                         Genode::Signal_context_capability sigh)
-		{
-			_sync_interval = sync;
-			_time.sync_sigh(sigh);
-			if (_sync_interval && sigh.valid()) {
-				_time.schedule_sync_timeout(_sync_interval);
-			}
-
-			_secure_interval = secure;
-			_time.secure_sigh(sigh);
-			if (_secure_interval && sigh.valid()) {
-				_time.schedule_secure_timeout(_secure_interval);
-			}
 		}
 
 		bool execute(bool show_progress, bool show_if_progress)
@@ -1468,6 +1475,11 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		 */
 		Main(Env &env) : _env(env)
 		{
+			/*
+			 * We first parse the configuration here which is used to control the
+			 * verbosity and the time intervals so we do not have to do that in
+			 * the CBE library.
+			 */
 			_show_progress =
 				_config_rom.xml().attribute_value("show_progress", false);
 
@@ -1478,15 +1490,47 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				_config_rom.xml().attribute_value("sync_interval",
 				                                  (uint64_t)Cbe::Library::SECURE_INTERVAL);
 
-			/* read super-block information */
+			/*
+			 * We read all super-block information (at the moment the first 8 blocks
+			 * of the block device, one for each SB) synchronously and store the blocks
+			 * in the super-block array. The index of the current SB is returned. It
+			 * is used by the CBE library to access the right array item.
+			 *
+			 * (In the future, to decouple the CBE library from the TA and the securing
+			 *  of the SB, I think it makes sense to only give the CBE library just one
+			 *  SB to start from and whenever it wants to write a new one, it should pass
+			 *  the block on to the outside.)
+			 */
 			Cbe::Super_block_index curr_sb = _read_superblocks();
 			if (curr_sb.value == Cbe::Super_block_index::INVALID) {
 				Genode::error("no valid super block found");
 				throw -1;
 			}
 
-			_cbe.construct(_time, _block, _super_block, curr_sb);
-			_cbe->set_timeout_handler(sync, secure, _request_handler);
+			/*
+			 * Set the timout handler directly on the time object which is actually
+			 * the same that is used by the Block session.
+			 *
+			 * (At the moment the same handler as for the Block session is used for
+			 *  both timeouts - I'm not sure if we need this kind of flexibilty but
+			 *  it does not hurt us for now.)
+			 */
+			_time.sync_sigh(_request_handler);
+			_time.secure_sigh(_request_handler);
+
+			/*
+			 * We construct the CBE library. For now it contains all modules needed
+			 * to read and write to the virtual-block-device (VBD). We pass on the
+			 * Cbe::Time object that is used to collect timestamp whenever we need it.
+			 * It is polled at least once every complete loop to check the sync and
+			 * secure interval (and whenever a cache entries is accessed/modified).
+			 * In addition the current I/O module requires a Block::Connection and
+			 * since we do not want to give the Genode::Env to the CBE library, we
+			 * pass on a reference as well. For obvious reasons the SBs it also needs
+			 * access to the SBs.
+			 *
+			 */
+			_cbe.construct(_time, sync, secure, _block, _super_block, curr_sb);
 
 			/* finally announce Block session */
 			_env.parent().announce(_env.ep().manage(*this));
@@ -1512,12 +1556,21 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			}
 
 			_block_ds.construct(_env.ram(), _env.rm(), ds_size);
+
+			/*
+			 * The call to the CBE gives us the highest virtual-block-address.
+			 * By adding 1 we can use that as 'number of blocks', i.e., the
+			 * size of the block device, for the announced Block session.
+			 */
 			_block_session.construct(_env.rm(), _block_ds->cap(), _env.ep(),
 			                         _request_handler, _cbe->max_vba() + 1);
 
 			_block.tx_channel()->sigh_ack_avail(_request_handler);
 			_block.tx_channel()->sigh_ready_to_submit(_request_handler);
 
+			/*
+			 * Dump the current SB info for diagnostic reasons.
+			 */
 			_cbe->dump_cur_sb_info();
 
 			return _block_session->cap();
