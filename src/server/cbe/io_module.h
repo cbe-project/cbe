@@ -38,8 +38,8 @@ class Cbe::Module::Block_io : Noncopyable
 
 		struct Index
 		{
-			static constexpr Genode::uint32_t INVALID = Io_data::NUM_ITEMS;
-			Genode::uint32_t value;
+			static constexpr Genode::uint32_t INVALID = ~0u;
+			unsigned value;
 			bool valid() const { return value != INVALID; }
 		};
 
@@ -49,7 +49,7 @@ class Cbe::Module::Block_io : Noncopyable
 		{
 			Cbe::Tag       orig_tag { };
 			Cbe::Primitive primitive { };
-			// Cbe::Block_data *data { nullptr };
+			Cbe::Block_data *data { nullptr };
 
 			Block::Packet_descriptor packet { };
 
@@ -145,7 +145,7 @@ class Cbe::Module::Block_io : Noncopyable
 		 * \param d  reference to a Block_data object
 		 */
 		void submit_primitive(Tag const tag, Primitive const &p,
-		                      Io_data &io_data, Block_data const &data)
+		                      Io_data &io_data, Block_data &data)
 		{
 			for (unsigned i = 0; i < N; i++) {
 				Internal_entry &e = _entries[i];
@@ -155,15 +155,15 @@ class Cbe::Module::Block_io : Noncopyable
 				e.primitive = p;
 				e.primitive.tag = tag;
 				e.orig_tag  = p.tag;
-
-				if (p.write()) {
-					Genode::memcpy(&io_data.item[i], &data, sizeof (Cbe::Block_data));
-				}
-				// e.data      = &data;
+				(void)io_data;
+				// if (p.write()) {
+				// 	Genode::memcpy(&io_data.item[i], &data, sizeof (Cbe::Block_data));
+				// }
+				e.data      = &data;
 				e.state     = Internal_entry::PENDING;
 
 				_used_entries++;
-				MOD_DBG("primitive: ", p, p.read() ? " READ ====================================== " : "");
+				MOD_DBG("primitive: ", p);
 				return;
 			}
 		}
@@ -195,8 +195,8 @@ class Cbe::Module::Block_io : Noncopyable
 					if (_entries[i].primitive.read()) {
 						void const * const src = _block.tx()->packet_content(packet);
 						Genode::size_t    size = Cbe::BLOCK_SIZE;
-						// void      * const dest = reinterpret_cast<void*>(_entries[i].data);
-						void      * const dest = reinterpret_cast<void*>(&io_data.item[i]);
+						void      * const dest = reinterpret_cast<void*>(_entries[i].data);
+						// void      * const dest = reinterpret_cast<void*>(&_io_data.item[i]);
 						Genode::memcpy(dest, src, size);
 					}
 
@@ -221,8 +221,8 @@ class Cbe::Module::Block_io : Noncopyable
 					Block::Packet_descriptor packet = _convert_from(_entries[i].primitive);
 
 					if (_entries[i].primitive.write()) {
-						// void const * const src = reinterpret_cast<void*>(_entries[i].data);
-						void const * const src = reinterpret_cast<void*>(&io_data.item[i]);
+						void const * const src = reinterpret_cast<void*>(_entries[i].data);
+						// void const * const src = reinterpret_cast<void*>(&_io_data.item[i]);
 						Genode::size_t    size = Cbe::BLOCK_SIZE;
 						void      * const dest = _block.tx()->packet_content(packet);
 						Genode::memcpy(dest, src, size);
@@ -270,14 +270,13 @@ class Cbe::Module::Block_io : Noncopyable
 			return Cbe::Primitive { };
 		}
 
-		Index peek_completed_data_index(Cbe::Primitive const &p)
+		Cbe::Block_data &peek_completed_data(Cbe::Primitive const &p)
 		{
 			for (unsigned i = 0; i < N; i++) {
 				if (_entries[i].state != Internal_entry::COMPLETE
 				    || !_equal_primitives(p, _entries[i].primitive)) { continue; }
 
-				// return *_entries[i].data;
-				return Index { .value = i };
+				return *_entries[i].data;
 			}
 
 			MOD_ERR("invalid primitive: ", p);

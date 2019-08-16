@@ -1030,19 +1030,15 @@ class Cbe::Library
 				Cbe::Primitive prim = _io.peek_completed_primitive();
 				if (!prim.valid()) { break; }
 
-				if (prim.read()) {
-					DBG("I/O copy data NEEDED =================");
-				}
-
 				bool _progress = true;
 				switch (prim.tag) {
 				case Tag::CRYPTO_TAG_DECRYPT:
 					if (!_crypto.cxx_primitive_acceptable()) {
 						_progress = false;
 					} else {
-						Io::Index   const idx = _io.peek_completed_data_index(prim);
-						Cbe::Block_data &data = _io_data.item[idx.value];
-						// Cbe::Block_data &data = _io.peek_completed_data(prim);
+						// Genode::uint32_t const idx = _io.peek_completed_data_index(prim);
+						// Cbe::Block_data   &data = _io_data.item[idx];
+						Cbe::Block_data &data = _io.peek_completed_data(prim);
 						Cbe::Tag const orig_tag = _io.peek_completed_tag(prim);
 
 						prim.tag = orig_tag;
@@ -1050,17 +1046,10 @@ class Cbe::Library
 					}
 					break;
 				case Tag::CACHE_TAG:
-				{
 					// XXX proper solution pending
-					if (prim.read()) {
-						DBG("I/O copy cache data =================");
-						Io::Index   const idx = _io.peek_completed_data_index(prim);
-						Cbe::Block_data &data = _io_data.item[idx.value];
-						Genode::memcpy(&_cache_job_data.item[0], &data, sizeof (Cbe::Block_data));
-					}
+					// Genode::memcpy(&_cache_job_data.item[0], &_io_data.item[0], sizeof (Cbe::Block_data));
 					_cache.cxx_mark_completed_primitive(prim);
 					break;
-				}
 				case Tag::CACHE_FLUSH_TAG:
 					_flusher.cxx_mark_generated_primitive_complete(prim);
 					break;
@@ -1076,17 +1065,9 @@ class Cbe::Library
 					_free_tree->mark_generated_primitive_complete(prim);
 					break;
 				case Tag::FREE_TREE_TAG_IO:
-				{
-					if (prim.read()) {
-						DBG("I/O copy FT query data =================");
-						Io::Index   const idx = _io.peek_completed_data_index(prim);
-						Cbe::Block_data &data = _io_data.item[idx.value];
-						Genode::memcpy(&_free_tree_query_data.item[0], &data, sizeof (Cbe::Block_data));
-					}
 					prim.tag = Tag::IO_TAG;
 					_free_tree->mark_generated_primitive_complete(prim);
 					break;
-				}
 				default: break;
 				}
 				if (!_progress) { break; }
