@@ -52,12 +52,6 @@ class Cbe::Module::Write_back
 
 			State state;
 
-			bool in_progress { false };
-			bool done { false };
-
-			bool io_in_progress { false };
-			bool io_done { false };
-
 			Cbe::Tag tag;
 
 			void print(Genode::Output &out) const
@@ -180,12 +174,7 @@ class Cbe::Module::Write_back
 				MOD_DBG("entry: ", i, " ", e);
 
 				e.state = Entry::State::PENDING;
-
-				e.in_progress = false;
-				e.done        = false;
-				e.io_in_progress = false;
-				e.io_done        = false;
-				e.tag = Cbe::Tag::CACHE_TAG;
+				e.tag   = Cbe::Tag::CACHE_TAG;
 			}
 
 			/* the data or rather leave node is special */

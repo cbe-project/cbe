@@ -591,6 +591,8 @@ struct Cbe::Free_tree
 				if (wb_ongoing) { break; }
 			}
 
+			// XXX why check here for !_wb_done? should be guarded by
+			//     the previous check
 			if (!wb_ongoing && !_wb_done) {
 				_do_wb = false;
 				_wb_done = true;
@@ -644,11 +646,6 @@ struct Cbe::Free_tree
 		Index idx { .value = Cbe::INVALID_INDEX };
 
 		switch (prim.tag) {
-		case Tag::CACHE_TAG:
-		{
-			idx.value = 0;
-			break;
-		}
 		case Tag::IO_TAG:
 			idx.value = 0;
 			break;
@@ -682,6 +679,16 @@ struct Cbe::Free_tree
 		case Tag::IO_TAG:
 			_current_type_2.state = Query_type_2::State::IN_PROGRESS;
 			break;
+			// uint32_t snap_slot = ~0u;
+			// for (uint32_t i = 0; i < Cbe::NUM_SNAPSHOTS; i++) {
+			// 	SS const &snap = sb.snapshots[i];
+			// 	if (!snap.valid()) { continue; }
+
+			// 	if (snap.id == sb.snapshot_id) {
+			// 		snap_slot = i;
+			// 		break;
+			// 	}
+			// }
 		case Tag::WRITE_BACK_TAG:
 		{
 			for (uint32_t i = 0; i < Translation::MAX_LEVELS; i++) {

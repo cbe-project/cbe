@@ -223,6 +223,7 @@ class Cbe::Library
 		struct Invalid_tree               : Genode::Exception { };
 		struct Spark_object_size_mismatch : Genode::Exception { };
 		struct Invalid_snapshot_slot      : Genode::Exception { };
+		struct Primitive_failed           : Genode::Exception { };
 
 		enum {
 			SYNC_INTERVAL   = 0ull,
@@ -298,8 +299,7 @@ class Cbe::Library
 		Cache           _cache          { };
 		Cache_Data      _cache_data     { };
 		Cache_Job_Data  _cache_job_data { };
-		Cache_flusher   _flusher        { };
-		bool            _cache_dirty    { false };
+		Cache_flusher   _cache_flusher        { };
 
 		/*
 		 * Virtual-block-device module
@@ -347,7 +347,7 @@ class Cbe::Library
 		uint32_t         _last_snapshot_id { 0 };
 		bool             _seal_generation { false };
 		bool             _secure_superblock { false };
-		bool             _snaps_dirty { false };
+		bool             _superblock_dirty { false };
 
 
 		bool _discard_snapshot(Cbe::Snapshot active[Cbe::NUM_SNAPSHOTS],
@@ -435,9 +435,23 @@ class Cbe::Library
 				throw Spark_object_size_mismatch();
 			}
 
+			/*
+			 * Copy initial state of all super-blocks. During the life-time
+			 * of the CBE library these blocks will only be (over-)written
+			 * and nevert read again.
+			 *
+			 *
+			 * (The idea is to keep the setup phase seperated from the actual
+			 *  CBE work during run-time - not sure if this is necessary.)
+			 */
 			for (uint32_t i = 0; i < Cbe::NUM_SUPER_BLOCKS; i++) {
 				Genode::memcpy(&_super_block[i], &sbs[i], sizeof (Cbe::Super_block));
 			}
+
+			/*
+			 * Now we look up the proper snapshot from the current super-block
+			 * and fill in our internal meta-data.
+			 */
 
 			_cur_sb = current_sb;
 
@@ -460,6 +474,10 @@ class Cbe::Library
 			Cbe::Height           const height = snap.height;
 			Cbe::Number_of_leaves const leaves = snap.leaves;
 
+			/*
+			 * The current implementation is limited with regard to the
+			 * tree topology. Make sure it fits.
+			 */
 			if (height > Cbe::TREE_MAX_HEIGHT || height < Cbe::TREE_MIN_HEIGHT) {
 				Genode::error("tree height of ", height, " not supported");
 				throw Invalid_tree();
@@ -470,6 +488,18 @@ class Cbe::Library
 				throw Invalid_tree();
 			}
 
+			/*
+			 * The VBD class is currently nothing more than a glorified
+			 * Translation meta-module - pass on all information that is
+			 * needed to construct the Tree_helper.
+			 *
+			 *
+			 * (Having the VBD is somewhat artificial, using the Translation
+			 *  module directly works well. The idea was to later on move
+			 *  all module which are needed to deal with a r/o snapshort in
+			 *  there and have an extended versions that is also able to
+			 *  manage the current active working snapshot.)
+			 */
 			_vbd.construct(height, degree, leaves);
 
 			Cbe::Physical_block_address const free_number = sb.free_number;
@@ -479,44 +509,94 @@ class Cbe::Library
 			Cbe::Degree                 const free_degree = sb.free_degree;
 			Cbe::Number_of_leaves       const free_leafs  = sb.free_leaves;
 
+			/*
+			 * The FT encapsulates all modules needed for traversing the
+			 * free-tree and allocating new blocks. For now we do not update
+			 * the FT itself, i.e, only the leaf node entries are changed.
+			 *
+			 *
+			 * (Later, when the FT itself is updating its inner-nodes in a CoW
+			 *  fashion, we will store the root and hash for a given generation.
+			 *  That means every super-block will probably have its own FT.
+			 *  After all the FT includes all nodes used by the list of active
+			 *  snapshots.)
+			 */
 			_free_tree.construct(free_number, free_gen, free_hash, free_height,
 			                     free_degree, free_leafs);
 
+			/*
+			 * The current version always is the last secured version incremented
+			 * by one.
+			 */
 			_last_secured_generation = sb.last_secured_generation;
-			_cur_gen      = _last_secured_generation + 1;
+			_cur_gen                = _last_secured_generation + 1;
 			_last_snapshot_id        = snap.id;
-
-			_dump_cur_sb_info();
 
 			/*
 			 * If the timeout intervals were configured set initial timeout.
+			 *
 			 *
 			 * (It stands to reasons if we should initial or rather only set
 			 *  them when a write request was submitted.)
 			 */
 			if (_sync_interval)   { _time.schedule_sync_timeout(_sync_interval); }
 			if (_secure_interval) { _time.schedule_secure_timeout(_secure_interval); }
+
+			/* for diagnostic reasons */
+			_dump_cur_sb_info();
 		}
 
+		/**
+		 * Print current active super-block/snapshot information to LOG
+		 */
 		void dump_cur_sb_info() const { _dump_cur_sb_info(); }
 
+		/**
+		 * Get highest virtual-block-address useable by the current active snapshot
+		 *
+		 * \return  highest addressable virtual-block-address
+		 */
 		Cbe::Virtual_block_address max_vba() const
 		{
 			return _super_block[_cur_sb.value].snapshots[_cur_snap].leaves - 1;
 		}
 
+		/**
+		 * Execute one loop of the CBE
+		 *
+		 * \param  show_progress     if true, generate a LOG message of the current
+		 *                           progress (basically shows the progress state of
+		 *                           all modules)
+		 * \param  show_if_progress  if true, generate LOG message only when progress was
+		 *                           acutally made
+		 *
+		 * \return  true if progress was made, false otherwise
+		 */
 		bool execute(bool show_progress, bool show_if_progress)
 		{
 			bool progress = false;
 
 			/*******************
 			 ** Time handling **
-			 *******************/
+			 *******************
+			 *
+			 * Query current time and check if a timeout has triggered
+			 */
 
+			/*
+			 * Seal the current generation if sealing is not already
+			 * in progress. In case no write operation was performed just set
+			 * the trigger for the next interval.
+			 *
+			 *
+			 * (Instead of checking all cache entries it would be nice if the
+			 *  Cache module would provide an interface that would allow us to
+			 *  simple check if it contains any dirty entries as it could easily
+			 *  track that condition internally itself.)
+			 */
 			Cbe::Time::Timestamp const diff_time = _time.timestamp() - _last_time;
 			if (diff_time >= _sync_interval && !_seal_generation) {
 
-				// XXX move
 				bool cache_dirty = false;
 				for (size_t i = 0; i < _cache.cxx_cache_slots(); i++) {
 					Cache_Index const idx = Cache_Index { .value = (uint32_t)i };
@@ -526,9 +606,7 @@ class Cbe::Library
 					}
 				}
 
-				_cache_dirty = cache_dirty;
-
-				if (_cache_dirty) {
+				if (cache_dirty) {
 					Genode::log("\033[93;44m", __func__, " SEAL current generation: ", _cur_gen);
 					_seal_generation = true;
 				} else {
@@ -538,10 +616,19 @@ class Cbe::Library
 				}
 			}
 
+			/*
+			 * Secure the current super-block if securing is not already
+			 * in progress. In case no write operation was performed, i.e., no
+			 * snapshot was changed, just set the trigger for the next interval.
+			 *
+			 *
+			 * (_superblock_dirty is set whenver the Write_back module has done its work
+			 *  and will be reset when the super-block was secured.)
+			 */
 			Cbe::Time::Timestamp const diff_secure_time = _time.timestamp() - _last_secure_time;
 			if (diff_secure_time >= _secure_interval && !_secure_superblock) {
 
-				if (_snaps_dirty) {
+				if (_superblock_dirty) {
 					Genode::log("\033[93;44m", __func__,
 					            " SEAL current super-block: ", _cur_sb);
 					_secure_superblock = true;
@@ -555,6 +642,22 @@ class Cbe::Library
 			 ** Free-tree handling **
 			 ************************/
 
+			/*
+			 * The FT meta-module uses the Translation module internally and
+			 * needs access to the cache since it wants to use its data.
+			 * Because accessing a cache entry will update its LRU value, the
+			 * cache must be mutable (that is also the reason we need the
+			 * time object).
+			 *
+			 * Since it might need to reuse reserved blocks, we have to hand
+			 * over all active snapshots as well as the last secured generation.
+			 * Both are needed for doing the reuse check.
+			 *
+			 *
+			 * (Rather than passing the cache module itself to the FT it might
+			 *  be better to use a different interface for that purpose as I
+			 *  do not know how well the current solution works with SPARK...)
+			 */
 			{
 				Cbe::Super_block const &sb = _super_block[_cur_sb.value];
 
@@ -568,6 +671,21 @@ class Cbe::Library
 				LOG_PROGRESS(ft_progress);
 			}
 
+			/*
+			 * A complete primitive was either successful or has failed.
+			 *
+			 * In the former case we will instruct the Write_back module to
+			 * write all changed nodes of the VBD back to the block device
+			 * and eventually will leadt to ACKing the block request.
+			 *
+			 * In the later case we will attempt to free reserved blocks in
+			 * the FT by discarding snapshots. Briefly speaking all snapshots
+			 * that were not specifically marked (see FLAG_KEEP) will be
+			 * discarded. A finit number of retries will be performed. If we
+			 * cannot free enough blocks, the write operation is marked as
+			 * failed and will result in an I/O error at the Block session.
+			 *
+			 */
 			while (true) {
 
 				Cbe::Primitive prim = _free_tree->peek_completed_primitive();
@@ -582,6 +700,18 @@ class Cbe::Library
 						uint32_t const current = sb.snapshots[_cur_snap].id;
 						if (_discard_snapshot(sb.snapshots, current)) {
 							_free_tree_retry_count++;
+							/*
+ 							 * Instructing the FT to retry the allocation will
+							 * lead to clearing its internal 'query branches'
+							 * state and executing the previously submitted
+							 * request again.
+							 *
+							 * (This retry attempt is a shortcut as we do not have
+							 *  all information available at this point to call
+							 *  'submit_request' again - so we must not call
+							 *  'drop_completed_primitive' as this will clear the
+							 *  request.)
+							 */
 							_free_tree->retry_allocation();
 						}
 						break;
@@ -600,6 +730,11 @@ class Cbe::Library
 						_free_tree_retry_count = 0;
 					}
 
+					/*
+					 * Accessing the write-back data in this manner is still a shortcut
+					 * and probably will not work with SPARK - we have to get rid of
+					 * the 'block_data' pointer.
+					 */
 					Free_tree::Write_back_data const &wb = _free_tree->peek_completed_wb_data(prim);
 
 					_write_back.submit_primitive(wb.prim, wb.gen, wb.vba,
@@ -610,6 +745,20 @@ class Cbe::Library
 				progress |= true;
 			}
 
+			/*
+			 * There are two types of generated primitives by FT module,
+			 * the traversing of the tree is done by the internal Translation
+			 * module, which will access the nodes through the cache - I/O
+			 * primitives will therefor be generated as a side-effect of the
+			 * querying attempt by the Cache module.
+			 *
+			 * - IO_TAG primitives are only used for querying type 2 nodes, i.e.,
+			 *   inner nodes of the free-tree containg free or reserved blocks.
+			 *
+			 * - WRITE_BACK_TAG primitve are only used for writing one changed
+			 *   branch back to the block device. Having the branch written
+			 *   will lead to a complete primitve.
+			 */
 			while (true) {
 
 				Cbe::Primitive prim = _free_tree->peek_generated_primitive();
@@ -623,6 +772,16 @@ class Cbe::Library
 				switch (prim.tag) {
 				case Tag::WRITE_BACK_TAG:
 					tag  = Tag::FREE_TREE_TAG_WB;
+					/*
+					 * XXX Accessing the cache in this way could be dangerous because
+					 * the cache is shared by the VBD as well as the FT. If we would
+					 * not suspend the VBD while doing the write-back, another request
+					 * could evict the entry belonging to the idx value and replace it.
+					 *
+					 * (Since the prim contains the PBA we could check the validity of
+					 *  the index beforehand - but not storing the index in the first
+					 *  place would be the preferable solution.)
+					 */
 					data = &_cache_data.item[idx.value];
 					break;
 				case Tag::IO_TAG:
@@ -642,11 +801,14 @@ class Cbe::Library
 			 ** Put request into splitter **
 			 *******************************/
 
+			/*
+			 * An arbitrary sized Block request will be cut into 4096 byte
+			 * sized primitves by the Splitter module.
+			 */
 			while (true) {
 
 				Cbe::Request const &req = _request_pool.peek_pending_request();
-				if (!req.operation_defined()) { break; }
-
+				if (!req.valid()) { break; }
 				if (!_splitter.request_acceptable()) { break; }
 
 				_request_pool.drop_pending_request(req);
@@ -658,13 +820,14 @@ class Cbe::Library
 			/*
 			 * Give primitive to the translation module
 			 */
-
 			while (true) {
 
 				Cbe::Primitive prim = _splitter.peek_generated_primitive();
 				if (!prim.valid()) { break; }
 				if (!_vbd->primitive_acceptable()) { break; }
 
+				// XXX why is _seal_generation check not necessary?
+				/* that mainly is intended to block write primitives */
 				if (_secure_superblock) {
 					DBG("prevent processing new primitives while securing super-block");
 					break;
@@ -672,6 +835,10 @@ class Cbe::Library
 
 				_splitter.drop_generated_primitive(prim);
 
+				/*
+				 * For every new request, we have to use the currently active
+				 * snapshot as a previous request may have changed the tree.
+				 */
 				Cbe::Super_block const &sb = _super_block[_cur_sb.value];
 				Cbe::Snapshot    const &snap = sb.snapshots[_cur_snap];
 
@@ -683,62 +850,123 @@ class Cbe::Library
 				progress |= true;
 			}
 
-			/**************************
+			/******************
 			 ** VBD handling **
-			 **************************/
+			 ******************/
 
-			bool const vbd_progress = _vbd->execute(_trans_data,
-			                                        _cache, _cache_data,
-			                                        _time);
-			progress |= vbd_progress;
-			LOG_PROGRESS(vbd_progress);
+			/*
+			 * The VBD meta-module uses the Translation module internally and
+			 * needs access to the cache since it wants to use its data.
+			 * Because accessing a cache entry will update its LRU value, the
+			 * cache must be mutable (that is also the reason we need the
+			 * time object).
+			 *
+			 *
+			 * (Basically the same issue regarding SPARK as the FT module...)
+			 */
+			{
+				bool const vbd_progress = _vbd->execute(_trans_data,
+				                                        _cache, _cache_data,
+				                                        _time);
+				progress |= vbd_progress;
+				LOG_PROGRESS(vbd_progress);
+			}
 
-			/**********************
-			 ** Flusher handling **
-			 **********************/
+			/****************************
+			 ** Cache_flusher handling **
+			 ****************************
+			 *
+			 * The Cache_flusher module is used to flush all dirty cache entries
+			 * to the block device and mark them as clean again. While the flusher
+			 * is doing its work, all cache entries should be locked, i.e., do not
+			 * cache an entry while its flushed - otherwise the change might not
+			 * end up on the block device. Should be guarded by '_seal_generation'.
+			 *
+			 * (For better or worse it is just a glorified I/O manager. At some
+			 *  point it should be better merged into the Cache module later on.)
+			 */
 
+			/*
+			 * Mark the corresponding cache entry as clean. If it was
+			 * evicted in the meantime it will be ignored.
+			 */
 			while (true) {
 
-				Cbe::Primitive prim = _flusher.cxx_peek_completed_primitive();
+				Cbe::Primitive prim = _cache_flusher.cxx_peek_completed_primitive();
 				if (!prim.valid()) { break; }
+
+				if (prim.success != Cbe::Primitive::Success::TRUE) {
+					DBG(prim);
+					throw Primitive_failed();
+				}
 
 				Cbe::Physical_block_address const pba = prim.block_number;
 				_cache.mark_clean(pba);
 				DBG("mark_clean: ", pba);
 
-				_flusher.cxx_drop_completed_primitive(prim);
-
+				_cache_flusher.cxx_drop_completed_primitive(prim);
 				progress |= true;
 			}
 
+			/*
+			 * Just pass the primitive on to the I/O module.
+			 */
 			while (true) {
 
-				Cbe::Primitive prim = _flusher.cxx_peek_generated_primitive();
+				Cbe::Primitive prim = _cache_flusher.cxx_peek_generated_primitive();
 				if (!prim.valid()) { break; }
 				if (!_io.primitive_acceptable()) { break; }
 
-				Cache_Index     const  idx  = _flusher.cxx_peek_generated_data_index(prim);
+				Cache_Index     const  idx  = _cache_flusher.cxx_peek_generated_data_index(prim);
 				Cbe::Block_data       &data = _cache_data.item[idx.value];
 
 				_io.submit_primitive(Tag::CACHE_FLUSH_TAG, prim, _io_data, data);
 
-				_flusher.cxx_drop_generated_primitive(prim);
-
+				_cache_flusher.cxx_drop_generated_primitive(prim);
 				progress |= true;
 			}
 
 			/*************************
 			 ** Write-back handling **
-			 *************************/
+			 *************************
+			 *
+			 * The Write_back module will store a changed branch including its leaf
+			 * node on the block device.
+			 *
+			 * The way it currently operates is as follows:
+			 *    1. (CRYPTO)   it hands the leaf data to the Crypto module for encryption
+			 *    2. (IO)       it hands the encrypted leaf data to I/O module to write it
+			 *                  to the block device
+			 *    3. (CACHE)    starting by the lowest inner node it will update the node
+			 *                  entry (pba and hash)
+			 *    4. (COMPLETE) it returns the new root pba and root hash
+			 *
+			 * When '_seal_generation' is set, it will first instruct the Cache_flusher
+			 * module to clean the cache. Afterwards it will store the current snapshot
+			 * and increment the '_cur_snap' as well as '_cur_gen' (-> there is only one
+			 * snapshot per generation and there are currently only 48 snapshot slots per
+			 * super-block) and set the sync trigger.
+			 *
+			 * Otherwise it will just update the root hash in place.
+			 */
 
 			while (true) {
 
 				Cbe::Primitive prim = _write_back.peek_completed_primitive();
 				if (!prim.valid()) { break; }
 
+				if (prim.success != Cbe::Primitive::Success::TRUE) {
+					DBG(prim);
+					throw Primitive_failed();
+				}
+
 				if (_seal_generation) {
 
-					if (!_flusher.cxx_request_acceptable()) { break; }
+					// XXX only check flusher when the cache is dirty
+					// XXX and track if flusher is already active, e.g. by adding
+					//     a 'active' function that returns true whenever is doing
+					//     its job. I fear it currently only works by chance
+					if (!_cache_flusher.cxx_request_acceptable()) { break; }
 
 					bool cache_dirty = false;
 					for (uint32_t i = 0; i < _cache.cxx_cache_slots(); i++) {
@@ -749,16 +977,25 @@ class Cbe::Library
 							Cbe::Physical_block_address const pba = _cache.flush(idx);
 							DBG(" i: ", idx.value, " pba: ", pba, " needs flushing");
 
-							_flusher.cxx_submit_request(pba, idx);
+							_cache_flusher.cxx_submit_request(pba, idx);
 						}
 					}
 
+					/*
+					 * In case we have to flush the cache, wait until we have finished
+					 * doing that.
+					 */
 					if (cache_dirty) {
 						DBG("CACHE FLUSH NEEDED: progress: ", progress);
 						progress |= true;
 						break;
 					}
 
+					/*
+					 * Look for a new snapshot slot. If we cannot find one
+					 * we manual intervention b/c there are too many snapshots
+					 * flagged as keep
+					 */
 					Cbe::Super_block &sb = _super_block[_cur_sb.value];
 					uint32_t next_snap = _cur_snap;
 					for (uint32_t i = 0; i < Cbe::NUM_SNAPSHOTS; i++) {
@@ -771,38 +1008,58 @@ class Cbe::Library
 								break;
 							}
 						}
-
 					}
+
 					if (next_snap == _cur_snap) {
 						Genode::error("could not find free snapshot slot");
+						/* proper handling pending */
+						throw Invalid_snapshot_slot();
 						break;
 					}
 
+					/*
+					 * Creating a new snapshot only involves storing its
+					 * meta-data in a new slot and afterwards setting the
+					 * seal timeout again.
+					 */
 					Cbe::Snapshot &snap = sb.snapshots[next_snap];
+
 					snap.pba = _write_back.peek_completed_root(prim);
 					Cbe::Hash *snap_hash = &snap.hash;
 					_write_back.peek_competed_root_hash(prim, *snap_hash);
+
 					Cbe::Tree_helper const &tree = _vbd->tree_helper();
 					snap.height = tree.height();
 					snap.leaves = tree.leafs();
 					snap.gen = _cur_gen;
 					snap.id  = ++_last_snapshot_id;
 
-					DBG("create new snapshot for generation: ", _cur_gen,
-					    " snap: ", snap);
+					DBG("new snapshot for generation: ", _cur_gen, " snap: ", snap);
 
 					_cur_gen++;
 					_cur_snap++;
 
 					_seal_generation = false;
+					/*
+					 * (As already briefly mentioned in the time handling section,
+					 *  it would be more reasonable to only set the timeouts when
+					 *  we actually perform write request.)
+					 */
 					_last_time = _time.timestamp();
 					_time.schedule_sync_timeout(_sync_interval);
 				} else {
+
+					/*
+					 * No need to create a new snapshot, just update the hash in place
+					 * and move on.
+					 */
+
 					Cbe::Super_block &sb = _super_block[_cur_sb.value];
 					Cbe::Snapshot    &snap = sb.snapshots[_cur_snap];
 
 					/* update snapshot */
 					Cbe::Physical_block_address const pba = _write_back.peek_completed_root(prim);
+					// XXX why do we need that again?
 					if (snap.pba != pba) {
 						snap.gen = _cur_gen;
 						snap.pba = pba;
@@ -812,19 +1069,28 @@ class Cbe::Library
 					_write_back.peek_competed_root_hash(prim, *snap_hash);
 				}
 
-				_snaps_dirty |= true;
-
-				_request_pool.mark_completed_primitive(prim);
+				/*
+				 * We touched the super-block, either by updating a snapshot or by
+				 * creating a new one - make sure it gets secured within the next
+				 * interval.
+				 */
+				_superblock_dirty |= true;
 
 				_write_back.drop_completed_primitive(prim);
+
+				/*
+				 * Since the write request is finally finished, all nodes stored
+				 * at some place "save" (leafs on the block device, inner nodes within
+				 * the cache, acknowledge the primitive.
+				 */
+				_request_pool.mark_completed_primitive(prim);
+				progress |= true;
 
 				/*
 				 * XXX stalling translation as long as the write-back takes places
 				 *     is not a good idea
 				 */
 				_vbd->trans_resume_translation();
-
-				progress |= true;
 			}
 
 			while (true) {
@@ -940,7 +1206,7 @@ class Cbe::Library
 
 				_cur_sb = next_sb;
 
-				_snaps_dirty = false;
+				_superblock_dirty = false;
 				_secure_superblock = false;
 				_last_secure_time = _time.timestamp();
 				_time.schedule_secure_timeout(_secure_interval);
@@ -1058,7 +1324,7 @@ class Cbe::Library
 					_cache.cxx_mark_completed_primitive(prim);
 					break;
 				case Tag::CACHE_FLUSH_TAG:
-					_flusher.cxx_mark_generated_primitive_complete(prim);
+					_cache_flusher.cxx_mark_generated_primitive_complete(prim);
 					break;
 				case Tag::WRITE_BACK_TAG:
 					_write_back.mark_completed_io_primitive(prim);
@@ -1496,6 +1762,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			 * in the super-block array. The index of the current SB is returned. It
 			 * is used by the CBE library to access the right array item.
 			 *
+			 *
 			 * (In the future, to decouple the CBE library from the TA and the securing
 			 *  of the SB, I think it makes sense to only give the CBE library just one
 			 *  SB to start from and whenever it wants to write a new one, it should pass
@@ -1510,6 +1777,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			/*
 			 * Set the timout handler directly on the time object which is actually
 			 * the same that is used by the Block session.
+			 *
 			 *
 			 * (At the moment the same handler as for the Block session is used for
 			 *  both timeouts - I'm not sure if we need this kind of flexibilty but
