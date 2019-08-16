@@ -68,7 +68,7 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe6Module6Crypto7executeEv";
+		External_Name => "_ZN3Cbe6Module6Crypto10do_executeEv";
 
 	--
 	-- Peek_Generated_Primitive

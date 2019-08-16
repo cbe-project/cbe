@@ -1093,6 +1093,10 @@ class Cbe::Library
 				_vbd->trans_resume_translation();
 			}
 
+
+			/*
+			 * Give the leaf data to the Crypto module.
+			 */
 			while (true) {
 
 				Cbe::Primitive prim = _write_back.peek_generated_crypto_primitive();
@@ -1101,12 +1105,16 @@ class Cbe::Library
 
 				Write_back_data_index const idx = _write_back.peek_generated_crypto_data(prim);
 				Cbe::Block_data &data = _write_back_data.item[idx.value];
+				/* the data will be copied into the Crypto module's internal buffer */
 				_crypto.cxx_submit_primitive(prim, data, _crypto_data);
 
 				_write_back.drop_generated_crypto_primitive(prim);
 				progress |= true;
 			}
 
+			/*
+			 * Pass the encrypted leaf data to the I/O module.
+			 */
 			while (true) {
 
 				Cbe::Primitive prim = _write_back.peek_generated_io_primitive();
@@ -1121,6 +1129,10 @@ class Cbe::Library
 				progress |= true;
 			}
 
+			/*
+			 * Update the inner nodes of the tree. This is always done after the
+			 * encrypted leaf node was stored by the I/O module.
+			 */
 			while (true) {
 
 				Cbe::Primitive prim = _write_back.peek_generated_cache_primitive();
@@ -1130,6 +1142,13 @@ class Cbe::Library
 				using PBA = Cbe::Physical_block_address;
 				PBA const pba        = prim.block_number;
 				PBA const update_pba = _write_back.peek_generated_cache_update_pba(prim);
+
+				/*
+				 * Check if the cache contains the needed entries. In case of the
+				 * of the old node's block that is most likely. The new one, if
+				 * there is one (that happens when the inner nodes are _not_ updated
+				 * in place, might not be in the cache - check and request both.
+				 */
 
 				bool cache_miss = false;
 				if (!_cache.data_available(pba)) {
@@ -1160,6 +1179,10 @@ class Cbe::Library
 
 				DBG("cache hot pba: ", pba, " update_pba: ", update_pba);
 
+				/*
+				 * To keep it simply, always set both properly - even if
+				 * the old and new node are the same.
+				 */
 				Cache_Index const idx        = _cache.data_index(pba, _time.timestamp());
 				Cache_Index const update_idx = _cache.data_index(update_pba, _time.timestamp());
 
@@ -1167,6 +1190,7 @@ class Cbe::Library
 				Cbe::Block_data       &update_data = _cache_data.item[update_idx.value];
 
 				_write_back.update(pba, _vbd->tree_helper(), data, update_data);
+				/* make the potentially new entry as dirty so it gets flushed next time */
 				_cache.mark_dirty(update_pba);
 				progress |= true;
 			}
@@ -1175,6 +1199,10 @@ class Cbe::Library
 			 ** Super-block handling **
 			 **************************/
 
+			/*
+			 * Store the current generation and snapshot id in the current
+			 * super-block before it gets secured.
+			 */
 			if (_secure_superblock && _sync_sb.cxx_request_acceptable()) {
 
 				Cbe::Super_block &sb = _super_block[_cur_sb.value];
@@ -1188,14 +1216,21 @@ class Cbe::Library
 				_sync_sb.cxx_submit_request(_cur_sb.value, _cur_gen);
 			}
 
+			/*
+			 * When the current super-block was secured, select the next one.
+			 */
 			while (true) {
 
 				Cbe::Primitive prim = _sync_sb.cxx_peek_completed_primitive();
 				if (!prim.valid()) { break; }
 
+				if (prim.success != Cbe::Primitive::Success::TRUE) {
+					DBG(prim);
+					throw Primitive_failed();
+				}
+
 				DBG("primitive: ", prim);
 
-				_last_secured_generation = _sync_sb.cxx_peek_completed_generation(prim);
 
 				Cbe::Super_block_index  next_sb = Cbe::Super_block_index {
 					.value = (_cur_sb.value + 1) % Cbe::NUM_SUPER_BLOCKS
@@ -1204,17 +1239,27 @@ class Cbe::Library
 				Cbe::Super_block const &curr    = _super_block[_cur_sb.value];
 				Genode::memcpy(&next, &curr, sizeof (Cbe::Super_block));
 
-				_cur_sb = next_sb;
-
-				_superblock_dirty = false;
-				_secure_superblock = false;
-				_last_secure_time = _time.timestamp();
-				_time.schedule_secure_timeout(_secure_interval);
+				/* handle state */
+				_cur_sb                  = next_sb;
+				_last_secured_generation = _sync_sb.cxx_peek_completed_generation(prim);
+				_superblock_dirty        = false;
+				_secure_superblock       = false;
 
 				_sync_sb.cxx_drop_completed_primitive(prim);
 				progress |= true;
+
+				/*
+				 * (XXX same was with sealing the generation, it might make
+				 *  sense to set the trigger only when a write operation
+				 *  was performed.)
+				 */
+				_last_secure_time = _time.timestamp();
+				_time.schedule_secure_timeout(_secure_interval);
 			}
 
+			/*
+			 * Use I/O module to write super-block to the block device.
+			 */
 			while (true) {
 
 				Cbe::Primitive prim = _sync_sb.cxx_peek_generated_primitive();
@@ -1232,16 +1277,29 @@ class Cbe::Library
 
 			/*********************
 			 ** Crypto handling **
-			 *********************/
+			 *********************
+			 *
+			 * The Crypto module has its own internal buffer, data has to be
+			 * copied in and copied out.
+			 */
 
-			bool const crypto_progress = _crypto.cxx_foobar();
+			bool const crypto_progress = _crypto.cxx_execute();
 			progress |= crypto_progress;
 			LOG_PROGRESS(crypto_progress);
 
+			/*
+			 * Only writes primitives (encrypted data) are handled here,
+			 * read primitives (decrypred data) are handled in 'give_read_data'.
+			 */
 			while (true) {
 
 				Cbe::Primitive prim = _crypto.cxx_peek_completed_primitive();
 				if (!prim.valid() || prim.read()) { break; }
+
+				if (prim.success != Cbe::Primitive::Success::TRUE) {
+					DBG(prim);
+					throw Primitive_failed();
+				}
 
 				Write_back_data_index const idx = _write_back.peek_generated_crypto_data(prim);
 				Cbe::Block_data &data = _write_back_data.item[idx.value];
@@ -1251,10 +1309,14 @@ class Cbe::Library
 				_write_back.mark_completed_crypto_primitive(prim, data);
 
 				_crypto.cxx_drop_completed_primitive(prim);
-
 				progress |= true;
 			}
 
+			/*
+			 * Since encryption is performed when calling 'execute' and decryption
+			 * is handled differently, all we have to do here is to drop and mark
+			 * complete.
+			 */
 			while (true) {
 
 				Cbe::Primitive prim = _crypto.cxx_peek_generated_primitive();
@@ -1270,11 +1332,20 @@ class Cbe::Library
 			 ** Cache handling **
 			 ********************/
 
+			/*
+			 * Pass the data used by the module in by reference so that it
+			 * can be shared by the other modules. The method will internally
+			 * copy read job data into the chosen entry. In doing so it might
+			 * evict an already populated entry.
+			 */
 			bool const cache_progress = _cache.execute(_cache_data, _cache_job_data,
 			                                           _time.timestamp());
 			progress |= cache_progress;
 			LOG_PROGRESS(cache_progress);
 
+			/*
+			 * Read data from the block device to fill the cache.
+			 */
 			while (true) {
 
 				Cbe::Primitive prim = _cache.peek_generated_primitive();
@@ -1302,6 +1373,11 @@ class Cbe::Library
 
 				Cbe::Primitive prim = _io.peek_completed_primitive();
 				if (!prim.valid()) { break; }
+
+				if (prim.success != Cbe::Primitive::Success::TRUE) {
+					DBG(prim);
+					throw Primitive_failed();
+				}
 
 				bool _progress = true;
 				switch (prim.tag) {
@@ -1352,36 +1428,68 @@ class Cbe::Library
 			return progress;
 		}
 
+		/**
+		 * Check if the CBE can accept a new requeust
+		 *
+		 * \return true if a request can be accepted, otherwise false
+		 */
 		bool request_acceptable() const
 		{
 			return _request_pool.request_acceptable();
 		}
 
+		/**
+		 * Submit a new request
+		 *
+		 * This method must only be called after executing 'request_acceptable'
+		 * returned true.
+		 *
+		 * \param request  block request
+		 */
 		void submit_request(Cbe::Request const &request)
 		{
 			Number_of_primitives const num = _splitter.number_of_primitives(request);
 			_request_pool.submit_request(request, num);
 		}
 
+		/**
+		 * Check for any completed request
+		 *
+		 * \return a valid block request will be returned if there is an
+		 *         completed request, otherwise an invalid one
+		 */
 		Cbe::Request peek_completed_request() const
 		{
 			return _request_pool.peek_completed_request();
 		}
 
+		/**
+		 * Drops the completed request
+		 *
+		 * This method must only be called after executing
+		 * 'peek_completed_request' returned a valid request.
+		 *
+		 */
 		void drop_completed_request(Cbe::Request const &req)
 		{
 			_request_pool.drop_completed_request(req);
 		}
 
+		/* just an interims solution */
 		struct Req_prim
 		{
 			Cbe::Request   req;
 			Cbe::Primitive prim;
 			Cbe::Tag       tag;
 		};
-
 		Req_prim _req_prim { };
 
+		/**
+		 * Return a request that needs access to the block data
+		 *
+		 * \return valid request in case the is one pending that
+		 *         needs data, otherwise an invalid one is returned
+		 */
 		Cbe::Request need_data() /* const */
 			// XXX move req_prim allocation into execute
 		{
@@ -1419,6 +1527,9 @@ class Cbe::Library
 			return Cbe::Request { };
 		}
 
+		/**
+		 *
+		 */
 		bool give_read_data(Cbe::Request const &request, Cbe::Block_data &data)
 		{
 			if (!_req_prim.req.equal(request)) { return false; }
@@ -1448,6 +1559,9 @@ class Cbe::Library
 			}
 		}
 
+		/**
+		 *
+		 */
 		bool give_write_data(Cbe::Request    const &request,
 		                     Cbe::Block_data const &data)
 		{

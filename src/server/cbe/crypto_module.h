@@ -79,16 +79,16 @@ struct Cbe::Module::Crypto : Cbe::Spark_object<8264>
 	 * primitive will be marked as pending and will later on be passed on
 	 * to a I/O module.
 	 */
-	void execute();
+	void do_execute();
 	bool execute_progress();
 
-	bool foobar()
+	bool execute()
 	{
-		execute();
+		do_execute();
 		return execute_progress();
 	}
 
-	bool cxx_foobar() { return foobar(); }
+	bool cxx_execute() { return execute(); }
 
 	/**
 	 * Check for any completed primitive
