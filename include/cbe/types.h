@@ -320,6 +320,8 @@ namespace Cbe {
 	struct Super_block
 	{
 		enum { NUM_KEYS = 2u };
+		enum { INVALID_SNAPSHOT_SLOT = NUM_SNAPSHOTS, };
+
 
 		union {
 			// XXX w/o snapshots about 265 bytes,
@@ -342,6 +344,22 @@ namespace Cbe {
 			};
 			char data[BLOCK_SIZE];
 		};
+
+
+		uint32_t snapshot_slot() const
+		{
+			uint32_t snap_slot = INVALID_SNAPSHOT_SLOT;
+			for (uint32_t i = 0; i < Cbe::NUM_SNAPSHOTS; i++) {
+				Snapshot const &snap = snapshots[i];
+				if (!snap.valid()) { continue; }
+
+				if (snap.id == snapshot_id) {
+					snap_slot = i;
+					break;
+				}
+			}
+			return snap_slot;
+		}
 
 		bool valid() const
 		{
