@@ -258,8 +258,8 @@ struct Cbe::Free_tree
 		// XXX check could be done outside
 		if (!node.reserved) { return true; }
 
-		Cbe::Generation const f_gen = (node.free_gen  & Cbe::GEN_VALUE_MASK);
-		Cbe::Generation const a_gen = (node.alloc_gen & Cbe::GEN_VALUE_MASK);
+		Cbe::Generation const f_gen = node.free_gen;
+		Cbe::Generation const a_gen = node.alloc_gen;
 		Cbe::Generation const s_gen = last_secured;
 
 		bool free = false;
@@ -643,7 +643,7 @@ struct Cbe::Free_tree
 
 	Index peek_generated_data_index(Cbe::Primitive const &prim) /* const */
 	{
-		Index idx { .value = Cbe::INVALID_INDEX };
+		Index idx { .value = Cbe::Index::INVALID };
 
 		switch (prim.tag) {
 		case Tag::IO_TAG:
@@ -666,7 +666,7 @@ struct Cbe::Free_tree
 		default: break;
 		}
 
-		if (idx.value == Cbe::INVALID_INDEX) {
+		if (idx.value == Cbe::Index::INVALID) {
 			throw -1;
 		}
 

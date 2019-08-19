@@ -17,6 +17,47 @@ namespace Cbe {
 
 	using namespace Genode;
 
+	/*
+	 * Type definitions
+	 *
+	 * (Tp prevent implicit conversions better use a structured
+	 *  type.)
+	 */
+
+	static constexpr uint32_t BLOCK_SIZE = 4096;
+
+	using Number_of_primitives = size_t;
+
+	enum {
+		INVALID_GEN = 18446744073709551615ULL,
+		INVALID_PBA = 18446744073709551615ULL,
+		INVALID_VBA = 18446744073709551615ULL,
+	};
+
+	using Physical_block_address = uint64_t;
+	using Virtual_block_address  = uint64_t;
+	using Generation             = uint64_t;
+	using Height                 = uint32_t;
+	using Number_of_leaves       = uint64_t;
+	using Degree                 = uint32_t;
+	using Timestamp              = uint64_t;
+
+	struct Index {
+		enum { INVALID = 18446744073709551615ULL, };
+		uint64_t value;
+	};
+
+
+	/*
+	 * List of special tags used throughout the CBE.
+	 *
+	 * (The type is currently specified by
+	 *  - bits [23:16] contain the meta-type (affiliation to meta-module)
+	 *  - bits [15: 8] contain the type (affiliation to a module)
+	 *  - bits [ 7: 0] contain the sub-type
+	 *  but is more adhoc than really designed.)
+	 */
+
 	enum class Tag : Genode::uint32_t {
 		INVALID_TAG        = 0x00,
 		IO_TAG             = 0x10,
@@ -40,46 +81,49 @@ namespace Cbe {
 		FREE_TREE_TAG_WB    = FREE_TREE_TAG | WRITE_BACK_TAG,
 	};
 
-	using Number_of_primitives = size_t;
 
+	/*
+	 * The Cbe::Request is a loose reimagination of the Block::Request
+	 * type and is used to seperate the C++ and SPARK even more, e.g.,
+	 * it is packed whereas the Block::Request is not.
+	 *
+	 * (It stands to reason if this type is strictly necessary by now as
+	 *  it also lacks certain operations like TRIM.)
+	 */
 	struct Request
 	{
-		enum class Operation : Genode::uint32_t { INVALID = 0, READ = 1, WRITE = 2, SYNC = 3 };
-		enum class Success   : Genode::uint32_t { FALSE = 0, TRUE = 1 };
+		enum class Operation : uint32_t { INVALID = 0, READ = 1, WRITE = 2, SYNC = 3 };
+		enum class Success   : uint32_t { FALSE = 0, TRUE = 1 };
 
-		Operation         operation;
-		Success           success;
-		Genode::uint64_t  block_number;
-		Genode::uint64_t  offset;
-		Genode::uint32_t  count;
-		Genode::uint32_t  tag;
+		Operation operation;
+		Success   success;
+		uint64_t  block_number;
+		uint64_t  offset;
+		uint32_t  count;
+		uint32_t  tag;
 
 		bool read()  const { return operation == Operation::READ; }
 		bool write() const { return operation == Operation::WRITE; }
 		bool sync()  const { return operation == Operation::SYNC; }
 
-		bool equal(Cbe::Request const &rhs) const
-		{
-			return tag == rhs.tag
-			    && block_number == rhs.block_number
-			    && operation == rhs.operation;
-		}
-
 		bool valid() const
 		{
-			return operation_defined();
-		}
-
-		bool operation_defined() const
-		{
 			return operation == Operation::READ
-				|| operation == Operation::WRITE
-				|| operation == Operation::SYNC;
+			    || operation == Operation::WRITE
+			    || operation == Operation::SYNC;
 		}
 
+		bool equal(Cbe::Request const &rhs) const
+		{
+			return tag          == rhs.tag
+			    && block_number == rhs.block_number
+			    && operation    == rhs.operation;
+		}
+
+		/* debug */
 		void print(Genode::Output &out) const
 		{
-			if (!operation_defined()) {
+			if (!valid()) {
 				Genode::print(out, "<invalid>");
 				return;
 			}
@@ -104,6 +148,11 @@ namespace Cbe {
 		}
 	} __attribute__((packed));
 
+
+	/*
+	 * The Cbe::Primitive is the primary data structure within the CBE
+	 * and encapsulates a CBE operation.
+	 */
 	struct Primitive
 	{
 		using Number = uint64_t;
@@ -133,11 +182,12 @@ namespace Cbe {
 
 		bool equal(Cbe::Primitive const &rhs) const
 		{
-			return tag == rhs.tag
+			return tag          == rhs.tag
 			    && block_number == rhs.block_number
-			    && operation == rhs.operation;
+			    && operation    == rhs.operation;
 		}
 
+		/* debug */
 		void print(Genode::Output &out) const
 		{
 			if (!valid()) {
@@ -190,241 +240,10 @@ namespace Cbe {
 		}
 	} __attribute__((packed));
 
-	enum {
-		INVALID_GEN = 18446744073709551615ULL,
-		INVALID_PBA = 18446744073709551615ULL,
-		INVALID_VBA = 18446744073709551615ULL,
-	};
-	using Physical_block_address = uint64_t;
-	using Virtual_block_address  = uint64_t;
-	using Generation             = uint64_t;
-	using Height                 = uint32_t;
-	using Number_of_leaves       = uint64_t;
-	using Degree                 = uint32_t;
-
-	using Timestamp = uint64_t;
-
-	static constexpr Genode::uint32_t BLOCK_SIZE = 4096;
-
-	struct Block_data
-	{
-		char values[BLOCK_SIZE] { };
-
-		void print(Genode::Output &out) const
-		{
-			using namespace Genode;
-			for (char const c : values) {
-				Genode::print(out, Hex(c, Hex::OMIT_PREFIX, Hex::PAD), " ");
-			}
-			Genode::print(out, "\n");
-		}
-	} __attribute__((packed));
-
-	enum { INVALID_INDEX = ~0ull, };
-	struct Index
-	{
-		uint64_t value;
-	};
-
-	struct Hash
-	{
-		char values[32];
-
-		/* hash as hex value plus "0x" prefix and terminating null */
-		using String = Genode::String<sizeof(values) * 2 + 3>;
-
-		void print(Genode::Output &out) const
-		{
-			using namespace Genode;
-			Genode::print(out, "0x");
-			bool leading_zero = true;
-			for (char const c : values) {
-				if (leading_zero) {
-					if (c) {
-						leading_zero = false;
-						Genode::print(out, Hex(c, Hex::OMIT_PREFIX));
-					}
-				} else {
-					Genode::print(out, Hex(c, Hex::OMIT_PREFIX, Hex::PAD));
-				}
-			}
-			if (leading_zero) {
-				Genode::print(out, "0");
-			}
-		}
-	};
-
-	struct Key_id
-	{
-		uint32_t value;
-	};
-
-	struct Key
-	{
-		enum { KEY_SIZE = 64u };
-		char value[KEY_SIZE];
-		Key_id id;
-	};
-
-	enum {
-		NUM_SUPER_BLOCKS = 8,
-		NUM_SNAPSHOTS    = 48,
-	};
-
-	struct Snapshot
-	{
-		struct /* Snapshot_info */{
-			Hash                   hash;
-			Physical_block_address pba;
-			Generation             gen;
-			Number_of_leaves       leaves;
-			Height                 height;
-		};
-		enum { INVALID_ID = ~0U, };
-		uint32_t id;
-		enum {
-			FLAGS_CLEAR = 0u,
-			FLAG_KEEP   = 1u<<0,
-		};
-		uint32_t flags;
-
-		bool valid() const { return id != Snapshot::INVALID_ID; }
-		bool keep()  const { return flags & FLAG_KEEP; }
-
-		void discard() { id = Snapshot::INVALID_ID; }
-
-		void print(Genode::Output &out) const
-		{
-			if (!valid()) {
-				Genode::print(out, "<invalid>");
-				return;
-			}
-
-			Genode::print(out, "id: ", id, " gen: ", gen,
-			              " pba: ", pba, " leafs: ", leaves,
-			              " height: ", height, " hash: <", hash, ">");
-		}
-	} __attribute__((packed));
-
-	struct Super_block_index
-	{
-		enum { INVALID  = 18446744073709551615ULL, };
-		Genode::uint64_t value;
-
-		void print(Genode::Output &out) const
-		{
-			Genode::print(out, value);
-		}
-	};
-
-	struct Super_block
-	{
-		enum { NUM_KEYS = 2u };
-		enum { INVALID_SNAPSHOT_SLOT = NUM_SNAPSHOTS, };
-
-
-		union {
-			// XXX w/o snapshots about 265 bytes,
-			//     snapshots about 68 bytes each, all in all 3529 bytes
-			struct {
-				Key key[NUM_KEYS];
-
-				Snapshot snapshots[NUM_SNAPSHOTS];
-
-				Generation last_secured_generation;
-				uint32_t   snapshot_id;
-				Degree     degree;
-
-				Generation             free_gen;
-				Physical_block_address free_number;
-				Hash                   free_hash;
-				Height                 free_height;
-				Degree                 free_degree;
-				Number_of_leaves       free_leaves;
-			};
-			char data[BLOCK_SIZE];
-		};
-
-
-		uint32_t snapshot_slot() const
-		{
-			uint32_t snap_slot = INVALID_SNAPSHOT_SLOT;
-			for (uint32_t i = 0; i < Cbe::NUM_SNAPSHOTS; i++) {
-				Snapshot const &snap = snapshots[i];
-				if (!snap.valid()) { continue; }
-
-				if (snap.id == snapshot_id) {
-					snap_slot = i;
-					break;
-				}
-			}
-			return snap_slot;
-		}
-
-		bool valid() const
-		{
-			return last_secured_generation != Cbe::INVALID_GEN;
-		}
-
-	} __attribute__((packed));
-
-	static_assert(sizeof (Super_block) <= sizeof (Block_data), "Super-block too large");
-
-	/* XXX (ab-)use generation field for debug type */
-	enum {
-		GEN_TYPE_SHIFT  = 48u,
-		GEN_TYPE_PARENT = 1ull << GEN_TYPE_SHIFT,
-		GEN_TYPE_CHILD  = 2ull << GEN_TYPE_SHIFT,
-
-		GEN_TYPE_MASK   = 0xffull << 48,
-		GEN_VALUE_MASK  = (1ull << GEN_TYPE_SHIFT) -1,
-	};
-
-	enum { MAX_NODE_SIZE = 64u, };
-
-	struct Type_i_node
-	{
-		union {
-			struct {
-				Cbe::Physical_block_address pba;
-				Cbe::Generation             gen;
-				Cbe::Hash                   hash;
-			};
-
-			char data[MAX_NODE_SIZE];
-		};
-	} __attribute__((packed));
-
-	static_assert(sizeof (Type_i_node) <= MAX_NODE_SIZE, "Type 1 node too large");
-
-	struct Type_1_node_info
-	{
-		Cbe::Physical_block_address pba;
-		Cbe::Generation             gen;
-		Cbe::Hash                   hash;
-	};
-
-	struct Type_ii_node
-	{
-		union {
-			struct {
-				Cbe::Physical_block_address pba;
-				Cbe::Virtual_block_address  last_vba;
-				Cbe::Generation             alloc_gen;
-				Cbe::Generation             free_gen;
-				Cbe::Key_id                 last_key_id;
-				bool reserved;
-			};
-
-			char data[MAX_NODE_SIZE];
-		};
-	} __attribute__((packed));
-
-	static_assert(sizeof (Type_i_node) <= MAX_NODE_SIZE, "Type 2 node too large");
-
-	constexpr size_t TYPE_1_PER_BLOCK = BLOCK_SIZE / sizeof (Type_i_node);
-	constexpr size_t TYPE_2_PER_BLOCK = BLOCK_SIZE / sizeof (Type_ii_node);
-
+	/*
+	 * The Cbe::Tree_helper makes the information about used
+	 * tree available.
+	 */
 	enum {
 		TREE_MIN_DEGREE = 1,
 		TREE_MIN_HEIGHT = 1,
@@ -465,6 +284,298 @@ namespace Cbe {
 		Cbe::Degree degree()          const { return _degree; }
 		Cbe::Number_of_leaves leafs() const { return _leafs; }
 	};
+
+
+	/*
+	 * The Cbe::Block_data encapsulates the data of a complete on
+	 * disk sector.
+	 */
+	struct Block_data
+	{
+		char values[BLOCK_SIZE];
+
+		/* debug */
+		void print(Genode::Output &out) const
+		{
+			using namespace Genode;
+			for (char const c : values) {
+				Genode::print(out, Hex(c, Hex::OMIT_PREFIX, Hex::PAD), " ");
+			}
+			Genode::print(out, "\n");
+		}
+	} __attribute__((packed));
+
+
+	/*
+	 * The Cbe::Hash contains the hash of a node.
+	 */
+	struct Hash
+	{
+		enum { MAX_LENGTH = 32, };
+		char values[MAX_LENGTH];
+
+		/* hash as hex value plus "0x" prefix and terminating null */
+		using String = Genode::String<sizeof(values) * 2 + 3>;
+
+		/* debug */
+		void print(Genode::Output &out) const
+		{
+			using namespace Genode;
+			Genode::print(out, "0x");
+			bool leading_zero = true;
+			for (char const c : values) {
+				if (leading_zero) {
+					if (c) {
+						leading_zero = false;
+						Genode::print(out, Hex(c, Hex::OMIT_PREFIX));
+					}
+				} else {
+					Genode::print(out, Hex(c, Hex::OMIT_PREFIX, Hex::PAD));
+				}
+			}
+			if (leading_zero) {
+				Genode::print(out, "0");
+			}
+		}
+	};
+
+
+	/*
+	 * The Cbe::Key contains the key-material that is used to
+	 * process cipher-blocks.
+	 *
+	 * (For now it is not used but the ID field is already referenced
+	 *  by type 2 nodes.)
+	 */
+	struct Key
+	{
+		enum { KEY_SIZE = 64u };
+		char value[KEY_SIZE];
+
+		struct Id { uint32_t value; };
+		Id id;
+
+		/* debug */
+		void print(Genode::Output &out) const
+		{
+			using namespace Genode;
+			Genode::print(out, "[", id.value, ", ");
+			for (char const c : value) {
+				Genode::print(out, Hex(c, Hex::OMIT_PREFIX, Hex::PAD));
+			}
+			Genode::print(out, "]");
+		}
+	} __attribute__((packed));
+
+
+	/*
+	 * The Cbe::Snapshot stores the information about given tree within
+	 * the CBE.
+	 */
+	struct Snapshot
+	{
+		struct /* Snapshot_info */{
+			Hash                   hash;
+			Physical_block_address pba;
+			Generation             gen;
+			Number_of_leaves       leaves;
+			Height                 height;
+		};
+		enum { INVALID_ID = ~0U, };
+		uint32_t id;
+		enum {
+			FLAGS_CLEAR = 0u,
+			FLAG_KEEP   = 1u<<0,
+		};
+		uint32_t flags;
+
+		bool valid() const { return id != Snapshot::INVALID_ID; }
+		bool keep()  const { return flags & FLAG_KEEP; }
+
+		void discard() { id = Snapshot::INVALID_ID; }
+
+		/* debug */
+		void print(Genode::Output &out) const
+		{
+			if (!valid()) {
+				Genode::print(out, "<invalid>");
+				return;
+			}
+
+			Genode::print(out, "id: ", id, " gen: ", gen,
+			              " pba: ", pba, " leafs: ", leaves,
+			              " height: ", height, " hash: <", hash, ">");
+		}
+	} __attribute__((packed));
+
+
+	/*
+	 * The Cbe::Super_block_index
+	 *
+	 * (It stands to reason if the type is needed.)
+	 */
+	struct Super_block_index
+	{
+		enum { INVALID  = 255, };
+		uint8_t value;
+
+		/* debug */
+		void print(Genode::Output &out) const
+		{
+			Genode::print(out, value);
+		}
+	};
+
+
+	/*
+	 * The Cbe::Super_block contains all information of a CBE
+	 * instance including the list of active snapshots. For now
+	 * the super-blocks are stored consecutively at the beginning
+	 * of the block device, i.e., there is a 1:1 mapping between
+	 * the physical-block-address and the SB id.
+	 *
+	 * Per super-block we have a fixed number of snapshots (about
+	 * the amount we can store within one disk sector). Whenever
+	 * a generation is sealed, a new snapshot will be created
+	 * automatically. If a snapshot is flagged as KEEP, it will never
+	 * be overriden.
+	 */
+	enum {
+		NUM_SUPER_BLOCKS = 8, 
+		NUM_SNAPSHOTS    = 48,
+	};
+	struct Super_block
+	{
+		enum { NUM_KEYS = 2u };
+		enum { INVALID_SNAPSHOT_SLOT = NUM_SNAPSHOTS, };
+
+		union {
+			// XXX w/o snapshots about 265 bytes,
+			//     snapshots about 68 bytes each, all in all 3529 bytes
+			struct {
+				Key key[NUM_KEYS];
+
+				/*
+				 * (At the moment we just check the active snapshots of
+				 *  the active super-block but should it not make sense
+				 *  to iterate overall super-blocks when trying to determine
+				 *  if a block may be safely freed? Because if the most
+				 *  recent SB is corrupted and we try to use an older one,
+				 *  chances are that the snapshot in the corrupt SB has
+				 *  reused blocks reference by a snapshot in the older SB.)
+				 */
+				Snapshot snapshots[NUM_SNAPSHOTS];
+
+				Generation last_secured_generation;
+				uint32_t   snapshot_id;
+				Degree     degree;
+
+				Generation             free_gen;
+				Physical_block_address free_number;
+				Hash                   free_hash;
+				Height                 free_height;
+				Degree                 free_degree;
+				Number_of_leaves       free_leaves;
+			};
+			char data[BLOCK_SIZE];
+		};
+
+		/**
+		 * Get index into snapshot array for the last snapshot
+		 *
+		 * \return  if found the slot number is returned, otherwise
+		 *          a invalid number
+		 */
+		uint32_t snapshot_slot() const
+		{
+			uint32_t snap_slot = INVALID_SNAPSHOT_SLOT;
+			for (uint32_t i = 0; i < Cbe::NUM_SNAPSHOTS; i++) {
+				Snapshot const &snap = snapshots[i];
+				if (!snap.valid()) { continue; }
+
+				if (snap.id == snapshot_id) {
+					snap_slot = i;
+					break;
+				}
+			}
+			return snap_slot;
+		}
+
+		bool valid() const
+		{
+			return last_secured_generation != Cbe::INVALID_GEN;
+		}
+	} __attribute__((packed));
+
+	static_assert(sizeof (Super_block) <= sizeof (Block_data),
+	              "Super-block too large");
+
+	/*
+	 * The Cbe::Type_i_node contains the on-disk type 1 inner node
+	 * information. This node is the primary tree node and as such
+	 * used by the virtual-block-device as well as the free-tree.
+	 *
+	 * In case of the VBD its leaf nodes point to the physical
+	 * on disk sectors.
+	 */
+	struct Type_i_node
+	{
+		enum { MAX_NODE_SIZE = 64u, };
+		union {
+			struct {
+				Cbe::Physical_block_address pba;
+				Cbe::Generation             gen;
+				Cbe::Hash                   hash;
+			};
+
+			char data[MAX_NODE_SIZE];
+		};
+	} __attribute__((packed));
+
+	static_assert(sizeof (Type_i_node) <= Type_i_node::MAX_NODE_SIZE,
+	              "Type 1 node too large");
+
+	constexpr size_t TYPE_1_PER_BLOCK = BLOCK_SIZE / sizeof (Type_i_node);
+
+
+	/*
+	 * The Cbe::Type_1_node_info contains the in-memory type 1 node
+	 * information.
+	 */
+	struct Type_1_node_info
+	{
+		Cbe::Physical_block_address pba;
+		Cbe::Generation             gen;
+		Cbe::Hash                   hash;
+	};
+
+
+	/*
+	 * The Cbe::Type_i_node contains the on-disk type 2 inner node
+	 * information. This node is only used in the free-tree at the
+	 * level directly above the leaf nodes.
+	 */
+	struct Type_ii_node
+	{
+		enum { MAX_NODE_SIZE = 64u, };
+		union {
+			struct {
+				Cbe::Physical_block_address pba;
+				Cbe::Virtual_block_address  last_vba;
+				Cbe::Generation             alloc_gen;
+				Cbe::Generation             free_gen;
+				Cbe::Key::Id                last_key_id;
+				bool reserved;
+			};
+
+			char data[MAX_NODE_SIZE];
+		};
+	} __attribute__((packed));
+
+	static_assert(sizeof (Type_ii_node) <= Type_ii_node::MAX_NODE_SIZE,
+	              "Type 2 node too large");
+
+	constexpr size_t TYPE_2_PER_BLOCK = BLOCK_SIZE / sizeof (Type_ii_node);
 
 } /* namespace Cbe */
 

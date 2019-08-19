@@ -292,7 +292,7 @@ class Cbe::Vbd
 					xml.attribute("type", 3u);
 					xml.attribute("id",   id);
 					xml.attribute("pba",  parent_node[id].pba);
-					xml.attribute("gen",  parent_node[id].gen & GEN_VALUE_MASK);
+					xml.attribute("gen",  parent_node[id].gen);
 					xml.attribute("vba",  leafs);
 					xml.attribute("hash", Hash::String(parent_node[id].hash));
 				});
@@ -322,8 +322,8 @@ class Cbe::Vbd
 					xml.attribute("id",   id);
 					xml.attribute("reserved",    parent_node[id].reserved);
 					xml.attribute("pba",         parent_node[id].pba);
-					xml.attribute("alloc_gen",   parent_node[id].alloc_gen & GEN_VALUE_MASK);
-					xml.attribute("free_gen",    parent_node[id].free_gen  & GEN_VALUE_MASK);
+					xml.attribute("alloc_gen",   parent_node[id].alloc_gen);
+					xml.attribute("free_gen",    parent_node[id].free_gen);
 					xml.attribute("last_vba",    parent_node[id].last_vba);
 					xml.attribute("last_key_id", parent_node[id].last_key_id.value);
 				});
@@ -388,7 +388,7 @@ class Cbe::Vbd
 					xml.attribute("type", 1u);
 					xml.attribute("id",   id);
 					xml.attribute("pba",  node[id].pba);
-					xml.attribute("gen",  node[id].gen & GEN_VALUE_MASK);
+					xml.attribute("gen",  node[id].gen);
 					xml.attribute("hash", Hash::String(node[id].hash));
 
 					finished = do_leafs ? _report_leaf(xml, degree, max_leafs, node[id].pba,
@@ -670,7 +670,7 @@ class Cbe::Vbd
 
 				try {
 					Cbe::Physical_block_address const pba = block_allocator.alloc();
-					Cbe::Generation             const v   = Cbe::GEN_TYPE_CHILD + 0;
+					Cbe::Generation             const v   = 0;
 
 					parent_node[i].pba = pba;
 					parent_node[i].gen = v;
@@ -776,7 +776,7 @@ class Cbe::Vbd
 			for (uint32_t i = 0; i < degree; i++) {
 				try {
 					Cbe::Physical_block_address const pba = block_allocator.alloc();
-					Cbe::Generation             const v   = GEN_TYPE_PARENT + 0;
+					Cbe::Generation             const v   = 0;
 
 					node[i].pba = pba;
 					node[i].gen = v;

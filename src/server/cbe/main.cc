@@ -1233,7 +1233,7 @@ class Cbe::Library
 
 
 				Cbe::Super_block_index  next_sb = Cbe::Super_block_index {
-					.value = (_cur_sb.value + 1) % Cbe::NUM_SUPER_BLOCKS
+					.value = (uint8_t)((_cur_sb.value + 1) % Cbe::NUM_SUPER_BLOCKS)
 				};
 				Cbe::Super_block       &next    = _super_block[next_sb.value];
 				Cbe::Super_block const &curr    = _super_block[_cur_sb.value];
@@ -1720,7 +1720,7 @@ class Cbe::Library
 					uint32_t const id = _vbd->index_for_level(vba, i);
 					Cbe::Type_i_node const *n = reinterpret_cast<Cbe::Type_i_node const*>(&data);
 
-					uint64_t const gen = (n[id].gen & GEN_VALUE_MASK);
+					uint64_t const gen = n[id].gen;
 					/*
 					 * In case the generation of the entry is the same as the current
 					 * generation OR if the generation is 0 (which means it was never

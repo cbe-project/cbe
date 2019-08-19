@@ -108,9 +108,8 @@ class Cbe::Module::Write_back
 
 				/* get index from VBA in inner node */
 				Genode::uint32_t const index   = tree.index(_vba, i);
-				Cbe::Generation  const old_gen = t[index].gen;
 				t[index].pba = child_update_pba;
-				t[index].gen = (old_gen & Cbe::GEN_TYPE_MASK) | _new_generation;
+				t[index].gen = _new_generation;
 				Genode::memcpy(t[index].hash.values, child_hash.values, sizeof (Cbe::Hash));
 
 				MOD_DBG("index: ", index, " child_update_pba: ", child_update_pba, " <", child_hash, ">");
