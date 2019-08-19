@@ -34,6 +34,8 @@ class Cbe::Module::Block_io : Noncopyable
 {
 	public:
 
+		struct Block_size_mismatch : Genode::Exception { };
+
 		static constexpr Genode::uint32_t N = Io_data::NUM_ITEMS;
 
 		struct Index
@@ -115,8 +117,15 @@ class Cbe::Module::Block_io : Noncopyable
 
 	public:
 
-		struct Block_size_mismatch { };
-
+		/**
+		 * Constructor
+		 *
+		 * \param block  reference to the Block connection used for performing
+		 *               of the I/O operations
+		 *
+		 * \throw Block_size_mismatch  in case the block size of the connection
+		 *                             does not match the block size of the CBE
+		 */
 		Block_io(Block::Connection<> &block) : _block(block)
 		{
 			if (_info.block_size > Cbe::BLOCK_SIZE || _info.block_size % Cbe::BLOCK_SIZE != 0) {
@@ -270,6 +279,16 @@ class Cbe::Module::Block_io : Noncopyable
 			return Cbe::Primitive { };
 		}
 
+		/**
+		 * Get access to the data of a completed primitive
+		 *
+		 * This method must only be called after executing
+		 * 'peek_completed_primitive' returned a valid primitive.
+		 *
+		 * \param p  refrence to the completed primitive
+		 *
+		 * \return reference to the data
+		 */
 		Cbe::Block_data &peek_completed_data(Cbe::Primitive const &p)
 		{
 			for (unsigned i = 0; i < N; i++) {
@@ -283,6 +302,17 @@ class Cbe::Module::Block_io : Noncopyable
 			throw -1;
 		}
 
+
+		/**
+		 * Get the original tag of the submitted primitive
+		 *
+		 * This method must only be called after executing
+		 * 'peek_completed_primitive' returned a valid primitive.
+		 *
+		 * \param p  refrence to the completed primitive
+		 *
+		 * \return original tag of the submitted primitive
+		 */
 		Cbe::Tag peek_completed_tag(Cbe::Primitive const &p)
 		{
 			for (unsigned i = 0; i < N; i++) {

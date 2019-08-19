@@ -1409,6 +1409,13 @@ class Cbe::Library
 						Cbe::Block_data &data = _io.peek_completed_data(prim);
 						Cbe::Tag const orig_tag = _io.peek_completed_tag(prim);
 
+						/*
+						 * Having to override the tag is needed because of the way
+						 * the Crypto module is hooked up in the overall data flow.
+						 * Since it is the one that acknowledges the primitive to the
+						 * pool in the read case, we have to use the tag the pool
+						 * module uses.
+						 */
 						prim.tag = orig_tag;
 						_crypto.cxx_submit_primitive(prim, data, _crypto_data);
 					}
