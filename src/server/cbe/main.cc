@@ -1345,6 +1345,13 @@ class Cbe::Library
 
 			/*
 			 * Read data from the block device to fill the cache.
+			 *
+			 * (The Cache module has no 'peek_completed_primitive()' method,
+			 *  all modules using the cache have to poll and might be try to
+			 *  submit the same request multiple times (see its acceptable
+			 *  method). It makes sense to change the Cache module so that it
+			 *  works the rest of modules. That would require restructing
+			 *  the modules, though.)
 			 */
 			while (true) {
 
@@ -1363,7 +1370,12 @@ class Cbe::Library
 
 			/******************
 			 ** I/O handling **
-			 ******************/
+			 ******************
+			 *
+			 * This module handles all the block backend I/O and has to
+			 * work with all most all modules. IT uses the 'Tag' field
+			 * to differentiate the modules.
+			 */
 
 			bool const io_progress = _io.execute(_io_data);
 			progress |= io_progress;
@@ -1379,11 +1391,18 @@ class Cbe::Library
 					throw Primitive_failed();
 				}
 
-				bool _progress = true;
+				/*
+				 * Whenever we cannot hand a successful primitive over
+				 * to the corresponding module, leave the loop but keep
+				 * the completed primitive so that it might be processed
+				 * next time.
+				 */
+				bool mod_progress = true;
 				switch (prim.tag) {
+
 				case Tag::CRYPTO_TAG_DECRYPT:
 					if (!_crypto.cxx_primitive_acceptable()) {
-						_progress = false;
+						mod_progress = false;
 					} else {
 						// Genode::uint32_t const idx = _io.peek_completed_data_index(prim);
 						// Cbe::Block_data   &data = _io_data.item[idx];
@@ -1394,32 +1413,38 @@ class Cbe::Library
 						_crypto.cxx_submit_primitive(prim, data, _crypto_data);
 					}
 					break;
+
 				case Tag::CACHE_TAG:
 					// XXX proper solution pending
 					// Genode::memcpy(&_cache_job_data.item[0], &_io_data.item[0], sizeof (Cbe::Block_data));
 					_cache.cxx_mark_completed_primitive(prim);
 					break;
+
 				case Tag::CACHE_FLUSH_TAG:
 					_cache_flusher.cxx_mark_generated_primitive_complete(prim);
 					break;
+
 				case Tag::WRITE_BACK_TAG:
 					_write_back.mark_completed_io_primitive(prim);
 					break;
+
 				case Tag::SYNC_SB_TAG:
 					_sync_sb.cxx_mark_generated_primitive_complete(prim);
 					break;
-				// XXX check for FREE_TREE_TAG
+
 				case Tag::FREE_TREE_TAG_WB:
 					prim.tag = Tag::WRITE_BACK_TAG;
 					_free_tree->mark_generated_primitive_complete(prim);
 					break;
+
 				case Tag::FREE_TREE_TAG_IO:
 					prim.tag = Tag::IO_TAG;
 					_free_tree->mark_generated_primitive_complete(prim);
 					break;
+
 				default: break;
 				}
-				if (!_progress) { break; }
+				if (!mod_progress) { break; }
 
 				_io.drop_completed_primitive(prim);
 				progress |= true;
@@ -1499,7 +1524,10 @@ class Cbe::Library
 		{
 			if (_req_prim.prim.valid()) { return Cbe::Request { }; }
 
-			/* Crypto module */
+			/*
+			 * When it was a read request, we need the location to
+			 * where the Crypto should copy the decrypted data.
+			 */
 			{
 				Cbe::Primitive prim = _crypto.cxx_peek_completed_primitive();
 				if (prim.valid() && prim.read()) {
@@ -1513,7 +1541,11 @@ class Cbe::Library
 				}
 			}
 
-			/* Vbd module */
+			/*
+			 * When it was a read request, we need access to the data the Crypto
+			 * module should decrypt and if it was a write request we need the location
+			 * from where to read the new leaf data.
+			 */
 			{
 				Cbe::Primitive prim = _vbd->peek_completed_primitive();
 				if (prim.valid()) {
@@ -1820,7 +1852,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				}
 
 				/*
- 				 * Block client request handling
+				 * Import new Block session requests and convert them to
+				 * CBE block requests.
 				 */
 
 				block_session.with_requests([&] (Block::Request request) {
@@ -1846,27 +1879,31 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					Cbe::Request req = convert_to(request);
 					_cbe->submit_request(req);
 
-					// if (_show_progress || _show_if_progress) {
-						Genode::log("NEW request: ", req);
-					// }
+					if (_show_progress || _show_if_progress) {
+						log("NEW request: ", req);
+					}
 
 					progress |= true;
 					return Block_session_component::Response::ACCEPTED;
 				});
 
+				/*
+				 * Acknowledge finished Block session requests.
+				 */
+
 				block_session.try_acknowledge([&] (Block_session_component::Ack &ack) {
 
 					Cbe::Request const &req = _cbe->peek_completed_request();
-					if (!req.operation_defined()) { return; }
+					if (!req.valid()) { return; }
 
 					_cbe->drop_completed_request(req);
 
 					Block::Request request = convert_from(req);
 					ack.submit(request);
 
-					// if (_show_progress || _show_if_progress) {
+					if (_show_progress || _show_if_progress) {
 						Genode::log("ACK request: ", req);
-					// }
+					}
 
 					progress |= true;
 				});
@@ -1880,25 +1917,37 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				using Payload = Block::Request_stream::Payload;
 				block_session.with_payload([&] (Payload const &payload) {
 
-					Cbe::Request const creq = _cbe->need_data();
-					if (!creq.valid()) { return; }
+					/*
+					 * Poll the CBE for pending data requests. This always happens
+					 * whenever we need to read from the Block::Request_stream in case
+					 * it is a write requests or write to it when it is read request.
+					 */
+					Cbe::Request const cbe_request = _cbe->need_data();
+					if (!cbe_request.valid()) { return; }
 
 					uint32_t const prim_index = 0; // XXX make sure there is no prim with index > 0
 
+					/*
+					 * Create the Block request used to calculate the proper location
+					 * within the shared memory.
+					 *
+					 * (AFAICT the primitive index should always be 0 as it does not
+					 *  get used anymore and it stands to reason if it should be removed.)
+					 */
 					Block::Request request { };
-					request.offset = creq.offset + (prim_index * BLOCK_SIZE);
+					request.offset = cbe_request.offset + (prim_index * BLOCK_SIZE);
 					request.operation.count = 1;
 
 					payload.with_content(request, [&] (void *addr, Genode::size_t) {
 
 						Cbe::Block_data &data = *reinterpret_cast<Cbe::Block_data*>(addr);
 
-						if (creq.read()) {
-							progress |= _cbe->give_read_data(creq, data);
+						if (cbe_request.read()) {
+							progress |= _cbe->give_read_data(cbe_request, data);
 						} else
 
-						if (creq.write()) {
-							progress |= _cbe->give_write_data(creq, data);
+						if (cbe_request.write()) {
+							progress |= _cbe->give_write_data(cbe_request, data);
 						}
 					});
 				});
@@ -1914,19 +1963,34 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			block_session.wakeup_client_if_needed();
 		}
 
-		Cbe::Super_block_index _read_superblocks()
+		/**
+		 *  Read super-blocks
+		 *
+		 *  The super-blocks are read one by one using blocking I/O and are
+		 *  stored in the super-block array. While reading all blocks, the
+		 *  most recent one is determined
+		 *
+		 *  \param  sb  array where the super-blocks are stored
+		 *
+		 *  \return  index of the most recent super-block or an INVALID
+		 *           index in case the super-block could not be found
+		 */
+		Cbe::Super_block_index _read_superblocks(Cbe::Super_block sb[Cbe::NUM_SUPER_BLOCKS])
 		{
 			Cbe::Generation        last_gen = 0;
 			Cbe::Super_block_index most_recent_sb { Cbe::Super_block_index::INVALID };
+
+			static_assert(sizeof (Cbe::Super_block) == Cbe::BLOCK_SIZE,
+			              "Super-block size mistmatch");
 
 			/*
 			 * Read all super block slots and use the most recent one.
 			 */
 			for (uint64_t i = 0; i < Cbe::NUM_SUPER_BLOCKS; i++) {
-				Util::Block_io io(_block, BLOCK_SIZE, i, 1);
+				Util::Block_io io(_block, sizeof (Cbe::Super_block), i, 1);
 				void const       *src = io.addr<void*>();
-				Cbe::Super_block &dst = _super_block[i];
-				Genode::memcpy(&dst, src, BLOCK_SIZE);
+				Cbe::Super_block &dst = sb[i];
+				Genode::memcpy(&dst, src, sizeof (Cbe::Super_block));
 
 				/*
 				 * For now this always selects the last SB if the generation
@@ -1983,7 +2047,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			 *  SB to start from and whenever it wants to write a new one, it should pass
 			 *  the block on to the outside.)
 			 */
-			Cbe::Super_block_index curr_sb = _read_superblocks();
+			Cbe::Super_block_index curr_sb = _read_superblocks(_super_block);
 			if (curr_sb.value == Cbe::Super_block_index::INVALID) {
 				Genode::error("no valid super block found");
 				throw -1;
