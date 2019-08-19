@@ -25,6 +25,10 @@ namespace Cbe {
 
 #define MOD_NAME "FT"
 
+/*
+ * The Free_tree meta-module handles the allocation and freeing, i.e.,
+ * reservation, of nodes. It is vital to implement the CoW semantics.
+ */
 struct Cbe::Free_tree
 {
 	using Cache          = Module::Cache;
@@ -37,11 +41,9 @@ struct Cbe::Free_tree
 
 	Constructible<Translation> _trans { };
 
-	// Module::Write_back _write_back { };
 	bool _do_update   { false };
 	bool _do_wb       { false };
 	bool _wb_done     { false };
-	// Cbe::Type_1_node_info _last_trans_info[Translation::MAX_LEVELS] { };
 
 	uint32_t _num_blocks { 0 };
 	uint32_t _found_blocks { 0 };
@@ -89,7 +91,7 @@ struct Cbe::Free_tree
 	Cbe::Hash                   _root_hash { };
 	Cbe::Generation             _root_gen  { };
 
-	struct Query_type_2
+	struct Io_entry
 	{
 		enum class State : uint32_t { INVALID, PENDING, IN_PROGRESS, COMPLETE };
 
@@ -103,13 +105,13 @@ struct Cbe::Free_tree
 		bool complete()    const { return state == State::COMPLETE; }
 	};
 
-	Query_type_2 _current_type_2 { 0, Query_type_2::State::INVALID, 0 };
+	Io_entry _current_type_2 { 0, Io_entry::State::INVALID, 0 };
 
 	Cbe::Primitive _current_query_prim { };
 
 	// XXX maybe organize it in a better way?
 	enum { MAX_WB_IO = Translation::MAX_LEVELS*MAX_QUERY_BRANCHES, };
-	Query_type_2 _wb_io[MAX_WB_IO] { };
+	Io_entry _wb_io[MAX_WB_IO] { };
 
 	Constructible<Cbe::Tree_helper> _tree_helper { };
 
@@ -205,10 +207,10 @@ struct Cbe::Free_tree
 		_do_wb     = false;
 		_wb_done   = false;
 
-		_current_type_2 = { 0, Query_type_2::State::INVALID, 0 };
+		_current_type_2 = { 0, Io_entry::State::INVALID, 0 };
 
 		for (uint32_t i = 0; i < Translation::MAX_LEVELS; i++) {
-			_wb_io[i].state = Query_type_2::State::INVALID;
+			_wb_io[i].state = Io_entry::State::INVALID;
 		}
 
 		_num_blocks = num_blocks;
@@ -358,7 +360,7 @@ struct Cbe::Free_tree
 
 			_current_type_2 = {
 				.pba   = prim.block_number,
-				.state = Query_type_2::State::PENDING,
+				.state = Io_entry::State::PENDING,
 				.index = Cache_Index { 0 },
 			};
 
@@ -411,7 +413,7 @@ struct Cbe::Free_tree
 			}
 			_current_query_branch++;
 
-			_current_type_2.state = Query_type_2::State::INVALID;
+			_current_type_2.state = Io_entry::State::INVALID;
 
 			bool const end_of_tree = (_current_query_prim.block_number + _tree_helper->degree() >= _tree_helper->leafs());
 			if (_found_blocks < _num_blocks) {
@@ -566,7 +568,7 @@ struct Cbe::Free_tree
 						if (already_pending) { continue; }
 
 						_wb_io[wb_cnt].pba = pba;
-						_wb_io[wb_cnt].state = Query_type_2::State::PENDING;
+						_wb_io[wb_cnt].state = Io_entry::State::PENDING;
 						_wb_io[wb_cnt].index = idx;
 
 						wb_cnt++;
@@ -606,7 +608,7 @@ struct Cbe::Free_tree
 		return progress;
 	}
 
-	Cbe::Primitive peek_generated_primitive() /* const */
+	Cbe::Primitive peek_generated_primitive() const
 	{
 		/* current type 2 node */
 		if (_current_type_2.pending()) {
@@ -641,7 +643,7 @@ struct Cbe::Free_tree
 		return Cbe::Primitive { };
 	}
 
-	Index peek_generated_data_index(Cbe::Primitive const &prim) /* const */
+	Index peek_generated_data_index(Cbe::Primitive const &prim) const
 	{
 		Index idx { .value = Cbe::Index::INVALID };
 
@@ -677,24 +679,14 @@ struct Cbe::Free_tree
 	{
 		switch (prim.tag) {
 		case Tag::IO_TAG:
-			_current_type_2.state = Query_type_2::State::IN_PROGRESS;
+			_current_type_2.state = Io_entry::State::IN_PROGRESS;
 			break;
-			// uint32_t snap_slot = ~0u;
-			// for (uint32_t i = 0; i < Cbe::NUM_SNAPSHOTS; i++) {
-			// 	SS const &snap = sb.snapshots[i];
-			// 	if (!snap.valid()) { continue; }
-
-			// 	if (snap.id == sb.snapshot_id) {
-			// 		snap_slot = i;
-			// 		break;
-			// 	}
-			// }
 		case Tag::WRITE_BACK_TAG:
 		{
 			for (uint32_t i = 0; i < Translation::MAX_LEVELS; i++) {
 				if (prim.block_number == _wb_io[i].pba) {
 					if (_wb_io[i].pending()) {
-						_wb_io[i].state = Query_type_2::State::IN_PROGRESS;
+						_wb_io[i].state = Io_entry::State::IN_PROGRESS;
 					} else {
 						MOD_DBG("ignore invalid WRITE_BACK_TAG primitive: ", prim);
 					}
@@ -714,7 +706,7 @@ struct Cbe::Free_tree
 		switch (prim.tag) {
 		case Tag::IO_TAG:
 			if (_current_type_2.in_progress()) {
-				_current_type_2.state = Query_type_2::State::COMPLETE;
+				_current_type_2.state = Io_entry::State::COMPLETE;
 			} else {
 				MOD_DBG("ignore invalid I/O primitive: ", prim);
 			}
@@ -724,7 +716,7 @@ struct Cbe::Free_tree
 			for (uint32_t i = 0; i < Translation::MAX_LEVELS; i++) {
 				if (prim.block_number == _wb_io[i].pba) {
 					if (_wb_io[i].in_progress()) {
-						_wb_io[i].state = Query_type_2::State::COMPLETE;
+						_wb_io[i].state = Io_entry::State::COMPLETE;
 
 						if (prim.success == Cbe::Primitive::Success::FALSE) {
 							// XXX propagate failure
