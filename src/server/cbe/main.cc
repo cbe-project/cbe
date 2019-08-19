@@ -1475,7 +1475,11 @@ class Cbe::Library
 			_request_pool.drop_completed_request(req);
 		}
 
-		/* just an interims solution */
+		/*
+		 * Defining the structure here is just an interims solution
+		 * and should be properly managed, especially handling more
+		 * than one requestq is "missing".
+		 */
 		struct Req_prim
 		{
 			Cbe::Request   req;
@@ -1528,10 +1532,20 @@ class Cbe::Library
 		}
 
 		/**
+		 * Give access to the Block::Request data for storing data
 		 *
+		 * \param  request  reference to the Block::Request processed
+		 *                  by the CBE
+		 * \param  data     reference to the data associated with the
+		 *                  Block::Request
+		 *
+		 * \return  true if the CBE could process the request
 		 */
 		bool give_read_data(Cbe::Request const &request, Cbe::Block_data &data)
 		{
+			/*
+			 * For now there is only one request pending.
+			 */
 			if (!_req_prim.req.equal(request)) { return false; }
 
 			Cbe::Primitive const prim = _req_prim.prim;
@@ -1560,45 +1574,106 @@ class Cbe::Library
 		}
 
 		/**
+		 * Give access to the Block::Request data for reading data
 		 *
+		 * \param  request  reference to the Block::Request processed
+		 *                  by the CBE
+		 * \param  data     reference to the data associated with the
+		 *                  Block::Request
+		 *
+		 * \return  true if the CBE could process the request
 		 */
 		bool give_write_data(Cbe::Request    const &request,
 		                     Cbe::Block_data const &data)
 		{
+			/*
+			 * For now there is only one request pending.
+			 */
 			if (!_req_prim.req.equal(request)) { return false; }
 
 			Cbe::Primitive const prim = _req_prim.prim;
+
+			/*
+			 * The method is currently only used for writing a new branch
+			 * and the corresponding leaf node back to the block device.
+			 * Doing so involves multiple steps:
+			 *
+			 *  1. Gathering of all nodes in the branch and looking up the
+			 *     volatile ones (those, which belong to the current generation
+			 *     and will be updated in place).
+			 *  2. Allocate new blocks if needed by consulting the FT
+			 *  3. Updating all entries in the nodes
+			 *  4. Writing the branch back to the block device.
+			 *
+			 * Those steps are handled by different modules, depending on
+			 * the allocation of new blocks.
+			 */
 			if (_req_prim.tag == Cbe::Tag::VBD_TAG) {
 
 				/*
-				 * 1. check free-tree module
+				 * As usual check first we can submit new requests.
 				 */
 				if (!_free_tree->request_acceptable()) { return false; }
 
 				/*
-				 * 2. get old PBA's from Translation module and mark volatile blocks
+				 * Then (ab-)use the Translation module and its still pending
+				 * request to get all old PBAs, whose generation we then check.
+				 * The order of the array items corresponds to the level within
+				 * the tree.
 				 */
-
 				Cbe::Type_1_node_info old_pba[Translation::MAX_LEVELS] { };
 				if (!_vbd->trans_get_type_1_info(prim, old_pba)) {
 					return false;
 				}
 
+				uint32_t const trans_height = _vbd->tree_height() + 1;
+
+				/*
+				 * Make sure we work with the proper snapshot.
+				 *
+				 * (This check may be removed at some point.)
+				 */
 				Cbe::Super_block const &sb = _super_block[_cur_sb.value];
 				Cbe::Snapshot    const &snap = sb.snapshots[_cur_snap];
+				if (old_pba[trans_height-1].pba != snap.pba) {
+					Genode::error("BUG");
+				}
 
-				Cbe::Primitive::Number const vba = _vbd->trans_get_virtual_block_address(prim);
-
+				/*
+				 * The array of new_pba will either get populated from the old_pba
+				 * content or from newly allocated blocks.
+				 * The order of the array items corresponds to the level within
+				 * the tree.
+				 */
 				Cbe::Physical_block_address new_pba[Translation::MAX_LEVELS] { };
 				Genode::memset(new_pba, 0, sizeof(new_pba));
-
-				uint32_t const trans_height = _vbd->tree_height() + 1;
 				uint32_t new_blocks = 0;
 
+				/*
+				 * This array contains all blocks that will get freed or rather
+				 * marked as reserved in the FT as they are still referenced by
+				 * an snapshot.
+				 */
 				Cbe::Physical_block_address free_pba[Translation::MAX_LEVELS] { };
 				uint32_t free_blocks = 0;
 
+				/*
+				 * Get the corresponding VBA that we use to calculate the index
+				 * for the edge in the node for a given level within the tree.
+				 */
+				Cbe::Primitive::Number const vba = _vbd->trans_get_virtual_block_address(prim);
+
+				/*
+				 * Here only the inner nodes, i.e. all nodes excluding root and leaf,
+				 * are considered. The root node is checked afterwards as we need the
+				 * information of the current snapshot for that.
+				 */
 				for (uint32_t i = 1; i < trans_height; i++) {
+
+					/*
+					 * Use the old PBA to get the node's data from the cache and
+					 * use it check how we have to handle the node.
+					 */
 					Cbe::Physical_block_address const pba = old_pba[i].pba;
 					Cache_Index     const idx   = _cache.data_index(pba, _time.timestamp());
 					Cbe::Block_data const &data = _cache_data.item[idx.value];
@@ -1607,6 +1682,12 @@ class Cbe::Library
 					Cbe::Type_i_node const *n = reinterpret_cast<Cbe::Type_i_node const*>(&data);
 
 					uint64_t const gen = (n[id].gen & GEN_VALUE_MASK);
+					/*
+					 * In case the generation of the entry is the same as the current
+					 * generation OR if the generation is 0 (which means it was never
+					 * used before) the block is volatile and we change it in place
+					 * and store it directly in the new_pba array.
+					 */
 					if (gen == _cur_gen || gen == 0) {
 						Cbe::Physical_block_address const npba = n[id].pba;
 						(void)npba;
@@ -1616,17 +1697,17 @@ class Cbe::Library
 						continue;
 					}
 
+					/*
+					 * Otherwise add the block to the free_pba array so that the
+					 * FT will reserved it and note that we need another new block.
+					 */
 					free_pba[free_blocks] = old_pba[i-1].pba;
 					DBG("FREE PBA: ", free_pba[free_blocks]);
 					free_blocks++;
 					new_blocks++;
 				}
 
-				// assert
-				if (old_pba[trans_height-1].pba != snap.pba) {
-					Genode::error("BUG");
-				}
-
+				/* check root node */
 				if (snap.gen == _cur_gen || snap.gen == 0) {
 					DBG("IN PLACE root pba: ", old_pba[trans_height-1].pba);
 					new_pba[trans_height-1] = old_pba[trans_height-1].pba;
@@ -1642,7 +1723,12 @@ class Cbe::Library
 					DBG("new_pba[", i, "] = ", new_pba[i]);
 				}
 
-				/* 3. submit list blocks to free tree module... */
+				/*
+				 * Since there are blocks we cannot change in place, use the
+				 * FT module to allocate the blocks. As we have to reserve
+				 * the blocks we implicitly will free (free_pba items), pass
+				 * on the current generation.
+				 */
 				if (new_blocks) {
 					_free_tree->submit_request(_cur_gen,
 					                           new_blocks,
@@ -1651,8 +1737,14 @@ class Cbe::Library
 					                           free_pba, free_blocks,
 					                           prim, vba, data);
 				} else {
+					/*
+					 * The complete branch is still part of the current generation,
+					 * call the Write_back module directly.
+					 *
+					 * (We would have to check if the module can acutally accept
+					 *  the request...)
+					 */
 					DBG("UPDATE ALL IN PACE");
-					/* ... or hand over infos to the Write_back module */
 					_write_back.submit_primitive(prim, _cur_gen, vba,
 					                             new_pba, old_pba, trans_height,
 					                             data, _write_back_data);
@@ -1661,7 +1753,16 @@ class Cbe::Library
 				_vbd->drop_completed_primitive(prim);
 				_req_prim = Req_prim { };
 
-				// XXX see _write_back.peek_completed_primitive()
+				/*
+				 * Inhibit translation which effectively will suspend the
+				 * Translation modules operation and will stall all other
+				 * pending requests to make sure all following request will
+				 * use the newest tree.
+				 *
+				 * (It stands to reasons whether we can remove this check
+				 *  if we make sure that only the requests belonging to
+				 *  the same branch are serialized.)
+				 */
 				_vbd->trans_inhibit_translation();
 				return true;
 			}
