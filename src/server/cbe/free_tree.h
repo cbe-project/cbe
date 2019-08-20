@@ -28,6 +28,9 @@ namespace Cbe {
 /*
  * The Free_tree meta-module handles the allocation and freeing, i.e.,
  * reservation, of nodes. It is vital to implement the CoW semantics.
+ *
+ * (It currently _does not_ feature CoW semanitcs as it will only
+ *  exchange entries in the leaf nodes.)
  */
 struct Cbe::Free_tree
 {
@@ -36,38 +39,33 @@ struct Cbe::Free_tree
 	using Cache_Data     = Module::Cache_Data;
 	using Cache_Job_Data = Module::Cache_Job_Data;
 
+	/*
+	 * The Translation module is used to traverse
+	 * the FT by looking for (re-)usable leaf nodes
+	 * in each branch of the tree.
+	 */
 	using Translation      = Module::Translation;
 	using Translation_Data = Module::Translation_Data;
 
-	Constructible<Translation> _trans { };
+	Constructible<Cbe::Tree_helper> _tree_helper { };
+	Constructible<Translation>      _trans       { };
 
+	/*
+	 * Internal states of the module
+	 *
+	 * (Should be replaced by a proper State type.)
+	 */
 	bool _do_update   { false };
 	bool _do_wb       { false };
 	bool _wb_done     { false };
 
-	uint32_t _num_blocks { 0 };
+	uint32_t _num_blocks   { 0 };
 	uint32_t _found_blocks { 0 };
 
-	struct Write_back_data
-	{
-		Cbe::Primitive  prim;
-		Cbe::Generation gen;
-		Cbe::Virtual_block_address vba;
-		Cbe::Height tree_height;
-
-		Cbe::Physical_block_address new_pba[Translation::MAX_LEVELS];
-		Cbe::Type_1_node_info old_pba[Translation::MAX_LEVELS];
-
-		bool finished;
-
-		bool valid() const { return finished; }
-	};
-
-	Write_back_data _wb_data { };
-
-	Cbe::Physical_block_address _free_pba[Translation::MAX_LEVELS] { };
 	// XXX account for n + m blocks
-	// XXX number of pba depends on degree
+	// XXX the number of pba depends on degree which for now
+	//     is dynamically set. Since 64 edges are the eventually
+	//     used ones, hardcode that.
 	enum { MAX_FREE_BLOCKS = 64, };
 	struct Query_branch
 	{
@@ -82,11 +80,16 @@ struct Cbe::Free_tree
 	uint32_t     _current_query_branch { 0 };
 
 	Cbe::Physical_block_address _found_pba[Translation::MAX_LEVELS*2] { };
+	Cbe::Physical_block_address _free_pba[Translation::MAX_LEVELS] { };
 
 	Cbe::Physical_block_address _root      { };
 	Cbe::Hash                   _root_hash { };
 	Cbe::Generation             _root_gen  { };
+	Cbe::Primitive              _current_query_prim { };
 
+	/*
+	 * The Io_entry provides a stateful I/O operation abstraction
+	 */
 	struct Io_entry
 	{
 		enum class State : uint32_t { INVALID, PENDING, IN_PROGRESS, COMPLETE };
@@ -101,53 +104,56 @@ struct Cbe::Free_tree
 		bool complete()    const { return state == State::COMPLETE; }
 	};
 
+	/*
+	 * There is always only one type 2 node query pending, branch
+	 * by branch.
+	 *
+	 * (Eventually it might makes sense to query all disjunct branches
+	 *  concurrently.)
+	 */
 	Io_entry _current_type_2 { 0, Io_entry::State::INVALID, 0 };
 
-	Cbe::Primitive _current_query_prim { };
-
-	// XXX maybe organize it in a better way?
+	/*
+	 * As we might need to write multiple branches back to the disk
+	 * make sure we have enough entries available.
+	 *
+	 * (Maybe it makes sense to reorganize all these array in array
+	 *  structures in a better way.)
+	 */
 	enum { MAX_WB_IO = Translation::MAX_LEVELS*MAX_QUERY_BRANCHES, };
 	Io_entry _wb_io[MAX_WB_IO] { };
 
-	Constructible<Cbe::Tree_helper> _tree_helper { };
-
-	Free_tree(Cbe::Physical_block_address const root,
-	          Cbe::Generation             const root_gen,
-	          Cbe::Hash                   const hash,
-	          Cbe::Height const height,
-	          Cbe::Degree const degree,
-	          Cbe::Number_of_leaves const leafs)
-	: _root(root), _root_gen(root_gen)
+	/*
+	 * The Write_back_data data is used after the FT has
+	 * finished to pass on all needed information to the
+	 * Write_back module.
+	 */
+	struct Write_back_data
 	{
-		_tree_helper.construct(degree, height, leafs);
-		_trans.construct(*_tree_helper, true);
+		Cbe::Primitive             prim;
+		Cbe::Generation            gen;
+		Cbe::Virtual_block_address vba;
+		Cbe::Height                tree_height;
 
-		Genode::memcpy(_root_hash.values, hash.values, sizeof (Cbe::Hash));
-	}
+		Cbe::Physical_block_address new_pba[Translation::MAX_LEVELS];
+		Cbe::Type_1_node_info       old_pba[Translation::MAX_LEVELS];
 
-	Cbe::Hash const &root_hash() const
-	{
-		return _root_hash;
-	}
+		bool finished;
 
-	Cbe::Physical_block_address root_number() const
-	{
-		return _root;
-	}
+		bool valid() const { return finished; }
+	};
 
-	/**********************
-	 ** Module interface **
-	 **********************/
+	Write_back_data _wb_data { };
 
-	bool request_acceptable() const
-	{
-		return _num_blocks == 0;
-	}
-
+	/*
+	 * Helper method that will reset the internal state
+	 *
+	 * (It currently resets all already found free blocks,
+	 *  it would be better to merge them with any newly
+	 *  found ones.)
+	 */
 	void _reset_query_prim()
 	{
-		// XXX instead of discarding already found free blocks
-		//     we could merge the old ones with new ones
 		_found_blocks = 0;
 
 		_current_query_prim = Cbe::Primitive {
@@ -157,6 +163,7 @@ struct Cbe::Free_tree
 			.block_number = 0,
 			.index        = 0,
 		};
+
 		/* reset query branches */
 		_current_query_branch = 0;
 		for (uint32_t b = 0; b < MAX_QUERY_BRANCHES; b++) {
@@ -169,6 +176,43 @@ struct Cbe::Free_tree
 		MOD_DBG(_current_query_prim);
 	};
 
+
+	/*
+	 * Constructor
+	 *
+	 * \param  root      physical-block-address of the root node
+	 * \param  root_gen  generation of the root node
+	 * \param  hash      hash of the root node
+	 * \param  height    height of the free-tree
+	 * \param  dregree   number of edges of a node
+	 * \param  leafs     total number of leafs in the tree
+	 */
+	Free_tree(Cbe::Physical_block_address const root,
+	          Cbe::Generation             const root_gen,
+	          Cbe::Hash                   const hash,
+	          Cbe::Height                 const height,
+	          Cbe::Degree                 const degree,
+	          Cbe::Number_of_leaves       const leafs)
+	: _root(root), _root_gen(root_gen)
+	{
+		_tree_helper.construct(degree, height, leafs);
+		_trans.construct(*_tree_helper, true);
+
+		Genode::memcpy(_root_hash.values, hash.values, sizeof (Cbe::Hash));
+	}
+
+	/**********************
+	 ** Module interface **
+	 **********************/
+
+	/**
+	 * Instruct the free-tree module to retry the current pending request
+	 *
+	 * This method relies on the requests information being available, i.e.,
+	 * _do not_ call 'drop_completed_primitive' if one intends to retry the
+	 * allocation after discarding a snapshot (in case the former allocation
+	 * did not succeed the module will emit a failed completed primitive.
+	 */
 	void retry_allocation()
 	{
 		MOD_DBG("");
@@ -179,6 +223,11 @@ struct Cbe::Free_tree
 		_wb_done   = false;
 
 		_wb_data.finished = false;
+	}
+
+	bool request_acceptable() const
+	{
+		return _num_blocks == 0;
 	}
 
 	void submit_request(Cbe::Generation             const  current,
