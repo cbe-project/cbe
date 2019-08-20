@@ -54,10 +54,6 @@ struct Cbe::Free_tree
 		Cbe::Generation gen;
 		Cbe::Virtual_block_address vba;
 		Cbe::Height tree_height;
-		Cbe::Block_data const *block_data;
-		// XXX remove block_data pointer, use give_write_data when
-		//     _write_back.submit_primitive() is called and probably store
-		//     Cbe::Request
 
 		Cbe::Physical_block_address new_pba[Translation::MAX_LEVELS];
 		Cbe::Type_1_node_info old_pba[Translation::MAX_LEVELS];
@@ -194,8 +190,7 @@ struct Cbe::Free_tree
 	                    Cbe::Physical_block_address const  free_pba[Translation::MAX_LEVELS],
 	                    uint32_t                    const  free_blocks,
 	                    Cbe::Primitive              const &req_prim,
-	                    Cbe::Virtual_block_address  const  vba,
-	                    Cbe::Block_data             const  &data)
+	                    Cbe::Virtual_block_address  const  vba)
 	{
 		(void)free_blocks;
 
@@ -230,7 +225,6 @@ struct Cbe::Free_tree
 		_wb_data.gen         = current;
 		_wb_data.vba         = vba;
 		_wb_data.tree_height = tree_height;
-		_wb_data.block_data  = &data;
 
 		/* assert sizeof (_wb_data.new_pba) == sizeof (new_pba) */
 		Genode::memcpy(_wb_data.new_pba, new_pba, sizeof (_wb_data.new_pba));

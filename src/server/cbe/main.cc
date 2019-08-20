@@ -691,56 +691,37 @@ class Cbe::Library
 				Cbe::Primitive prim = _free_tree->peek_completed_primitive();
 				if (!prim.valid()) { break; }
 
-				if (prim.success == Cbe::Primitive::Success::FALSE) {
+				if (prim.success != Cbe::Primitive::Success::FALSE) { break; }
 
-					DBG("allocating new blocks failed: ", _free_tree_retry_count);
-					if (_free_tree_retry_count < FREE_TREE_RETRY_LIMIT) {
+				DBG("allocating new blocks failed: ", _free_tree_retry_count);
+				if (_free_tree_retry_count < FREE_TREE_RETRY_LIMIT) {
 
-						Cbe::Super_block &sb = _super_block[_cur_sb.value];
-						uint32_t const current = sb.snapshots[_cur_snap].id;
-						if (_discard_snapshot(sb.snapshots, current)) {
-							_free_tree_retry_count++;
-							/*
- 							 * Instructing the FT to retry the allocation will
-							 * lead to clearing its internal 'query branches'
-							 * state and executing the previously submitted
-							 * request again.
-							 *
-							 * (This retry attempt is a shortcut as we do not have
-							 *  all information available at this point to call
-							 *  'submit_request' again - so we must not call
-							 *  'drop_completed_primitive' as this will clear the
-							 *  request.)
-							 */
-							_free_tree->retry_allocation();
-						}
-						break;
+					Cbe::Super_block &sb = _super_block[_cur_sb.value];
+					uint32_t const current = sb.snapshots[_cur_snap].id;
+					if (_discard_snapshot(sb.snapshots, current)) {
+						_free_tree_retry_count++;
+						/*
+						 * Instructing the FT to retry the allocation will
+						 * lead to clearing its internal 'query branches'
+						 * state and executing the previously submitted
+						 * request again.
+						 *
+						 * (This retry attempt is a shortcut as we do not have
+						 *  all information available at this point to call
+						 *  'submit_request' again - so we must not call
+						 *  'drop_completed_primitive' as this will clear the
+						 *  request.)
+						 */
+						_free_tree->retry_allocation();
 					}
-
-					Genode::error("could not find enough useable blocks");
-					_request_pool.mark_completed_primitive(prim);
-					// XXX
-					_vbd->trans_resume_translation();
-				} else {
-
-					if (!_write_back.primitive_acceptable()) { break; }
-
-					if (_free_tree_retry_count) {
-						DBG("reset retry count: ", _free_tree_retry_count);
-						_free_tree_retry_count = 0;
-					}
-
-					/*
-					 * Accessing the write-back data in this manner is still a shortcut
-					 * and probably will not work with SPARK - we have to get rid of
-					 * the 'block_data' pointer.
-					 */
-					Free_tree::Write_back_data const &wb = _free_tree->peek_completed_wb_data(prim);
-
-					_write_back.submit_primitive(wb.prim, wb.gen, wb.vba,
-					                             wb.new_pba, wb.old_pba, wb.tree_height,
-					                             *wb.block_data, _write_back_data);
+					break;
 				}
+
+				Genode::error("could not find enough useable blocks");
+				_request_pool.mark_completed_primitive(prim);
+				// XXX
+				_vbd->trans_resume_translation();
+
 				_free_tree->drop_completed_primitive(prim);
 				progress |= true;
 			}
@@ -1567,6 +1548,23 @@ class Cbe::Library
 				}
 			}
 
+			/*
+			 * The free-tree needs the data to give to the Write_back module.
+			 */
+			{
+				Cbe::Primitive prim = _free_tree->peek_completed_primitive();
+				if (prim.valid() && (prim.success == Cbe::Primitive::Success::TRUE)) {
+
+					Cbe::Request const req = _request_pool.request_for_tag(prim.tag);
+					_req_prim = Req_prim {
+						.req  = req,
+						.prim = prim,
+						.tag  = Cbe::Tag::FREE_TREE_TAG,
+					};
+					return req;
+				}
+			}
+
 			return Cbe::Request { };
 		}
 
@@ -1599,11 +1597,15 @@ class Cbe::Library
 				_req_prim = Req_prim { };
 				return true;
 			case Cbe::Tag::VBD_TAG:
+				/*
+				 * We have reset _req_prim before because in case there is currently
+				 * I/O pending, we have to make sure 'need_data' is called again.
+				 */
+				_req_prim = Req_prim { };
 				if (_io.primitive_acceptable()) {
 					_io.submit_primitive(Tag::CRYPTO_TAG_DECRYPT, prim, _io_data, data);
 					_vbd->drop_completed_primitive(prim);
 
-					_req_prim = Req_prim { };
 					return true;
 				}
 				[[fallthrough]];
@@ -1632,10 +1634,34 @@ class Cbe::Library
 
 			Cbe::Primitive const prim = _req_prim.prim;
 
+			if (_req_prim.tag == Cbe::Tag::FREE_TREE_TAG) {
+
+				if (!_write_back.primitive_acceptable()) { return false; }
+
+				if (_free_tree_retry_count) {
+					DBG("reset retry count: ", _free_tree_retry_count);
+					_free_tree_retry_count = 0;
+				}
+
+				/*
+				 * Accessing the write-back data in this manner is still a shortcut
+				 * and probably will not work with SPARK - we have to get rid of
+				 * the 'block_data' pointer.
+				 */
+				Free_tree::Write_back_data const &wb = _free_tree->peek_completed_wb_data(prim);
+
+				_write_back.submit_primitive(wb.prim, wb.gen, wb.vba,
+				                             wb.new_pba, wb.old_pba, wb.tree_height,
+				                             data, _write_back_data);
+
+				_free_tree->drop_completed_primitive(prim);
+				_req_prim = Req_prim { };
+				return true;
+			} else
+
 			/*
-			 * The method is currently only used for writing a new branch
-			 * and the corresponding leaf node back to the block device.
-			 * Doing so involves multiple steps:
+			 * The VBD module translated a write request, writing the data
+			 * now to disk involves multiple steps:
 			 *
 			 *  1. Gathering of all nodes in the branch and looking up the
 			 *     volatile ones (those, which belong to the current generation
@@ -1774,7 +1800,7 @@ class Cbe::Library
 					                           new_pba, old_pba,
 					                           trans_height,
 					                           free_pba, free_blocks,
-					                           prim, vba, data);
+					                           prim, vba);
 				} else {
 					/*
 					 * The complete branch is still part of the current generation,
