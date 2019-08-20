@@ -75,38 +75,6 @@ class Cbe::Module::Block_io : Noncopyable
 		Internal_entry _entries[N]   {   };
 		unsigned       _used_entries { 0 };
 
-		Block::Connection<> &_block;
-		Block::Session::Info const _info { _block.info() };
-
-		struct Fake_sync_primitive     { };
-		struct Invalid_block_operation { };
-
-		Block::Packet_descriptor _convert_from(Cbe::Primitive const &primitive)
-		{
-			auto operation = [] (Cbe::Primitive::Operation op) {
-				switch (op) {
-				case Cbe::Primitive::Operation::READ:
-					return Block::Packet_descriptor::READ;
-				case Cbe::Primitive::Operation::WRITE:
-					return Block::Packet_descriptor::WRITE;
-				case Cbe::Primitive::Operation::SYNC:
-					throw Fake_sync_primitive();
-				default:
-					throw Invalid_block_operation();
-				}
-			};
-
-			return Block::Packet_descriptor(_block.alloc_packet(Cbe::BLOCK_SIZE),
-					operation(primitive.operation),
-					primitive.block_number, Cbe::BLOCK_SIZE / _info.block_size);
-		}
-
-		bool _equal_packets(Block::Packet_descriptor const &p1,
-		                    Block::Packet_descriptor const &p2) const
-		{
-			return p1.block_number() == p2.block_number() && p1.operation() == p2.operation();
-		}
-
 		bool _equal_primitives(Cbe::Primitive const &p1, Cbe::Primitive const &p2)
 		{
 			return p1.block_number == p2.block_number
@@ -118,21 +86,8 @@ class Cbe::Module::Block_io : Noncopyable
 
 		/**
 		 * Constructor
-		 *
-		 * \param block  reference to the Block connection used for performing
-		 *               of the I/O operations
-		 *
-		 * \throw Block_size_mismatch  in case the block size of the connection
-		 *                             does not match the block size of the CBE
 		 */
-		Block_io(Block::Connection<> &block) : _block(block)
-		{
-			if (_info.block_size > Cbe::BLOCK_SIZE || _info.block_size % Cbe::BLOCK_SIZE != 0) {
-				MOD_ERR("back end block size must either be equal to "
-				        "or be a multiple of ", Cbe::BLOCK_SIZE);
-				throw Block_size_mismatch();
-			}
-		}
+		Block_io() { }
 
 		/**
 		 * Check if the module can accept new primitives
@@ -180,89 +135,6 @@ class Cbe::Module::Block_io : Noncopyable
 				}
 				return;
 			}
-		}
-
-		/**
-		 * Process all pending primitives
-		 *
-		 * This method tries to process any pending request by submitting it
-		 * to the Block session back end and at the same time tries to
-		 * acknowledge all already finished Block requests.
-		 *
-		 * \return true if any pending primitive was used to trigger a request
-		 * at the back end Block session.
-		 */
-		bool execute(Io_data &io_data)
-		{
-			bool progress = false;
-
-			(void)io_data;
-
-			/* first mark all finished I/O ops */
-			while (_block.tx()->ack_avail()) {
-				Block::Packet_descriptor packet = _block.tx()->get_acked_packet();
-
-				for (unsigned i = 0; i < N; i++) {
-					if (_entries[i].state != Internal_entry::IN_PROGRESS) { continue; }
-					if (!_equal_packets(_entries[i].packet, packet)) { continue; }
-
-					if (_entries[i].primitive.read()) {
-						void const * const src = _block.tx()->packet_content(packet);
-						Genode::size_t    size = Cbe::BLOCK_SIZE;
-						void      * const dest = reinterpret_cast<void*>(&io_data.item[i]);
-						Genode::memcpy(dest, src, size);
-					}
-
-					_entries[i].state = Internal_entry::COMPLETE;
-					_entries[i].primitive.success = packet.succeeded() ? Primitive::Success::TRUE
-						: Primitive::Success::FALSE;
-
-					_block.tx()->release_packet(_entries[i].packet);
-					MOD_DBG("ACK prim: ", _entries[i].primitive);
-					progress = true;
-				}
-			}
-
-			/* second submit new I/O ops */
-			for (unsigned i = 0; i < N; i++) {
-				if (_entries[i].state != Internal_entry::PENDING) { continue; }
-
-
-				if (!_block.tx()->ready_to_submit()) { break; }
-
-				try {
-					Block::Packet_descriptor packet = _convert_from(_entries[i].primitive);
-
-					if (_entries[i].primitive.write()) {
-						void const * const src = reinterpret_cast<void*>(&io_data.item[i]);
-						Genode::size_t    size = Cbe::BLOCK_SIZE;
-						void      * const dest = _block.tx()->packet_content(packet);
-						Genode::memcpy(dest, src, size);
-					}
-
-					_entries[i].state  = Internal_entry::IN_PROGRESS;
-					_entries[i].packet = packet;
-
-					_block.tx()->submit_packet(_entries[i].packet);
-					MOD_DBG("SUBMIT prim: ", _entries[i].primitive);
-					progress = true;
-				}
-				catch (Fake_sync_primitive) {
-					_entries[i].state = Internal_entry::COMPLETE;
-					_entries[i].primitive.success = Primitive::Success::TRUE;
-					MOD_DBG("ACK SYNC prim: ", _entries[i].primitive);
-					break;
-				}
-				catch (Invalid_block_operation) {
-					_entries[i].state = Internal_entry::COMPLETE;
-					_entries[i].primitive.success = Primitive::Success::FALSE;
-					MOD_DBG("ACK INVALID prim: ", _entries[i].primitive);
-					break;
-				}
-				catch (Block::Session::Tx::Source::Packet_alloc_failed) { break; }
-			}
-
-			return progress;
 		}
 
 		/**
@@ -345,6 +217,65 @@ class Cbe::Module::Block_io : Noncopyable
 
 				_entries[i].state = Internal_entry::UNUSED;
 				_used_entries--;
+				return;
+			}
+
+			MOD_ERR("invalid primitive: ", p);
+			throw -1;
+		}
+
+		Cbe::Primitive peek_generated_primitive()
+		{
+			for (unsigned i = 0; i < N; i++) {
+				if (_entries[i].state != Internal_entry::PENDING) { continue; }
+
+				return _entries[i].primitive;
+			}
+
+			return Cbe::Primitive { };
+		}
+
+		uint32_t peek_generated_data_index(Cbe::Primitive const &p)
+		{
+			for (unsigned i = 0; i < N; i++) {
+
+				MOD_DBG(i, " state: ", (unsigned)_entries[i].state, " ", _entries[i].primitive);
+				if (_entries[i].state != Internal_entry::PENDING
+				    && _entries[i].state != Internal_entry::IN_PROGRESS) { continue; }
+
+				MOD_DBG(_entries[i].primitive);
+				if (!_equal_primitives(p, _entries[i].primitive)) { continue; }
+
+				return i;
+			}
+
+			MOD_ERR("invalid primitive: ", p);
+			throw -1;
+		}
+
+		void drop_generated_primitive(Cbe::Primitive const &p)
+		{
+			for (unsigned i = 0; i < N; i++) {
+				if (_entries[i].state != Internal_entry::PENDING
+				    || !_equal_primitives(p, _entries[i].primitive)) { continue; }
+
+				_entries[i].state = Internal_entry::IN_PROGRESS;
+				return;
+			}
+
+			MOD_ERR("invalid primitive: ", p);
+			throw -1;
+		}
+
+		void mark_generated_primitive_complete(Cbe::Primitive const &p)
+		{
+			for (unsigned i = 0; i < N; i++) {
+				if (_entries[i].state != Internal_entry::IN_PROGRESS
+				    || !_equal_primitives(p, _entries[i].primitive)) { continue; }
+
+				_entries[i].primitive.success = p.success;
+
+				_entries[i].state = Internal_entry::COMPLETE;
 				return;
 			}
 

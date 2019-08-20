@@ -280,11 +280,11 @@ class Cbe::Library
 		/*
 		 * I/O module
 		 */
-		Block::Connection<> &_block;
+		// Block::Connection<> &_block;
 		using Io       = Module::Block_io;
 		using Io_data  = Module::Io_data;
 		using Io_index = Module::Block_io::Index;
-		Io      _io      { _block };
+		Io      _io      { };
 		Io_data _io_data { };
 
 		/*
@@ -399,6 +399,9 @@ class Cbe::Library
 		}
 
 
+		/* debugging aid */
+		Cbe::Primitive current_primitive { };
+
 	public:
 
 		/**
@@ -419,12 +422,12 @@ class Cbe::Library
 		Library(Cbe::Time              &time,
 		        Time::Timestamp  const  sync,
 		        Time::Timestamp  const  secure,
-		        Block::Connection<>    &block,
+		        // Block::Connection<>    &block,
 		        Cbe::Super_block        sbs[Cbe::NUM_SUPER_BLOCKS],
 		        Cbe::Super_block_index  current_sb)
 		:
-			_time(time), _sync_interval(sync), _secure_interval(secure),
-			_block(block)
+			_time(time), _sync_interval(sync), _secure_interval(secure)
+			// _block(block)
 		{
 			/*
 			 * We have to make sure we actually execute the code to check
@@ -719,6 +722,8 @@ class Cbe::Library
 
 				Genode::error("could not find enough useable blocks");
 				_request_pool.mark_completed_primitive(prim);
+				DBG("-----------------------> current primitive: ", current_primitive, " FINISHED");
+				current_primitive = Cbe::Primitive { };
 				// XXX
 				_vbd->trans_resume_translation();
 
@@ -816,6 +821,8 @@ class Cbe::Library
 
 				_splitter.drop_generated_primitive(prim);
 
+				current_primitive = prim;
+
 				/*
 				 * For every new request, we have to use the currently active
 				 * snapshot as a previous request may have changed the tree.
@@ -829,6 +836,10 @@ class Cbe::Library
 
 				_vbd->submit_primitive(pba, gen, hash, prim);
 				progress |= true;
+			}
+
+			if (current_primitive.valid()) {
+				DBG("-----------------------> current primitive: ", current_primitive);
 			}
 
 			/******************
@@ -1065,6 +1076,8 @@ class Cbe::Library
 				 * the cache, acknowledge the primitive.
 				 */
 				_request_pool.mark_completed_primitive(prim);
+				DBG("-----------------------> current primitive: ", current_primitive, " FINISHED");
+				current_primitive = Cbe::Primitive { };
 				progress |= true;
 
 				/*
@@ -1358,9 +1371,9 @@ class Cbe::Library
 			 * to differentiate the modules.
 			 */
 
-			bool const io_progress = _io.execute(_io_data);
-			progress |= io_progress;
-			LOG_PROGRESS(io_progress);
+			// bool const io_progress = _io.execute(_io_data);
+			// progress |= io_progress;
+			// LOG_PROGRESS(io_progress);
 
 			while (true) {
 
@@ -1499,6 +1512,8 @@ class Cbe::Library
 			Cbe::Request   req;
 			Cbe::Primitive prim;
 			Cbe::Tag       tag;
+
+			bool in_progress;
 		};
 
 		/*
@@ -1507,6 +1522,131 @@ class Cbe::Library
 
 		Req_prim _backend_req_prim { };
 
+		Cbe::Request have_data()
+		{
+			if (_backend_req_prim.prim.valid()) { return Cbe::Request { }; }
+
+			/* I/O module */
+			{
+				Cbe::Primitive prim = _io.peek_generated_primitive();
+				if (prim.valid()) {
+					Cbe::Request req = Cbe::convert_from(prim);
+
+					_backend_req_prim = Req_prim {
+						.req         = req,
+						.prim        = prim,
+						.tag         = Cbe::Tag::IO_TAG,
+						.in_progress = false,
+					};
+					return req;
+				}
+			}
+
+			return Cbe::Request { };
+		}
+
+		bool take_read_data(Cbe::Request const &request)
+		{
+			/*
+			 * For now there is only one request pending.
+			 */
+			if (!_backend_req_prim.req.equal(request)
+			    || _backend_req_prim.in_progress) { return false; }
+
+			Cbe::Primitive prim = _backend_req_prim.prim;
+
+			if (_backend_req_prim.tag == Cbe::Tag::IO_TAG) {
+				_io.drop_generated_primitive(prim);
+
+				_backend_req_prim.in_progress = true;
+				return true;
+			}
+			return false;
+		}
+
+		bool ack_read_data(Cbe::Request    const &request,
+		                   Cbe::Block_data const &data)
+		{
+			/*
+			 * For now there is only one request pending.
+			 */
+			if (!_backend_req_prim.req.equal(request)
+			    || !_backend_req_prim.in_progress) { return false; }
+
+			Cbe::Primitive prim = _backend_req_prim.prim;
+
+			if (_backend_req_prim.tag == Cbe::Tag::IO_TAG) {
+
+				bool const success = request.success == Cbe::Request::Success::TRUE;
+
+				if (success) {
+
+					Genode::uint32_t const idx = _io.peek_generated_data_index(prim);
+					Cbe::Block_data   &io_data = _io_data.item[idx];
+					Genode::memcpy(&io_data, &data, sizeof (Cbe::Block_data));
+				}
+
+				prim.success = success ? Cbe::Primitive::Success::TRUE
+				                       : Cbe::Primitive::Success::FALSE;
+				_io.mark_generated_primitive_complete(prim);
+
+				_backend_req_prim = Req_prim { };
+				return true;
+			}
+
+			return false;
+		}
+
+		bool take_write_data(Cbe::Request    const &request,
+		                     Cbe::Block_data       &data)
+		{
+			/*
+			 * For now there is only one request pending.
+			 */
+			if (!_backend_req_prim.req.equal(request)
+			    || _backend_req_prim.in_progress) { return false; }
+
+			Cbe::Primitive const prim = _backend_req_prim.prim;
+
+			if (_backend_req_prim.tag == Cbe::Tag::IO_TAG) {
+
+				Genode::uint32_t const idx = _io.peek_generated_data_index(prim);
+				Cbe::Block_data   &io_data = _io_data.item[idx];
+				Genode::memcpy(&data, &io_data, sizeof (Cbe::Block_data));
+
+				_io.drop_generated_primitive(prim);
+
+				_backend_req_prim.in_progress = true;
+				return true;
+			}
+
+			return false;
+		}
+
+		bool ack_write_data(Cbe::Request const &request)
+		{
+			/*
+			 * For now there is only one request pending.
+			 */
+			if (!_backend_req_prim.req.equal(request)
+			    || !_backend_req_prim.in_progress) { return false; }
+
+			Cbe::Primitive prim = _backend_req_prim.prim;
+
+			if (_backend_req_prim.tag == Cbe::Tag::IO_TAG) {
+
+				bool const success = request.success == Cbe::Request::Success::TRUE;
+
+				prim.success = success ? Cbe::Primitive::Success::TRUE
+				                       : Cbe::Primitive::Success::FALSE;
+				_io.mark_generated_primitive_complete(prim);
+
+				_backend_req_prim = Req_prim { };
+				return true;
+			}
+
+			return false;
+		}
 
 		/*
 		 * Frontend block I/O
@@ -1536,7 +1676,8 @@ class Cbe::Library
 					_frontend_req_prim = Req_prim {
 						.req  = req,
 						.prim = prim,
-						.tag  = Cbe::Tag::CRYPTO_TAG
+						.tag  = Cbe::Tag::CRYPTO_TAG,
+						.in_progress = false,
 					};
 					return req;
 				}
@@ -1555,7 +1696,8 @@ class Cbe::Library
 					_frontend_req_prim = Req_prim {
 						.req  = req,
 						.prim = prim,
-						.tag  = Cbe::Tag::VBD_TAG
+						.tag  = Cbe::Tag::VBD_TAG,
+						.in_progress = false,
 					};
 					return req;
 				}
@@ -1573,12 +1715,28 @@ class Cbe::Library
 						.req  = req,
 						.prim = prim,
 						.tag  = Cbe::Tag::FREE_TREE_TAG,
+						.in_progress = false,
 					};
 					return req;
 				}
 			}
 
 			return Cbe::Request { };
+		}
+
+		/**
+		 * Get primitive index
+		 *
+		 * \return 
+		 */
+		uint64_t give_data_index(Cbe::Request const &request)
+		{
+			/*
+			 * For now there is only one request pending.
+			 */
+			if (!_frontend_req_prim.req.equal(request)) { return ~0ull; }
+
+			return _frontend_req_prim.prim.index;
 		}
 
 		/**
@@ -1605,6 +1763,8 @@ class Cbe::Library
 				_crypto.cxx_copy_completed_data(prim, data);
 				_crypto.cxx_drop_completed_primitive(prim);
 				_request_pool.mark_completed_primitive(prim);
+				DBG("-----------------------> current primitive: ", current_primitive, " FINISHED");
+				current_primitive = Cbe::Primitive { };
 				DBG("pool complete: ", prim);
 
 				_frontend_req_prim = Req_prim { };
@@ -1861,7 +2021,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Attached_rom_dataspace _config_rom { _env, "config" };
 
 		bool _show_progress    { false };
-		bool _show_if_progress { false };
+		bool _show_if_progress { true };
 
 		Constructible<Attached_ram_dataspace>  _block_ds { };
 		Constructible<Block_session_component> _block_session { };
@@ -1971,7 +2131,11 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					Cbe::Request const cbe_request = _cbe->need_data();
 					if (!cbe_request.valid()) { return; }
 
-					uint32_t const prim_index = 0; // XXX make sure there is no prim with index > 0
+					uint64_t const prim_index = _cbe->give_data_index(cbe_request);
+					if (prim_index == ~0ull) {
+						Genode::error("prim_index invalid!");
+						return;
+					}
 
 					/*
 					 * Create the Block request used to calculate the proper location
@@ -1997,6 +2161,91 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						}
 					});
 				});
+
+				/*
+				 * Backend I/O
+				 */
+				// XXX move later
+				static Cbe::Request _backend_request { };
+
+
+				bool io_progress = false;
+
+				/*
+				 * Handle backend I/O requests
+				 */
+				while (_block.tx()->ready_to_submit()) {
+
+					Cbe::Request const request = _cbe->have_data();
+					if (!request.valid())                { break; }
+					if (_backend_request.valid())        { break; }
+
+					try {
+						Block::Packet_descriptor packet {
+							_block.alloc_packet(Cbe::BLOCK_SIZE),
+							request.read() ? Block::Packet_descriptor::READ
+							               : Block::Packet_descriptor::WRITE,
+							request.block_number,
+							request.count,
+						};
+
+						if (request.read()) {
+							// XXX release packet in case of return false
+							progress |= _cbe->take_read_data(request);
+						}
+
+						if (request.write()) {
+							// XXX release packet in case of return false
+							Cbe::Block_data &data =
+								*reinterpret_cast<Cbe::Block_data*>(_block.tx()->packet_content(packet));
+							progress |= _cbe->take_write_data(request, data);
+						}
+
+						_block.tx()->submit_packet(packet);
+
+						_backend_request = request;
+						io_progress |= true;
+					}
+					catch (Block::Session::Tx::Source::Packet_alloc_failed) { break; }
+				}
+
+				/*
+				 * Handle backend I/O results
+				 */
+				while (_block.tx()->ack_avail()) {
+					Block::Packet_descriptor packet = _block.tx()->get_acked_packet();
+
+					if (!_backend_request.valid()) { break; }
+
+					bool const read  = packet.operation() == Block::Packet_descriptor::READ;
+					bool const write = packet.operation() == Block::Packet_descriptor::WRITE;
+					bool const op_match = (read && _backend_request.read())
+					                   || (write && _backend_request.write());
+					bool const bn_match = packet.block_number() == _backend_request.block_number;
+					// assert packet descriptor belongs to stored backend request
+					if (!bn_match || !op_match) { break; }
+
+					_backend_request.success =
+						packet.succeeded() ? Cbe::Request::Success::TRUE
+						                   : Cbe::Request::Success::FALSE;
+
+					if (read) {
+						Cbe::Block_data &data =
+							*reinterpret_cast<Cbe::Block_data*>(_block.tx()->packet_content(packet));
+						progress |= _cbe->ack_read_data(_backend_request, data);
+					} else
+
+					if (write) {
+						progress |= _cbe->ack_write_data(_backend_request);
+					}
+
+					_block.tx()->release_packet(packet);
+
+					_backend_request = Cbe::Request { };
+					io_progress |= true;
+				}
+
+				progress |= io_progress;
 
 				if (!progress) {
 					if (_show_if_progress) {
@@ -2123,10 +2372,25 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			 * access to the SBs.
 			 *
 			 */
-			_cbe.construct(_time, sync, secure, _block, _super_block, curr_sb);
+			_cbe.construct(_time, sync, secure, _super_block, curr_sb);
+
+			/*
+			 * Install signal handler for the backend Block connection.
+			 *
+			 * (Hopefully outstanding Block requests will not create problems when
+			 *  the frontend session is already gone.)
+			 */
+			_block.tx_channel()->sigh_ack_avail(_request_handler);
+			_block.tx_channel()->sigh_ready_to_submit(_request_handler);
 
 			/* finally announce Block session */
 			_env.parent().announce(_env.ep().manage(*this));
+		}
+
+		~Main()
+		{
+			_block.tx_channel()->sigh_ack_avail(Signal_context_capability());
+			_block.tx_channel()->sigh_ready_to_submit(Signal_context_capability());
 		}
 
 		/********************
@@ -2158,9 +2422,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			_block_session.construct(_env.rm(), _block_ds->cap(), _env.ep(),
 			                         _request_handler, _cbe->max_vba() + 1);
 
-			_block.tx_channel()->sigh_ack_avail(_request_handler);
-			_block.tx_channel()->sigh_ready_to_submit(_request_handler);
-
 			/*
 			 * Dump the current SB info for diagnostic reasons.
 			 */
@@ -2173,9 +2434,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 		void close(Capability<Session>) override
 		{
-			_block.tx_channel()->sigh_ack_avail(Signal_context_capability());
-			_block.tx_channel()->sigh_ready_to_submit(Signal_context_capability());
-
 			_block_session.destruct();
 			_block_ds.destruct();
 		}

@@ -15,6 +15,34 @@
 namespace Cbe {
 
 	/**
+	 * Convert CBE primitive to CBE request
+	 *
+	 * \param p refrence to primitive
+	 *
+	 * \return Cbe::Request object
+	 */
+	Cbe::Request convert_from(Cbe::Primitive const &p)
+	{
+		auto convert_op = [&] (Cbe::Primitive::Operation o) {
+			switch (o) {
+			case Cbe::Primitive::Operation::INVALID: return Cbe::Request::Operation::INVALID;
+			case Cbe::Primitive::Operation::READ:    return Cbe::Request::Operation::READ;
+			case Cbe::Primitive::Operation::WRITE:   return Cbe::Request::Operation::WRITE;
+			case Cbe::Primitive::Operation::SYNC:    return Cbe::Request::Operation::SYNC;
+			}
+			return Cbe::Request::Operation::INVALID;
+		};
+		return Cbe::Request {
+			.operation    = convert_op(p.operation),
+			.success      = Cbe::Request::Success::FALSE,
+			.block_number = p.block_number,
+			.offset       = 0,
+			.count        = 1,
+			.tag          = 0,
+		};
+	}
+
+	/**
 	 * Convert CBE request
 	 *
 	 * \param r  reference to CBE request object
