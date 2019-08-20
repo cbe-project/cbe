@@ -2065,7 +2065,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				_config_rom.xml().attribute_value("sync_interval",
 				                                  (uint64_t)Cbe::Library::SYNC_INTERVAL);
 			Cbe::Time::Timestamp const secure = 1000 *
-				_config_rom.xml().attribute_value("sync_interval",
+				_config_rom.xml().attribute_value("secure_interval",
 				                                  (uint64_t)Cbe::Library::SECURE_INTERVAL);
 
 			/*
