@@ -51,7 +51,6 @@ class Cbe::Module::Block_io : Noncopyable
 		{
 			Cbe::Tag       orig_tag { };
 			Cbe::Primitive primitive { };
-			Cbe::Block_data *data { nullptr };
 
 			Block::Packet_descriptor packet { };
 
@@ -154,25 +153,31 @@ class Cbe::Module::Block_io : Noncopyable
 		 * \param d  reference to a Block_data object
 		 */
 		void submit_primitive(Tag const tag, Primitive const &p,
-		                      Io_data &io_data, Block_data &data)
+		                      Io_data &io_data, Block_data &data, bool checked = false)
 		{
 			for (unsigned i = 0; i < N; i++) {
 				Internal_entry &e = _entries[i];
 
 				if (e.state != Internal_entry::UNUSED) { continue; }
 
-				e.primitive = p;
+				e.state         = Internal_entry::PENDING;
+				e.primitive     = p;
 				e.primitive.tag = tag;
-				e.orig_tag  = p.tag;
-				(void)io_data;
-				// if (p.write()) {
-				// 	Genode::memcpy(&io_data.item[i], &data, sizeof (Cbe::Block_data));
-				// }
-				e.data      = &data;
-				e.state     = Internal_entry::PENDING;
+				e.orig_tag      = p.tag;
+
+				if (p.write()) {
+					Genode::memcpy(&io_data.item[i], &data, sizeof (Cbe::Block_data));
+				}
 
 				_used_entries++;
 				MOD_DBG("primitive: ", p);
+
+				if (p.read()) {
+					// XXX debug helper, remove later
+					if (!checked) {
+						throw -1;
+					}
+				}
 				return;
 			}
 		}
@@ -204,8 +209,7 @@ class Cbe::Module::Block_io : Noncopyable
 					if (_entries[i].primitive.read()) {
 						void const * const src = _block.tx()->packet_content(packet);
 						Genode::size_t    size = Cbe::BLOCK_SIZE;
-						void      * const dest = reinterpret_cast<void*>(_entries[i].data);
-						// void      * const dest = reinterpret_cast<void*>(&_io_data.item[i]);
+						void      * const dest = reinterpret_cast<void*>(&io_data.item[i]);
 						Genode::memcpy(dest, src, size);
 					}
 
@@ -230,8 +234,7 @@ class Cbe::Module::Block_io : Noncopyable
 					Block::Packet_descriptor packet = _convert_from(_entries[i].primitive);
 
 					if (_entries[i].primitive.write()) {
-						void const * const src = reinterpret_cast<void*>(_entries[i].data);
-						// void const * const src = reinterpret_cast<void*>(&_io_data.item[i]);
+						void const * const src = reinterpret_cast<void*>(&io_data.item[i]);
 						Genode::size_t    size = Cbe::BLOCK_SIZE;
 						void      * const dest = _block.tx()->packet_content(packet);
 						Genode::memcpy(dest, src, size);
@@ -289,19 +292,18 @@ class Cbe::Module::Block_io : Noncopyable
 		 *
 		 * \return reference to the data
 		 */
-		Cbe::Block_data &peek_completed_data(Cbe::Primitive const &p)
+		uint32_t peek_completed_data_index(Cbe::Primitive const &p)
 		{
 			for (unsigned i = 0; i < N; i++) {
 				if (_entries[i].state != Internal_entry::COMPLETE
 				    || !_equal_primitives(p, _entries[i].primitive)) { continue; }
 
-				return *_entries[i].data;
+				return i;
 			}
 
 			MOD_ERR("invalid primitive: ", p);
 			throw -1;
 		}
-
 
 		/**
 		 * Get the original tag of the submitted primitive

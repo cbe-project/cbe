@@ -772,7 +772,7 @@ class Cbe::Library
 				default: break;
 				}
 
-				_io.submit_primitive(tag, prim, _io_data, *data);
+				_io.submit_primitive(tag, prim, _io_data, *data, true);
 
 				_free_tree->drop_generated_primitive(prim);
 				progress |= true;
@@ -1085,7 +1085,7 @@ class Cbe::Library
 				if (!_crypto.cxx_primitive_acceptable()) { break; }
 
 				Write_back_data_index const idx = _write_back.peek_generated_crypto_data(prim);
-				Cbe::Block_data &data = _write_back_data.item[idx.value];
+				Cbe::Block_data           &data = _write_back_data.item[idx.value];
 				/* the data will be copied into the Crypto module's internal buffer */
 				_crypto.cxx_submit_primitive(prim, data, _crypto_data);
 
@@ -1345,7 +1345,7 @@ class Cbe::Library
 
 				_cache.drop_generated_primitive(prim);
 
-				_io.submit_primitive(Tag::CACHE_TAG, prim, _io_data, data);
+				_io.submit_primitive(Tag::CACHE_TAG, prim, _io_data, data, true);
 				progress |= true;
 			}
 
@@ -1372,6 +1372,9 @@ class Cbe::Library
 					throw Primitive_failed();
 				}
 
+				Genode::uint32_t const idx = _io.peek_completed_data_index(prim);
+				Cbe::Block_data      &data = _io_data.item[idx];
+
 				/*
 				 * Whenever we cannot hand a successful primitive over
 				 * to the corresponding module, leave the loop but keep
@@ -1385,9 +1388,6 @@ class Cbe::Library
 					if (!_crypto.cxx_primitive_acceptable()) {
 						mod_progress = false;
 					} else {
-						// Genode::uint32_t const idx = _io.peek_completed_data_index(prim);
-						// Cbe::Block_data   &data = _io_data.item[idx];
-						Cbe::Block_data &data = _io.peek_completed_data(prim);
 						Cbe::Tag const orig_tag = _io.peek_completed_tag(prim);
 
 						/*
@@ -1404,7 +1404,7 @@ class Cbe::Library
 
 				case Tag::CACHE_TAG:
 					// XXX proper solution pending
-					// Genode::memcpy(&_cache_job_data.item[0], &_io_data.item[0], sizeof (Cbe::Block_data));
+					Genode::memcpy(&_cache_job_data.item[0], &data, sizeof (Cbe::Block_data));
 					_cache.cxx_mark_completed_primitive(prim);
 					break;
 
@@ -1427,6 +1427,7 @@ class Cbe::Library
 
 				case Tag::FREE_TREE_TAG_IO:
 					prim.tag = Tag::IO_TAG;
+					Genode::memcpy(&_free_tree_query_data.item[0], &data, sizeof (Cbe::Block_data));
 					_free_tree->mark_generated_primitive_complete(prim);
 					break;
 
@@ -1499,7 +1500,19 @@ class Cbe::Library
 			Cbe::Primitive prim;
 			Cbe::Tag       tag;
 		};
-		Req_prim _req_prim { };
+
+		/*
+		 * Frontend block I/O
+		 */
+
+		Req_prim _backend_req_prim { };
+
+
+		/*
+		 * Frontend block I/O
+		 */
+
+		Req_prim _frontend_req_prim { };
 
 		/**
 		 * Return a request that needs access to the block data
@@ -1510,7 +1523,7 @@ class Cbe::Library
 		Cbe::Request need_data() /* const */
 			// XXX move req_prim allocation into execute
 		{
-			if (_req_prim.prim.valid()) { return Cbe::Request { }; }
+			if (_frontend_req_prim.prim.valid()) { return Cbe::Request { }; }
 
 			/*
 			 * When it was a read request, we need the location to
@@ -1520,7 +1533,7 @@ class Cbe::Library
 				Cbe::Primitive prim = _crypto.cxx_peek_completed_primitive();
 				if (prim.valid() && prim.read()) {
 					Cbe::Request const req = _request_pool.request_for_tag(prim.tag);
-					_req_prim = Req_prim {
+					_frontend_req_prim = Req_prim {
 						.req  = req,
 						.prim = prim,
 						.tag  = Cbe::Tag::CRYPTO_TAG
@@ -1539,7 +1552,7 @@ class Cbe::Library
 				if (prim.valid()) {
 
 					Cbe::Request const req = _request_pool.request_for_tag(prim.tag);
-					_req_prim = Req_prim {
+					_frontend_req_prim = Req_prim {
 						.req  = req,
 						.prim = prim,
 						.tag  = Cbe::Tag::VBD_TAG
@@ -1556,7 +1569,7 @@ class Cbe::Library
 				if (prim.valid() && (prim.success == Cbe::Primitive::Success::TRUE)) {
 
 					Cbe::Request const req = _request_pool.request_for_tag(prim.tag);
-					_req_prim = Req_prim {
+					_frontend_req_prim = Req_prim {
 						.req  = req,
 						.prim = prim,
 						.tag  = Cbe::Tag::FREE_TREE_TAG,
@@ -1583,27 +1596,27 @@ class Cbe::Library
 			/*
 			 * For now there is only one request pending.
 			 */
-			if (!_req_prim.req.equal(request)) { return false; }
+			if (!_frontend_req_prim.req.equal(request)) { return false; }
 
-			Cbe::Primitive const prim = _req_prim.prim;
+			Cbe::Primitive const prim = _frontend_req_prim.prim;
 
-			switch (_req_prim.tag) {
+			switch (_frontend_req_prim.tag) {
 			case Cbe::Tag::CRYPTO_TAG:
 				_crypto.cxx_copy_completed_data(prim, data);
 				_crypto.cxx_drop_completed_primitive(prim);
 				_request_pool.mark_completed_primitive(prim);
 				DBG("pool complete: ", prim);
 
-				_req_prim = Req_prim { };
+				_frontend_req_prim = Req_prim { };
 				return true;
 			case Cbe::Tag::VBD_TAG:
 				/*
-				 * We have reset _req_prim before because in case there is currently
+				 * We have reset _frontend_req_prim before because in case there is currently
 				 * I/O pending, we have to make sure 'need_data' is called again.
 				 */
-				_req_prim = Req_prim { };
+				_frontend_req_prim = Req_prim { };
 				if (_io.primitive_acceptable()) {
-					_io.submit_primitive(Tag::CRYPTO_TAG_DECRYPT, prim, _io_data, data);
+					_io.submit_primitive(Tag::CRYPTO_TAG_DECRYPT, prim, _io_data, data, true);
 					_vbd->drop_completed_primitive(prim);
 
 					return true;
@@ -1630,11 +1643,11 @@ class Cbe::Library
 			/*
 			 * For now there is only one request pending.
 			 */
-			if (!_req_prim.req.equal(request)) { return false; }
+			if (!_frontend_req_prim.req.equal(request)) { return false; }
 
-			Cbe::Primitive const prim = _req_prim.prim;
+			Cbe::Primitive const prim = _frontend_req_prim.prim;
 
-			if (_req_prim.tag == Cbe::Tag::FREE_TREE_TAG) {
+			if (_frontend_req_prim.tag == Cbe::Tag::FREE_TREE_TAG) {
 
 				if (!_write_back.primitive_acceptable()) { return false; }
 
@@ -1655,7 +1668,7 @@ class Cbe::Library
 				                             data, _write_back_data);
 
 				_free_tree->drop_completed_primitive(prim);
-				_req_prim = Req_prim { };
+				_frontend_req_prim = Req_prim { };
 				return true;
 			} else
 
@@ -1673,7 +1686,7 @@ class Cbe::Library
 			 * Those steps are handled by different modules, depending on
 			 * the allocation of new blocks.
 			 */
-			if (_req_prim.tag == Cbe::Tag::VBD_TAG) {
+			if (_frontend_req_prim.tag == Cbe::Tag::VBD_TAG) {
 
 				/*
 				 * As usual check first we can submit new requests.
@@ -1816,7 +1829,7 @@ class Cbe::Library
 				}
 
 				_vbd->drop_completed_primitive(prim);
-				_req_prim = Req_prim { };
+				_frontend_req_prim = Req_prim { };
 
 				/*
 				 * Inhibit translation which effectively will suspend the
