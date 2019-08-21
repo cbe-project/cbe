@@ -1,0 +1,250 @@
+/*
+ * Copyright (C) 2019 Genode Labs GmbH, Componolit GmbH, secunet AG
+ *
+ * This file is part of the Consistent Block Encrypter project, which is
+ * distributed under the terms of the GNU Affero General Public License
+ * version 3.
+ */
+
+#ifndef _CBE_CACHE_MODULE_H_
+#define _CBE_CACHE_MODULE_H_
+
+/* Genode includes */
+#include <base/sleep.h>
+
+/* local includes */
+#include <cbe/types.h>
+#include <cbe/spark_object.h>
+
+
+namespace Cbe { namespace Module {
+
+	struct Cache_Data
+	{
+		enum { NUM_ITEMS = 32, };
+		Cbe::Block_data item[NUM_ITEMS];
+	} __attribute__((packed));
+
+	struct Cache_Job_Data
+	{
+		enum { NUM_ITEMS = 1, };
+		Cbe::Block_data item[NUM_ITEMS];
+	} __attribute__((packed));
+
+	struct Cache_Index
+	{
+		enum { INVALID = Cache_Data::NUM_ITEMS + 1, };
+		Genode::uint32_t value;
+	};
+
+	class Cache;
+
+	Genode::uint32_t object_size(Cache const &);
+
+} /* namespace Module */ } /* namespace Cbe */
+
+
+#define MOD_NAME "CCH"
+
+struct Cbe::Module::Cache : Cbe::Spark_object<808>
+{
+	/**
+	 * Constructor
+	 */
+	Cache();
+
+	/**
+	 * Check if the data for the given physical block address is in the cache
+	 *
+	 * \return true if data is available, otherwise false is returned
+	 */
+	bool data_available(Cbe::Physical_block_address const pba) const;
+
+	/**
+	 * Get index of data for given physical block address and update LRU
+	 * value
+	 *
+	 * This method must only be called after executing 'data_available'
+	 * returned true.
+	 *
+	 * \param  pba   physical block address
+	 * \param  time  reference to time object used to update LRU
+	 *
+	 * \return index
+	 */
+	Cache_Index data_index(Cbe::Physical_block_address const pba,
+	                       Cbe::Timestamp current_time);
+
+	/*
+	 * Get number of cache slots
+	 *
+	 * \return slots
+	 */
+	uint32_t cxx_cache_slots() const
+	{
+		return sizeof (Cache_Data) / sizeof (Cbe::Block_data);
+	}
+
+	/**
+	 * Invalid cache entry containg the physical block address
+	 *
+	 * \param  pba  physical block address
+	 */
+	void invalidate(Cbe::Physical_block_address const pba);
+
+	/**
+	 * Check if the entry containing the physical block address is dirty
+	 *
+	 * In case the block belonging to the physical block address is not
+	 * available within the cache, the method will return false.
+	 *
+	 * \param  pba  physical block address
+	 *
+	 * \return  true if the entry is dirty, false otherwise
+	 */
+	bool dirty(Cache_Index const idx) const;
+
+	/**
+	 * Return physical block address for entry that is to be flushed
+	 *
+	 * This method may only be called after executing 'dirty' returned
+	 * true.
+	 *
+	 * \param  idx  index of cache entry
+	 *
+	 * \return  physical block address of block stored entry referenced by
+	 *          given index
+	 */
+	Cbe::Physical_block_address flush(Cache_Index const idx) const;
+
+	/**
+	 * Clear dirty flag of the entry containg the physical block address
+	 *
+	 * \param  pba  physical block address
+	 */
+	void mark_clean(Cbe::Physical_block_address const pba);
+
+	/**
+	 * Flag cache entry containg the physical block address as dirty
+	 *
+	 * \param  pba  physical block address
+	 */
+	void mark_dirty(Cbe::Physical_block_address const pba);
+
+	/**
+	 * Check if the module can accept a request to cache a block 
+	 *
+	 * The check depends on the state of the Job queue rather than the
+	 * number of entries in the cache.
+	 *
+	 * \return true if a request can be accepted, otherwise false
+	 */
+	bool request_acceptable(Cbe::Physical_block_address pba) const;
+
+	bool cxx_request_acceptable(Cbe::Physical_block_address pba) const
+	{
+		bool const r = request_acceptable(pba);
+		MOD_DBG("pba: ", pba, " acceptable: ", r);
+		return r;
+	}
+
+	/**
+	 * Submit a new request
+	 *
+	 * This method must only be called after executing 'request_acceptable'
+	 * returned true.
+	 *
+	 * \param pba  physical block address of the block data
+	 */
+	void submit_request(Cbe::Physical_block_address const pba);
+
+	void cxx_submit_request(Cbe::Physical_block_address const pba)
+	{
+		MOD_DBG("pba: ", pba);
+		submit_request(pba);
+	}
+
+	/**
+	 * Fill cache
+	 *
+	 * This method fills the cache from any completed primitive.
+	 *
+	 * \param data          reference to the shared data memory buffer
+	 * \param job_data      reference to the shared job data memory buffer
+	 * \param current_time  current time at the time of the operation
+	 */
+	void fill_cache(Cache_Data &data, Cache_Job_Data const &job_data,
+	                Cbe::Timestamp current_time);
+
+	/**
+	 * Report progress of last fill-cache operation
+	 *
+	 * \return true if any completed primitive was processed
+	 */
+	bool progress() const;
+
+	/**
+	 * Execute all pending requests
+	 *
+	 * This method calls 'fill_cache' and 'progress' internally and
+	 * is just a C++-side wrapper.
+	 *
+	 * \return true if any completed primitive was processed
+	 */
+	bool execute(Cache_Data &data, Cache_Job_Data const &job_data,
+	             Cbe::Timestamp current_time)
+	{
+		fill_cache(data, job_data, current_time);
+		return progress();
+	}
+
+	/**
+	 * Take the next generated primitive
+	 *
+	 * This method must only be called after executing
+	 * 'peek_generated_primitive' returned true.
+	 *
+	 * \return next valid generated primitive in case a Job is pending,
+	 *         otherwise an invalid primitive will be returned
+	 */
+	Cbe::Primitive peek_generated_primitive();
+
+	/**
+	 * Get index of the data buffer belonging to the given primitive
+	 *
+	 * This method must only be called after executing
+	 * 'peek_generated_primitive' returned true.
+	 *
+	 * \param  p  reference to primitive the data belongs to
+	 *
+	 * \return index of data buffer
+	 *
+	 * XXX remove later as this is a merely a convenience method
+	 */
+	Cache_Index peek_generated_data_index(Cbe::Primitive const &p);
+
+	/**
+	 * Discard given primitive
+	 *
+	 * \param  p  reference to primitive
+	 */
+	void drop_generated_primitive(Cbe::Primitive const &p);
+
+	/**
+	 * Mark the primitive as completed
+	 *
+	 * \param p  reference to Primitive that is used to mark
+	 *           the corresponding internal primitive as completed
+	 */
+	void mark_completed_primitive(Cbe::Primitive const &p);
+
+	void cxx_mark_completed_primitive(Cbe::Primitive const &p)
+	{
+		MOD_DBG(p);
+		mark_completed_primitive(p);
+	}
+};
+
+#undef MOD_NAME
+
+#endif /* _CBE_CACHE_MODULE_H_ */
