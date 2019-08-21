@@ -9,10 +9,15 @@
 #ifndef _CBE_UTIL_H_
 #define _CBE_UTIL_H_
 
+/* Genode includes */
+#include <timer_session/connection.h>
+
 /* CBE includes */
 #include <cbe/types.h>
 
 namespace Cbe {
+
+	class Time;
 
 	/**
 	 * Convert CBE primitive to CBE request
@@ -21,7 +26,7 @@ namespace Cbe {
 	 *
 	 * \return Cbe::Request object
 	 */
-	Cbe::Request convert_from(Cbe::Primitive const &p)
+	static inline Cbe::Request convert_from(Cbe::Primitive const &p)
 	{
 		auto convert_op = [&] (Cbe::Primitive::Operation o) {
 			switch (o) {
@@ -49,7 +54,7 @@ namespace Cbe {
 	 *
 	 * \return  Block request object
 	 */
-	Block::Request convert_from(Cbe::Request const &r)
+	static inline Block::Request convert_from(Cbe::Request const &r)
 	{
 		auto convert_op = [&] (Cbe::Request::Operation o) {
 			switch (o) {
@@ -82,7 +87,7 @@ namespace Cbe {
 	 *
 	 * \return  CBE request object
 	 */
-	Cbe::Request convert_to(Block::Request const &r)
+	static inline Cbe::Request convert_to(Block::Request const &r)
 	{
 		auto convert_op = [&] (Block::Operation::Type t) {
 			switch (t) {
@@ -107,8 +112,54 @@ namespace Cbe {
 			.tag          = (Genode::uint32_t)r.tag.value,
 		};
 	}
-
-
 } /* namespace Cbe */
+
+
+class Cbe::Time
+{
+	public:
+
+		using Timestamp = Genode::uint64_t;
+
+	private:
+
+		Timer::Connection _timer;
+
+		/*
+		 * Synchronization timeout handling
+		 */
+
+		Timer::One_shot_timeout<Time> _sync_timeout {
+			_timer, *this, &Time::_handle_sync_timeout };
+
+		void _handle_sync_timeout(Genode::Duration);
+
+		Genode::Signal_context_capability _sync_sig_cap { };
+
+		/*
+		 * Securing timeout handling
+		 */
+
+		Timer::One_shot_timeout<Time> _secure_timeout {
+			_timer, *this, &Time::_handle_secure_timeout };
+
+		void _handle_secure_timeout(Genode::Duration);
+
+		Genode::Signal_context_capability _secure_sig_cap { };
+
+	public:
+
+		Time(Genode::Env &env);
+
+		Timestamp timestamp();
+
+		void sync_sigh(Genode::Signal_context_capability cap);
+
+		void schedule_sync_timeout(uint64_t msec);
+
+		void secure_sigh(Genode::Signal_context_capability cap);
+
+		void schedule_secure_timeout(uint64_t msec);
+};
 
 #endif /* _CBE_UTIL_H_ */
