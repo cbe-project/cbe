@@ -20,18 +20,7 @@ namespace Util {
 
 	using namespace Genode;
 
-	void init_random(Genode::Allocator &);
-	void get_random(uint8_t *dest, size_t len);
-
-	using Label = Genode::String<128>;
-
-	using Size_string = Genode::String<64>;
-	uint64_t convert(Size_string const &);
-
 	using sector_t = Block::sector_t;
-
-	sector_t align_start(size_t, size_t, sector_t);
-	sector_t size_to_lba(size_t, uint64_t);
 
 	struct Block_io;
 
