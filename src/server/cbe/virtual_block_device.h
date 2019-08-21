@@ -131,8 +131,13 @@ struct Cbe::Virtual_block_device
 				if (cache.cxx_request_acceptable(pba)) {
 					cache.cxx_submit_request(pba);
 					MOD_DBG("submit cache request: pba: ", pba);
+					/*
+					 * Only report progress on the initial request, all
+					 * other data available checks do not denote progress.
+					 * Otherwise we will end up with an endless loop.
+					 */
+					progress |= true;
 				}
-				progress |= true;
 				break;
 			} else {
 
