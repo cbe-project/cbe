@@ -224,6 +224,16 @@ class Cbe::Module::Block_io : Noncopyable
 			throw -1;
 		}
 
+		/**
+		 * Check for any generated primitive
+		 *
+		 * The method will always a return a primitive and the caller
+		 * always has to check if the returned primitive is in fact a
+		 * valid one.
+		 *
+		 * \return a valid Primitive will be returned if there is an
+		 *         generated primitive pending, otherwise an invalid one
+		 */
 		Cbe::Primitive peek_generated_primitive()
 		{
 			for (unsigned i = 0; i < N; i++) {
@@ -235,6 +245,17 @@ class Cbe::Module::Block_io : Noncopyable
 			return Cbe::Primitive { };
 		}
 
+
+		/**
+		 * Get index for the data block of the generated primitive
+		 *
+		 * This method must only be called after 'peek_generated_io_primitive'
+		 * returned a valid primitive.
+		 *
+		 * \param p  reference to the completed primitive
+		 *
+		 * \return index for data block
+		 */
 		uint32_t peek_generated_data_index(Cbe::Primitive const &p)
 		{
 			for (unsigned i = 0; i < N; i++) {
@@ -253,6 +274,14 @@ class Cbe::Module::Block_io : Noncopyable
 			throw -1;
 		}
 
+		/**
+		 * Discard given generated primitive
+		 *
+		 * This method must only be called after 'peek_generated_io_primitive'
+		 * returned a valid primitive.
+		 *
+		 * \param  p  reference to primitive
+		 */
 		void drop_generated_primitive(Cbe::Primitive const &p)
 		{
 			for (unsigned i = 0; i < N; i++) {
@@ -267,6 +296,11 @@ class Cbe::Module::Block_io : Noncopyable
 			throw -1;
 		}
 
+		/**
+		 * Mark given generated primitive as complete
+		 *
+		 * \param  p  reference to primitive
+		 */
 		void mark_generated_primitive_complete(Cbe::Primitive const &p)
 		{
 			for (unsigned i = 0; i < N; i++) {

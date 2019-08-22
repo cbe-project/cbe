@@ -1152,10 +1152,6 @@ bool Cbe::Library::execute(bool show_progress, bool show_if_progress)
 	 * to differentiate the modules.
 	 */
 
-	// bool const io_progress = _io.execute(_io_data);
-	// progress |= io_progress;
-	// LOG_PROGRESS(io_progress);
-
 	while (true) {
 
 		Cbe::Primitive prim = _io.peek_completed_primitive();
@@ -1197,7 +1193,9 @@ bool Cbe::Library::execute(bool show_progress, bool show_if_progress)
 			break;
 
 		case Tag::CACHE_TAG:
-			// XXX proper solution pending
+			// XXX we need a proper method for getting the right cache job
+			//     data index, for now rely on the knowledge that there is
+			//     only one item
 			Genode::memcpy(&_cache_job_data.item[0], &data, sizeof (Cbe::Block_data));
 			_cache.cxx_mark_completed_primitive(prim);
 			break;
@@ -1221,6 +1219,9 @@ bool Cbe::Library::execute(bool show_progress, bool show_if_progress)
 
 		case Tag::FREE_TREE_TAG_IO:
 			prim.tag = Tag::IO_TAG;
+			// XXX we need a proper method for getting the right query
+			//     data index, for now rely on the knowledge that there
+			//     is only one item
 			Genode::memcpy(&_free_tree_query_data.item[0], &data, sizeof (Cbe::Block_data));
 			_free_tree->mark_generated_primitive_complete(prim);
 			break;
