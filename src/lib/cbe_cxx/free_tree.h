@@ -27,10 +27,18 @@ namespace Cbe {
 
 /*
  * The Free_tree meta-module handles the allocation and freeing, i.e.,
- * reservation, of nodes. It is vital to implement the CoW semantics.
+ * reservation, of nodes. It is vital to implement the CoW semantics of
+ * the VBD.
+ *
+ * To gather all required free blocks the FT will scan the free-tree
+ * branch by branch. The current implementation employs the Translation
+ * module and will use the virtual-block-address to select the next
+ * type 2 node, i.e., it will increament the VBA by the degree of the
+ * type 2 node to get to the next type 2 node.
  *
  * (It currently _does not_ feature CoW semanitcs as it will only
- *  exchange entries in the leaf nodes.)
+ *  exchange entries in the leaf nodes. The hashes of the inner nodes
+ *  are still updated, though.)
  */
 struct Cbe::Free_tree
 {
@@ -40,13 +48,18 @@ struct Cbe::Free_tree
 	using Cache_Job_Data = Module::Cache_Job_Data;
 
 	/*
-	 * The Translation module is used to traverse
-	 * the FT by looking for (re-)usable leaf nodes
-	 * in each branch of the tree.
+	 * The Translation module is used to traverse the FT by looking
+	 * for (re-)usable leaf nodes in each branch of the tree.
 	 */
 	using Translation      = Module::Translation;
 	using Translation_Data = Module::Translation_Data;
 
+	/*
+	 * (Using Constructible here is not strictly necessary as we
+	 *  might decide to reinstanciate the FT module as a whole
+	 *  later on and just change the helpers when the free-tree
+	 *  is resized might not be worth it.)
+	 */
 	Constructible<Cbe::Tree_helper> _tree_helper { };
 	Constructible<Translation>      _trans       { };
 
@@ -55,26 +68,68 @@ struct Cbe::Free_tree
 	 *
 	 * (Should be replaced by a proper State type.)
 	 */
+	/*
+	 * Do update is set to 'true' when we have found the required
+	 * number of free blocks. It will be reset to 'false' either in
+	 * case all data needed to populate the write-back list is available
+	 * or the update step is restarted (by retrying the allocation).
+	 */
 	bool _do_update   { false };
+	/*
+	 * Do write-back is to 'true' after the update step has been
+	 * finished successfully. It will be reset to 'false' when the
+	 * write-back step has been finished...
+	 */
 	bool _do_wb       { false };
+	/*
+	 * ... and at the some time write-back done will be set to 'true'.
+	 *
+	 * (It is actually somewhat superfluous and should be removed later
+	 *  on.)
+	 */
 	bool _wb_done     { false };
 
+	/*
+	 * Holds the number of free blocks that are needed.
+	 *
+	 * It will be set in 'submit_request' and cleared, i.e., set to 0
+	 * in 'drop_completed_primitive'.
+	 */
 	uint32_t _num_blocks   { 0 };
+
+	/*
+	 * Holds the currently number of found free blocks.
+	 */
 	uint32_t _found_blocks { 0 };
 
-	// XXX account for n + m blocks
+	// XXX account for n + m blocks, currently we only replace
+	//     the entries in the leaf node but do not update the
+	//     FT itself in a CoW fashion
 	// XXX the number of pba depends on degree which for now
 	//     is dynamically set. Since 64 edges are the eventually
 	//     used ones, hardcode that.
 	enum { MAX_FREE_BLOCKS = 64, };
 	struct Query_branch
 	{
+		/* virtual-block-adress of the FT branch */
+		Cbe::Virtual_block_address vba;
+
+		/* info, e.g. PBAs, of the branches type 1 inner nodes */
 		Cbe::Type_1_node_info trans_info[Translation::MAX_LEVELS];
 
+		/* physical block addresses of the free blocks in the FT branch */
 		Cbe::Physical_block_address pba[MAX_FREE_BLOCKS];
+
+		/* number of free blocks in this FT branch */
 		uint32_t free_blocks;
-		Cbe::Virtual_block_address  vba;
 	};
+
+	/*
+	 * The number of branches of we look at to gather free nodes is limited.
+	 *
+	 * (For now the limit should suffices but it could be not enough
+	 *  in a fragmented FT.)
+	 */
 	enum { MAX_QUERY_BRANCHES = 8, };
 	Query_branch _query_branch[MAX_QUERY_BRANCHES] { };
 	uint32_t     _current_query_branch { 0 };
@@ -82,10 +137,21 @@ struct Cbe::Free_tree
 	Cbe::Physical_block_address _found_pba[Translation::MAX_LEVELS*2] { };
 	Cbe::Physical_block_address _free_pba[Translation::MAX_LEVELS] { };
 
+	/*
+	 * Meta-data of the current FT
+	 *
+	 * (As we do not change the inner nodes but only the leaf nodes,
+	 *  only the hash needs to be updated.)
+	 */
 	Cbe::Physical_block_address _root      { };
 	Cbe::Hash                   _root_hash { };
 	Cbe::Generation             _root_gen  { };
-	Cbe::Primitive              _current_query_prim { };
+
+	/*
+	 * This primitive holds the current translation request and
+	 * thereby the current branch in the FT we look at.
+	 */
+	Cbe::Primitive _current_query_prim { };
 
 	/*
 	 * The Io_entry provides a stateful I/O operation abstraction
@@ -176,7 +242,6 @@ struct Cbe::Free_tree
 		MOD_DBG(_current_query_prim);
 	};
 
-
 	/*
 	 * Constructor
 	 *
@@ -225,11 +290,39 @@ struct Cbe::Free_tree
 		_wb_data.finished = false;
 	}
 
+	/**
+	 * Check if the module is able to accept a new request
+	 *
+	 * \return true if a request can be accepted, otherwise false
+	 */
 	bool request_acceptable() const
 	{
 		return _num_blocks == 0;
 	}
 
+	/**
+	 * Submit new free block allocation request
+	 *
+	 * The new and old PBA lists are ordered by tree level and how many
+	 * entries are used depends on the height of the current VBD tree.
+	 *
+	 * The items from the free PBA list replace the free PBAs in the
+	 * FT's type 2 node.
+	 *
+	 * \param  current      the current generation
+	 * \param  num_blocks   number of free blocks that must be allocated
+	 * \param  new_pba      list of new physical block addresses
+	 * \param  old_pba      list of old physical block addresses
+	 * \param  tree_height  current height of the VBD tree
+	 * \param  free_pba     list of physical block address that will
+	 *                      be freed (marked as reserved) during the
+	 *                      allocation
+	 * \param  free_blocks  number of valid items in the free PBA list
+	 * \param  req_prim     primitive of the original request that triggered
+	 *                      the FT operation
+	 * \param  vba          virtual-block-address of the original request
+	 *                      that triggered the FT operation
+	 */
 	void submit_request(Cbe::Generation             const  current,
 	                    uint32_t                    const  num_blocks,
 	                    /* refer to tree_height for number of valid elements */
@@ -247,35 +340,47 @@ struct Cbe::Free_tree
 			return;
 		}
 
-		_do_update = false;
-		_do_wb     = false;
-		_wb_done   = false;
-
+		/*
+		 * Reset module state
+		 *
+		 * (Rather than having multiple members a proper abstraction
+		 *  would be worthwhile.)
+		 */
+		_num_blocks     = num_blocks;
+		_found_blocks   = 0;
 		_current_type_2 = { 0, Io_entry::State::INVALID, 0 };
+
+		_do_update           = false;
+		_do_wb               = false;
+		_wb_done             = false;
+		_wb_data.finished    = false;
 
 		for (uint32_t i = 0; i < Translation::MAX_LEVELS; i++) {
 			_wb_io[i].state = Io_entry::State::INVALID;
 		}
 
-		_num_blocks = num_blocks;
-		_found_blocks = 0;
+		_reset_query_prim();
 
-		/* assert sizeof (_free_pba) == sizeof (free_pba) */
-		Genode::memcpy(_free_pba, free_pba, sizeof (_free_pba));
-		for (uint32_t i = 0; i < Translation::MAX_LEVELS; i++) {
-			if (free_pba[i]) {
-				MOD_DBG("free[", i, "]: ", free_pba[i]);
-			}
-		}
-
-
-		_wb_data.finished    = false;
+		/*
+		 * Prepare the write-back data that is used later on by
+		 * the Write_back module.
+		 */
 		_wb_data.prim        = req_prim;
 		_wb_data.gen         = current;
 		_wb_data.vba         = vba;
 		_wb_data.tree_height = tree_height;
 
-		/* assert sizeof (_wb_data.new_pba) == sizeof (new_pba) */
+		/*
+		 * Store given lists in the module.
+		 *
+		 * (The free and old PBA lists are part of the write-back data
+		 *  as we have to pass them on to the Write_back module b/c it
+		 *  needs the addresses for the updating the nodes.
+		 *
+		 *  Also putting the lists into a proper structure would allow
+		 *  for statically size match checking...)
+		 */
+
 		Genode::memcpy(_wb_data.new_pba, new_pba, sizeof (_wb_data.new_pba));
 		for (uint32_t i = 0; i < Translation::MAX_LEVELS; i++) {
 			if (new_pba[i]) {
@@ -283,19 +388,36 @@ struct Cbe::Free_tree
 			}
 		}
 
-		/* assert sizeof (_wb_data.old_pba) == sizeof (old_pba) */
 		Genode::memcpy(_wb_data.old_pba, old_pba, sizeof (_wb_data.old_pba));
-
 		for (uint32_t i = 0; i < Translation::MAX_LEVELS; i++) {
 			if (old_pba[i].pba) {
 				MOD_DBG("old[", i, "]: ", old_pba[i].pba);
 			}
 		}
 
-		_reset_query_prim();
-
+		Genode::memcpy(_free_pba, free_pba, sizeof (_free_pba));
+		for (uint32_t i = 0; i < Translation::MAX_LEVELS; i++) {
+			if (free_pba[i]) {
+				MOD_DBG("free[", i, "]: ", free_pba[i]);
+			}
+		}
 	}
 
+	/**
+	 * Check if the entry is usable for allocation
+	 *
+	 * A node is useable either if it is currently not reserved,
+	 * or if it is reserved by the generation it was freed in is
+	 * not covered by any active snapshot, i.e., it was already
+	 * free before any snapshot was created and is therefor not
+	 * in use anymore.
+	 *
+	 * \param  active        list of current active snapshots
+	 * \param  last_secured  last secured generation
+	 * \param  node          reference to the to be checked entry
+	 *
+	 * \return true if the entry is useable, false otherwise
+	 */
 	bool _leaf_useable(Cbe::Snapshot     const active[Cbe::NUM_SNAPSHOTS],
 	                   Cbe::Generation   const last_secured,
 	                   Cbe::Type_ii_node const &node) const
@@ -337,6 +459,24 @@ struct Cbe::Free_tree
 		return free;
 	}
 
+	/**
+	 * Execute module
+	 *
+	 * Since the FT module incorporates a number of other modules or
+	 * needs access to the data ofther modules, we pass them in from
+	 * the outside to limit the copying of data.
+	 *
+	 * \param  active        list of currently active snapshots
+	 * \param  last_secured  last secured generation
+	 * \param  trans_data    reference to data used by the Translation module
+	 * \param  cache         reference to the cache module
+	 * \param  cache_data    reference to the data used by the Cache module
+	 * \param  query_data    reference to the dat used for the processing
+	 *                       of querying a branch in the FT
+	 * \param  time          reference to the time object
+	 *
+	 * \return true if some progress was made, otherwise false
+	 */
 	bool execute(Cbe::Snapshot    const  active[Cbe::NUM_SNAPSHOTS],
 	             Cbe::Generation  const  last_secured,
 	             Translation_Data       &trans_data,
@@ -356,6 +496,9 @@ struct Cbe::Free_tree
 		 ** Translation handling **
 		 **************************/
 
+		/*
+		 * Submit new request for querying a branch in the FT
+		 */
 		while (true) {
 			if (!_trans->acceptable()) { break; }
 			if (!_current_query_prim.valid()) { break; }
@@ -363,10 +506,19 @@ struct Cbe::Free_tree
 			MOD_DBG("trans submit: ", _current_query_prim);
 			_trans->submit_primitive(_root, _root_gen, _root_hash, _current_query_prim);
 
+			/*
+			 * Make the query primitive invalid after we successfully submitted
+			 * the request to trigger the break above. It will be made valid again
+			 * for next query.
+			 */
 			_current_query_prim.operation = Cbe::Primitive::Operation::INVALID;
 			progress |= true;
 		}
 
+		/*
+		 * Execute the Translation module and depending on the result
+		 * invoke the Cache module.
+		 */
 		progress |= _trans->execute(trans_data);
 		while (true) {
 			Cbe::Primitive p = _trans->peek_generated_primitive();
@@ -380,6 +532,10 @@ struct Cbe::Free_tree
 
 				if (cache.cxx_request_acceptable(pba)) {
 					cache.cxx_submit_request(pba);
+					// XXX it stands to reason if we have to set
+					// progress |= true;
+					//     in this case to prevent the CBE from
+					//     stalling
 				}
 				break;
 			} else {
@@ -395,12 +551,15 @@ struct Cbe::Free_tree
 
 			progress |= true;
 		}
-
 		while (true) {
 
 			Cbe::Primitive prim = _trans->peek_completed_primitive();
 			if (!prim.valid()) { break; }
 
+			/*
+			 * Translation has finished, we have the PBA of the type 2
+			 * node, request nodes data.
+			 */
 			_current_type_2 = {
 				.pba   = prim.block_number,
 				.state = Io_entry::State::PENDING,
@@ -409,6 +568,12 @@ struct Cbe::Free_tree
 
 			MOD_DBG(prim);
 
+			/*
+			 * To later update the free-tree, store the inner type 1 nodes
+			 * of the branch.
+			 *
+			 * (Currently not implemented.)
+			 */
 			if (!_trans->get_type_1_info(prim,
 			                             _query_branch[_current_query_branch].trans_info)) {
 				MOD_ERR("could not get type 1 info");
@@ -422,21 +587,44 @@ struct Cbe::Free_tree
 		 ** Query free leaf nodes **
 		 ***************************/
 
+		/*
+		 * The type 2 node's data was read successfully, now look
+		 * up potentially free blocks.
+		 */
 		if (_current_type_2.complete()) {
 
+			/*
+			 * (Invalidating the primitive here should not be necessary b/c it
+			 *  was already done by the Translation module, not sure why its still
+			 *  there.)
+			 */
 			_current_query_prim.operation = Cbe::Primitive::Operation::INVALID;
 
 			MOD_DBG("_current_type_2 complete");
+
+			/*
+			 * Check each entry in the type 2 node
+			 */
 			Cbe::Type_ii_node *node =
 				reinterpret_cast<Cbe::Type_ii_node*>(&query_data.item[0]);
 			for (size_t i = 0; i < Cbe::TYPE_2_PER_BLOCK; i++) {
+
+				/*
+				 * Ignore invalid entries.
+				 *
+				 * (It stands to reason if pba == 0 or pba == INVALID_PBA should
+				 *  be used - unfortunately its done inconsistently throughout the
+				 *  CBE. The reasons is that the 'cbe_block' uses a RAM dataspace
+				 *  as backing store which is zeroed out initiall which made the
+				 *  this cheap and pba 0 normally contains a superblock anyway.)
+				 */
 				Cbe::Physical_block_address const pba = node[i].pba;
 				if (!pba) { continue; }
 
 				bool const useable = _leaf_useable(active, last_secured, node[i]);
 
 				if (useable) {
-					/* store current VBA */
+					/* set VBA on the first useable entry, NOP for remaining entries */
 					if (_query_branch[_current_query_branch].vba == Cbe::INVALID_VBA) {
 						_query_branch[_current_query_branch].vba = _current_query_prim.block_number;
 					}
@@ -454,29 +642,58 @@ struct Cbe::Free_tree
 					break;
 				}
 			}
+			/*
+			 * (Rather than always increasing the current query branch,
+			 *  only do that when we actually found free blocks.
+			 *  Somehow or other, querying only 8 branches is not enough
+			 *  for large trees and we have to change the implementation
+			 *  later.)
+			 */
 			_current_query_branch++;
 
+			/*
+			 * Reset I/O helper to disarm complete check above.
+			 *
+			 * (Again, the module is in desperate need for proper state
+			 *  handling.)
+			 */
 			_current_type_2.state = Io_entry::State::INVALID;
 
 			bool const end_of_tree = (_current_query_prim.block_number + _tree_helper->degree() >= _tree_helper->leafs());
 			if (_found_blocks < _num_blocks) {
+
+				/*
+				 * In case we did not find enough free blocks, set the write-back
+				 * data. The arbiter will call 'peek_completed_primitive()' and will
+				 * try to discard snapshots.
+				 */
 				if (end_of_tree) {
 					Genode::warning("could not find enough usable leafs: ", _num_blocks - _found_blocks, " missing");
 					_wb_data.finished = true;
 					_wb_data.prim.success = Cbe::Primitive::Success::FALSE;
 				} else {
 
+					/* arm query primitive and check next type 2 node */
 					_current_query_prim.block_number += _tree_helper->degree();
 					_current_query_prim.operation = Cbe::Primitive::Operation::READ;
 				}
 			} else if (_num_blocks == _found_blocks) {
 
+				/*
+				 * Here we iterate over all query branches and will fill in all newly
+				 * allocated blocks consecutively in the new PBA list.
+				 */
 				uint32_t i = 0;
 				for (uint32_t b = 0; b < _current_query_branch; b++) {
 					for (uint32_t n = 0; n < _query_branch[b].free_blocks; n++) {
 
 						/* store iterator out-side so we start from the last set entry */
 						for (; i < Translation::MAX_LEVELS; i++) {
+
+							/*
+							 * Same convention as during the invalid entries check,
+							 * pba == 0 means we have to fill in a new block.
+							 */
 							if (!_wb_data.new_pba[i]) {
 								Cbe::Physical_block_address const pba = _query_branch[b].pba[n];
 								_wb_data.new_pba[i] = pba;
@@ -494,18 +711,28 @@ struct Cbe::Free_tree
 		}
 
 
-		/********************************
-		 ** Update meta-data in branch **
-		 ********************************/
+		/***********************************
+		 ** Update meta-data in free-tree **
+		 ***********************************/
 
 		if (_do_update) {
 
 			bool data_available = true;
 
+			/*
+			 * Make sure all needed inner nodes are in the cache.
+			 *
+			 * (Since there is only cache used throughout the CBE,
+			 *  VBD as well as FT changes will lead to flushing in case
+			 *  the generation gets sealed.)
+			 */
 			for (uint32_t b = 0; b < _current_query_branch; b++) {
 				Query_branch &qb = _query_branch[b];
 
-				// the FT translation only cares about the inner nodes
+				/*
+				 * Start at 1 as the FT translation only cares about the inner
+				 * nodes.
+				 */
 				for (uint32_t i = 1; i <= _tree_helper->height(); i++) {
 					Cbe::Physical_block_address const pba = qb.trans_info[i].pba;
 
@@ -528,6 +755,11 @@ struct Cbe::Free_tree
 				//     1. add type2 for each branch
 				//     2. add type1 for each branch
 				//    (3. add root  for each branch)
+				//
+				//    (Rather than brute-forcing its way through,
+				//     implement post-fix tree traversel, which
+				//     would omit the unnecessary hashing - it
+				//     gets computational expensive quickly.)
 				//////////////////////////////////////
 
 				uint32_t wb_cnt = 0;
@@ -541,6 +773,9 @@ struct Cbe::Free_tree
 						Cbe::Block_data &data = cache_data.item[idx.value];
 						bool const type2_node = (i == 1);
 
+						/*
+						 * Exchange the PBA in the type 2 node entries
+						 */
 						if (type2_node) {
 
 							using T = Cbe::Type_ii_node;
@@ -566,7 +801,11 @@ struct Cbe::Free_tree
 									}
 								}
 							}
-						} else {
+						}
+						/*
+						 * Update the inner type 1 nodes
+						 */
+						else {
 							uint32_t const pre_level = i - 1;
 
 							Cbe::Physical_block_address const pre_pba = qb.trans_info[pre_level].pba;
@@ -590,6 +829,7 @@ struct Cbe::Free_tree
 								}
 							}
 
+							/*  for now the root node is a special case */
 							if (i == _tree_helper->height()) {
 
 								Sha256_4k::Data const &hash_data =
@@ -599,7 +839,10 @@ struct Cbe::Free_tree
 							}
 						}
 
-						/* only add blocks once */
+						/*
+						 * Only add blocks once, which is a crude way to merge
+						 * the same inner nodes in all branches.
+						 */
 						bool already_pending = false;
 						for (uint32_t i = 0; i < wb_cnt; i++) {
 							if (_wb_io[i].pba == pba) {
@@ -610,6 +853,9 @@ struct Cbe::Free_tree
 
 						if (already_pending) { continue; }
 
+						/*
+						 * Add block to write-back I/O list
+						 */
 						_wb_io[wb_cnt].pba = pba;
 						_wb_io[wb_cnt].state = Io_entry::State::PENDING;
 						_wb_io[wb_cnt].index = idx;
@@ -651,6 +897,12 @@ struct Cbe::Free_tree
 		return progress;
 	}
 
+	/**
+	 * Get the next generated primitive
+	 *
+	 * \return valid primitive in case generated primitive
+	 *         is pending, otherwise an invalid primitive is returned
+	 */
 	Cbe::Primitive peek_generated_primitive() const
 	{
 		/* current type 2 node */
@@ -686,6 +938,16 @@ struct Cbe::Free_tree
 		return Cbe::Primitive { };
 	}
 
+	/**
+	 * Get index of the data buffer belonging to the given primitive
+	 *
+	 * This method must only be called after executing
+	 * 'peek_generated_primitive' returned a valid primitive.
+	 *
+	 * \param  p  reference to primitive the data belongs to
+	 *
+	 * \return index of data buffer
+	 */
 	Index peek_generated_data_index(Cbe::Primitive const &prim) const
 	{
 		Index idx { .value = Cbe::Index::INVALID };
@@ -701,6 +963,7 @@ struct Cbe::Free_tree
 
 				if (!_wb_io[i].pending()) {
 					Genode::warning(__func__, ": ignore invalid WRITE_BACK_TAG primitive");
+					break;
 				}
 
 				idx.value = _wb_io[i].index.value;
@@ -718,6 +981,14 @@ struct Cbe::Free_tree
 		return idx;
 	}
 
+	/**
+	 * Discard given generated primitive
+	 *
+	 * This method must only be called after executing
+	 * 'peek_generated_primitive' returned a valid primitive.
+	 *
+	 * \param  p  reference to primitive
+	 */
 	void drop_generated_primitive(Cbe::Primitive const &prim)
 	{
 		switch (prim.tag) {
@@ -744,6 +1015,15 @@ struct Cbe::Free_tree
 		}
 	}
 
+	/**
+	 * Mark the primitive as completed
+	 *
+	 * This method must only be called after executing
+	 * 'peek_generated_primitive' returned a valid primitive.
+	 *
+	 * \param p  reference to Primitive that is used to mark
+	 *           the corresponding internal primitive as completed
+	 */
 	void mark_generated_primitive_complete(Cbe::Primitive const &prim)
 	{
 		switch (prim.tag) {
@@ -780,6 +1060,16 @@ struct Cbe::Free_tree
 		}
 	}
 
+	/**
+	 * Check for any completed primitive
+	 *
+	 * The method will always a return a primitive and the caller
+	 * always has to check if the returned primitive is in fact a
+	 * valid one.
+	 *
+	 * \return a valid Primitive will be returned if there is an
+	 *         completed primitive, otherwise an invalid one
+	 */
 	Cbe::Primitive peek_completed_primitive()
 	{
 		if (_wb_data.valid()) {
@@ -788,6 +1078,16 @@ struct Cbe::Free_tree
 		return Cbe::Primitive { };
 	}
 
+	/**
+	 * Get write-back data belonging to a completed primitive
+	 *
+	 * This method must only be called after 'peek_completed_primitive'
+	 * returned a valid primitive.
+	 *
+	 * \param p   reference to the completed primitive
+	 *
+	 * \return write-back data
+	 */
 	Write_back_data const &peek_completed_wb_data(Cbe::Primitive const &prim) const
 	{
 		if (!prim.equal(_wb_data.prim)) {
@@ -799,6 +1099,14 @@ struct Cbe::Free_tree
 		return _wb_data;
 	}
 
+	/**
+	 * Discard given completed primitive
+	 *
+	 * This method must only be called after 'peek_completed_primitive'
+	 * returned a valid primitive.
+	 *
+	 * \param  p  reference to primitive
+	 */
 	void drop_completed_primitive(Cbe::Primitive const &prim)
 	{
 		if (!prim.equal(_wb_data.prim)) {
@@ -808,7 +1116,10 @@ struct Cbe::Free_tree
 
 		MOD_DBG(prim);
 
+		/* reset state */
 		_wb_data.finished = false;
+
+		/* request finished, ready for a new one */
 		_num_blocks = 0;
 	}
 };

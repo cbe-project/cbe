@@ -511,6 +511,13 @@ namespace Cbe {
 	              "Super-block too large");
 
 	/*
+	 * (Strictly speaking the following node types are not the
+	 * node itself but just defined a entry in the node. It
+	 * would be better to have a Type_1_node that contains a
+	 * Type_1_node_entry array.)
+	 */
+
+	/*
 	 * The Cbe::Type_i_node contains the on-disk type 1 inner node
 	 * information. This node is the primary tree node and as such
 	 * used by the virtual-block-device as well as the free-tree.
