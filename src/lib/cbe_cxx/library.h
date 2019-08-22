@@ -124,7 +124,7 @@ class Cbe::Library
 		/*
 		 * Write-back module
 		 */
-		using Write_back            = Module::Write_back<Cbe::Type_i_node>;
+		using Write_back            = Module::Write_back;
 		using Write_back_data       = Module::Write_back_data;
 		using Write_back_data_index = Module::Write_back_data_index;
 

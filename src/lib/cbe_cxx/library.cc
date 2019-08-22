@@ -959,6 +959,11 @@ bool Cbe::Library::execute(bool show_progress, bool show_if_progress)
 		Cbe::Block_data const &data        = _cache_data.item[idx.value];
 		Cbe::Block_data       &update_data = _cache_data.item[update_idx.value];
 
+		/*
+		 * (Later on we can remove the tree_helper here as the outer degree,
+		 *  which is used to calculate the entry in the inner node from the
+		 *  VBA is set at compile-time.)
+		 */
 		_write_back.update(pba, _vbd->tree_helper(), data, update_data);
 		/* make the potentially new entry as dirty so it gets flushed next time */
 		_cache.mark_dirty(update_pba);
