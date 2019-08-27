@@ -26,5 +26,6 @@ SRC_ADB += cbe-translation.adb
 SRC_ADB += cbe-cache_flusher.adb
 SRC_ADB += cbe-sync_superblock.adb
 SRC_ADB += cbe-virtual_block_device.adb
+SRC_ADB += cbe-free_tree.adb
 
 vpath % $(REP_DIR)/src/lib/cbe

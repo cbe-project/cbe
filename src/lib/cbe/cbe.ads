@@ -25,23 +25,28 @@ is
 	procedure print_u32 (U : U32) with Import, Convention => C, External_Name => "print_u32";
 	procedure print_u64 (U : U64) with Import, Convention => C, External_Name => "print_u64";
 
-	subtype Byte_Type                is SHA256_4K.Byte;
-	type Block_Data_Type             is array (1..4096) of Byte_Type with Size => 4096 * 8;
-	type Translation_Data_Type       is array (0..0) of Block_Data_Type with Size => 1 * 4096 * 8;
-	type Number_Of_Primitives_Type   is mod 2**64;
-	type Index_Type                  is mod 2**64;
-	type Generation_Type             is mod 2**64;
-	type Superblock_Index_Type       is mod 2**64;
-	type Physical_Block_Address_Type is mod 2**64;
-	type Virtual_Block_Address_Type  is mod 2**64;
-	type Timestamp_Type              is mod 2**64;
-	type Tree_Number_Of_Leafs_Type   is mod 2**64;
-	type Tree_Degree_Type            is mod 2**32;
-	type Tree_Degree_Mask_Type       is mod 2**32;
-	type Tree_Degree_Log_2_Type      is mod 2**32;
-	type Tree_Level_Type             is mod 2**32;
-	type Tree_Child_Index_Type       is mod 2**32;
-	type Tag_Type                    is mod 2**32;
+	subtype Byte_Type                 is SHA256_4K.Byte;
+	type Block_Data_Type              is array (1..4096) of Byte_Type with Size => 4096 * 8;
+	type Translation_Data_Type        is array (0..0) of Block_Data_Type with Size => 1 * 4096 * 8;
+	type Number_Of_Primitives_Type    is mod 2**64;
+	type Index_Type                   is mod 2**64;
+	type Generation_Type              is mod 2**64;
+	type Superblock_Index_Type        is mod 2**64;
+	type Physical_Block_Address_Type  is mod 2**64;
+	type Virtual_Block_Address_Type   is mod 2**64;
+	type Timestamp_Type               is mod 2**64;
+	type Tree_Level_Index_Type        is range 0..5;
+	type Tree_Number_Of_Leafs_Type    is mod 2**64;
+	type Tree_Degree_Type             is mod 2**32;
+	type Tree_Degree_Mask_Type        is mod 2**32;
+	type Tree_Degree_Log_2_Type       is mod 2**32;
+	type Tree_Level_Type              is mod 2**32;
+	type Tree_Child_Index_Type        is mod 2**32;
+	type Tag_Type                     is mod 2**32;
+	type Number_Of_Blocks_Type        is mod 2**32;
+	type Snapshot_ID_Type             is mod 2**32;
+	type Snapshot_Flags_Type          is mod 2**32;
+	type Key_ID_Type                  is mod 2**32;
 
 	-- FIXME should be architecture-dependent
 	type Address_Type is mod 2**64;
@@ -67,7 +72,58 @@ is
 		Hash : Hash_Type;
 	end record;
 
-	type Type_1_Node_Infos_Type is array (0..5) of Type_1_Node_Info_Type;
+	type Type_II_Node_Padding_Type is array (0..27) of Byte_Type;
+
+	--
+	-- The Cbe::Type_i_node contains the on-disk type 2 inner node
+	-- information. This node is only used in the free-tree at the
+	-- level directly above the leaf nodes.
+	--
+	type Type_II_Node_Type is record
+		PBA         : Physical_Block_Address_Type;
+		Last_VBA    : Virtual_Block_Address_Type;
+		Alloc_Gen   : Generation_Type;
+		Free_Gen    : Generation_Type;
+		Last_Key_ID : Key_ID_Type;
+		Padding     : Type_II_Node_Padding_Type;
+	end record with Size =>
+		 8 * 8 + -- PBA
+		 8 * 8 + -- Last_VBA
+		 8 * 8 + -- Alloc_Gen
+		 8 * 8 + -- Free_Gen
+		 4 * 8 + -- Last_Key_Id
+		28 * 8;  -- Padding
+
+	--
+	-- The Cbe::Snapshot stores the information about a given tree within
+	-- the CBE.
+	--
+	type Snapshot_Type is record
+		Hash        : Hash_Type;
+		PBA         : Physical_block_address_Type;
+		Gen         : Generation_Type;
+		Nr_Of_Leafs : Tree_Number_Of_Leafs_Type;
+		Height      : Tree_Level_Type;
+		ID          : Snapshot_ID_Type;
+		Flags       : Snapshot_Flags_Type;
+	end record;
+
+	for Snapshot_Type use record
+		Hash        at 0  range 0 .. 32 * 8 - 1;
+		PBA         at 32 range 0 ..  8 * 8 - 1;
+		Gen         at 40 range 0 ..  8 * 8 - 1;
+		Nr_Of_Leafs at 48 range 0 ..  8 * 8 - 1;
+		Height      at 56 range 0 ..  4 * 8 - 1;
+		ID          at 64 range 0 ..  4 * 8 - 1;
+		Flags       at 68 range 0 ..  4 * 8 - 1;
+	end record;
+
+	for Snapshot_Type'Size use 72 * 8;
+
+	type Snapshots_Index_Type is range 0..47;
+	type Snapshots_Type is array (Snapshots_Index_Type) of Snapshot_Type;
+
+	type Type_1_Node_Infos_Type is array (0..Natural (Tree_Level_Index_Type'Last)) of Type_1_Node_Info_Type;
 
 	function Type_1_Node_Info_Invalid
 	return Type_1_Node_Info_Type
@@ -76,8 +132,14 @@ is
 		Gen  => 0,
 		Hash => (others => 0));
 
+	function VBA_Invalid return Virtual_Block_Address_Type is (Virtual_Block_Address_Type'Last);
 	function PBA_Invalid return Physical_Block_Address_Type is (Physical_Block_Address_Type'Last);
 	function Tree_Level_Invalid return Tree_Level_Type is (Tree_Level_Type'Last);
+
+	--
+	-- Tag meanings
+	--
+	function Tag_Invalid     return Tag_Type is (16#00#);
 	function Tag_Translation return Tag_Type is (16#60#);
 
 end CBE;
