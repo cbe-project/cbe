@@ -1,0 +1,175 @@
+build {
+	core init timer
+	server/cbe_block
+	server/report_rom
+	server/vfs
+	lib/vfs/cbe
+	test/libc_vfs_block
+}
+
+create_boot_directory
+
+install_config {
+<config verbose="yes">
+	<parent-provides>
+		<service name="ROM"/>
+		<service name="RAM"/>
+		<service name="IRQ"/>
+		<service name="IO_MEM"/>
+		<service name="IO_PORT"/>
+		<service name="PD"/>
+		<service name="RM"/>
+		<service name="CPU"/>
+		<service name="LOG"/>
+	</parent-provides>
+
+	<default-route>
+		<any-service> <parent/> <any-child/> </any-service>
+	</default-route>
+
+	<default caps="100"/>
+	<start name="timer">
+		<resource name="RAM" quantum="1M"/>
+		<provides><service name="Timer"/></provides>
+	</start>
+
+	<start name="report_rom">
+		<resource name="RAM" quantum="32M"/>
+		<provides> <service name="Report"/> <service name="ROM"/> </provides>
+		<config verbose="yes"/>
+	</start>
+
+	<start name="cbe_block">
+		<resource name="RAM" quantum="1G"/>
+		<provides><service name="Block"/></provides>
+		<config report="no" verbose="no" backing_size="512M"
+		        vbd_size="2M" vbd_outer_degree="64"
+		        ft_size="1M"   ft_outer_degree="64"
+		        initialize="yes">
+		</config>
+		<route>
+			<service name="Report"> <child name="report_rom"/> </service>
+			<any-service> <parent/> </any-service>
+		</route>
+	</start>
+
+	<start name="vfs_cbe">
+		<binary name="vfs"/>
+		<resource name="RAM" quantum="16M"/>
+		<provides><service name="File_system"/></provides>
+		<config>
+			<vfs>
+				<dir name="dev">
+					<block name="block" label="block_backend"/>
+					<cbe name="cbe" show_progress="no" sync_interval="3" secure_interval="10" block="/dev/block"/>
+					<!--
+						/
+						/block              r/w snapshot
+						/snapshot/0/block   r/o snapshot
+						/snapshot/0/md      meta-data snapshot used blocks ... -->
+				</dir>
+			</vfs>
+			<policy label="test-libc_vfs_block -> cbe" root="/dev/cbe" writeable="yes"/>
+		</config>
+		<route>
+			<service name="Block" label="block_backend"> <child name="cbe_block"/> </service>
+			<service name="Timer"> <child name="timer"/> </service>
+			<any-service> <parent/> </any-service>
+		</route>
+	</start>
+
+	<start name="test-libc_vfs_block">
+		<resource name="RAM" quantum="4M"/>
+		<config>
+			<vfs>
+				<dir name="dev">
+					<fs label="cbe"/>
+				</dir>
+			</vfs>
+			<libc/>
+
+			<!-- Populate the block device with a pattern and validate the
+				 write operation by reading back the content. -->
+			<sequence>
+				<write  content="abcdefghIJKLMNOPqrstuvwxYZABCDEF"/>
+				<expect content="abcdefghIJKLMNOPqrstuvwxYZABCDEF"/>
+			</sequence>
+
+			<!-- Write single 512 block. This requires the successive reading,
+				 modification, and writing of the compound 4096 block. -->
+			<sequence>
+				<write  at="9" content="%"/>
+				<expect content="abcdefghI%KLMNOPqrstuvwxYZABCDEF"/>
+			</sequence>
+
+			<!-- Reset the pattern and write multiple 512 blocks that cross
+				 a 4096 boundary. -->
+			<sequence>
+				<write  content="abcdefghIJKLMNOPqrstuvwxYZABCDEF"/>
+				<write  at="15" content="123"/>
+				<expect content="abcdefghIJKLMNO123stuvwxYZABCDEF"/>
+			</sequence>
+		</config>
+		<route>
+			<service name="File_system" label="cbe"> <child name="vfs_cbe"/> </service>
+			<any-service> <parent/> </any-service>
+		</route>
+	</start>
+
+<!--
+	<start name="vfs_cbe">
+		<binary name="vfs"/>
+		<resource name="RAM" quantum="16M"/>
+		<provides><service name="File_system"/></provides>
+		<config>
+			<vfs>
+				<dir name="dev">
+					<block name="block" label="block_backend"/>
+					<cbe name="cbe" show_progress="no" sync_interval="3" secure_interval="10" block="/dev/block"/>
+						/
+						/block              r/w snapshot
+						/snapshot/0/block   r/o snapshot
+						/snapshot/0/md      meta-data snapshot used blocks ...
+				</dir>
+			</vfs>
+			<policy label="vfs_cbe_tester" root="/dev/cbe" writeable="yes"/>
+		</config>
+		<route>
+			<service name="Block" label="block_backend"> <child name="cbe_block"/> </service>
+			<service name="Timer"> <child name="timer"/> </service>
+			<any-service> <parent/> </any-service>
+		</route>
+	</start>
+
+	<start name="vfs_cbe_tester">
+		...
+		<config cbe_file="/dev/block">
+			<libc .../>
+			<vfs>
+				<dir name="dev">
+					<fs label="cbe"/>
+						block
+				</dir>
+			</vfs>
+		</config>
+		<route>
+			<service name="File_system" label="cbe"> <child name="vfs_cbe"/> </service>
+			<service name="Timer"> <child name="timer"/> </service>
+			<any-service> <parent/> </any-service>
+		</route>
+	</start>
+-->
+</config>}
+
+
+build_boot_image {
+	core init timer cbe_block report_rom
+	ld.lib.so spark.lib.so libsparkcrypto.lib.so
+	vfs vfs.lib.so vfs_cbe.lib.so
+	test-libc_vfs_block libc.lib.so
+}
+
+
+append qemu_args " -nographic -m 1280 "
+
+run_genode_until {.*child "block_tester" exited with exit value 0.*\n} 240
