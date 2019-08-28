@@ -13,6 +13,7 @@ namespace Vfs_cbe {
 	class  File_system;
 }
 
+
 class Vfs_cbe::Block_file_system : public Single_file_system
 {
 	private:
@@ -29,8 +30,40 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 
 	public:
 
+		struct Vfs_handle : Single_vfs_handle
+		{
+			Vfs_handle(Directory_service &ds,
+			           File_io_service   &fs,
+			           Genode::Allocator &alloc)
+			: Single_vfs_handle(ds, fs, alloc, 0)
+			{ }
+
+			Read_result read(char *dst, file_size count,
+			                 file_size &out_count) override
+			{
+				Genode::warning(__PRETTY_FUNCTION__, " called");
+				out_count = 0;
+				return READ_ERR_INVALID;
+			}
+
+			Write_result write(char const *, file_size,
+			                   file_size &out_count) override
+			{
+				Genode::warning(__PRETTY_FUNCTION__, " called");
+				out_count = 0;
+				return WRITE_ERR_INVALID;
+			}
+
+			bool read_ready() override
+			{
+				Genode::warning(__PRETTY_FUNCTION__, " called");
+				return false;
+			}
+		};
+
 		Block_file_system(Vfs::Env &env)
 		: Single_file_system(NODE_TYPE_BLOCK_DEVICE, type_name(), _config().string()) { }
+
 
 		/***************************
 		 ** File-system interface **
@@ -40,8 +73,13 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 		                 Vfs::Vfs_handle **out_handle,
 		                 Allocator   &alloc) override
 		{
-			warning(__func__, "called: ", path);
-			return OPEN_ERR_UNACCESSIBLE;
+			if (!_single_file(path))
+				return OPEN_ERR_UNACCESSIBLE;
+
+			warning(__func__, " called: ", path);
+			*out_handle = new (alloc) Vfs_handle(*this, *this, alloc);
+
+			return OPEN_OK;
 		}
 
 		static char const *type_name() { return "block"; }
