@@ -28,6 +28,12 @@
 #define DEBUG 1
 #if defined(DEBUG) && DEBUG > 0
 
+namespace Cbe {
+
+	Genode::uint32_t object_size(Tree_helper const &);
+}
+
+
 static inline Genode::uint64_t __rdtsc__()
 {
 	Genode::uint32_t lo, hi;
@@ -633,9 +639,8 @@ bool Cbe::Library::execute(bool show_progress, bool show_if_progress)
 	 * (Basically the same issue regarding SPARK as the FT module...)
 	 */
 	{
-		bool const vbd_progress = _vbd->execute(_trans_data,
-		                                        _cache, _cache_data,
-		                                        _time);
+		_vbd->execute(_trans_data, _cache, _cache_data, _time.timestamp());
+		bool const vbd_progress = _vbd->execute_progress();
 		progress |= vbd_progress;
 		LOG_PROGRESS(vbd_progress);
 	}
@@ -1572,9 +1577,10 @@ bool Cbe::Library::give_write_data(Cbe::Request    const &request,
 		 * the tree.
 		 */
 		Cbe::Type_1_node_info old_pba[Translation::MAX_LEVELS] { };
-		if (!_vbd->trans_get_type_1_info(prim, old_pba)) {
+		if (!_vbd->trans_can_get_type_1_info(prim, old_pba)) {
 			return false;
 		}
+		_vbd->trans_get_type_1_info(old_pba);
 
 		uint32_t const trans_height = _vbd->tree_height() + 1;
 
