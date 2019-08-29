@@ -72,7 +72,7 @@ is
 		Hash : Hash_Type;
 	end record;
 
-	type Type_II_Node_Padding_Type is array (0..27) of Byte_Type;
+	type Type_II_Node_Padding_Type is array (0..26) of Byte_Type;
 
 	--
 	-- The Cbe::Type_i_node contains the on-disk type 2 inner node
@@ -85,6 +85,7 @@ is
 		Alloc_Gen   : Generation_Type;
 		Free_Gen    : Generation_Type;
 		Last_Key_ID : Key_ID_Type;
+		Reserved    : Boolean;
 		Padding     : Type_II_Node_Padding_Type;
 	end record with Size =>
 		 8 * 8 + -- PBA
@@ -92,7 +93,8 @@ is
 		 8 * 8 + -- Alloc_Gen
 		 8 * 8 + -- Free_Gen
 		 4 * 8 + -- Last_Key_Id
-		28 * 8;  -- Padding
+		 1 * 8 + -- Reserved
+		27 * 8;  -- Padding
 
 	--
 	-- The Cbe::Snapshot stores the information about a given tree within
@@ -119,6 +121,14 @@ is
 	end record;
 
 	for Snapshot_Type'Size use 72 * 8;
+
+	function Snapshot_ID_Invalid
+	return Snapshot_ID_Type
+	is (Snapshot_ID_Type'Last);
+
+	function Snapshot_Valid (Snap : Snapshot_Type)
+	return Boolean
+	is (Snap.ID /= Snapshot_ID_Invalid);
 
 	type Snapshots_Index_Type is range 0..47;
 	type Snapshots_Type is array (Snapshots_Index_Type) of Snapshot_Type;

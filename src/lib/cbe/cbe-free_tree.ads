@@ -209,4 +209,25 @@ private
 		Old_PBAs    => (others => Type_1_Node_Info_Invalid),
 		Finished    => False);
 
+	--
+	-- Check if the entry is usable for allocation
+	--
+	-- A node is useable either if it is currently not reserved,
+	-- or if it is reserved by the generation it was freed in is
+	-- not covered by any active snapshot, i.e., it was already
+	-- free before any snapshot was created and is therefor not
+	-- in use anymore.
+	--
+	-- \param  active        list of current active snapshots
+	-- \param  last_secured  last secured generation
+	-- \param  node          reference to the to be checked entry
+	--
+	-- \return true if the entry is useable, false otherwise
+	--
+	function Leaf_Usable (
+		Active_Snaps     : Snapshots_Type;
+		Last_Secured_Gen : Generation_Type;
+		Node             : Type_II_Node_Type)
+	return Boolean;
+
 end CBE.Free_Tree;

@@ -175,54 +175,68 @@ is
 
 	end Submit_Request;
 
---	function Leaf_Usable (
---		Obj              : Object_Type;
---		Active_Snaps     : Snapshots_Type;
---		Last_Secured_Gen : Generation_Type;
---		Node             : Type_II_Node_Type)
---	is
---	begin
---	end Leaf_Usable;
+	function Leaf_Usable (
+		Active_Snaps     : Snapshots_Type;
+		Last_Secured_Gen : Generation_Type;
+		Node             : Type_II_Node_Type)
+	return Boolean
+	is
+		Free   : Boolean := False;
+		In_Use : Boolean := False;
+	begin
+		-- XXX check could be done outside
+		if  not Node.Reserved then
+			return True;
+		end if;
 
---	bool _leaf_useable(Cbe::Snapshot     const active[Cbe::NUM_SNAPSHOTS],
---	                   Cbe::Generation   const last_secured,
---	                   Cbe::Type_ii_node const &node) const
---	{
---		// XXX check could be done outside
---		if (!node.reserved) { return true; }
---
---		Cbe::Generation const f_gen = node.free_gen;
---		Cbe::Generation const a_gen = node.alloc_gen;
---		Cbe::Generation const s_gen = last_secured;
---
---		bool free = false;
---		/*
---		 * If the node was freed before the last secured generation,
---		 * check if there is a active snapshot that might be using the node,
---		 * i.e., its generation is after the allocation generation and before
---		 * the free generation.
---		 */
---		if (f_gen <= s_gen) {
---
---			bool in_use = false;
---			for (uint64_t i = 0; i < Cbe::NUM_SNAPSHOTS; i++) {
---				Cbe::Snapshot const &b = active[i];
---				if (!b.valid()) { continue; }
---
---				// MOD_DBG("snap: ", b);
---				Cbe::Generation const b_gen = b.gen;
---
---				bool const is_free = (f_gen <= b_gen || a_gen >= (b_gen + 1));
---
---				in_use |= !is_free;
---				if (in_use) { break; }
---			}
---
---			free = !in_use;
---		}
---		// MOD_DBG(free ? "REUSE" : " RESERVE", " PBA: ", node.pba,
---		//         " f: ", f_gen, " a: ", a_gen);
---		return free;
---	}
+		Declare_Generations:
+		declare
+			F_Gen : constant Generation_Type := Node.Free_Gen;
+			A_Gen : constant Generation_Type := Node.Alloc_Gen;
+			S_Gen : constant Generation_Type := Last_Secured_Gen;
+		begin
+			--
+			-- If the node was freed before the last secured generation,
+			-- check if there is a active snapshot that might be using the node,
+			-- i.e., its generation is after the allocation generation and before
+			-- the free generation.
+			--
+			if F_Gen <= S_Gen then
+				For_Active_Snaps:
+				for Snap of Active_Snaps loop
+					if Snapshot_Valid (Snap) then
+						-- Print_String ("FRTR Leaf_Usable snap:");
+						-- Print_Snapshot (Active_Snaps (Snap_ID));
+						-- Print_Line_Break;
+						Declare_B_Generation:
+						declare
+							B_Gen   : constant Generation_Type := Snap.Gen;
+							Is_Free : constant Boolean :=
+								(F_Gen <= B_Gen or A_Gen >= (B_Gen + 1));
+						begin
+							In_Use := In_Use or not Is_Free;
+							exit For_Active_Snaps when In_Use;
+						end Declare_B_Generation;
+					end if;
+				end loop For_Active_Snaps;
+				Free := not In_Use;
+			end if;
+			-- Print_String ("FRTR Leaf_Usable ");
+			-- if Free then
+			-- 	Print_String ("REUSE");
+			-- else
+			-- 	Print_String ("RESERVE");
+			-- end if;
+			-- Print_String (" PBA: ");
+			-- Print_Word_Hex (Node.PBA);
+			-- Print_String (" f: ");
+			-- Print_Word_Dec (F_Gen);
+			-- Print_String (" a: ");
+			-- Print_Word_Dec (A_Gen);
+			-- Print_Line_Break;
+		end Declare_Generations;
+		return Free;
+
+	end Leaf_Usable;
 
 end CBE.Free_Tree;
