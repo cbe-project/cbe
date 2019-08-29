@@ -8,6 +8,9 @@
 
 pragma Ada_2012;
 
+with SHA256_4K;
+with CBE.Request;
+
 package body CBE.Free_Tree
 with Spark_Mode
 is
@@ -184,7 +187,7 @@ is
 		Free   : Boolean := False;
 		In_Use : Boolean := False;
 	begin
-		-- XXX check could be done outside
+		-- FIXME check could be done outside
 		if  not Node.Reserved then
 			return True;
 		end if;
@@ -238,5 +241,802 @@ is
 		return Free;
 
 	end Leaf_Usable;
+
+	procedure Execute (
+		Obj              : in out Object_Type;
+		Active_Snaps     :        Snapshots_Type;
+		Last_Secured_Gen :        Generation_Type;
+		Trans_Data       : in out Translation_Data_Type;
+		Cach             : in out Cache.Object_Type;
+		Cach_Data        : in out Cache.Cache_Data_Type;
+		Query_Data       :        Query_Data_Type;
+		Timestamp        :        Timestamp_Type)
+	is
+	begin
+		Obj.Execute_Progress := False;
+
+		-- nothing to do, return early
+		if Obj.Nr_Of_Blocks = 0 then
+			return;
+		end if;
+
+		--------------------------
+		-- Translation handling --
+		--------------------------
+
+		--
+		-- Submit new request for querying a branch in the FT
+		--
+		Loop_Query_FT_Branch:
+		loop
+			exit Loop_Query_FT_Branch when not Translation.Acceptable (Obj.Trans);
+			exit Loop_Query_FT_Branch when not Primitive.Valid (Obj.Curr_Query_Prim);
+
+			-- Print_String ("FRTR Execute trans submit: ");
+			-- Print_Primitive (Obj.Curr_Query_Prim);
+			-- Print_Line_Break;
+
+			Translation.Submit_Primitive (
+				Obj.Trans, Obj.Root_PBA, Obj.Root_Gen, Obj.Root_Hash,
+				Obj.Curr_Query_Prim);
+
+			--
+			-- Make the query primitive invalid after we successfully submitted
+			-- the request to trigger the break above. It will be made valid again
+			-- for next query.
+			--
+			Obj.Curr_Query_Prim := Primitive.Invalid_Object;
+			Obj.Execute_Progress := True;
+
+		end loop Loop_Query_FT_Branch;
+
+		--
+		-- Execute the Translation module and depending on the result
+		-- invoke the Cache module.
+		--
+		Translation.Execute (Obj.Trans, Trans_Data);
+		Obj.Execute_Progress :=
+			Obj.Execute_Progress or Translation.Execute_Progress (Obj.Trans);
+
+		Loop_Handle_Trans_Generated_Prim:
+		loop
+			Declare_Generated_Prim:
+			declare
+				Prim : constant Primitive.Object_Type :=
+					Translation.Peek_Generated_Primitive (Obj.Trans);
+			begin
+				exit Loop_Handle_Trans_Generated_Prim when not Primitive.Valid (Prim);
+
+				-- Print_String ("FRTR Execute trans peek generated: ");
+				-- Print_Primitive (Prim);
+				-- Print_Line_Break;
+
+				Declare_PBA:
+				declare
+					PBA : constant Physical_Block_Address_Type :=
+						Physical_Block_Address_Type (
+							Primitive.Block_Number (Prim));
+				begin
+					if not Cache.Data_Available (Cach, PBA) then
+						-- Print_String ("FRTR Execute cache data not available: ");
+						-- Print_Word_Hex (PBA);
+						-- Print_Line_Break;
+						if Cache.Request_Acceptable_Logged (Cach, PBA) then
+							Cache.Submit_Request_Logged (Cach, PBA);
+
+							-- FIXME it stands to reason if we have to set
+							-- progress |= true;
+							--     in this case to prevent the CBE from
+							--     stalling
+						end if;
+						exit Loop_Handle_Trans_Generated_Prim;
+					else
+						-- Print_String ("FRTR Execute cache data available: ");
+						-- Print_Word_Hex (PBA);
+						-- Print_Line_Break;
+						Declare_Data_Index_1:
+						declare
+							Data_Index : constant Cache.Cache_Index_Type :=
+								Cache.Data_Index (Cach, PBA, Timestamp);
+						begin
+							Translation.Mark_Generated_Primitive_Complete (
+								Obj.Trans, Cach_Data (Data_Index), Trans_Data);
+
+							Translation.Discard_Generated_Primitive (
+								Obj.Trans);
+
+						end Declare_Data_Index_1;
+					end if;
+				end Declare_PBA;
+			end Declare_Generated_Prim;
+			Obj.Execute_Progress := True;
+		end loop Loop_Handle_Trans_Generated_Prim;
+
+		Loop_Handle_Trans_Completed_Prim:
+		loop
+			Declare_Completed_Prim:
+			declare
+				Prim : constant Primitive.Object_Type :=
+					Translation.Peek_Completed_Primitive (Obj.Trans);
+			begin
+				exit Loop_Handle_Trans_Completed_Prim when not Primitive.Valid (Prim);
+
+				--
+				-- Translation has finished, we have the PBA of the type 2
+				-- node, request nodes data.
+				--
+				Obj.Curr_Type_2 := (
+					PBA   => Physical_Block_Address_Type (Primitive.Block_Number (Prim)),
+					State => Pending,
+					Index => 0);
+
+				-- Print_String ("FRTR Execute trans completed: ");
+				-- Print_Primitive (Prim);
+				-- Print_Line_Break;
+
+				--
+				-- To later update the free-tree, store the inner type 1 nodes
+				-- of the branch.
+				--
+				-- (Currently not implemented.)
+				--
+				if not
+					Translation.Can_Get_Type_1_Info_Spark (
+						Obj.Trans, Prim)
+				then
+					-- Print_String ("FRTR Execute could not get type 1 info");
+					-- Print_Line_Break;
+					raise Program_Error;
+				end if;
+				Translation.Get_Type_1_Info (
+					Obj.Trans,
+					Obj.Query_Branches (Obj.Curr_Query_Branch).Trans_Infos);
+
+				Translation.Drop_Completed_Primitive (Obj.Trans);
+				Obj.Execute_Progress := True;
+
+			end Declare_Completed_Prim;
+		end loop Loop_Handle_Trans_Completed_Prim;
+
+		---------------------------
+		-- Query free leaf nodes --
+		---------------------------
+
+		--
+		-- The type 2 node's data was read successfully, now look
+		-- up potentially free blocks.
+		--
+		if Obj.Curr_Type_2.State = Complete then
+
+			--
+			-- (Invalidating the primitive here should not be necessary b/c it
+			--  was already done by the Translation module, not sure why its still
+			--  there.)
+			--
+			Obj.Curr_Query_Prim := Primitive.Invalid_Object;
+
+			-- MOD_DBG("Obj.Curr_Type_2 complete");
+
+			--
+			-- Check each entry in the type 2 node
+			--
+			Declare_Nodes_1:
+			declare
+				Nodes : Type_II_Node_Block_Type with Address => Query_Data (0)'Address;
+			begin
+
+				For_Type_2_Nodes:
+				for Node_Index in Nodes'Range loop
+
+					--
+					-- Ignore invalid entries.
+					--
+					-- (It stands to reason if pba == 0 or pba == INVALID_PBA should
+					--  be used - unfortunately its done inconsistently throughout the
+					--  CBE. The reasons is that the 'cbe_Block' uses a RAM dataspace
+					--  as backing store which is zeroed out initiall which made the
+					--  this cheap and pba 0 normally contains a superblock anyway.)
+					--
+					Declare_PBA_1:
+					declare
+						PBA : constant Physical_Block_Address_Type :=
+							Nodes (Node_Index).PBA;
+					begin
+						if PBA /= 0 then
+							Declare_Usable:
+							declare
+								Usable : constant Boolean :=
+									Leaf_Usable(Active_Snaps, Last_Secured_Gen, Nodes (Node_Index));
+							begin
+								if Usable then
+
+									--  set VBA on the first Usable entry, NOP for remaining entries
+									if Obj.Query_Branches (Obj.Curr_Query_Branch).VBA = VBA_Invalid then
+										Obj.Query_Branches (Obj.Curr_Query_Branch).VBA :=
+											Virtual_Block_Address_Type (
+												Primitive.Block_Number (Obj.Curr_Query_Prim));
+									end if;
+
+									Declare_Free_Blocks:
+									declare
+										Free_Blocks : constant Number_Of_Blocks_Type :=
+											Obj.Query_Branches (Obj.Curr_Query_Branch).Nr_Of_Free_Blocks;
+									begin
+										Obj.Query_Branches (Obj.Curr_Query_Branch).PBAs (Natural (Free_Blocks)) := PBA;
+										Obj.Query_Branches (Obj.Curr_Query_Branch).Nr_Of_Free_Blocks := Free_Blocks + 1;
+										Obj.Nr_Of_Found_Blocks := Obj.Nr_Of_Found_Blocks + 1;
+
+										-- MOD_DBG("found free PBA: ", PBA);
+									end Declare_Free_Blocks;
+								end if;
+							end Declare_Usable;
+						end if;
+					end Declare_PBA_1;
+
+					--  break off early
+					exit For_Type_2_Nodes when
+						Obj.Nr_Of_Blocks = Obj.Nr_Of_Found_Blocks;
+
+				end loop For_Type_2_Nodes;
+
+			end Declare_Nodes_1;
+
+			--
+			-- (Rather than always increasing the current query branch,
+			--  only do that when we actually found free blocks.
+			--  Somehow or other, querying only 8 branches is not enough
+			--  for large trees and we have to change the implementation
+			--  later.)
+			--
+			Obj.Curr_Query_Branch := Obj.Curr_Query_Branch + 1;
+
+			--
+			-- Reset I/O helper to disarm complete check above.
+			--
+			-- (Again, the module is in desperate need for proper state
+			--  handling.)
+			--
+			Obj.Curr_Type_2.state := Invalid;
+
+			Declare_End_Of_Tree:
+			declare
+				use Request;
+				End_Of_Tree : constant Boolean :=
+					Primitive.Block_Number (Obj.Curr_Query_Prim) +
+					Block_Number_Type (Tree_Helper.Degree (Obj.Trans_Helper)) >=
+					Block_Number_Type (Tree_Helper.Leafs (Obj.Trans_Helper));
+			begin
+
+				if Obj.Nr_Of_Found_Blocks < Obj.Nr_Of_Blocks then
+
+					--
+					-- In case we did not find enough free blocks, set the write-back
+					-- data. The arbiter will call 'peek_Completed_Primitive()' and will
+					-- try to discard snapshots.
+					--
+					if End_Of_Tree then
+
+						-- Genode::warning("could not find enough usable leafs: ", Obj.Nr_Of_Blocks - Obj.Nr_Of_Found_Blocks, " missing");
+						Obj.Wb_Data.Finished := True;
+						Primitive.Success (Obj.Wb_Data.Prim, False);
+
+					else
+
+						-- arm query primitive and check next type 2 node
+						Primitive.Block_Number (Obj.Curr_Query_Prim,
+							Primitive.Block_Number (Obj.Curr_Query_Prim) +
+							Block_Number_Type (Tree_Helper.Degree (Obj.Trans_Helper)));
+
+						Primitive.Operation (Obj.Curr_Query_Prim, Request.Read);
+					end if;
+				elsif Obj.Nr_Of_Blocks = Obj.Nr_Of_Found_Blocks then
+
+					--
+					-- Here we iterate over all query branches and will fill in all newly
+					-- allocated blocks consecutively in the new PBA list.
+					--
+					Declare_Last_New_PBA_Index:
+					declare
+						Last_New_PBA_Index : Tree_Level_Index_Type := 0;
+					begin
+						For_Query_Branches_Less_Than_Curr_1:
+						for Branch_Index in 0 .. Obj.Curr_Query_Branch - 1 loop
+
+							For_PBAs_Of_Free_Blocks:
+							for PBA_Index in 0 .. Obj.Query_Branches (Branch_Index).Nr_Of_Free_Blocks - 1 loop
+
+								For_Unhandled_New_PBAs:
+								for New_PBA_Index in Last_New_PBA_Index .. Tree_Level_Index_Type'Last loop
+
+									--  store iterator out-side so we start from the last set entry
+									Last_New_PBA_Index := New_PBA_Index;
+
+									--
+									-- Same convention as during the invalid entries check,
+									-- PBA = 0 means we have to fill in a new block.
+									--
+									if Obj.WB_Data.New_PBAs (New_PBA_Index) = 0 then
+
+										Obj.Wb_Data.New_PBAs (New_PBA_Index) :=
+											Obj.Query_Branches (Branch_Index).PBAs (Natural (PBA_Index));
+
+										--MOD_DBG("use free branch: ", Branch_Index, " n: ", PBA_Index, " PBA: ", PBA);
+										exit For_Unhandled_New_PBAs;
+
+									end if;
+								end loop For_Unhandled_New_PBAs;
+							end loop For_PBAs_Of_Free_Blocks;
+						end loop For_Query_Branches_Less_Than_Curr_1;
+					end Declare_Last_New_PBA_Index;
+
+					Obj.Do_Update := True;
+				end if;
+			end Declare_End_Of_Tree;
+
+			Obj.Execute_Progress := True;
+		end if;
+
+		-----------------------------------
+		-- Update meta-data in free-tree --
+		-----------------------------------
+
+		if Obj.Do_Update then
+
+			Declare_Data_Available:
+			declare
+				Data_Available : Boolean := True;
+			begin
+
+				--
+				-- Make sure all needed inner nodes are in the cache.
+				--
+				-- (Since there is only cache used throughout the CBE,
+				--  VBD as well as FT changes will lead to flushing in case
+				--  the generation gets sealed.)
+				--
+				For_Query_Branches_Less_Than_Curr_2:
+				for Branch_Index in 0 .. Obj.Curr_Query_Branch - 1 loop
+
+					--
+					-- Start at 1 as the FT translation only cares about the inner
+					-- nodes.
+					--
+					For_Tree_Levels_Greater_Zero_1:
+					for Tree_Level in 1 .. Tree_Helper.Height (Obj.Trans_Helper) loop
+
+						Declare_PBA_2:
+						declare
+							PBA : constant Physical_Block_Address_Type :=
+								Obj.Query_Branches (Branch_Index).Trans_Infos (Natural (Tree_Level)).PBA;
+						begin
+
+							if not Cache.Data_Available(Cach, PBA) then
+
+								if Cache.Request_Acceptable_Logged (Cach, PBA) then
+
+									Cache.Submit_Request_Logged (Cach, PBA);
+									Obj.Execute_Progress := True;
+								end if;
+								Data_Available := False;
+
+								exit For_Tree_Levels_Greater_Zero_1;
+
+							end if;
+						end Declare_PBA_2;
+					end loop For_Tree_Levels_Greater_Zero_1;
+				end loop For_Query_Branches_Less_Than_Curr_2;
+
+				if Data_Available then
+
+					--------------------------------------
+					-- FIXME CHANGE HOW THE WB LIST IS POPULATED:
+					--     1. add type2 for each branch
+					--     2. add type1 for each branch
+					--    (3. add root  for each branch)
+					--
+					--    (Rather than brute-forcing its way through,
+					--     implement post-fix tree traversel, which
+					--     would omit the unnecessary hashing - it
+					--     gets computational expensive quickly.)
+					--------------------------------------
+
+					Declare_WB_Count:
+					declare
+						WB_Count : WB_IO_Entries_Index_Type := 0;
+					begin
+						For_Query_Branches_Before_Curr:
+						for Branch_Index in 0 .. Obj.Curr_Query_Branch - 1 loop
+
+							For_Tree_Levels_Greater_Zero_2:
+							for Tree_Level_1 in 1 .. Tree_Helper.Height (Obj.Trans_Helper) loop
+
+								Declare_Data_Index_2:
+								declare
+									PBA : constant Physical_Block_Address_Type :=
+										Obj.Query_Branches (Branch_Index).Trans_Infos (Natural (Tree_Level_1)).PBA;
+
+									Data_Index : constant Cache.Cache_Index_Type :=
+										Cache.Data_Index (Cach, PBA, Timestamp);
+
+									Type_2_Node : constant Boolean := (Tree_Level_1 = 1);
+								begin
+
+									if Type_2_Node then
+
+										--
+										-- Exchange the PBA in the type 2 node entries
+										--
+
+										Declare_Nodes_2:
+										declare
+											Nodes : Type_II_Node_Block_Type with Address => Cach_Data (Data_Index)'Address;
+										begin
+
+											For_Nodes_1:
+											for Node_Index in 0 .. Tree_Helper.Degree (Obj.Trans_Helper) - 1 loop
+
+												--
+												-- The old and new PBA array contains Data and inner node,
+												-- therefor we have to check tree height + 1.
+												--
+												For_Tree_Levels_2:
+												for Tree_Level_2 in 0 .. Tree_Helper.Height (Obj.Trans_Helper) loop
+
+													if Nodes (Natural (Node_Index)).PBA = Obj.WB_Data.New_PBAs (Tree_Level_Index_Type (Tree_Level_2)) then
+														Nodes (Natural (Node_Index)).PBA       := Obj.WB_Data.Old_PBAs (Natural (Tree_Level_2)).PBA;
+														Nodes (Natural (Node_Index)).Alloc_Gen := Obj.WB_Data.Old_PBAs (Natural (Tree_Level_2)).Gen;
+														Nodes (Natural (Node_Index)).Free_Gen  := Obj.WB_Data.Gen;
+														Nodes (Natural (Node_Index)).Reserved  := True;
+													end if;
+												end loop For_Tree_Levels_2;
+											end loop For_Nodes_1;
+										end Declare_Nodes_2;
+									else
+
+										--
+										-- Update the inner type 1 nodes
+										--
+
+										Declare_Pre_Data:
+										declare
+											Pre_Level : constant Tree_Level_Type := Tree_Level_1 - 1;
+											Pre_PBA   : constant Physical_Block_Address_Type :=
+												Obj.Query_Branches (Branch_Index).Trans_Infos (Natural (Pre_Level)).PBA;
+
+											Pre_Data_Index : constant Cache.Cache_Index_Type := Cache.Data_Index(Cach, Pre_PBA, Timestamp);
+
+											Hash : SHA256_4K.Hash_Type;
+
+											Pre_Hash_Data : SHA256_4K.Data_Type with Address => Cach_Data (Pre_Data_Index)'Address;
+											Nodes : Type_I_Node_Block_Type with Address => Cach_Data (Data_Index)'Address;
+										begin
+
+											SHA256_4K.Hash (Pre_Hash_Data, Hash);
+
+											For_Nodes_2:
+											for Node_Index in 0 .. Tree_Helper.Degree (Obj.Trans_Helper) - 1 loop
+												if Nodes (Natural (Node_Index)).PBA = Pre_PBA then
+													Nodes (Natural (Node_Index)).Hash := Hash_Type (Hash);
+												end if;
+											end loop For_Nodes_2;
+
+											--  for now the root node is a special case
+											if Tree_Level_1 = Tree_Helper.Height (Obj.Trans_Helper) then
+
+												Declare_Hash_Data:
+												declare
+													Hash_Data : SHA256_4K.Data_Type with Address =>
+														Cach_Data (Data_Index)'Address;
+												begin
+													SHA256_4K.Hash (Hash_Data, Hash);
+													Obj.Root_Hash := Hash_Type (Hash);
+												end Declare_Hash_Data;
+											end if;
+										end Declare_Pre_Data;
+									end if;
+
+									--
+									-- Only add blocks once, which is a crude way to merge
+									-- the same inner nodes in all branches.
+									--
+									Declare_Already_Pending:
+									declare
+										Already_Pending : Boolean := False;
+									begin
+										For_WB_IO_Entries:
+										for WB_IO_Index in 0 .. WB_Count - 1 loop
+											if Obj.WB_IOs (WB_IO_Index).PBA = PBA then
+												Already_Pending := True;
+												exit For_WB_IO_Entries;
+											end if;
+										end loop For_WB_IO_Entries;
+
+										if not Already_Pending then
+											--
+											-- Add block to write-back I/O list
+											--
+											Obj.WB_IOs (WB_Count).PBA := PBA;
+											Obj.WB_IOs (WB_Count).State := Pending;
+											Obj.WB_IOs (WB_Count).Index := Data_Index;
+
+											WB_Count := WB_Count + 1;
+										end if;
+									end Declare_Already_Pending;
+
+								end Declare_Data_Index_2;
+							end loop For_Tree_Levels_Greater_Zero_2;
+						end loop For_Query_Branches_Before_Curr;
+					end Declare_WB_Count;
+
+					Obj.Do_Wb := True;
+					Obj.Do_Update := False;
+					Obj.Execute_Progress := True;
+				end if;
+			end Declare_Data_Available;
+		end if;
+
+		----------------------------------
+		-- Write-back of changed branch --
+		----------------------------------
+
+		if Obj.Do_WB and not Obj.WB_Done then
+
+			Declare_WB_Ongoing:
+			declare
+				WB_Ongoing : Boolean := False;
+			begin
+				For_WB_IOs:
+				for WB_IO_Index in Tree_Level_Index_Type'Range loop
+
+					WB_Ongoing :=
+						WB_Ongoing or (
+							Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).State = Pending or
+							Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).State = In_Progress);
+
+					exit For_WB_IOs when WB_Ongoing;
+
+				end loop For_WB_IOs;
+
+				-- FIXME why check here for not Obj.WB_Done? should be guarded by
+				--     the previous check
+				if not WB_Ongoing and not Obj.WB_Done then
+					Obj.Do_WB := False;
+					Obj.WB_Done := True;
+					Obj.WB_Data.Finished := True;
+					Primitive.Success(Obj.WB_Data.Prim, Request.True);
+					Obj.Execute_Progress := True;
+				end if;
+			end Declare_WB_Ongoing;
+		end if;
+
+		-- MOD_DBG("progress: ", progress);
+	end Execute;
+
+--	--
+--	-- Get the next generated primitive
+--	--
+--	-- \return valid primitive in case generated primitive
+--	--         is pending, otherwise an invalid primitive is returned
+--	--
+--	Primitive.Object_Typepeek_Generated_Primitive() const
+--	{
+--		--  current type 2 node
+--		if IO_Entry_Pending(Obj.Curr_Type_2) then
+--			Primitive.Object_Typep {
+--				.Tag          := Tag::IO_TAG,
+--				.Operation    := Primitive.Read,
+--				.Success      := Primitive.False,
+--				Primitive.Block_Number () := Obj.Curr_Type_2.PBA,
+--				.Index        := 0
+--			};
+--			MOD_DBG(p);
+--			return p;
+--		}
+--
+--		--  write-back I/O
+--		if Obj.Do_WB then
+--			for uint32_T i := 0; i < Translation::MAX_LEVELS; i := i + 1 loop
+--				if Obj.WB_Io[i].Pending() then
+--					Primitive.Object_Typep {
+--						.Tag          := Tag::WRITE_BACK_TAG,
+--						.Operation    := Primitive.Write,
+--						.Success      := Primitive.False,
+--						Primitive.Block_Number () := Obj.WB_Io[i].PBA,
+--						.Index        := 0
+--					};
+--					MOD_DBG(p);
+--					return p;
+--				}
+--			}
+--		}
+--
+--		return Primitive.Object_Type{ };
+--	}
+--
+--	--
+--	-- Get index of the Data buffer belonging to the given primitive
+--	--
+--	-- This method must only be called after executing
+--	-- 'peek_Generated_Primitive' returned a valid primitive.
+--	--
+--	-- \param  p  reference to primitive the Data belongs to
+--	--
+--	-- \return index of Data buffer
+--	--
+--	Index peek_Generated_Data_Index(constant Primitive &prim) const
+--	{
+--		Index Index { .Value := Index_Invalid };
+--
+--		switch (prim.Tag) {
+--		case Tag::IO_TAG:
+--			Index.Value := 0;
+--			break;
+--		case Tag::WRITE_BACK_TAG:
+--		{
+--			for uint32_T i := 0; i < Translation::MAX_LEVELS; i := i + 1 loop
+--				if Primitive.Block_Number (prim) != Obj.WB_Io[i].PBA then continue; }
+--
+--				if not Obj.WB_Io[i].Pending() then
+--					Genode::warning(__Func__, ": ignore invalid WRITE_BACK_TAG primitive");
+--					break;
+--				}
+--
+--				Index.Value := Obj.WB_Io[i].Index.Value;
+--				break;
+--			}
+--			break;
+--		}
+--		default: break;
+--		}
+--
+--		if Index.Value = Index_Invalid then
+--			throw -1;
+--		}
+--
+--		return Index;
+--	}
+--
+--	--
+--	-- Discard given generated primitive
+--	--
+--	-- This method must only be called after executing
+--	-- 'peek_Generated_Primitive' returned a valid primitive.
+--	--
+--	-- \param  p  reference to primitive
+--	--
+--	void drop_Generated_Primitive(constant Primitive &prim)
+--	{
+--		switch (prim.Tag) {
+--		case Tag::IO_TAG:
+--			Obj.Curr_Type_2.State := In_PROGRESS;
+--			break;
+--		case Tag::WRITE_BACK_TAG:
+--		{
+--			for uint32_T i := 0; i < Translation::MAX_LEVELS; i := i + 1 loop
+--				if Primitive.Block_Number (prim) = Obj.WB_Io[i].PBA then
+--					if Obj.WB_Io[i].Pending() then
+--						Obj.WB_Io[i].State := In_PROGRESS;
+--					} else {
+--						MOD_DBG("ignore invalid WRITE_BACK_TAG primitive: ", prim);
+--					}
+--				}
+--			}
+--			break;
+--		}
+--		default:
+--			MOD_ERR("invalid primitive: ", prim);
+--			throw -1;
+--			break;
+--		}
+--	}
+--
+--	--
+--	-- Mark the primitive as completed
+--	--
+--	-- This method must only be called after executing
+--	-- 'peek_Generated_Primitive' returned a valid primitive.
+--	--
+--	-- \param p  reference to Primitive that is used to mark
+--	--           the corresponding internal primitive as completed
+--	--
+--	void mark_Generated_Primitive_Complete(constant Primitive &prim)
+--	{
+--		switch (prim.Tag) {
+--		case Tag::IO_TAG:
+--			if IO_Entry_In_Progress(Obj.Curr_Type_2) then
+--				Obj.Curr_Type_2.State := Complete;
+--			} else {
+--				MOD_DBG("ignore invalid I/O primitive: ", prim);
+--			}
+--			break;
+--		case Tag::WRITE_BACK_TAG:
+--		{
+--			for uint32_T i := 0; i < Translation::MAX_LEVELS; i := i + 1 loop
+--				if Primitive.Block_Number (prim) = Obj.WB_Io[i].PBA then
+--					if Obj.WB_Io[i].In_Progress() then
+--						Obj.WB_Io[i].State := Complete;
+--
+--						if prim.Success = Primitive.False then
+--							-- FIXME propagate failure
+--							MOD_ERR("failed primitive: ", prim);
+--						}
+--					} else {
+--						MOD_DBG("ignore invalid WRITE_BACK_TAG primitive: ", prim,
+--						        " entry: ", i, " state: ", (uint32_T)_WB_Io[i].State);
+--					}
+--				}
+--			}
+--			break;
+--		}
+--		default:
+--			MOD_ERR("invalid primitive: ", prim);
+--			throw -1;
+--		break;
+--		}
+--	}
+--
+--	--
+--	-- Check for any completed primitive
+--	--
+--	-- The method will always a return a primitive and the caller
+--	-- always has to check if the returned primitive is in fact a
+--	-- valid one.
+--	--
+--	-- \return a valid Primitive will be returned if there is an
+--	--         completed primitive, otherwise an invalid one
+--	--
+--	Primitive.Object_Typepeek_Completed_Primitive()
+--	{
+--		if Obj.WB_Data.Valid() then
+--			return Obj.WB_Data.Prim;
+--		}
+--		return Primitive.Object_Type{ };
+--	}
+--
+--	--
+--	-- Get write-back Data belonging to a completed primitive
+--	--
+--	-- This method must only be called after 'peek_Completed_Primitive'
+--	-- returned a valid primitive.
+--	--
+--	-- \param p   reference to the completed primitive
+--	--
+--	-- \return write-back Data
+--	--
+--	constant Write_Back_Data &peek_CompletedObj.WB_Data(constant Primitive &prim) const
+--	{
+--		if not prim.Equal(Obj.WB_Data.Prim) then
+--			MOD_ERR("invalid primitive: ", prim);
+--			throw -1;
+--		}
+--
+--		MOD_DBG(prim);
+--		return Obj.WB_Data;
+--	}
+--
+--	--
+--	-- Discard given completed primitive
+--	--
+--	-- This method must only be called after 'peek_Completed_Primitive'
+--	-- returned a valid primitive.
+--	--
+--	-- \param  p  reference to primitive
+--	--
+--	void drop_Completed_Primitive(constant Primitive &prim)
+--	{
+--		if not prim.Equal(Obj.WB_Data.Prim) then
+--			MOD_ERR("invalid primitive: ", prim);
+--			throw -1;
+--		}
+--
+--		MOD_DBG(prim);
+--
+--		--  reset state
+--		Obj.WB_Data.Finished := False;
+--
+--		--  request finished, ready for a new one
+--		Obj.Num_Blocks := 0;
+--	}
+
 
 end CBE.Free_Tree;

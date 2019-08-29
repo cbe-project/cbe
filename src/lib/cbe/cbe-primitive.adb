@@ -71,6 +71,8 @@ is
 	-- Write Accessors --
 	---------------------
 
-	procedure Success(Obj : in out Object_Type; Value : Request.Success_Type) is begin Obj.Success := Value; end Success;
+	procedure Success     (Obj : in out Object_Type; Value : Request.Success_Type)      is begin Obj.Success      := Value; end Success;
+	procedure Block_Number(Obj : in out Object_Type; Value : Request.Block_Number_Type) is begin Obj.Block_Number := Value; end Block_Number;
+	procedure Operation   (Obj : in out Object_Type; Value : Request.Operation_Type)    is begin Obj.Operation    := Value; end Operation;
 
 end CBE.Primitive;

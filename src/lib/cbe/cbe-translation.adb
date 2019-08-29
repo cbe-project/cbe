@@ -284,6 +284,18 @@ is
 		Infos /= 0);
 
 	--
+	-- Can_Get_Type_1_Info_Spark
+	--
+	function Can_Get_Type_1_Info_Spark (
+		Obj   : Object_Type;
+		Prim  : Primitive.Object_Type)
+	return Boolean
+	is (
+		Obj.Data_PBA /= PBA_Invalid and
+		Physical_Block_Address_Type (Primitive.Block_Number (Prim)) =
+			Obj.Data_PBA);
+
+	--
 	-- Get_Type_1_Info
 	--
 	procedure Get_Type_1_Info (

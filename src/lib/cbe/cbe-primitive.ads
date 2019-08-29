@@ -75,7 +75,9 @@ is
 	-- Write Accessors --
 	---------------------
 
-	procedure Success(Obj : in out Object_Type; Value : Request.Success_Type) with Pre => (Valid(Obj));
+	procedure Success     (Obj : in out Object_Type; Value : Request.Success_Type)      with Pre => (Valid(Obj));
+	procedure Block_Number(Obj : in out Object_Type; Value : Request.Block_Number_Type) with Pre => (Valid(Obj));
+	procedure Operation   (Obj : in out Object_Type; Value : Request.Operation_Type)    with Pre => (Valid(Obj));
 
 private
 

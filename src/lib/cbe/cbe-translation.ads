@@ -125,6 +125,14 @@ is
 	return Boolean;
 
 	--
+	-- Can_Get_Type_1_Info_Spark
+	--
+	function Can_Get_Type_1_Info_Spark (
+		Obj   : Object_Type;
+		Prim  : Primitive.Object_Type)
+	return Boolean;
+
+	--
 	-- Get_Type_1_Info
 	--
 	procedure Get_Type_1_Info (

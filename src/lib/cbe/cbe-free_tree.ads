@@ -38,8 +38,9 @@ is
 
 	type Object_Type is private;
 	type Free_PBAs_Type is array (Tree_Level_Index_Type) of Physical_Block_Address_Type;
-	type Query_Branches_Index_Type is range 0..7;
-	type WB_IO_Entries_Type is array (0..(Natural ((Tree_Level_Index_Type'Last + 1)) * Natural ((Query_Branches_Index_Type'Last + 1))) - 1) of IO_Entry_Type;
+	type Query_Branches_Index_Type is range 0 .. 7;
+	type WB_IO_Entries_Index_Type is range 0 .. (Natural ((Tree_Level_Index_Type'Last + 1)) * Natural ((Query_Branches_Index_Type'Last + 1))) - 1;
+	type WB_IO_Entries_Type is array (WB_IO_Entries_Index_Type) of IO_Entry_Type;
 	type WB_Data_New_PBAs_Type is array (Tree_Level_Index_Type) of Physical_Block_Address_Type;
 
 	--
@@ -93,6 +94,34 @@ is
 		Req_Prim        :        Primitive.Object_Type;
 		VBA             :        Virtual_Block_Address_Type);
 
+	--
+	-- Execute module
+	--
+	-- Since the FT module incorporates a number of other modules or
+	-- needs access to the data ofther modules, we pass them in from
+	-- the outside to limit the copying of data.
+	--
+	-- \param  active        list of currently active snapshots
+	-- \param  last_secured  last secured generation
+	-- \param  trans_data    reference to data used by the Translation module
+	-- \param  cache         reference to the cache module
+	-- \param  cache_data    reference to the data used by the Cache module
+	-- \param  query_data    reference to the dat used for the processing
+	--                       of querying a branch in the FT
+	-- \param  time          reference to the time object
+	--
+	-- \return true if some progress was made, otherwise false
+	--
+	procedure Execute (
+		Obj              : in out Object_Type;
+		Active_Snaps     :        Snapshots_Type;
+		Last_Secured_Gen :        Generation_Type;
+		Trans_Data       : in out Translation_Data_Type;
+		Cach             : in out Cache.Object_Type;
+		Cach_Data        : in out Cache.Cache_Data_Type;
+		Query_Data       :        Query_Data_Type;
+		Timestamp        :        Timestamp_Type);
+
 private
 
 	--
@@ -101,8 +130,8 @@ private
 	--       is dynamically set. Since 64 edges are the eventually
 	--       used ones, hardcode that.
 	--
-	type Query_Branch_PBAs_Type is array (0..63) of Physical_Block_Address_Type;
-	type Found_PBAs_Type is array (0..((Tree_Level_Index_Type'Last + 1) * 2) - 1) of Physical_Block_Address_Type;
+	type Query_Branch_PBAs_Type is array (0 .. 63) of Physical_Block_Address_Type;
+	type Found_PBAs_Type is array (0 .. ((Tree_Level_Index_Type'Last + 1) * 2) - 1) of Physical_Block_Address_Type;
 
 	type Query_Branch_Type is record
 		Trans_Infos       : Type_1_Node_Infos_Type;

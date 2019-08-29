@@ -60,11 +60,17 @@ is
 		Gen      : Generation_Type;
 		Hash     : Hash_Type;
 		Padding  : Type_I_Node_Padding_Type;
-	end record with Size => 8 * 8 + 8 * 8 + 32 * 8 + 16 * 8;
+	end record with Size =>
+		 8 * 8 + -- PBA
+		 8 * 8 + -- Gen
+		32 * 8 + -- Hash
+		16 * 8;  -- Padding
 
 	type Type_I_Node_Block_Type is
 		array (0..(Block_Data_Type'Size / Type_I_Node_Type'Size) - 1)
 		of Type_I_Node_Type;
+
+	pragma Pack (Type_I_Node_Block_Type);
 
 	type Type_1_Node_Info_Type is record
 		PBA  : Physical_Block_Address_Type;
@@ -95,6 +101,15 @@ is
 		 4 * 8 + -- Last_Key_Id
 		 1 * 8 + -- Reserved
 		27 * 8;  -- Padding
+
+
+	type Type_II_Node_Block_Type is
+		array (0..(Block_Data_Type'Size / Type_II_Node_Type'Size) - 1)
+		of Type_II_Node_Type;
+
+	pragma Pack (Type_II_Node_Block_Type);
+
+	type Query_Data_Type is array (0..0) of Block_Data_Type with Size => 1 * 4096 * 8;
 
 	--
 	-- The Cbe::Snapshot stores the information about a given tree within
@@ -142,6 +157,7 @@ is
 		Gen  => 0,
 		Hash => (others => 0));
 
+	function Index_Invalid return Index_Type is (Index_Type'Last);
 	function VBA_Invalid return Virtual_Block_Address_Type is (Virtual_Block_Address_Type'Last);
 	function PBA_Invalid return Physical_Block_Address_Type is (Physical_Block_Address_Type'Last);
 	function Tree_Level_Invalid return Tree_Level_Type is (Tree_Level_Type'Last);
