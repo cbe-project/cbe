@@ -65,6 +65,7 @@ class Cbe::Library
 			Cbe::assert_valid_object_size<Module::Sync_superblock>();
 			Cbe::assert_valid_object_size<Module::Translation>();
 			Cbe::assert_valid_object_size<Virtual_block_device>();
+			Cbe::assert_valid_object_size<Module::Block_io>();
 			Cbe::assert_same_object_size<Tree_helper>();
 			return true;
 		}
