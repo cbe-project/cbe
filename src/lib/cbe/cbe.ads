@@ -146,7 +146,7 @@ is
 	is (Snap.ID /= Snapshot_ID_Invalid);
 
 	type Snapshots_Index_Type is range 0..47;
-	type Snapshots_Type is array (Snapshots_Index_Type) of Snapshot_Type;
+	type Snapshots_Type is array (Snapshots_Index_Type) of Snapshot_Type with Size => 48 * 72 * 8;
 
 	type Type_1_Node_Infos_Type is array (0..Natural (Tree_Level_Index_Type'Last)) of Type_1_Node_Info_Type;
 

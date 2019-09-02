@@ -14,6 +14,7 @@ SRC_ADB += cbe-cxx-cxx_primitive.adb
 SRC_ADB += cbe-cxx-cxx_request.adb
 SRC_ADB += cbe-cxx-cxx_sync_superblock.adb
 SRC_ADB += cbe-cxx-cxx_virtual_block_device.adb
+SRC_ADB += cbe-cxx-cxx_free_tree.adb
 SRC_ADB += cbe-cxx-cxx_block_io.adb
 SRC_ADB += cbe-cxx-cxx_write_back.adb
 SRC_ADB += cbe-cxx.adb
