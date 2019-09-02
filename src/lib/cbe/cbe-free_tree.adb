@@ -812,6 +812,7 @@ is
 		-- MOD_DBG("progress: ", progress);
 	end Execute;
 
+
 	function Peek_Generated_Primitive (Obj : Object_Type)
 	return Primitive.Object_Type
 	is
@@ -849,82 +850,72 @@ is
 		return Primitive.Invalid_Object;
 	end Peek_Generated_Primitive;
 
---	--
---	-- Get index of the Data buffer belonging to the given primitive
---	--
---	-- This method must only be called after executing
---	-- 'peek_Generated_Primitive' returned a valid primitive.
---	--
---	-- \param  p  reference to primitive the Data belongs to
---	--
---	-- \return index of Data buffer
---	--
---	Index peek_Generated_Data_Index(constant Primitive &prim) const
---	{
---		Index Index { .Value := Index_Invalid };
---
---		switch (prim.Tag) {
---		case Tag::IO_TAG:
---			Index.Value := 0;
---			break;
---		case Tag::WRITE_BACK_TAG:
---		{
---			for uint32_T i := 0; i < Translation::MAX_LEVELS; i := i + 1 loop
---				if Primitive.Block_Number (prim) != Obj.WB_IOs (i).PBA then continue; }
---
---				if not Obj.WB_IOs (i).Pending() then
---					Genode::warning(__Func__, ": ignore invalid WRITE_BACK_TAG primitive");
---					break;
---				}
---
---				Index.Value := Obj.WB_IOs (i).Index.Value;
---				break;
---			}
---			break;
---		}
---		default: break;
---		}
---
---		if Index.Value = Index_Invalid then
---			throw -1;
---		}
---
---		return Index;
---	}
---
---	--
---	-- Discard given generated primitive
---	--
---	-- This method must only be called after executing
---	-- 'peek_Generated_Primitive' returned a valid primitive.
---	--
---	-- \param  p  reference to primitive
---	--
---	void drop_Generated_Primitive(constant Primitive &prim)
---	{
---		switch (prim.Tag) {
---		case Tag::IO_TAG:
---			Obj.Curr_Type_2.State := In_PROGRESS;
---			break;
---		case Tag::WRITE_BACK_TAG:
---		{
---			for uint32_T i := 0; i < Translation::MAX_LEVELS; i := i + 1 loop
---				if Primitive.Block_Number (prim) = Obj.WB_IOs (i).PBA then
---					if Obj.WB_IOs (i).Pending() then
---						Obj.WB_IOs (i).State := In_PROGRESS;
---					} else {
---						MOD_DBG("ignore invalid WRITE_BACK_TAG primitive: ", prim);
---					}
---				}
---			}
---			break;
---		}
---		default:
---			MOD_ERR("invalid primitive: ", prim);
---			throw -1;
---			break;
---		}
---	}
+
+	function Peek_Generated_Data_Index (
+		Obj  : Object_Type;
+		Prim : Primitive.Object_Type)
+	return Index_Type
+	is
+		Index : Index_Type := Index_Invalid;
+	begin
+
+		if Tag_Type (Primitive.Tag (Prim)) = Tag_IO then
+			Index := 0;
+		elsif Tag_Type (Primitive.Tag (Prim)) = Tag_Write_Back then
+			For_WB_IOs:
+			for WB_IO_Index in Tree_Level_Index_Type'Range loop
+				if
+					Physical_Block_Address_Type (Primitive.Block_Number (Prim)) =
+					Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).PBA
+				then
+
+					if Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).State /= Pending then
+						-- Genode::warning(__Func__, ": ignore invalid WRITE_BACK_TAG primitive");
+						exit For_WB_IOs;
+					end if;
+
+					Index := Index_Type (Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).Index);
+					exit For_WB_IOs;
+				end if;
+			end loop For_WB_IOs;
+		end if;
+
+		if Index = Index_Invalid then
+			-- FIXME error handling
+			raise Program_Error;
+		end if;
+
+		return Index;
+	end Peek_Generated_Data_Index;
+
+
+	procedure Drop_Generated_Primitive (
+		Obj  : in out Object_Type;
+		Prim :        Primitive.Object_Type)
+	is
+	begin
+		if Tag_Type (Primitive.Tag (Prim)) = Tag_IO then
+			Obj.Curr_Type_2.State := In_Progress;
+		elsif Tag_Type (Primitive.Tag (Prim)) = Tag_Write_Back then
+			For_WB_IOs:
+			for WB_IO_Index in Tree_Level_Index_Type'Range loop
+				if
+					Physical_Block_Address_Type (Primitive.Block_Number (Prim)) =
+					Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).PBA
+				then
+					if Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).State = Pending then
+						Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).State := In_Progress;
+					else
+						null;
+						-- MOD_DBG("ignore invalid WRITE_BACK_TAG primitive: ", prim);
+					end if;
+				end if;
+			end loop For_WB_IOs;
+		else
+			-- MOD_ERR("invalid primitive: ", prim);
+			raise Program_Error;
+		end if;
+	end Drop_Generated_Primitive;
 --
 --	--
 --	-- Mark the primitive as completed
@@ -938,19 +929,19 @@ is
 --	void mark_Generated_Primitive_Complete(constant Primitive &prim)
 --	{
 --		switch (prim.Tag) {
---		case Tag::IO_TAG:
+--		if Tag_Type (Primitive.Tag (Prim)) = Tag_IO then
 --			if IO_Entry_In_Progress(Obj.Curr_Type_2) then
 --				Obj.Curr_Type_2.State := Complete;
 --			} else {
 --				MOD_DBG("ignore invalid I/O primitive: ", prim);
 --			}
 --			break;
---		case Tag::WRITE_BACK_TAG:
+--		elsif Tag_Type (Primitive.Tag (Prim)) = Tag_Write_Back then
 --		{
 --			for uint32_T i := 0; i < Translation::MAX_LEVELS; i := i + 1 loop
---				if Primitive.Block_Number (prim) = Obj.WB_IOs (i).PBA then
---					if Obj.WB_IOs (i).In_Progress() then
---						Obj.WB_IOs (i).State := Complete;
+--				if Primitive.Block_Number (prim) = Obj.WB_IOs (WB_IO_Index).PBA then
+--					if Obj.WB_IOs (WB_IO_Index).In_Progress() then
+--						Obj.WB_IOs (WB_IO_Index).State := Complete;
 --
 --						if prim.Success = Primitive.False then
 --							-- FIXME propagate failure
@@ -958,7 +949,7 @@ is
 --						}
 --					} else {
 --						MOD_DBG("ignore invalid WRITE_BACK_TAG primitive: ", prim,
---						        " entry: ", i, " state: ", (uint32_T)_WB_IOs (i).State);
+--						        " entry: ", i, " state: ", (uint32_T)_WB_IOs (WB_IO_Index).State);
 --					}
 --				}
 --			}

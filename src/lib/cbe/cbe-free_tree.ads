@@ -131,6 +131,33 @@ is
 	function Peek_Generated_Primitive (Obj : Object_Type)
 	return Primitive.Object_Type;
 
+	--
+	-- Get index of the Data buffer belonging to the given primitive
+	--
+	-- This method must only be called after executing
+	-- 'peek_Generated_Primitive' returned a valid primitive.
+	--
+	-- \param  p  reference to primitive the Data belongs to
+	--
+	-- \return index of Data buffer
+	--
+	function Peek_Generated_Data_Index (
+		Obj  : Object_Type;
+		Prim : Primitive.Object_Type)
+	return Index_Type;
+
+	--
+	-- Discard given generated primitive
+	--
+	-- This method must only be called after executing
+	-- 'peek_Generated_Primitive' returned a valid primitive.
+	--
+	-- \param  p  reference to primitive
+	--
+	procedure Drop_Generated_Primitive (
+		Obj  : in out Object_Type;
+		Prim :        Primitive.Object_Type);
+
 private
 
 	--
