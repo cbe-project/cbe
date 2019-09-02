@@ -122,6 +122,15 @@ is
 		Query_Data       :        Query_Data_Type;
 		Timestamp        :        Timestamp_Type);
 
+	--
+	-- Get the next generated primitive
+	--
+	-- \return valid primitive in case generated primitive
+	--         is pending, otherwise an invalid primitive is returned
+	--
+	function Peek_Generated_Primitive (Obj : Object_Type)
+	return Primitive.Object_Type;
+
 private
 
 	--

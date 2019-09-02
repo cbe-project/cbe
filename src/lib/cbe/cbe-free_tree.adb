@@ -812,47 +812,43 @@ is
 		-- MOD_DBG("progress: ", progress);
 	end Execute;
 
---	--
---	-- Get the next generated primitive
---	--
---	-- \return valid primitive in case generated primitive
---	--         is pending, otherwise an invalid primitive is returned
---	--
---	Primitive.Object_Typepeek_Generated_Primitive() const
---	{
---		--  current type 2 node
---		if IO_Entry_Pending(Obj.Curr_Type_2) then
---			Primitive.Object_Typep {
---				.Tag          := Tag::IO_TAG,
---				.Operation    := Primitive.Read,
---				.Success      := Primitive.False,
---				Primitive.Block_Number () := Obj.Curr_Type_2.PBA,
---				.Index        := 0
---			};
---			MOD_DBG(p);
---			return p;
---		}
---
---		--  write-back I/O
---		if Obj.Do_WB then
---			for uint32_T i := 0; i < Translation::MAX_LEVELS; i := i + 1 loop
---				if Obj.WB_Io[i].Pending() then
---					Primitive.Object_Typep {
---						.Tag          := Tag::WRITE_BACK_TAG,
---						.Operation    := Primitive.Write,
---						.Success      := Primitive.False,
---						Primitive.Block_Number () := Obj.WB_Io[i].PBA,
---						.Index        := 0
---					};
---					MOD_DBG(p);
---					return p;
---				}
---			}
---		}
---
---		return Primitive.Object_Type{ };
---	}
---
+	function Peek_Generated_Primitive (Obj : Object_Type)
+	return Primitive.Object_Type
+	is
+	begin
+		-- current type 2 node
+		if Obj.Curr_Type_2.State = Pending then
+			-- MOD_DBG(Prim);
+			return Primitive.Valid_Object (
+				Tg     => Request.Tag_Type (Tag_IO),
+				Op     => Request.Read,
+				Succ   => Request.False,
+				Blk_Nr => Request.Block_Number_Type (Obj.Curr_Type_2.PBA),
+				Idx    => 0);
+		end if;
+
+		--  write-back I/O
+		if Obj.Do_WB then
+			For_WB_IOs:
+			for WB_IO_Index in 0 .. Tree_Level_Index_Type'Last loop
+
+				if Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).State = Pending then
+
+					--MOD_DBG(p);
+					return Primitive.Valid_Object (
+						Tg     => Request.Tag_Type (Tag_Write_Back),
+						Op     => Request.Write,
+						Succ   => Request.False,
+						Blk_Nr => Request.Block_Number_Type (Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).PBA),
+						Idx    => 0);
+				end if;
+
+			end loop For_WB_IOs;
+		end if;
+
+		return Primitive.Invalid_Object;
+	end Peek_Generated_Primitive;
+
 --	--
 --	-- Get index of the Data buffer belonging to the given primitive
 --	--
@@ -874,14 +870,14 @@ is
 --		case Tag::WRITE_BACK_TAG:
 --		{
 --			for uint32_T i := 0; i < Translation::MAX_LEVELS; i := i + 1 loop
---				if Primitive.Block_Number (prim) != Obj.WB_Io[i].PBA then continue; }
+--				if Primitive.Block_Number (prim) != Obj.WB_IOs (i).PBA then continue; }
 --
---				if not Obj.WB_Io[i].Pending() then
+--				if not Obj.WB_IOs (i).Pending() then
 --					Genode::warning(__Func__, ": ignore invalid WRITE_BACK_TAG primitive");
 --					break;
 --				}
 --
---				Index.Value := Obj.WB_Io[i].Index.Value;
+--				Index.Value := Obj.WB_IOs (i).Index.Value;
 --				break;
 --			}
 --			break;
@@ -913,9 +909,9 @@ is
 --		case Tag::WRITE_BACK_TAG:
 --		{
 --			for uint32_T i := 0; i < Translation::MAX_LEVELS; i := i + 1 loop
---				if Primitive.Block_Number (prim) = Obj.WB_Io[i].PBA then
---					if Obj.WB_Io[i].Pending() then
---						Obj.WB_Io[i].State := In_PROGRESS;
+--				if Primitive.Block_Number (prim) = Obj.WB_IOs (i).PBA then
+--					if Obj.WB_IOs (i).Pending() then
+--						Obj.WB_IOs (i).State := In_PROGRESS;
 --					} else {
 --						MOD_DBG("ignore invalid WRITE_BACK_TAG primitive: ", prim);
 --					}
@@ -952,9 +948,9 @@ is
 --		case Tag::WRITE_BACK_TAG:
 --		{
 --			for uint32_T i := 0; i < Translation::MAX_LEVELS; i := i + 1 loop
---				if Primitive.Block_Number (prim) = Obj.WB_Io[i].PBA then
---					if Obj.WB_Io[i].In_Progress() then
---						Obj.WB_Io[i].State := Complete;
+--				if Primitive.Block_Number (prim) = Obj.WB_IOs (i).PBA then
+--					if Obj.WB_IOs (i).In_Progress() then
+--						Obj.WB_IOs (i).State := Complete;
 --
 --						if prim.Success = Primitive.False then
 --							-- FIXME propagate failure
@@ -962,7 +958,7 @@ is
 --						}
 --					} else {
 --						MOD_DBG("ignore invalid WRITE_BACK_TAG primitive: ", prim,
---						        " entry: ", i, " state: ", (uint32_T)_WB_Io[i].State);
+--						        " entry: ", i, " state: ", (uint32_T)_WB_IOs (i).State);
 --					}
 --				}
 --			}
