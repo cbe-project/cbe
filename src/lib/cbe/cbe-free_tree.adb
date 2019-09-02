@@ -818,6 +818,11 @@ is
 	end Execute;
 
 
+	function Execute_Progress(Obj : Object_Type)
+	return Boolean
+	is (Obj.Execute_Progress);
+
+
 	function Peek_Generated_Primitive (Obj : Object_Type)
 	return Primitive.Object_Type
 	is

@@ -414,12 +414,13 @@ bool Cbe::Library::execute(Time::Timestamp now, bool show_progress, bool show_if
 	{
 		Cbe::Super_block const &sb = _super_block[_cur_sb.value];
 
-		bool const ft_progress = _free_tree->execute(sb.snapshots,
-		                                             _last_secured_generation,
-		                                             _free_tree_trans_data,
-		                                             _cache, _cache_data,
-		                                             _free_tree_query_data,
-		                                             now);
+		_free_tree->execute(sb.snapshots,
+		                    _last_secured_generation,
+		                    _free_tree_trans_data,
+		                    _cache, _cache_data,
+		                    _free_tree_query_data,
+		                    now);
+		bool const ft_progress = _free_tree->execute_progress();
 		progress |= ft_progress;
 		LOG_PROGRESS(ft_progress);
 	}
@@ -1659,7 +1660,7 @@ bool Cbe::Library::give_write_data(Time::Timestamp const now,
 			                           new_blocks,
 			                           new_pba, old_pba,
 			                           trans_height,
-			                           free_pba, free_blocks,
+			                           free_pba,
 			                           prim, vba);
 		} else {
 			/*

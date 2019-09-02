@@ -68,6 +68,7 @@ class Cbe::Library
 			Cbe::assert_valid_object_size<Virtual_block_device>();
 			Cbe::assert_valid_object_size<Module::Block_io>();
 			Cbe::assert_valid_object_size<Module::Write_back>();
+			Cbe::assert_valid_object_size<Free_tree>();
 			Cbe::assert_same_object_size<Tree_helper>();
 			return true;
 		}

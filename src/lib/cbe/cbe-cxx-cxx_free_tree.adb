@@ -11,6 +11,10 @@ pragma Ada_2012;
 package body CBE.CXX.CXX_Free_Tree
 with Spark_Mode
 is
+	function Object_Size (Obj : Free_Tree.Object_Type)
+	return CXX_Object_Size_Type
+	is (Obj'Size / 8);
+
 	function CXX_Write_Back_Data_From_Spark (Obj : Free_Tree.Write_Back_Data_Type)
 	return CXX_Write_Back_Data_Type
 	is (
@@ -101,6 +105,11 @@ is
             Query_Data       ,
             Timestamp_Type (Timestamp)        );
 	end Execute;
+
+
+	function Execute_Progress(Obj : Free_Tree.Object_Type)
+	return CXX_Bool_Type
+	is (CXX_Bool_From_SPARK (Free_Tree.Execute_Progress (Obj)));
 
 
 	function Peek_Generated_Primitive (Obj : Free_Tree.Object_Type)

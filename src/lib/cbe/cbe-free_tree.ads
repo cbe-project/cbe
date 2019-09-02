@@ -221,6 +221,12 @@ is
 		Obj  : in out Object_Type;
 		Prim :        Primitive.Object_Type);
 
+	---------------
+	-- Accessors --
+	---------------
+
+	function Execute_Progress(Obj : Object_Type) return Boolean;
+
 private
 
 	--
