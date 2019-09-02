@@ -158,6 +158,19 @@ is
 		Obj  : in out Object_Type;
 		Prim :        Primitive.Object_Type);
 
+	--
+	-- Mark the primitive as completed
+	--
+	-- This method must only be called after executing
+	-- 'peek_Generated_Primitive' returned a valid primitive.
+	--
+	-- \param p  reference to Primitive that is used to mark
+	--           the corresponding internal primitive as completed
+	--
+	procedure Mark_Generated_Primitive_Complete(
+		Obj  : in out Object_Type;
+		Prim :        Primitive.Object_Type);
+
 private
 
 	--

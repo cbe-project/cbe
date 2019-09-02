@@ -916,52 +916,46 @@ is
 			raise Program_Error;
 		end if;
 	end Drop_Generated_Primitive;
---
---	--
---	-- Mark the primitive as completed
---	--
---	-- This method must only be called after executing
---	-- 'peek_Generated_Primitive' returned a valid primitive.
---	--
---	-- \param p  reference to Primitive that is used to mark
---	--           the corresponding internal primitive as completed
---	--
---	void mark_Generated_Primitive_Complete(constant Primitive &prim)
---	{
---		switch (prim.Tag) {
---		if Tag_Type (Primitive.Tag (Prim)) = Tag_IO then
---			if IO_Entry_In_Progress(Obj.Curr_Type_2) then
---				Obj.Curr_Type_2.State := Complete;
---			} else {
---				MOD_DBG("ignore invalid I/O primitive: ", prim);
---			}
---			break;
---		elsif Tag_Type (Primitive.Tag (Prim)) = Tag_Write_Back then
---		{
---			for uint32_T i := 0; i < Translation::MAX_LEVELS; i := i + 1 loop
---				if Primitive.Block_Number (prim) = Obj.WB_IOs (WB_IO_Index).PBA then
---					if Obj.WB_IOs (WB_IO_Index).In_Progress() then
---						Obj.WB_IOs (WB_IO_Index).State := Complete;
---
---						if prim.Success = Primitive.False then
---							-- FIXME propagate failure
---							MOD_ERR("failed primitive: ", prim);
---						}
---					} else {
---						MOD_DBG("ignore invalid WRITE_BACK_TAG primitive: ", prim,
---						        " entry: ", i, " state: ", (uint32_T)_WB_IOs (WB_IO_Index).State);
---					}
---				}
---			}
---			break;
---		}
---		default:
---			MOD_ERR("invalid primitive: ", prim);
---			throw -1;
---		break;
---		}
---	}
---
+
+
+	procedure Mark_Generated_Primitive_Complete(
+		Obj  : in out Object_Type;
+		Prim :        Primitive.Object_Type)
+	is
+	begin
+		if Tag_Type (Primitive.Tag (Prim)) = Tag_IO then
+			if Obj.Curr_Type_2.State = In_Progress then
+				Obj.Curr_Type_2.State := Complete;
+			else
+				null;
+				-- MOD_DBG("ignore invalid I/O primitive: ", prim);
+			end if;
+		elsif Tag_Type (Primitive.Tag (Prim)) = Tag_Write_Back then
+			For_WB_IOs:
+			for WB_IO_Index in Tree_Level_Index_Type'Range loop
+				if Physical_Block_Address_Type (Primitive.Block_Number (prim)) = Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).PBA then
+					if Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).State = In_Progress then
+						Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).State := Complete;
+
+						if Request."=" (Primitive.Success (Prim), Request.False) then
+							-- FIXME propagate failure
+							null;
+							-- MOD_ERR("failed primitive: ", prim);
+						end if;
+					else
+						null;
+						-- MOD_DBG("ignore invalid WRITE_BACK_TAG primitive: ", prim,
+						--        " entry: ", i, " state: ", (uint32_T)_WB_IOs (WB_IO_Index).State);
+					end if;
+				end if;
+			end loop For_WB_IOs;
+		else
+			-- FIXME handle error
+			--MOD_ERR("invalid primitive: ", prim);
+			raise program_error;
+		end if;
+	end Mark_Generated_Primitive_Complete;
+
 --	--
 --	-- Check for any completed primitive
 --	--
