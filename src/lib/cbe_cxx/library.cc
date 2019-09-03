@@ -107,59 +107,6 @@ static inline Genode::uint64_t __timestamp__()
 #include "library.h"
 
 
-/******************************
- ** Cbe::Time implementation **
- ******************************/
-
-void Cbe::Time::_handle_sync_timeout(Genode::Duration)
-{
-	if (_sync_sig_cap.valid()) {
-		Genode::Signal_transmitter(_sync_sig_cap).submit();
-	}
-}
-
-
-void Cbe::Time::_handle_secure_timeout(Genode::Duration)
-{
-	if (_secure_sig_cap.valid()) {
-		Genode::Signal_transmitter(_secure_sig_cap).submit();
-	}
-}
-
-
-Cbe::Time::Time(Genode::Env &env) : _timer(env) { }
-
-
-Cbe::Time::Timestamp Cbe::Time::timestamp()
-{
-	return _timer.curr_time().trunc_to_plain_ms().value;
-}
-
-
-void Cbe::Time::sync_sigh(Genode::Signal_context_capability cap)
-{
-	_sync_sig_cap = cap;
-}
-
-
-void Cbe::Time::schedule_sync_timeout(uint64_t msec)
-{
-	_sync_timeout.schedule(Genode::Microseconds { msec * 1000 });
-}
-
-
-void Cbe::Time::secure_sigh(Genode::Signal_context_capability cap)
-{
-	_secure_sig_cap = cap;
-}
-
-
-void Cbe::Time::schedule_secure_timeout(uint64_t msec)
-{
-	_secure_timeout.schedule(Genode::Microseconds { msec * 1000 });
-}
-
-
 /*********************************
  ** Cbe::Library implementation **
  *********************************/
