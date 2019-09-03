@@ -167,8 +167,8 @@ class Cbe::Library
 		bool             _superblock_dirty { false };
 
 
-		bool _discard_snapshot(Cbe::Snapshot active[Cbe::NUM_SNAPSHOTS],
-		                       uint32_t      current);
+		static bool _discard_snapshot(Cbe::Snapshot active[Cbe::NUM_SNAPSHOTS],
+		                              uint32_t      current);
 
 		void _dump_cur_sb_info() const;
 

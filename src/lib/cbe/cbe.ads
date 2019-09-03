@@ -141,9 +141,19 @@ is
 	return Snapshot_ID_Type
 	is (Snapshot_ID_Type'Last);
 
+	function Snapshot_Flags_Keep_Mask
+	return Snapshot_Flags_Type
+	is (1);
+
 	function Snapshot_Valid (Snap : Snapshot_Type)
 	return Boolean
 	is (Snap.ID /= Snapshot_ID_Invalid);
+
+	function Snapshot_Keep (Snap : Snapshot_Type)
+	return Boolean
+	is ((Snap.Flags and Snapshot_Flags_Keep_Mask) /= 0);
+
+	procedure Snapshot_Discard (Snap : in out Snapshot_Type);
 
 	type Snapshots_Index_Type is range 0..47;
 	type Snapshots_Type is array (Snapshots_Index_Type) of Snapshot_Type with Size => 48 * 72 * 8;

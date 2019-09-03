@@ -2,8 +2,7 @@ LIBS    += spark aes_cbc_4k sha256_4k
 
 INC_DIR += $(REP_DIR)/src/lib/cbe
 
-SRC_ADS += cbe.ads
-
+SRC_ADB += cbe.adb
 SRC_ADB += cbe-cxx-cxx_translation.adb
 SRC_ADB += cbe-cxx-cxx_cache.adb
 SRC_ADB += cbe-cxx-cxx_cache_flusher.adb
@@ -18,6 +17,7 @@ SRC_ADB += cbe-cxx-cxx_free_tree.adb
 SRC_ADB += cbe-cxx-cxx_block_io.adb
 SRC_ADB += cbe-cxx-cxx_write_back.adb
 SRC_ADB += cbe-cxx.adb
+SRC_ADB += cbe-library.adb
 SRC_ADB += cbe-splitter.adb
 SRC_ADB += cbe-primitive.adb
 SRC_ADB += cbe-request.adb

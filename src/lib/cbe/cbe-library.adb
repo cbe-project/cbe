@@ -1,0 +1,1662 @@
+--
+-- Copyright (C) 2019 Genode Labs GmbH, Componolit GmbH, secunet AG
+--
+-- This file is part of the Consistent Block Encrypter project, which is
+-- distributed under the terms of the GNU Affero General Public License
+-- version 3.
+--
+
+pragma Ada_2012;
+
+package body CBE.Library
+with Spark_Mode
+is
+	function Discard_Snapshot (Active_Snaps : in out Snapshots_Type;
+	                           Curr_Snap_ID :        Snapshot_ID_Type)
+	return Boolean
+	is
+		Lowest_Snap_ID : Snapshot_ID_Type := Snapshot_ID_Invalid;
+	begin
+		for Snap of Active_Snaps loop
+			if
+				Snapshot_Valid (Snap) and
+				not Snapshot_Keep (Snap) and
+				Snap.ID /= Curr_Snap_ID and
+				Snap.ID < Lowest_Snap_ID
+			then
+				Lowest_Snap_ID := Snap.ID;
+			end if;
+		end loop;
+
+		if Lowest_Snap_ID = Snapshot_ID_Invalid then
+			return False;
+		end if;
+
+		Active_Snaps (Snapshots_Index_Type (Lowest_Snap_ID)).ID :=
+			Snapshot_ID_Invalid;
+
+		-- DBG("discard snapshot: ", snap);
+		return True;
+	end Discard_Snapshot;
+
+
+--	void _Dump_Cur_Sb_Info () const
+--	is begin
+--		Cbe::Super_Block const &sb := _Super_Block (_Cur_Sb.Value);
+--		Snapshot_Type    const &snap := sb.Snapshots (_Cur_Snap);
+--
+--		Cbe::Physical_Block_Address const root_Number := snap.Pba;
+--		Cbe::Height                 const height      := snap.Height;
+--		Cbe::Number_Of_Leaves       const leaves      := snap.Leaves;
+--
+--		Cbe::Degree                 const degree      := sb.Degree;
+--		Cbe::Physical_Block_Address const free_Number := sb.Free_Number;
+--		Cbe::Number_Of_Leaves       const free_Leaves := sb.Free_Leaves;
+--		Cbe::Height                 const free_Height := sb.Free_Height;
+--
+--		Genode::log ("Virtual block-device info in SB (", _Cur_Sb, "): ",
+--		            " SNAP (", _Cur_Snap, "): ",
+--		            "tree height: ", height, " ",
+--		            "edges per node: ", degree, " ",
+--		            "leaves: ", leaves, " ",
+--		            "root block address: ", root_Number, " ",
+--		            "free block address: ", free_Number, " ",
+--		            "free leaves: (", free_Leaves, "/", free_Height, ")"
+--		);
+--	end ;
+
+
+--	procedure Initialize_Object (
+--		Obj     : out Object_Type;
+--		Now     :     Timestamp_Type;
+--		Sync    :     Timestamp_Type;
+--		Secure  :     Timestamp_Type;
+--		Sbs     :     Super_Blocks_Type;
+--		Curr_Sb :     Super_Blocks_Index_Type)
+--	is
+--	begin
+--
+--		Obj := (
+--			_Sync_Interval (sync),
+--			_Secure_Interval (secure)
+--
+----		--
+----		-- We have to make sure we actually execute the code to check
+----		-- if we provide enough space for the SPARK objects.
+----		--
+----		if not _Object_Sizes_Match then
+----			-- Genode::error ("object size mismatch");
+----			raise program_error -- throw Spark_Object_Size_Mismatch;
+----		end if;
+--
+--		--
+--		-- Copy initial state of all super-blocks. During the life-time
+--		-- of the CBE library these blocks will only be (over-)written
+--		-- and nevert read again.
+--		--
+--		--
+--		-- (The idea is to keep the setup phase seperated from the actual
+--		--  CBE work during run-time - not sure if this is necessary.)
+--		--
+--		for uint32_T i := 0; i < Cbe::NUM_SUPER_BLOCKS; i++ loop
+--			Genode::memcpy (&_Super_Block (i), &Sbs (i), sizeof (Cbe::Super_Block));
+--		end loop;
+--
+--		--
+--		-- Now we look up the proper snapshot from theCurr super-block
+--		-- and fill in our internal meta-data.
+--		--
+--
+--		_Cur_Sb =Curr_Sb;
+--
+--		using SB := Cbe::Super_Block;
+--		using SS := Cbe::Snapshot;
+--
+--		SB const &sb := _Super_Block (_Cur_Sb.Value);
+--
+--		uint32_T snap_Slot := sb.Snapshot_Slot ();
+--		if snap_Slot = Super_Block::INVALID_SNAPSHOT_SLOT then
+--			-- Genode::error ("snapshot slot not found");
+--			raise program_error -- throw Invalid_Snapshot_Slot;
+--		end if;
+--
+--		_Cur_Snap := snap_Slot;
+--
+--		SS const &snap := sb.Snapshots (_Cur_Snap);
+--
+--		Cbe::Degree           const degree := sb.Degree;
+--		Cbe::Height           const height := snap.Height;
+--		Cbe::Number_Of_Leaves const leaves := snap.Leaves;
+--
+--		--
+--		-- TheCurr implementation is limited with regard to the
+--		-- tree topology. Make sure it fits.
+--		--
+--		if height > Cbe::TREE_MAX_HEIGHT || height < Cbe::TREE_MIN_HEIGHT then
+--			-- Genode::error ("tree height of ", height, " not supported");
+--			raise program_error -- throw Invalid_Tree;
+--		end if;
+--
+--		if degree < Cbe::TREE_MIN_DEGREE then
+--			-- Genode::error ("tree outer-degree of ", degree, " not supported");
+--			raise program_error -- throw Invalid_Tree;
+--		end if;
+--
+--		--
+--		-- The VBD class isCurrly nothing more than a glorified
+--		-- Translation meta-module - pass on all information that is
+--		-- needed to construct the Tree_Helper.
+--		--
+--		--
+--		-- (Having the VBD is somewhat artificial, using the Translation
+--		--  module directly works well. The idea was to later on move
+--		--  all module which are needed to deal with a r/o snapshort in
+--		--  there and have an extended versions that is also able to
+--		--  manage theCurr active working snapshot.)
+--		--
+--		_Vbd.Construct (height, degree, leaves);
+--
+--		Cbe::Physical_Block_Address const free_Number := sb.Free_Number;
+--		Cbe::Generation             const free_Gen    := sb.Free_Gen;
+--		Cbe::Hash                   const free_Hash   := sb.Free_Hash;
+--		Cbe::Height                 const free_Height := sb.Free_Height;
+--		Cbe::Degree                 const free_Degree := sb.Free_Degree;
+--		Cbe::Number_Of_Leaves       const free_Leafs  := sb.Free_Leaves;
+--
+--		--
+--		-- The FT encapsulates all modules needed for traversing the
+--		-- free-tree and allocating new blocks. For now we do not update
+--		-- the FT itself, i.E, only the leaf node entries are changed.
+--		--
+--		--
+--		-- (Later, when the FT itself is updating its inner-nodes in a CoW
+--		--  fashion, we will store the root and hash for a given generation.
+--		--  That means every super-block will probably have its own FT.
+--		--  After all the FT includes all nodes used by the list of active
+--		--  snapshots.)
+--		--
+--		_Free_Tree.Construct (free_Number, free_Gen, free_Hash, free_Height,
+--		                     free_Degree, free_Leafs);
+--
+--		--
+--		-- TheCurr version always is the last secured version incremented
+--		-- by one.
+--		--
+--		_Last_Secured_Generation := sb.Last_Secured_Generation;
+--		_Cur_Gen                := _Last_Secured_Generation + 1;
+--		_Last_Snapshot_Id        := Snap.ID;
+--
+--		--
+--		-- If the timeout intervals were configured set initial timeout.
+--		--
+--		--
+--		-- (It stands to reasons if we should initial or rather only set
+--		--  them when a write request was submitted.)
+--		--
+--		if _Sync_Interval then
+--			_Time.Schedule_Sync_Timeout (_Sync_Interval);
+--		end if;
+--		if _Secure_Interval then
+--			_Time.Schedule_Secure_Timeout (_Secure_Interval);
+--		end if;
+--
+--		-- for diagnostic reasons--
+--		_Dump_Cur_Sb_Info ();
+--	end ;
+--
+--
+--	void dump_Cur_Sb_Info () const
+--	is begin
+--		_Dump_Cur_Sb_Info ();
+--	end ;
+--
+--
+--	Cbe::Virtual_Block_Address max_Vba () const
+--	is begin
+--		return _Super_Block (_Cur_Sb.Value).Snapshots (_Cur_Snap).Leaves - 1;
+--	end ;
+--
+--
+--	function Execute (bool show_Progress, bool show_If_Progress)
+--	return Boolean
+--	is begin
+--		bool progress := False;
+--
+--		-------------------
+--		-- Time handling --
+--		-------------------
+--
+--		--
+--		-- QueryCurr time and check if a timeout has triggered
+--		--
+--
+--		--
+--		-- Seal theCurr generation if sealing is not already
+--		-- in progress. In case no write operation was performed just set
+--		-- the trigger for the next interval.
+--		--
+--		--
+--		-- (Instead of checking all cache entries it would be nice if the
+--		--  Cache module would provide an interface that would allow us to
+--		--  simple check if it contains any dirty entries as it could easily
+--		--  track that condition internally itself.)
+--		--
+--		Diff_Time : Timestamp_Type := _Time.Timestamp () - _Last_Time;
+--		if diff_Time >= _Sync_Interval && !_Seal_Generation then
+--
+--			bool cache_Dirty := False;
+--			for size_T i := 0; i < _Cache.Cxx_Cache_Slots (); i++ loop
+--				Cache_Index const idx := Cache_Index { .Value := (uint32_T)i };
+--				if _Cache.Dirty (idx) then
+--					cache_Dirty |= True;
+--					break;
+--				}
+--			end loop;
+--
+--			if cache_Dirty then
+--				Genode::log ("\033[93;44m", __Func__, " SEALCurr generation: ", _Cur_Gen);
+--				_Seal_Generation := True;
+--			} else {
+--				-- DBG("cache is not dirty, re-arm trigger");
+--				_Last_Time := _Time.Timestamp ();
+--				_Time.Schedule_Sync_Timeout (_Sync_Interval);
+--			}
+--		end if;
+--
+--		--
+--		-- Secure theCurr super-block if securing is not already
+--		-- in progress. In case no write operation was performed, i.E., no
+--		-- snapshot was changed, just set the trigger for the next interval.
+--		--
+--		--
+--		-- (_Superblock_Dirty is set whenver the Write_Back module has done its work
+--		--  and will be reset when the super-block was secured.)
+--		--
+--		Diff_Secure_Time : Timestamp_Type := _Time.Timestamp () - _Last_Secure_Time;
+--		if diff_Secure_Time >= _Secure_Interval && !_Secure_Superblock then
+--
+--			if _Superblock_Dirty then
+--				Genode::log ("\033[93;44m", __Func__,
+--				            " SEALCurr super-block: ", _Cur_Sb);
+--				_Secure_Superblock := True;
+--			} else {
+--				-- DBG("no snapshots created, re-arm trigger");
+--				_Last_Secure_Time := _Time.Timestamp ();
+--			end if;
+--		end if;
+--
+--		------------------------
+--		-- Free-tree handling --
+--		------------------------
+--
+--		--
+--		-- The FT meta-module uses the Translation module internally and
+--		-- needs access to the cache since it wants to use its data.
+--		-- Because accessing a cache entry will update its LRU value, the
+--		-- cache must be mutable (that is also the reason we need the
+--		-- time object).
+--		--
+--		-- Since it might need to reuse reserved blocks, we have to hand
+--		-- over all active snapshots as well as the last secured generation.
+--		-- Both are needed for doing the reuse check.
+--		--
+--		--
+--		-- (Rather than passing the cache module itself to the FT it might
+--		--  be better to use a different interface for that purpose as I
+--		--  do not know how well theCurr solution works with SPARK...)
+--		--
+--		{
+--			Cbe::Super_Block const &sb := _Super_Block (_Cur_Sb.Value);
+--
+--			_Free_Tree->execute (sb.Snapshots,
+--			                    _Last_Secured_Generation,
+--			                    _Free_Tree_Trans_Data,
+--			                    _Cache, _Cache_Data,
+--			                    _Free_Tree_Query_Data,
+--			                    _Time);
+--			bool const ft_Progress := _Free_Tree->execute_Progress ();
+--			progress |= ft_Progress;
+--			LOG_PROGRESS(ft_Progress);
+--		}
+--
+--		--
+--		-- A complete primitive was either successful or has failed.
+--		--
+--		-- In the former case we will instruct the Write_Back module to
+--		-- write all changed nodes of the VBD back to the block device
+--		-- and eventually will leadt to ACKing the block request.
+--		--
+--		-- In the later case we will attempt to free reserved blocks in
+--		-- the FT by discarding snapshots. Briefly speaking all snapshots
+--		-- that were not specifically marked (see FLAG_KEEP) will be
+--		-- discarded. A finit number of retries will be performed. If we
+--		-- cannot free enough blocks, the write operation is marked as
+--		-- failed and will result in an I/O error at the Block session.
+--		--
+--		--
+--		while (True) {
+--
+--			Cbe::Primitive prim := _Free_Tree->peek_Completed_Primitive ();
+--			if not prim.Valid () then
+--				break;
+--			end if;
+--
+--			if prim.Success != Cbe::Primitive::Success::FALSE then
+--				break;
+--			end if;
+--
+--			-- DBG("allocating new blocks failed: ", _Free_Tree_Retry_Count);
+--			if _Free_Tree_Retry_Count < FREE_TREE_RETRY_LIMIT then
+--
+--				Cbe::Super_Block &sb := _Super_Block (_Cur_Sb.Value);
+--				uint32_T constCurr := sb.Snapshots (_Cur_Snap).Id;
+--				if _Discard_Snapshot (sb.Snapshots,Curr) then
+--					_Free_Tree_Retry_Count++;
+--					--
+--					-- Instructing the FT to retry the allocation will
+--					-- lead to clearing its internal 'query branches'
+--					-- state and executing the previously submitted
+--					-- request again.
+--					--
+--					-- (This retry attempt is a shortcut as we do not have
+--					--  all information available at this point to call
+--					--  'submit_Request' again - so we must not call
+--					--  'drop_Completed_Primitive' as this will clear the
+--					--  request.)
+--					--
+--					_Free_Tree->retry_Allocation ();
+--				end if;
+--				break;
+--			end if;
+--
+--			-- Genode::error ("could not find enough useable blocks");
+--			_Request_Pool.Mark_Completed_Primitive (prim);
+--			-- DBG("----------------------->Curr primitive: ", current_Primitive, " FINISHED");
+--			current_Primitive := Cbe::Primitive { };
+--			-- FIXME
+--			_Vbd->trans_Resume_Translation ();
+--
+--			_Free_Tree->drop_Completed_Primitive (prim);
+--			progress |= True;
+--		}
+--
+--		--
+--		-- There are two types of generated primitives by FT module,
+--		-- the traversing of the tree is done by the internal Translation
+--		-- module, which will access the nodes through the cache - I/O
+--		-- primitives will therefor be generated as a side-effect of the
+--		-- querying attempt by the Cache module.
+--		--
+--		-- - IO_TAG primitives are only used for querying type 2 nodes, i.E.,
+--		--   inner nodes of the free-tree containg free or reserved blocks.
+--		--
+--		-- - WRITE_BACK_TAG primitve are only used for writing one changed
+--		--   branch back to the block device. Having the branch written
+--		--   will lead to a complete primitve.
+--		--
+--		while (True) {
+--
+--			Cbe::Primitive prim := _Free_Tree->peek_Generated_Primitive ();
+--			if not prim.Valid () then
+--				break;
+--			end if;
+--			if not _Io.Primitive_Acceptable () then
+--				break;
+--			end if;
+--
+--			Index const idx := _Free_Tree->peek_Generated_Data_Index (prim);
+--
+--			Cbe::Block_Data *data := nullptr;
+--			Cbe::Tag tag { Tag::INVALID_TAG };
+--			switch (prim.Tag) {
+--			case Tag::WRITE_BACK_TAG:
+--				tag  := Tag::FREE_TREE_TAG_WB;
+--				--
+--				-- FIXME Accessing the cache in this way could be dangerous because
+--				-- the cache is shared by the VBD as well as the FT. If we would
+--				-- not suspend the VBD while doing the write-back, another request
+--				-- could evict the entry belonging to the idx value and replace it.
+--				--
+--				-- (Since the prim contains the PBA we could check the validity of
+--				--  the index beforehand - but not storing the index in the first
+--				--  place would be the preferable solution.)
+--				--
+--				data := &_Cache_Data.Item (idx.Value);
+--				break;
+--			case Tag::IO_TAG:
+--				tag  := Tag::FREE_TREE_TAG_IO;
+--				data := &_Free_Tree_Query_Data.Item (idx.Value);
+--				break;
+--			default: break;
+--			}
+--
+--			_Io.Submit_Primitive (tag, prim, _Io_Data, *data, True);
+--
+--			_Free_Tree->drop_Generated_Primitive (prim);
+--			progress |= True;
+--		}
+--
+--		-------------------------------
+--		-- Put request into splitter --
+--		-------------------------------
+--
+--		--
+--		-- An arbitrary sized Block request will be cut into 4096 byte
+--		-- sized primitves by the Splitter module.
+--		--
+--		while (True) {
+--
+--			Cbe::Request const &req := _Request_Pool.Peek_Pending_Request ();
+--			if not req.Valid () then
+--				break;
+--			end if;
+--			if not _Splitter.Request_Acceptable () then
+--				break;
+--			end if;
+--
+--			_Request_Pool.Drop_Pending_Request (req);
+--			_Splitter.Submit_Request (req);
+--
+--			progress |= True;
+--		}
+--
+--		--
+--		-- Give primitive to the translation module
+--		--
+--		while (True) {
+--
+--			Cbe::Primitive prim := _Splitter.Peek_Generated_Primitive ();
+--			if not prim.Valid () then
+--				break;
+--			end if;
+--			if not _Vbd->primitive_Acceptable () then
+--				break;
+--			end if;
+--
+--			-- FIXME why is _Seal_Generation check not necessary?
+--			-- that mainly is intended to block write primitives--
+--			if _Secure_Superblock then
+--				-- DBG("prevent processing new primitives while securing super-block");
+--				break;
+--			end if;
+--
+--			_Splitter.Drop_Generated_Primitive (prim);
+--
+--			current_Primitive := prim;
+--
+--			--
+--			-- For every new request, we have to use theCurrly active
+--			-- snapshot as a previous request may have changed the tree.
+--			--
+--			Cbe::Super_Block const &sb := _Super_Block (_Cur_Sb.Value);
+--			Snapshot_Type    const &snap := sb.Snapshots (_Cur_Snap);
+--
+--			Cbe::Physical_Block_Address const  pba  := snap.Pba;
+--			Cbe::Hash                   const &hash := snap.Hash;
+--			Cbe::Generation             const  gen  := snap.Gen;
+--
+--			_Vbd->submit_Primitive (pba, gen, hash, prim);
+--			progress |= True;
+--		}
+--
+--		if current_Primitive.Valid () then
+--			-- DBG("----------------------->Curr primitive: ", current_Primitive);
+--		end if;
+--
+--		------------------
+--		-- VBD handling --
+--		------------------
+--
+--		--
+--		-- The VBD meta-module uses the Translation module internally and
+--		-- needs access to the cache since it wants to use its data.
+--		-- Because accessing a cache entry will update its LRU value, the
+--		-- cache must be mutable (that is also the reason we need the
+--		-- time object).
+--		--
+--		--
+--		-- (Basically the same issue regarding SPARK as the FT module...)
+--		--
+--		{
+--			_Vbd->execute (_Trans_Data, _Cache, _Cache_Data, _Time.Timestamp ());
+--			bool const vbd_Progress := _Vbd->execute_Progress ();
+--			progress |= vbd_Progress;
+--			LOG_PROGRESS(vbd_Progress);
+--		}
+--
+--		----------------------------
+--		-- Cache_Flusher handling --
+--		----------------------------
+--
+--		--
+--		-- The Cache_Flusher module is used to flush all dirty cache entries
+--		-- to the block device and mark them as clean again. While the flusher
+--		-- is doing its work, all cache entries should be locked, i.E., do not
+--		-- cache an entry while its flushed - otherwise the change might not
+--		-- end up on the block device. Should be guarded by '_Seal_Generation'.
+--		--
+--		-- (For better or worse it is just a glorified I/O manager. At some
+--		--  point it should be better merged into the Cache module later on.)
+--		--
+--
+--		--
+--		-- Mark the corresponding cache entry as clean. If it was
+--		-- evicted in the meantime it will be ignored.
+--		--
+--		while (True) {
+--
+--			Cbe::Primitive prim := _Cache_Flusher.Cxx_Peek_Completed_Primitive ();
+--			if not prim.Valid () then
+--				break;
+--			end if;
+--
+--			if prim.Success != Cbe::Primitive::Success::TRUE then
+--				-- DBG(prim);
+--				raise program_error -- throw Primitive_Failed;
+--			end if;
+--
+--			Cbe::Physical_Block_Address const pba := prim.Block_Number;
+--			_Cache.Mark_Clean (pba);
+--			-- DBG("mark_Clean: ", pba);
+--
+--			_Cache_Flusher.Cxx_Drop_Completed_Primitive (prim);
+--			progress |= True;
+--		}
+--
+--		--
+--		-- Just pass the primitive on to the I/O module.
+--		--
+--		while (True) {
+--
+--			Cbe::Primitive prim := _Cache_Flusher.Cxx_Peek_Generated_Primitive ();
+--			if not prim.Valid () then break; }
+--			if not _Io.Primitive_Acceptable () then break; }
+--
+--			Cache_Index     const  idx  := _Cache_Flusher.Cxx_Peek_Generated_Data_Index (prim);
+--			Cbe::Block_Data       &data := _Cache_Data.Item (idx.Value);
+--
+--			_Io.Submit_Primitive (Tag::CACHE_FLUSH_TAG, prim, _Io_Data, data);
+--
+--			_Cache_Flusher.Cxx_Drop_Generated_Primitive (prim);
+--			progress |= True;
+--		}
+--
+--		-------------------------
+--		-- Write-back handling --
+--		-------------------------
+--
+--		--
+--		-- The Write_Back module will store a changed branch including its leaf
+--		-- node on the block device.
+--		--
+--		-- The way itCurrly operates is as follows:
+--		--    1. (CRYPTO)   it hands the leaf data to the Crypto module for encryption
+--		--    2. (IO)       it hands the encrypted leaf data to I/O module to write it
+--		--                  to the block device
+--		--    3. (CACHE)    starting by the lowest inner node it will update the node
+--		--                  entry (pba and hash)
+--		--    4. (COMPLETE) it returns the new root pba and root hash
+--		--
+--		-- When '_Seal_Generation' is set, it will first instruct the Cache_Flusher
+--		-- module to clean the cache. Afterwards it will store theCurr snapshot
+--		-- and increment the '_Cur_Snap' as well as '_Cur_Gen' (-> there is only one
+--		-- snapshot per generation and there areCurrly only 48 snapshot slots per
+--		-- super-block) and set the sync trigger.
+--		--
+--		-- Otherwise it will just update the root hash in place.
+--		--
+--
+--		while (True) {
+--
+--			Cbe::Primitive prim := _Write_Back.Peek_Completed_Primitive ();
+--			if not prim.Valid () then
+--				break;
+--			end if;
+--
+--			if prim.Success != Cbe::Primitive::Success::TRUE then
+--				-- DBG(prim);
+--				raise program_error -- throw Primitive_Failed;
+--			end if;
+--
+--			if _Seal_Generation then
+--
+--				-- FIXME only check flusher when the cache is dirty
+--				-- FIXME and track if flusher is already active, e.G. by adding
+--				--     a 'active' function that returns True whenever is doing
+--				--     its job. I fear itCurrly only works by chance
+--				if not _Cache_Flusher.Cxx_Request_Acceptable () then
+--					break;
+--				end if;
+--
+--				bool cache_Dirty := False;
+--				for uint32_T i := 0; i < _Cache.Cxx_Cache_Slots (); i++ loop
+--					Cache_Index const idx := Cache_Index { .Value := (uint32_T)i };
+--					if _Cache.Dirty (idx) then
+--						cache_Dirty |= True;
+--
+--						Cbe::Physical_Block_Address const pba := _Cache.Flush (idx);
+--						-- DBG(" i: ", idx.Value, " pba: ", pba, " needs flushing");
+--
+--						_Cache_Flusher.Cxx_Submit_Request (pba, idx);
+--					end if;
+--				end loop;
+--
+--				--
+--				-- In case we have to flush the cache, wait until we have finished
+--				-- doing that.
+--				--
+--				if cache_Dirty then
+--					-- DBG("CACHE FLUSH NEEDED: progress: ", progress);
+--					progress |= True;
+--					break;
+--				end if;
+--
+--				--
+--				-- Look for a new snapshot slot. If we cannot find one
+--				-- we manual intervention b/c there are too many snapshots
+--				-- flagged as keep
+--				--
+--				Cbe::Super_Block &sb := _Super_Block (_Cur_Sb.Value);
+--				uint32_T next_Snap := _Cur_Snap;
+--				for uint32_T i := 0; i < Cbe::NUM_SNAPSHOTS; i++ loop
+--					next_Snap := (next_Snap + 1) % Cbe::NUM_SNAPSHOTS;
+--					Snapshot_Type const &snap := sb.Snapshots (next_Snap);
+--					if not Snapshot_Valid (Snap) then
+--						break;
+--					} else {
+--						if not (snap.Flags & Cbe::Snapshot::FLAG_KEEP) then
+--							break;
+--						end if;
+--					end if;
+--				end loop;
+--
+--				if next_Snap = _Cur_Snap then
+--					-- Genode::error ("could not find free snapshot slot");
+--					-- proper handling pending--
+--					raise program_error -- throw Invalid_Snapshot_Slot;
+--					break;
+--				end if;
+--
+--				--
+--				-- Creating a new snapshot only involves storing its
+--				-- meta-data in a new slot and afterwards setting the
+--				-- seal timeout again.
+--				--
+--				Snapshot_Type &snap := sb.Snapshots (next_Snap);
+--
+--				snap.Pba := _Write_Back.Peek_Completed_Root (prim);
+--				Cbe::Hash *snap_Hash := &snap.Hash;
+--				_Write_Back.Peek_Competed_Root_Hash (prim, *snap_Hash);
+--
+--				Cbe::Tree_Helper const &tree := _Vbd->tree_Helper ();
+--				snap.Height := tree.Height ();
+--				snap.Leaves := tree.Leafs ();
+--				snap.Gen := _Cur_Gen;
+--				Snap.ID  := ++_Last_Snapshot_Id;
+--
+--				-- DBG("new snapshot for generation: ", _Cur_Gen, " snap: ", snap);
+--
+--				_Cur_Gen++;
+--				_Cur_Snap++;
+--
+--				_Seal_Generation := False;
+--				--
+--				-- (As already briefly mentioned in the time handling section,
+--				--  it would be more reasonable to only set the timeouts when
+--				--  we actually perform write request.)
+--				--
+--				_Last_Time := _Time.Timestamp ();
+--				_Time.Schedule_Sync_Timeout (_Sync_Interval);
+--			} else {
+--
+--				--
+--				-- No need to create a new snapshot, just update the hash in place
+--				-- and move on.
+--				--
+--
+--				Cbe::Super_Block &sb := _Super_Block (_Cur_Sb.Value);
+--				Snapshot_Type    &snap := sb.Snapshots (_Cur_Snap);
+--
+--				-- update snapshot--
+--				Cbe::Physical_Block_Address const pba := _Write_Back.Peek_Completed_Root (prim);
+--				-- FIXME why do we need that again?
+--				if snap.Pba != pba then
+--					snap.Gen := _Cur_Gen;
+--					snap.Pba := pba;
+--				end if;
+--
+--				Cbe::Hash *snap_Hash := &snap.Hash;
+--				_Write_Back.Peek_Competed_Root_Hash (prim, *snap_Hash);
+--			end if;
+--
+--			--
+--			-- We touched the super-block, either by updating a snapshot or by
+--			-- creating a new one - make sure it gets secured within the next
+--			-- interval.
+--			--
+--			_Superblock_Dirty |= True;
+--
+--			_Write_Back.Drop_Completed_Primitive (prim);
+--
+--			--
+--			-- Since the write request is finally finished, all nodes stored
+--			-- at some place "save" (leafs on the block device, inner nodes within
+--			-- the cache, acknowledge the primitive.
+--			--
+--			_Request_Pool.Mark_Completed_Primitive (prim);
+--			-- DBG("----------------------->Curr primitive: ", current_Primitive, " FINISHED");
+--			current_Primitive := Cbe::Primitive { };
+--			progress |= True;
+--
+--			--
+--			-- FIXME stalling translation as long as the write-back takes places
+--			--     is not a good idea
+--			--
+--			_Vbd->trans_Resume_Translation ();
+--		}
+--
+--
+--		--
+--		-- Give the leaf data to the Crypto module.
+--		--
+--		while (True) {
+--
+--			Cbe::Primitive prim := _Write_Back.Peek_Generated_Crypto_Primitive ();
+--			if not prim.Valid () then
+--				break;
+--			end if;
+--			if not _Crypto.Cxx_Primitive_Acceptable () then
+--				break;
+--			end if;
+--
+--			Write_Back_Data_Index const idx := _Write_Back.Peek_Generated_Crypto_Data (prim);
+--			Cbe::Block_Data           &data := _Write_Back_Data.Item (idx.Value);
+--			-- the data will be copied into the Crypto module's internal buffer--
+--			_Crypto.Cxx_Submit_Primitive (prim, data, _Crypto_Data);
+--
+--			_Write_Back.Drop_Generated_Crypto_Primitive (prim);
+--			progress |= True;
+--		}
+--
+--		--
+--		-- Pass the encrypted leaf data to the I/O module.
+--		--
+--		while (True) {
+--
+--			Cbe::Primitive prim := _Write_Back.Peek_Generated_Io_Primitive ();
+--			if not prim.Valid () then
+--				break;
+--			end if;
+--			if not _Io.Primitive_Acceptable () then
+--				break;
+--			end if;
+--
+--			Write_Back_Data_Index const idx := _Write_Back.Peek_Generated_Io_Data (prim);
+--			Cbe::Block_Data           &data := _Write_Back_Data.Item (idx.Value);
+--			_Io.Submit_Primitive (Tag::WRITE_BACK_TAG, prim, _Io_Data, data);
+--
+--			_Write_Back.Drop_Generated_Io_Primitive (prim);
+--			progress |= True;
+--		}
+--
+--		--
+--		-- Update the inner nodes of the tree. This is always done after the
+--		-- encrypted leaf node was stored by the I/O module.
+--		--
+--		while (True) {
+--
+--			Cbe::Primitive prim := _Write_Back.Peek_Generated_Cache_Primitive ();
+--			-- DBG(prim);
+--			if not prim.Valid () then
+--				break;
+--			end if;
+--
+--			using PBA := Cbe::Physical_Block_Address;
+--			PBA const pba        := prim.Block_Number;
+--			PBA const update_Pba := _Write_Back.Peek_Generated_Cache_Update_Pba (prim);
+--
+--			--
+--			-- Check if the cache contains the needed entries. In case of the
+--			-- of the old node's block that is most likely. The new one, if
+--			-- there is one (that happens when the inner nodes are _Not_ updated
+--			-- in place, might not be in the cache - check and request both.
+--			--
+--
+--			bool cache_Miss := False;
+--			if not _Cache.Data_Available (pba) then
+--				-- DBG("cache miss pba: ", pba);
+--				if _Cache.Cxx_Request_Acceptable (pba) then
+--					_Cache.Cxx_Submit_Request (pba);
+--				end if;
+--				cache_Miss |= True;
+--			end if;
+--
+--			if pba != update_Pba then
+--				if not _Cache.Data_Available (update_Pba) then
+--					-- DBG("cache miss update_Pba: ", update_Pba);
+--					if _Cache.Cxx_Request_Acceptable (update_Pba) then
+--						_Cache.Cxx_Submit_Request (update_Pba);
+--					end if;
+--					cache_Miss |= True;
+--				end if;
+--			end if;
+--
+--			-- read the needed blocks first--
+--			if cache_Miss then
+--				-- DBG("cache_Miss");
+--				break;
+--			end if;
+--
+--			_Write_Back.Drop_Generated_Cache_Primitive (prim);
+--
+--			-- DBG("cache hot pba: ", pba, " update_Pba: ", update_Pba);
+--
+--			--
+--			-- To keep it simply, always set both properly - even if
+--			-- the old and new node are the same.
+--			--
+--			Cache_Index const idx        := _Cache.Data_Index (pba, _Time.Timestamp ());
+--			Cache_Index const update_Idx := _Cache.Data_Index (update_Pba, _Time.Timestamp ());
+--
+--			Cbe::Block_Data const &data        := _Cache_Data.Item (idx.Value);
+--			Cbe::Block_Data       &update_Data := _Cache_Data.Item (update_Idx.Value);
+--
+--			--
+--			-- (Later on we can remove the tree_Helper here as the outer degree,
+--			--  which is used to calculate the entry in the inner node from the
+--			--  VBA is set at compile-time.)
+--			--
+--			_Write_Back.Update (pba, _Vbd->tree_Helper (), data, update_Data);
+--			-- make the potentially new entry as dirty so it gets flushed next time--
+--			_Cache.Mark_Dirty (update_Pba);
+--			progress |= True;
+--		}
+--
+--		--------------------------
+--		-- Super-block handling --
+--		--------------------------
+--
+--		--
+--		-- Store theCurr generation and snapshot id in the current
+--		-- super-block before it gets secured.
+--		--
+--		if _Secure_Superblock && _Sync_Sb.Cxx_Request_Acceptable () then
+--
+--			Cbe::Super_Block &sb := _Super_Block (_Cur_Sb.Value);
+--
+--			sb.Last_Secured_Generation := _Cur_Gen;
+--			sb.Snapshot_Id             := _Cur_Snap;
+--
+--			-- DBG("secureCurr super-block gen: ", _Cur_Gen,
+--			    " Snap.ID: ", _Cur_Snap);
+--
+--			_Sync_Sb.Cxx_Submit_Request (_Cur_Sb.Value, _Cur_Gen);
+--		end if;
+--
+--		--
+--		-- When theCurr super-block was secured, select the next one.
+--		--
+--		while (True) {
+--
+--			Cbe::Primitive prim := _Sync_Sb.Cxx_Peek_Completed_Primitive ();
+--			if not prim.Valid () then
+--				break;
+--			end if;
+--
+--			if prim.Success != Cbe::Primitive::Success::TRUE then
+--				-- DBG(prim);
+--				raise program_error -- throw Primitive_Failed;
+--			end if;
+--
+--			-- DBG("primitive: ", prim);
+--
+--
+--			Super_Blocks_Index_Type  next_Sb := Super_Blocks_Index_Type {
+--				.Value := (uint8_T)((_Cur_Sb.Value + 1) % Cbe::NUM_SUPER_BLOCKS)
+--			};
+--			Cbe::Super_Block       &next    := _Super_Block (next_Sb.Value);
+--			Cbe::Super_Block const &curr    := _Super_Block (_Cur_Sb.Value);
+--			Genode::memcpy (&next, &curr, sizeof (Cbe::Super_Block));
+--
+--			-- handle state--
+--			_Cur_Sb                  := next_Sb;
+--			_Last_Secured_Generation := _Sync_Sb.Cxx_Peek_Completed_Generation (prim);
+--			_Superblock_Dirty        := False;
+--			_Secure_Superblock       := False;
+--
+--			_Sync_Sb.Cxx_Drop_Completed_Primitive (prim);
+--			progress |= True;
+--
+--			--
+--			-- (FIXME same was with sealing the generation, it might make
+--			--  sense to set the trigger only when a write operation
+--			--  was performed.)
+--			--
+--			_Last_Secure_Time := _Time.Timestamp ();
+--			_Time.Schedule_Secure_Timeout (_Secure_Interval);
+--		}
+--
+--		--
+--		-- Use I/O module to write super-block to the block device.
+--		--
+--		while (True) {
+--
+--			Cbe::Primitive prim := _Sync_Sb.Cxx_Peek_Generated_Primitive ();
+--			if not prim.Valid () then
+--				break;
+--			end if;
+--			if not _Io.Primitive_Acceptable () then
+--				break;
+--			end if;
+--
+--			uint64_T   const  id      := _Sync_Sb.Cxx_Peek_Generated_Id (prim);
+--			Cbe::Super_Block &sb      := _Super_Block (id);
+--			Cbe::Block_Data  &sb_Data := *reinterpret_Cast<Cbe::Block_Data*>(&sb);
+--
+--			_Io.Submit_Primitive (Tag::SYNC_SB_TAG, prim, _Io_Data, sb_Data);
+--			_Sync_Sb.Cxx_Drop_Generated_Primitive (prim);
+--			progress |= True;
+--		}
+--
+--		---------------------
+--		-- Crypto handling --
+--		---------------------
+--
+--		--
+--		-- The Crypto module has its own internal buffer, data has to be
+--		-- copied in and copied out.
+--		--
+--
+--		bool const crypto_Progress := _Crypto.Cxx_Execute ();
+--		progress |= crypto_Progress;
+--		LOG_PROGRESS(crypto_Progress);
+--
+--		--
+--		-- Only writes primitives (encrypted data) are handled here,
+--		-- read primitives (decrypred data) are handled in 'give_Read_Data'.
+--		--
+--		while (True) {
+--
+--			Cbe::Primitive prim := _Crypto.Cxx_Peek_Completed_Primitive ();
+--			if not prim.Valid () || prim.Read () then
+--				break;
+--			end if;
+--
+--			if prim.Success != Cbe::Primitive::Success::TRUE then
+--				-- DBG(prim);
+--				raise program_error -- throw Primitive_Failed;
+--			end if;
+--
+--			Write_Back_Data_Index const idx := _Write_Back.Peek_Generated_Crypto_Data (prim);
+--			Cbe::Block_Data &data := _Write_Back_Data.Item (idx.Value);
+--			-- FIXME instead of copying the data just ask the crypto module for the resulting
+--			--     hash and omit further processing in case the operation failed
+--			_Crypto.Cxx_Copy_Completed_Data (prim, data);
+--			_Write_Back.Mark_Completed_Crypto_Primitive (prim, data);
+--
+--			_Crypto.Cxx_Drop_Completed_Primitive (prim);
+--			progress |= True;
+--		}
+--
+--		--
+--		-- Since encryption is performed when calling 'execute' and decryption
+--		-- is handled differently, all we have to do here is to drop and mark
+--		-- complete.
+--		--
+--		while (True) {
+--
+--			Cbe::Primitive prim := _Crypto.Cxx_Peek_Generated_Primitive ();
+--			if not prim.Valid () then
+--				break;
+--			end if;
+--
+--			_Crypto.Cxx_Drop_Generated_Primitive (prim);
+--			_Crypto.Cxx_Mark_Completed_Primitive (prim);
+--
+--			progress |= True;
+--		}
+--
+--		--------------------
+--		-- Cache handling --
+--		--------------------
+--
+--		--
+--		-- Pass the data used by the module in by reference so that it
+--		-- can be shared by the other modules. The method will internally
+--		-- copy read job data into the chosen entry. In doing so it might
+--		-- evict an already populated entry.
+--		--
+--		bool const cache_Progress := _Cache.Execute (_Cache_Data, _Cache_Job_Data,
+--		                                           _Time.Timestamp ());
+--		progress |= cache_Progress;
+--		LOG_PROGRESS(cache_Progress);
+--
+--		--
+--		-- Read data from the block device to fill the cache.
+--		--
+--		-- (The Cache module has no 'peek_Completed_Primitive ()' method,
+--		--  all modules using the cache have to poll and might be try to
+--		--  submit the same request multiple times (see its acceptable
+--		--  method). It makes sense to change the Cache module so that it
+--		--  works the rest of modules. That would require restructing
+--		--  the modules, though.)
+--		--
+--		while (True) {
+--
+--			Cbe::Primitive prim := _Cache.Peek_Generated_Primitive ();
+--			if not prim.Valid () then
+--				break;
+--			end if;
+--			if not _Io.Primitive_Acceptable () then
+--				break;
+--			end if;
+--
+--			Cache_Index const idx := _Cache.Peek_Generated_Data_Index (prim);
+--			Cbe::Block_Data &data := _Cache_Job_Data.Item (idx.Value);
+--
+--			_Cache.Drop_Generated_Primitive (prim);
+--
+--			_Io.Submit_Primitive (Tag::CACHE_TAG, prim, _Io_Data, data, True);
+--			progress |= True;
+--		}
+--
+--		------------------
+--		-- I/O handling --
+--		------------------
+--
+--		--
+--		-- This module handles all the block backend I/O and has to
+--		-- work with all most all modules. IT uses the 'Tag' field
+--		-- to differentiate the modules.
+--		--
+--
+--		while (True) {
+--
+--			Cbe::Primitive prim := _Io.Peek_Completed_Primitive ();
+--			if not prim.Valid () then
+--				break;
+--			end if;
+--
+--			if prim.Success != Cbe::Primitive::Success::TRUE then
+--				-- DBG(prim);
+--				raise program_error -- throw Primitive_Failed;
+--			end if;
+--
+--			Genode::uint32_T const idx := _Io.Peek_Completed_Data_Index (prim);
+--			Cbe::Block_Data      &data := _Io_Data.Item (idx);
+--
+--			--
+--			-- Whenever we cannot hand a successful primitive over
+--			-- to the corresponding module, leave the loop but keep
+--			-- the completed primitive so that it might be processed
+--			-- next time.
+--			--
+--			bool mod_Progress := True;
+--			switch (prim.Tag) {
+--
+--			case Tag::CRYPTO_TAG_DECRYPT:
+--				if not _Crypto.Cxx_Primitive_Acceptable () then
+--					mod_Progress := False;
+--				} else {
+--					Cbe::Tag const orig_Tag := _Io.Peek_Completed_Tag (prim);
+--
+--					--
+--					-- Having to override the tag is needed because of the way
+--					-- the Crypto module is hooked up in the overall data flow.
+--					-- Since it is the one that acknowledges the primitive to the
+--					-- pool in the read case, we have to use the tag the pool
+--					-- module uses.
+--					--
+--					prim.Tag := orig_Tag;
+--					_Crypto.Cxx_Submit_Primitive (prim, data, _Crypto_Data);
+--				end if;
+--				break;
+--
+--			case Tag::CACHE_TAG:
+--				-- FIXME we need a proper method for getting the right cache job
+--				--     data index, for now rely on the knowledge that there is
+--				--     only one item
+--				Genode::memcpy (&_Cache_Job_Data.Item (0), &data, sizeof (Cbe::Block_Data));
+--				_Cache.Cxx_Mark_Completed_Primitive (prim);
+--				break;
+--
+--			case Tag::CACHE_FLUSH_TAG:
+--				_Cache_Flusher.Cxx_Mark_Generated_Primitive_Complete (prim);
+--				break;
+--
+--			case Tag::WRITE_BACK_TAG:
+--				_Write_Back.Mark_Completed_Io_Primitive (prim);
+--				break;
+--
+--			case Tag::SYNC_SB_TAG:
+--				_Sync_Sb.Cxx_Mark_Generated_Primitive_Complete (prim);
+--				break;
+--
+--			case Tag::FREE_TREE_TAG_WB:
+--				prim.Tag := Tag::WRITE_BACK_TAG;
+--				_Free_Tree->mark_Generated_Primitive_Complete (prim);
+--				break;
+--
+--			case Tag::FREE_TREE_TAG_IO:
+--				prim.Tag := Tag::IO_TAG;
+--				-- FIXME we need a proper method for getting the right query
+--				--     data index, for now rely on the knowledge that there
+--				--     is only one item
+--				Genode::memcpy (&_Free_Tree_Query_Data.Item (0), &data, sizeof (Cbe::Block_Data));
+--				_Free_Tree->mark_Generated_Primitive_Complete (prim);
+--				break;
+--
+--			default: break;
+--			}
+--			if not mod_Progress then
+--				break;
+--			end if;
+--
+--			_Io.Drop_Completed_Primitive (prim);
+--			progress |= True;
+--		}
+--
+--		return progress;
+--	end ;
+--
+--
+--	function Request_Acceptable () const
+--	return Boolean
+--	is begin
+--		return _Request_Pool.Request_Acceptable ();
+--	end ;
+--
+--
+--	void submit_Request (Cbe::Request const &request)
+--	is begin
+--		Number_Of_Primitives const num := _Splitter.Number_Of_Primitives (request);
+--		_Request_Pool.Submit_Request (request, num);
+--	end ;
+--
+--
+--	Cbe::Request peek_Completed_Request () const
+--	is begin
+--		return _Request_Pool.Peek_Completed_Request ();
+--	end ;
+--
+--
+--	void drop_Completed_Request (Cbe::Request const &req)
+--	is begin
+--		_Request_Pool.Drop_Completed_Request (req);
+--	end ;
+--
+--
+--	Cbe::Request need_Data ()
+--	is begin
+--		if _Backend_Req_Prim.Prim.Valid () then return Cbe::Request { }; }
+--
+--		-- I/O module--
+--		{
+--			Cbe::Primitive prim := _Io.Peek_Generated_Primitive ();
+--			if prim.Valid () then
+--				Cbe::Request req := Cbe::convert_From (prim);
+--
+--				_Backend_Req_Prim := Req_Prim {
+--					.Req         := req,
+--					.Prim        := prim,
+--					.Tag         := Cbe::Tag::IO_TAG,
+--					.In_Progress := False,
+--				};
+--				return req;
+--			end if;
+--		end if;
+--
+--		return Cbe::Request { };
+--	end ;
+--
+--
+--	function Take_Read_Data (Cbe::Request const &request)
+--	return Boolean
+--	is begin
+--		--
+--		-- For now there is only one request pending.
+--		--
+--		if (!_Backend_Req_Prim.Req.Equal (request)
+--		    || _Backend_Req_Prim.In_Progress) { return False; }
+--
+--		Cbe::Primitive prim := _Backend_Req_Prim.Prim;
+--
+--		if _Backend_Req_Prim.Tag = Cbe::Tag::IO_TAG then
+--			_Io.Drop_Generated_Primitive (prim);
+--
+--			_Backend_Req_Prim.In_Progress := True;
+--			return True;
+--		end if;
+--		return False;
+--	end ;
+--
+--
+--	function Ack_Read_Data (Cbe::Request    const &request,
+--	                                 Cbe::Block_Data const &data)
+--	return Boolean
+--	is begin
+--		--
+--		-- For now there is only one request pending.
+--		--
+--		if (!_Backend_Req_Prim.Req.Equal (request)
+--		    || !_Backend_Req_Prim.In_Progress) { return False; }
+--
+--		Cbe::Primitive prim := _Backend_Req_Prim.Prim;
+--
+--		if _Backend_Req_Prim.Tag = Cbe::Tag::IO_TAG then
+--
+--			bool const success := request.Success = Cbe::Request::Success::TRUE;
+--
+--			if success then
+--
+--				Genode::uint32_T const idx := _Io.Peek_Generated_Data_Index (prim);
+--				Cbe::Block_Data   &io_Data := _Io_Data.Item (idx);
+--				Genode::memcpy (&io_Data, &data, sizeof (Cbe::Block_Data));
+--			end if;
+--
+--			prim.Success := success ? Cbe::Primitive::Success::TRUE
+--			                       : Cbe::Primitive::Success::FALSE;
+--			_Io.Mark_Generated_Primitive_Complete (prim);
+--
+--			_Backend_Req_Prim := Req_Prim { };
+--			return True;
+--		end if;
+--
+--		return False;
+--	end ;
+--
+--
+--	function Take_Write_Data (Cbe::Request    const &request,
+--	                                   Cbe::Block_Data       &data)
+--	return Boolean
+--	is begin
+--		--
+--		-- For now there is only one request pending.
+--		--
+--		if (!_Backend_Req_Prim.Req.Equal (request)
+--		    || _Backend_Req_Prim.In_Progress) { return False; }
+--
+--		Cbe::Primitive const prim := _Backend_Req_Prim.Prim;
+--
+--		if _Backend_Req_Prim.Tag = Cbe::Tag::IO_TAG then
+--
+--			Genode::uint32_T const idx := _Io.Peek_Generated_Data_Index (prim);
+--			Cbe::Block_Data   &io_Data := _Io_Data.Item (idx);
+--			Genode::memcpy (&data, &io_Data, sizeof (Cbe::Block_Data));
+--
+--			_Io.Drop_Generated_Primitive (prim);
+--
+--			_Backend_Req_Prim.In_Progress := True;
+--			return True;
+--		end if;
+--
+--		return False;
+--	end ;
+--
+--
+--	function Ack_Write_Data (Cbe::Request const &request)
+--	return Boolean
+--	is begin
+--		--
+--		-- For now there is only one request pending.
+--		--
+--		if (!_Backend_Req_Prim.Req.Equal (request)
+--		    || !_Backend_Req_Prim.In_Progress) { return False; }
+--
+--		Cbe::Primitive prim := _Backend_Req_Prim.Prim;
+--
+--		if _Backend_Req_Prim.Tag = Cbe::Tag::IO_TAG then
+--
+--			bool const success := request.Success = Cbe::Request::Success::TRUE;
+--
+--			prim.Success := success ? Cbe::Primitive::Success::TRUE
+--			                       : Cbe::Primitive::Success::FALSE;
+--			_Io.Mark_Generated_Primitive_Complete (prim);
+--
+--			_Backend_Req_Prim := Req_Prim { };
+--			return True;
+--		end if;
+--
+--		return False;
+--	end ;
+--
+--
+--	Cbe::Request have_Data ()
+--	is begin
+--		-- FIXME move req_Prim allocation into execute
+--		if _Frontend_Req_Prim.Prim.Valid () then return Cbe::Request { }; }
+--
+--		--
+--		-- When it was a read request, we need the location to
+--		-- where the Crypto should copy the decrypted data.
+--		--
+--		{
+--			Cbe::Primitive prim := _Crypto.Cxx_Peek_Completed_Primitive ();
+--			if prim.Valid () && prim.Read () then
+--				Cbe::Request const req := _Request_Pool.Request_For_Tag (prim.Tag);
+--				_Frontend_Req_Prim := Req_Prim {
+--					.Req  := req,
+--					.Prim := prim,
+--					.Tag  := Cbe::Tag::CRYPTO_TAG,
+--					.In_Progress := False,
+--				};
+--				return req;
+--			end if;
+--		end if;
+--
+--		--
+--		-- When it was a read request, we need access to the data the Crypto
+--		-- module should decrypt and if it was a write request we need the location
+--		-- from where to read the new leaf data.
+--		--
+--		{
+--			Cbe::Primitive prim := _Vbd->peek_Completed_Primitive ();
+--			if prim.Valid () then
+--
+--				Cbe::Request const req := _Request_Pool.Request_For_Tag (prim.Tag);
+--				_Frontend_Req_Prim := Req_Prim {
+--					.Req  := req,
+--					.Prim := prim,
+--					.Tag  := Cbe::Tag::VBD_TAG,
+--					.In_Progress := False,
+--				};
+--				return req;
+--			}
+--		end if;
+--
+--		--
+--		-- The free-tree needs the data to give to the Write_Back module.
+--		--
+--		{
+--			Cbe::Primitive prim := _Free_Tree->peek_Completed_Primitive ();
+--			if prim.Valid () && (prim.Success = Cbe::Primitive::Success::TRUE) then
+--
+--				Cbe::Request const req := _Request_Pool.Request_For_Tag (prim.Tag);
+--				_Frontend_Req_Prim := Req_Prim {
+--					.Req  := req,
+--					.Prim := prim,
+--					.Tag  := Cbe::Tag::FREE_TREE_TAG,
+--					.In_Progress := False,
+--				};
+--				return req;
+--			}
+--		end if;
+--
+--		return Cbe::Request { };
+--	end ;
+--
+--
+--	Genode::uint64_T give_Data_Index (Cbe::Request const &request)
+--	is begin
+--		--
+--		-- For now there is only one request pending.
+--		--
+--		if not _Frontend_Req_Prim.Req.Equal (request) then
+--			return ~0ull;
+--		end if;
+--
+--		return _Frontend_Req_Prim.Prim.Index;
+--	end ;
+--
+--
+--	function Give_Read_Data (Cbe::Request const &request, Cbe::Block_Data &data)
+--	return Boolean
+--	is begin
+--		--
+--		-- For now there is only one request pending.
+--		--
+--		if not _Frontend_Req_Prim.Req.Equal (request) then
+--			return False;
+--		end if;
+--
+--		Cbe::Primitive const prim := _Frontend_Req_Prim.Prim;
+--
+--		switch (_Frontend_Req_Prim.Tag) {
+--		case Cbe::Tag::CRYPTO_TAG:
+--			_Crypto.Cxx_Copy_Completed_Data (prim, data);
+--			_Crypto.Cxx_Drop_Completed_Primitive (prim);
+--			_Request_Pool.Mark_Completed_Primitive (prim);
+--			-- DBG("----------------------->Curr primitive: ", current_Primitive, " FINISHED");
+--			current_Primitive := Cbe::Primitive { };
+--			-- DBG("pool complete: ", prim);
+--
+--			_Frontend_Req_Prim := Req_Prim { };
+--			return True;
+--		case Cbe::Tag::VBD_TAG:
+--			--
+--			-- We have reset _Frontend_Req_Prim before because in case there isCurrly
+--			-- I/O pending, we have to make sure 'have_Data' is called again.
+--			--
+--			_Frontend_Req_Prim := Req_Prim { };
+--			if _Io.Primitive_Acceptable () then
+--				_Io.Submit_Primitive (Tag::CRYPTO_TAG_DECRYPT, prim, _Io_Data, data, True);
+--				_Vbd->drop_Completed_Primitive (prim);
+--
+--				return True;
+--			end if;
+--			 ([fallthrough)];
+--		default:
+--			return False;
+--		}
+--	end ;
+--
+--
+--	function Give_Write_Data (Cbe::Request    const &request,
+--	                                   Cbe::Block_Data const &data)
+--	return Boolean
+--	is begin
+--		--
+--		-- For now there is only one request pending.
+--		--
+--		if not _Frontend_Req_Prim.Req.Equal (request) then
+--			return False;
+--		end if;
+--
+--		Cbe::Primitive const prim := _Frontend_Req_Prim.Prim;
+--
+--		if _Frontend_Req_Prim.Tag = Cbe::Tag::FREE_TREE_TAG then
+--
+--			if not _Write_Back.Primitive_Acceptable () then
+--				return False;
+--			end if;
+--
+--			if _Free_Tree_Retry_Count then
+--				-- DBG("reset retry count: ", _Free_Tree_Retry_Count);
+--				_Free_Tree_Retry_Count := 0;
+--			end if;
+--
+--			--
+--			-- Accessing the write-back data in this manner is still a shortcut
+--			-- and probably will not work with SPARK - we have to get rid of
+--			-- the 'block_Data' pointer.
+--			--
+--			Free_Tree::Write_Back_Data const &wb := _Free_Tree->peek_Completed_Wb_Data (prim);
+--
+--			_Write_Back.Submit_Primitive (wb.Prim, wb.Gen, wb.Vba,
+--			                             wb.New_Pba, wb.Old_Pba, wb.Tree_Height,
+--			                             data, _Write_Back_Data);
+--
+--			_Free_Tree->drop_Completed_Primitive (prim);
+--			_Frontend_Req_Prim := Req_Prim { };
+--			return True;
+--
+--		--
+--		-- The VBD module translated a write request, writing the data
+--		-- now to disk involves multiple steps:
+--		--
+--		--  1. Gathering of all nodes in the branch and looking up the
+--		--     volatile ones (those, which belong to theCurr generation
+--		--     and will be updated in place).
+--		--  2. Allocate new blocks if needed by consulting the FT
+--		--  3. Updating all entries in the nodes
+--		--  4. Writing the branch back to the block device.
+--		--
+--		-- Those steps are handled by different modules, depending on
+--		-- the allocation of new blocks.
+--		--
+--		} else if _Frontend_Req_Prim.Tag = Cbe::Tag::VBD_TAG then
+--
+--			--
+--			-- As usual check first we can submit new requests.
+--			--
+--			if not _Free_Tree->request_Acceptable () then
+--				return False;
+--			end if;
+--
+--			--
+--			-- Then (ab-)use the Translation module and its still pending
+--			-- request to get all old PBAs, whose generation we then check.
+--			-- The order of the array items corresponds to the level within
+--			-- the tree.
+--			--
+--			Cbe::Type_1_Node_Info Old_Pba (Translation::MAX_LEVELS) { };
+--			if not _Vbd->trans_Can_Get_Type_1_Info (prim, old_Pba) then
+--				return False;
+--			end if;
+--			_Vbd->trans_Get_Type_1_Info (old_Pba);
+--
+--			uint32_T const trans_Height := _Vbd->tree_Height () + 1;
+--
+--			--
+--			-- Make sure we work with the proper snapshot.
+--			--
+--			-- (This check may be removed at some point.)
+--			--
+--			Cbe::Super_Block const &sb := _Super_Block (_Cur_Sb.Value);
+--			Snapshot_Type    const &snap := sb.Snapshots (_Cur_Snap);
+--			if Old_Pba (trans_Height-1).Pba != snap.Pba then
+--				-- Genode::error ("BUG");
+--			end if;
+--
+--			--
+--			-- The array of new_Pba will either get populated from the old_Pba
+--			-- content or from newly allocated blocks.
+--			-- The order of the array items corresponds to the level within
+--			-- the tree.
+--			--
+--			Cbe::Physical_Block_Address New_Pba (Translation::MAX_LEVELS) { };
+--			Genode::memset (new_Pba, 0, sizeof (new_Pba));
+--			uint32_T new_Blocks := 0;
+--
+--			--
+--			-- This array contains all blocks that will get freed or rather
+--			-- marked as reserved in the FT as they are still referenced by
+--			-- an snapshot.
+--			--
+--			Cbe::Physical_Block_Address Free_Pba (Translation::MAX_LEVELS) { };
+--			uint32_T free_Blocks := 0;
+--
+--			--
+--			-- Get the corresponding VBA that we use to calculate the index
+--			-- for the edge in the node for a given level within the tree.
+--			--
+--			Cbe::Primitive::Number const vba := _Vbd->trans_Get_Virtual_Block_Address (prim);
+--
+--			--
+--			-- Here only the inner nodes, i.E. all nodes excluding root and leaf,
+--			-- are considered. The root node is checked afterwards as we need the
+--			-- information of theCurr snapshot for that.
+--			--
+--			for uint32_T i := 1; i < trans_Height; i++ loop
+--
+--				--
+--				-- Use the old PBA to get the node's data from the cache and
+--				-- use it check how we have to handle the node.
+--				--
+--				Cbe::Physical_Block_Address const pba := Old_Pba (i).Pba;
+--				Cache_Index     const idx   := _Cache.Data_Index (pba, _Time.Timestamp ());
+--				Cbe::Block_Data const &data := _Cache_Data.Item (idx.Value);
+--
+--				uint32_T const id := _Vbd->index_For_Level (vba, i);
+--				Cbe::Type_I_Node const *n := reinterpret_Cast<Cbe::Type_I_Node const*>(&data);
+--
+--				uint64_T const gen := N (id).Gen;
+--				--
+--				-- In case the generation of the entry is the same as theCurr
+--				-- generation OR if the generation is 0 (which means it was never
+--				-- used before) the block is volatile and we change it in place
+--				-- and store it directly in the new_Pba array.
+--				--
+--				if gen = _Cur_Gen || gen = 0 then
+--					Cbe::Physical_Block_Address const npba := N (id).Pba;
+--					(void)npba;
+--					-- DBG("IN PLACE pba: ", pba, " gen: ", gen, " npba: ", npba);
+--
+--					New_Pba (i-1) := Old_Pba (i-1).Pba;
+--					continue;
+--				end if;
+--
+--				--
+--				-- Otherwise add the block to the free_Pba array so that the
+--				-- FT will reserved it and note that we need another new block.
+--				--
+--				Free_Pba (free_Blocks) := Old_Pba (i-1).Pba;
+--				-- DBG("FREE PBA: ", Free_Pba (free_Blocks));
+--				free_Blocks++;
+--				new_Blocks++;
+--			end loop;
+--
+--			-- check root node--
+--			if snap.Gen = _Cur_Gen || snap.Gen = 0 then
+--				-- DBG("IN PLACE root pba: ", Old_Pba (trans_Height-1).Pba);
+--				New_Pba (trans_Height-1) := Old_Pba (trans_Height-1).Pba;
+--			} else {
+--				Free_Pba (free_Blocks) := Old_Pba (trans_Height-1).Pba;
+--				-- DBG("FREE PBA: ", Free_Pba (free_Blocks));
+--				free_Blocks++;
+--				new_Blocks++;
+--			end if;
+--
+--			-- DBG("new blocks: ", new_Blocks);
+--			for uint32_T i := 0; i < trans_Height; i++ loop
+--				-- DBG("New_Pba (", i, ") := ", New_Pba (i));
+--			end loop;
+--
+--			--
+--			-- Since there are blocks we cannot change in place, use the
+--			-- FT module to allocate the blocks. As we have to reserve
+--			-- the blocks we implicitly will free (free_Pba items), pass
+--			-- on theCurr generation.
+--			--
+--			if new_Blocks then
+--				_Free_Tree->submit_Request (_Cur_Gen,
+--				                           new_Blocks,
+--				                           new_Pba, old_Pba,
+--				                           trans_Height,
+--				                           free_Pba,
+--				                           prim, vba);
+--			} else {
+--				--
+--				-- The complete branch is still part of theCurr generation,
+--				-- call the Write_Back module directly.
+--				--
+--				-- (We would have to check if the module can acutally accept
+--				--  the request...)
+--				--
+--				-- DBG("UPDATE ALL IN PACE");
+--				_Write_Back.Submit_Primitive (prim, _Cur_Gen, vba,
+--				                             new_Pba, old_Pba, trans_Height,
+--				                             data, _Write_Back_Data);
+--			end if;
+--
+--			_Vbd->drop_Completed_Primitive (prim);
+--			_Frontend_Req_Prim := Req_Prim { };
+--
+--			--
+--			-- Inhibit translation which effectively will suspend the
+--			-- Translation modules operation and will stall all other
+--			-- pending requests to make sure all following request will
+--			-- use the newest tree.
+--			--
+--			-- (It stands to reasons whether we can remove this check
+--			--  if we make sure that only the requests belonging to
+--			--  the same branch are serialized.)
+--			--
+--			_Vbd->trans_Inhibit_Translation ();
+--			return True;
+--		end if;
+--		return False;
+--	end ;
+
+
+end CBE.Library;
