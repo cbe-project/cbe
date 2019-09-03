@@ -104,19 +104,20 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Signal_handler<Main> _request_handler {
 			_env.ep(), *this, &Main::_handle_requests };
 
+		uint32_t _loop_count = 0;
+
 		void _handle_requests()
 		{
 			if (!_block_session.constructed()) { return; }
 
 			Block_session_component &block_session = *_block_session;
 
-			uint32_t loop_count = 0;
 			for (;;) {
 
 				bool progress = false;
 
 				if (_show_if_progress) {
-					Genode::log("\033[33m", ">>> loop_count: ", ++loop_count);
+					Genode::log("\033[33m", ">>> loop_count: ", ++_loop_count);
 				}
 
 				/*
@@ -261,7 +262,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 							progress |= _cbe->take_write_data(request, data);
 						}
 
-						_block.tx()->submit_packet(packet);
+						_block.tx()->try_submit_packet(packet);
 
 						_backend_request = request;
 						io_progress |= true;
@@ -273,7 +274,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 * Handle backend I/O results
 				 */
 				while (_block.tx()->ack_avail()) {
-					Block::Packet_descriptor packet = _block.tx()->get_acked_packet();
+					Block::Packet_descriptor packet = _block.tx()->try_get_acked_packet();
 
 					if (!_backend_request.valid()) { break; }
 
@@ -307,14 +308,17 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 				progress |= io_progress;
 
-				if (!progress) {
-					if (_show_if_progress) {
-						Genode::log("\033[33m", ">>> break, no progress");
-					}
+				if (!progress)
 					break;
-				}
 			}
 
+			if (_show_if_progress)
+				log("\033[33m", ">>> wakeup I/O and client");
+
+			/* notify I/O backend */
+			_block.tx()->wakeup();
+
+			/* notify client */
 			block_session.wakeup_client_if_needed();
 		}
 
