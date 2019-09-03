@@ -150,6 +150,9 @@ is
 	-- Tag meanings
 	--
 	function Tag_Invalid     return Tag_Type is (16#00#);
+	function Tag_IO          return Tag_Type is (16#10#);
 	function Tag_Translation return Tag_Type is (16#60#);
+	function Tag_Cache       return Tag_Type is (16#20#);
+	function Tag_Encrypt     return Tag_Type is (16#32#);
 
 end CBE;
