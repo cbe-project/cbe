@@ -43,11 +43,12 @@ class Cbe::Library
 
 	private:
 
-		Cbe::Time &_time;
-		Cbe::Time::Timestamp _sync_interval    { SYNC_INTERVAL };
-		Cbe::Time::Timestamp _last_time        { _time.timestamp() };
-		Cbe::Time::Timestamp _secure_interval  { SECURE_INTERVAL };
-		Cbe::Time::Timestamp _last_secure_time { _time.timestamp() };
+		Cbe::Time::Timestamp _sync_interval          { SYNC_INTERVAL };
+		Cbe::Time::Timestamp _last_time              { 0 };
+		Cbe::Time::Timestamp _secure_interval        { SECURE_INTERVAL };
+		Cbe::Time::Timestamp _last_secure_time       { 0 };
+		Timeout_request      _sync_timeout_request   { false, 0};
+		Timeout_request      _secure_timeout_request { false, 0};
 
 		/*
 		 * Check if we provided enough memory for all the SPARK objects.
@@ -190,11 +191,17 @@ class Cbe::Library
 		 *
 		 * \param  current_sb  super-block that should be used initially
 		 */
-		Library(Cbe::Time              &time,
+		Library(Time::Timestamp  const  now,
 		        Time::Timestamp  const  sync,
 		        Time::Timestamp  const  secure,
 		        Cbe::Super_block        sbs[Cbe::NUM_SUPER_BLOCKS],
 		        Cbe::Super_block_index  current_sb);
+
+		Timeout_request peek_sync_timeout_request() const;
+		Timeout_request peek_secure_timeout_request() const;
+
+		void ack_sync_timeout_request();
+		void ack_secure_timeout_request();
 
 		/**
 		 * Print current active super-block/snapshot information to LOG
@@ -219,7 +226,7 @@ class Cbe::Library
 		 *
 		 * \return  true if progress was made, false otherwise
 		 */
-		bool execute(bool show_progress, bool show_if_progress);
+		bool execute(Time::Timestamp now, bool show_progress, bool show_if_progress);
 
 		/**
 		 * Check if the CBE can accept a new requeust
@@ -372,7 +379,8 @@ class Cbe::Library
 		 *
 		 * \return  true if the CBE could process the request
 		 */
-		bool give_write_data(Cbe::Request    const &request,
+		bool give_write_data(Time::Timestamp const now,
+		                     Cbe::Request    const &request,
 		                     Cbe::Block_data const &data);
 };
 

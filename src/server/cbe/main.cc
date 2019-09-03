@@ -180,7 +180,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 * CBE handling
 				 */
 
-				progress |= _cbe->execute(_show_progress, _show_if_progress);
+				progress |= _cbe->execute(_time.timestamp(), _show_progress, _show_if_progress);
+				_handle_cbe_timeout_requests();
 
 				using Payload = Block::Request_stream::Payload;
 				block_session.with_payload([&] (Payload const &payload) {
@@ -219,7 +220,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						} else
 
 						if (cbe_request.write()) {
-							progress |= _cbe->give_write_data(cbe_request, data);
+							progress |= _cbe->give_write_data(_time.timestamp(), cbe_request, data);
 						}
 					});
 				});
@@ -365,6 +366,20 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			return most_recent_sb;
 		}
 
+		void _handle_cbe_timeout_requests()
+		{
+			Timeout_request const sync_timeout_req = _cbe->peek_sync_timeout_request();
+			if (sync_timeout_req.valid) {
+				_time.schedule_sync_timeout(sync_timeout_req.timeout);
+				_cbe->ack_sync_timeout_request();
+			}
+			Timeout_request const secure_timeout_req = _cbe->peek_secure_timeout_request();
+			if (secure_timeout_req.valid) {
+				_time.schedule_secure_timeout(secure_timeout_req.timeout);
+				_cbe->ack_secure_timeout_request();
+			}
+		}
+
 	public:
 
 		/*
@@ -429,7 +444,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			 * access to the SBs.
 			 *
 			 */
-			_cbe.construct(_time, sync, secure, _super_block, curr_sb);
+			_cbe.construct(_time.timestamp(), sync, secure, _super_block, curr_sb);
+			_handle_cbe_timeout_requests();
 
 			/*
 			 * Install signal handler for the backend Block connection.

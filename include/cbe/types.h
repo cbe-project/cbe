@@ -48,6 +48,12 @@ namespace Cbe {
 	};
 
 
+	struct Timeout_request {
+		bool      valid   { false };
+		Timestamp timeout { 0 };
+	};
+
+
 	/*
 	 * List of special tags used throughout the CBE.
 	 *

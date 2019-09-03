@@ -483,7 +483,7 @@ struct Cbe::Free_tree
 	             Cache                  &cache,
 	             Cache_Data             &cache_data,
 	             Query_data             &query_data,
-	             Time                   &time)
+	             Time::Timestamp         now)
 	{
 		/* nothing to do, return early */
 		if (!_num_blocks) {
@@ -543,7 +543,7 @@ struct Cbe::Free_tree
 				MOD_DBG("cache data available: ", pba);
 
 				Cache_Index     const idx   = cache.data_index(pba,
-				                                               time.timestamp());
+				                                               now);
 				Cbe::Block_data const &data = cache_data.item[idx.value];
 				_trans->mark_generated_primitive_complete(p, data, trans_data);
 
@@ -771,7 +771,7 @@ struct Cbe::Free_tree
 					for (uint32_t i = 1; i <= _tree_helper->height(); i++) {
 
 						Cbe::Physical_block_address const pba = qb.trans_info[i].pba;
-						Cache_Index     const idx   = cache.data_index(pba, time.timestamp());
+						Cache_Index     const idx   = cache.data_index(pba, now);
 						Cbe::Block_data &data = cache_data.item[idx.value];
 						bool const type2_node = (i == 1);
 
@@ -812,7 +812,7 @@ struct Cbe::Free_tree
 
 							Cbe::Physical_block_address const pre_pba = qb.trans_info[pre_level].pba;
 
-							Cache_Index     const idx = cache.data_index(pre_pba, time.timestamp());
+							Cache_Index     const idx = cache.data_index(pre_pba, now);
 							Cbe::Block_data &pre_data = cache_data.item[idx.value];
 
 							Sha256_4k::Hash hash { };

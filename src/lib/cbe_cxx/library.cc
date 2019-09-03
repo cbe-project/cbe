@@ -187,6 +187,26 @@ bool Cbe::Library::_discard_snapshot(Cbe::Snapshot active[Cbe::NUM_SNAPSHOTS],
 	return true;
 }
 
+void Cbe::Library::ack_sync_timeout_request()
+{
+	_sync_timeout_request = { false, 0 };
+}
+
+void Cbe::Library::ack_secure_timeout_request()
+{
+	_secure_timeout_request = { false, 0 };
+}
+
+Cbe::Timeout_request Cbe::Library::peek_sync_timeout_request() const
+{
+	return _sync_timeout_request;
+}
+
+Cbe::Timeout_request Cbe::Library::peek_secure_timeout_request() const
+{
+	return _secure_timeout_request;
+}
+
 
 void Cbe::Library::_dump_cur_sb_info() const
 {
@@ -214,15 +234,16 @@ void Cbe::Library::_dump_cur_sb_info() const
 }
 
 
-Cbe::Library::Library(Cbe::Time              &time,
+Cbe::Library::Library(Time::Timestamp  const  now,
                       Time::Timestamp  const  sync,
                       Time::Timestamp  const  secure,
                       Cbe::Super_block        sbs[Cbe::NUM_SUPER_BLOCKS],
                       Cbe::Super_block_index  current_sb)
 :
-	_time(time),
 	_sync_interval(sync),
-	_secure_interval(secure)
+	_last_time(now),
+	_secure_interval(secure),
+	_last_secure_time(now)
 {
 	/*
 	 * We have to make sure we actually execute the code to check
@@ -337,8 +358,8 @@ Cbe::Library::Library(Cbe::Time              &time,
 	 * (It stands to reasons if we should initial or rather only set
 	 *  them when a write request was submitted.)
 	 */
-	if (_sync_interval)   { _time.schedule_sync_timeout(_sync_interval); }
-	if (_secure_interval) { _time.schedule_secure_timeout(_secure_interval); }
+	if (_sync_interval)   { _sync_timeout_request = { true, _sync_interval }; }
+	if (_secure_interval) { _secure_timeout_request = { true, _secure_interval }; }
 
 	/* for diagnostic reasons */
 	_dump_cur_sb_info();
@@ -357,7 +378,7 @@ Cbe::Virtual_block_address Cbe::Library::max_vba() const
 }
 
 
-bool Cbe::Library::execute(bool show_progress, bool show_if_progress)
+bool Cbe::Library::execute(Time::Timestamp now, bool show_progress, bool show_if_progress)
 {
 	bool progress = false;
 
@@ -379,7 +400,7 @@ bool Cbe::Library::execute(bool show_progress, bool show_if_progress)
 	 *  simple check if it contains any dirty entries as it could easily
 	 *  track that condition internally itself.)
 	 */
-	Cbe::Time::Timestamp const diff_time = _time.timestamp() - _last_time;
+	Cbe::Time::Timestamp const diff_time = now - _last_time;
 	if (diff_time >= _sync_interval && !_seal_generation) {
 
 		bool cache_dirty = false;
@@ -396,8 +417,8 @@ bool Cbe::Library::execute(bool show_progress, bool show_if_progress)
 			_seal_generation = true;
 		} else {
 			DBG("cache is not dirty, re-arm trigger");
-			_last_time = _time.timestamp();
-			_time.schedule_sync_timeout(_sync_interval);
+			_last_time = now;
+			_sync_timeout_request = { true, _sync_interval };
 		}
 	}
 
@@ -410,7 +431,7 @@ bool Cbe::Library::execute(bool show_progress, bool show_if_progress)
 	 * (_superblock_dirty is set whenver the Write_back module has done its work
 	 *  and will be reset when the super-block was secured.)
 	 */
-	Cbe::Time::Timestamp const diff_secure_time = _time.timestamp() - _last_secure_time;
+	Cbe::Time::Timestamp const diff_secure_time = now - _last_secure_time;
 	if (diff_secure_time >= _secure_interval && !_secure_superblock) {
 
 		if (_superblock_dirty) {
@@ -419,7 +440,7 @@ bool Cbe::Library::execute(bool show_progress, bool show_if_progress)
 			_secure_superblock = true;
 		} else {
 			DBG("no snapshots created, re-arm trigger");
-			_last_secure_time = _time.timestamp();
+			_last_secure_time = now;
 		}
 	}
 
@@ -451,7 +472,7 @@ bool Cbe::Library::execute(bool show_progress, bool show_if_progress)
 		                                             _free_tree_trans_data,
 		                                             _cache, _cache_data,
 		                                             _free_tree_query_data,
-		                                             _time);
+		                                             now);
 		progress |= ft_progress;
 		LOG_PROGRESS(ft_progress);
 	}
@@ -639,7 +660,7 @@ bool Cbe::Library::execute(bool show_progress, bool show_if_progress)
 	 * (Basically the same issue regarding SPARK as the FT module...)
 	 */
 	{
-		_vbd->execute(_trans_data, _cache, _cache_data, _time.timestamp());
+		_vbd->execute(_trans_data, _cache, _cache_data, now);
 		bool const vbd_progress = _vbd->execute_progress();
 		progress |= vbd_progress;
 		LOG_PROGRESS(vbd_progress);
@@ -818,8 +839,8 @@ bool Cbe::Library::execute(bool show_progress, bool show_if_progress)
 			 *  it would be more reasonable to only set the timeouts when
 			 *  we actually perform write request.)
 			 */
-			_last_time = _time.timestamp();
-			_time.schedule_sync_timeout(_sync_interval);
+			_last_time = now;
+			_sync_timeout_request = { true, _sync_interval };
 		} else {
 
 			/*
@@ -958,8 +979,8 @@ bool Cbe::Library::execute(bool show_progress, bool show_if_progress)
 		 * To keep it simply, always set both properly - even if
 		 * the old and new node are the same.
 		 */
-		Cache_Index const idx        = _cache.data_index(pba, _time.timestamp());
-		Cache_Index const update_idx = _cache.data_index(update_pba, _time.timestamp());
+		Cache_Index const idx        = _cache.data_index(pba, now);
+		Cache_Index const update_idx = _cache.data_index(update_pba, now);
 
 		Cbe::Block_data const &data        = _cache_data.item[idx.value];
 		Cbe::Block_data       &update_data = _cache_data.item[update_idx.value];
@@ -1033,8 +1054,8 @@ bool Cbe::Library::execute(bool show_progress, bool show_if_progress)
 		 *  sense to set the trigger only when a write operation
 		 *  was performed.)
 		 */
-		_last_secure_time = _time.timestamp();
-		_time.schedule_secure_timeout(_secure_interval);
+		_last_secure_time = now;
+		_secure_timeout_request = { true, _secure_interval };
 	}
 
 	/*
@@ -1119,7 +1140,7 @@ bool Cbe::Library::execute(bool show_progress, bool show_if_progress)
 	 * evict an already populated entry.
 	 */
 	bool const cache_progress = _cache.execute(_cache_data, _cache_job_data,
-	                                           _time.timestamp());
+	                                           now);
 	progress |= cache_progress;
 	LOG_PROGRESS(cache_progress);
 
@@ -1514,7 +1535,8 @@ bool Cbe::Library::give_read_data(Cbe::Request const &request, Cbe::Block_data &
 }
 
 
-bool Cbe::Library::give_write_data(Cbe::Request    const &request,
+bool Cbe::Library::give_write_data(Time::Timestamp const now,
+                                   Cbe::Request    const &request,
                                    Cbe::Block_data const &data)
 {
 	/*
@@ -1631,7 +1653,7 @@ bool Cbe::Library::give_write_data(Cbe::Request    const &request,
 			 * use it check how we have to handle the node.
 			 */
 			Cbe::Physical_block_address const pba = old_pba[i].pba;
-			Cache_Index     const idx   = _cache.data_index(pba, _time.timestamp());
+			Cache_Index     const idx   = _cache.data_index(pba, now);
 			Cbe::Block_data const &data = _cache_data.item[idx.value];
 
 			uint32_t const id = _vbd->index_for_level(vba, i);
@@ -1733,7 +1755,7 @@ bool Cbe::Library::give_write_data(Cbe::Request    const &request,
 static Genode::Constructible<Cbe::Library> _cbe_library { };
 
 
-Cbe::Public_Library::Public_Library(Cbe::Time              &time,
+Cbe::Public_Library::Public_Library(Time::Timestamp  const  now,
                                     Time::Timestamp  const  sync,
                                     Time::Timestamp  const  secure,
                                     Cbe::Super_block        sbs[Cbe::NUM_SUPER_BLOCKS],
@@ -1744,9 +1766,28 @@ Cbe::Public_Library::Public_Library(Cbe::Time              &time,
 		throw Genode::Exception();
 	}
 
-	_cbe_library.construct(time, sync, secure, sbs, current_sb);
+	_cbe_library.construct(now, sync, secure, sbs, current_sb);
 }
 
+void Cbe::Public_Library::ack_sync_timeout_request()
+{
+	_cbe_library->ack_sync_timeout_request();
+}
+
+void Cbe::Public_Library::ack_secure_timeout_request()
+{
+	_cbe_library->ack_secure_timeout_request();
+}
+
+Cbe::Timeout_request Cbe::Public_Library::peek_sync_timeout_request() const
+{
+	return _cbe_library->peek_sync_timeout_request();
+}
+
+Cbe::Timeout_request Cbe::Public_Library::peek_secure_timeout_request() const
+{
+	return _cbe_library->peek_secure_timeout_request();
+}
 
 void Cbe::Public_Library::dump_cur_sb_info() const
 {
@@ -1760,9 +1801,9 @@ Cbe::Virtual_block_address Cbe::Public_Library::max_vba() const
 }
 
 
-bool Cbe::Public_Library::execute(bool show_progress, bool show_if_progress)
+bool Cbe::Public_Library::execute(Time::Timestamp now, bool show_progress, bool show_if_progress)
 {
-	return _cbe_library->execute(show_progress, show_if_progress);
+	return _cbe_library->execute(now, show_progress, show_if_progress);
 }
 
 
@@ -1841,8 +1882,9 @@ bool Cbe::Public_Library::give_read_data(Cbe::Request const &r,
 }
 
 
-bool Cbe::Public_Library::give_write_data(Cbe::Request    const &r,
+bool Cbe::Public_Library::give_write_data(Time::Timestamp const now,
+                                          Cbe::Request    const &r,
                                           Cbe::Block_data const &d)
 {
-	return _cbe_library->give_write_data(r, d);
+	return _cbe_library->give_write_data(now, r, d);
 }
