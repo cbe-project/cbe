@@ -95,7 +95,7 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe9Free_tree7executeEPKNS_8SnapshotEyRNS_6Module16Translation_DataERNS4_5CacheERNS4_10Cache_DataERNS_10Query_dataERNS_4TimeE";
+		External_Name => "_ZN3Cbe9Free_tree7executeEPKNS_8SnapshotEyRNS_6Module16Translation_DataERNS4_5CacheERNS4_10Cache_DataERNS_10Query_dataEy";
 
 
 	function Execute_Progress(Obj : Free_Tree.Object_Type)
