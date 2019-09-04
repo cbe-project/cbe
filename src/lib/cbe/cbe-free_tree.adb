@@ -48,6 +48,7 @@ is
 			WB_Data            => Write_Back_Data_Invalid);
 	end Initialize_Object;
 
+
 	procedure Retry_Allocation (Obj : in out Object_Type)
 	is
 	begin
@@ -61,6 +62,7 @@ is
 		Obj.WB_Data.Finished := False;
 
 	end Retry_Allocation;
+
 
 	procedure Reset_Query_Prim (Obj : in out Object_Type)
 	is
@@ -94,6 +96,7 @@ is
 		-- Print_Line_Break;
 
 	end Reset_Query_Prim;
+
 
 	function Request_Acceptable (Obj : Object_Type)
 	return Boolean
@@ -178,6 +181,7 @@ is
 
 	end Submit_Request;
 
+
 	function Leaf_Usable (
 		Active_Snaps     : Snapshots_Type;
 		Last_Secured_Gen : Generation_Type;
@@ -241,6 +245,7 @@ is
 		return Free;
 
 	end Leaf_Usable;
+
 
 	procedure Execute (
 		Obj              : in out Object_Type;
@@ -956,68 +961,51 @@ is
 		end if;
 	end Mark_Generated_Primitive_Complete;
 
---	--
---	-- Check for any completed primitive
---	--
---	-- The method will always a return a primitive and the caller
---	-- always has to check if the returned primitive is in fact a
---	-- valid one.
---	--
---	-- \return a valid Primitive will be returned if there is an
---	--         completed primitive, otherwise an invalid one
---	--
---	Primitive.Object_Typepeek_Completed_Primitive()
---	{
---		if Obj.WB_Data.Valid() then
---			return Obj.WB_Data.Prim;
---		}
---		return Primitive.Object_Type{ };
---	}
---
---	--
---	-- Get write-back Data belonging to a completed primitive
---	--
---	-- This method must only be called after 'peek_Completed_Primitive'
---	-- returned a valid primitive.
---	--
---	-- \param p   reference to the completed primitive
---	--
---	-- \return write-back Data
---	--
---	constant Write_Back_Data &peek_CompletedObj.WB_Data(constant Primitive &prim) const
---	{
---		if not prim.Equal(Obj.WB_Data.Prim) then
---			MOD_ERR("invalid primitive: ", prim);
---			throw -1;
---		}
---
---		MOD_DBG(prim);
---		return Obj.WB_Data;
---	}
---
---	--
---	-- Discard given completed primitive
---	--
---	-- This method must only be called after 'peek_Completed_Primitive'
---	-- returned a valid primitive.
---	--
---	-- \param  p  reference to primitive
---	--
---	void drop_Completed_Primitive(constant Primitive &prim)
---	{
---		if not prim.Equal(Obj.WB_Data.Prim) then
---			MOD_ERR("invalid primitive: ", prim);
---			throw -1;
---		}
---
---		MOD_DBG(prim);
---
---		--  reset state
---		Obj.WB_Data.Finished := False;
---
---		--  request finished, ready for a new one
---		Obj.Num_Blocks := 0;
---	}
 
+	function Peek_Completed_Primitive (Obj : Object_Type)
+	return Primitive.Object_Type
+	is
+	begin
+		if Obj.WB_Data.Finished then
+			return Obj.WB_Data.Prim;
+		end if;
+		return Primitive.Invalid_Object;
+	end Peek_Completed_Primitive;
+
+
+	function Peek_Completed_WB_Data (
+		Obj  : Object_Type;
+		Prim : Primitive.Object_Type)
+	return Write_Back_Data_Type
+	is
+	begin
+		if not Primitive.Equal(Prim, Obj.WB_Data.Prim) then
+			-- FIXME handle or avoid error
+			--MOD_ERR("invalid primitive: ", prim);
+			raise program_error;
+		end if;
+
+		-- MOD_DBG(prim);
+		return Obj.WB_Data;
+	end Peek_Completed_WB_Data;
+
+
+	procedure Drop_Completed_Primitive (
+		Obj  : in out Object_Type;
+		Prim :        Primitive.Object_Type)
+	is
+	begin
+		if not Primitive.Equal(Prim, Obj.WB_Data.Prim) then
+			-- MOD_ERR("invalid primitive: ", prim);
+			raise program_error;
+		end if;
+		-- MOD_DBG(prim);
+
+		--  reset state
+		Obj.WB_Data.Finished := False;
+
+		--  request finished, ready for a new one
+		Obj.Nr_Of_Blocks := 0;
+	end Drop_Completed_Primitive;
 
 end CBE.Free_Tree;

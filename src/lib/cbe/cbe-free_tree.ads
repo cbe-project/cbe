@@ -43,6 +43,16 @@ is
 	type WB_IO_Entries_Type is array (WB_IO_Entries_Index_Type) of IO_Entry_Type;
 	type WB_Data_New_PBAs_Type is array (Tree_Level_Index_Type) of Physical_Block_Address_Type;
 
+	type Write_Back_Data_Type is record
+		Prim        : Primitive.Object_Type;
+		Gen         : Generation_Type;
+		VBA         : Virtual_Block_Address_Type;
+		Tree_Height : Tree_Level_Type;
+		New_PBAs    : WB_Data_New_PBAs_Type;
+		Old_PBAs    : Type_1_Node_Infos_Type;
+		Finished    : Boolean;
+	end record;
+
 	--
 	-- Constructor
 	--
@@ -171,6 +181,46 @@ is
 		Obj  : in out Object_Type;
 		Prim :        Primitive.Object_Type);
 
+	--
+	-- Check for any completed primitive
+	--
+	-- The method will always a return a primitive and the caller
+	-- always has to check if the returned primitive is in fact a
+	-- valid one.
+	--
+	-- \return a valid Primitive will be returned if there is an
+	--         completed primitive, otherwise an invalid one
+	--
+	function Peek_Completed_Primitive (Obj : Object_Type)
+	return Primitive.Object_Type;
+
+	--
+	-- Get write-back Data belonging to a completed primitive
+	--
+	-- This method must only be called after 'peek_Completed_Primitive'
+	-- returned a valid primitive.
+	--
+	-- \param p   reference to the completed primitive
+	--
+	-- \return write-back Data
+	--
+	function Peek_Completed_WB_Data (
+		Obj  : Object_Type;
+		Prim : Primitive.Object_Type)
+	return Write_Back_Data_Type;
+
+	--
+	-- Discard given completed primitive
+	--
+	-- This method must only be called after 'peek_Completed_Primitive'
+	-- returned a valid primitive.
+	--
+	-- \param  p  reference to primitive
+	--
+	procedure Drop_Completed_Primitive (
+		Obj  : in out Object_Type;
+		Prim :        Primitive.Object_Type);
+
 private
 
 	--
@@ -190,16 +240,6 @@ private
 	end record;
 
 	type Query_Branches_Type is array (Query_Branches_Index_Type) of Query_Branch_Type;
-
-	type Write_Back_Data_Type is record
-		Prim        : Primitive.Object_Type;
-		Gen         : Generation_Type;
-		VBA         : Virtual_Block_Address_Type;
-		Tree_Height : Tree_Level_Type;
-		New_PBAs    : WB_Data_New_PBAs_Type;
-		Old_PBAs    : Type_1_Node_Infos_Type;
-		Finished    : Boolean;
-	end record;
 
 	type Object_Type is record
 
