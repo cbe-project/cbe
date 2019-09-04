@@ -40,32 +40,47 @@ is
 	end Discard_Snapshot;
 
 
---	void _Dump_Cur_Sb_Info () const
---	is begin
---		Cbe::Super_Block const &sb := _Super_Block (_Cur_Sb.Value);
---		Snapshot_Type    const &snap := sb.Snapshots (_Cur_Snap);
---
---		Cbe::Physical_Block_Address const root_Number := snap.Pba;
---		Cbe::Height                 const height      := snap.Height;
---		Cbe::Number_Of_Leaves       const leaves      := snap.Leaves;
---
---		Cbe::Degree                 const degree      := sb.Degree;
---		Cbe::Physical_Block_Address const free_Number := sb.Free_Number;
---		Cbe::Number_Of_Leaves       const free_Leaves := sb.Free_Leaves;
---		Cbe::Height                 const free_Height := sb.Free_Height;
---
---		Genode::log ("Virtual block-device info in SB (", _Cur_Sb, "): ",
---		            " SNAP (", _Cur_Snap, "): ",
---		            "tree height: ", height, " ",
---		            "edges per node: ", degree, " ",
---		            "leaves: ", leaves, " ",
---		            "root block address: ", root_Number, " ",
---		            "free block address: ", free_Number, " ",
---		            "free leaves: (", free_Leaves, "/", free_Height, ")"
---		);
---	end ;
+	function Timeout_Request_Valid (Time : Timestamp_Type)
+	return Timeout_Request_Type
+	is (
+		Valid   => True,
+		Timeout => Time);
 
+	function Timeout_Request_Invalid
+	return Timeout_Request_Type
+	is (
+		Valid   => False,
+		Timeout => 0);
 
+----
+---- Not translated as it seems to be only for debugging
+----
+----	void _Dump_Cur_Sb_Info () const
+----	is begin
+----		Cbe::Super_Block const &sb := _Super_Block (_Cur_Sb.Value);
+----		Snapshot_Type    const &snap := sb.Snapshots (_Cur_Snap);
+----
+----		Cbe::Physical_Block_Address const root_Number := snap.Pba;
+----		Cbe::Height                 const height      := snap.Height;
+----		Cbe::Number_Of_Leaves       const leaves      := snap.Leaves;
+----
+----		Cbe::Degree                 const degree      := sb.Degree;
+----		Cbe::Physical_Block_Address const free_Number := sb.Free_Number;
+----		Cbe::Number_Of_Leaves       const free_Leaves := sb.Free_Leaves;
+----		Cbe::Height                 const free_Height := sb.Free_Height;
+----
+----		Genode::log ("Virtual block-device info in SB (", _Cur_Sb, "): ",
+----		            " SNAP (", _Cur_Snap, "): ",
+----		            "tree height: ", height, " ",
+----		            "edges per node: ", degree, " ",
+----		            "leaves: ", leaves, " ",
+----		            "root block address: ", root_Number, " ",
+----		            "free block address: ", free_Number, " ",
+----		            "free leaves: (", free_Leaves, "/", free_Height, ")"
+----		);
+----	end ;
+--
+--
 --	procedure Initialize_Object (
 --		Obj     : out Object_Type;
 --		Now     :     Timestamp_Type;
@@ -77,9 +92,57 @@ is
 --	begin
 --
 --		Obj := (
---			_Sync_Interval (sync),
---			_Secure_Interval (secure)
 --
+--			Cbe::Time::Timestamp _sync_interval          { SYNC_INTERVAL };
+--			Cbe::Time::Timestamp _last_time              { 0 };
+--			Cbe::Time::Timestamp _secure_interval        { SECURE_INTERVAL };
+--			Cbe::Time::Timestamp _last_secure_time       { 0 };
+--			Timeout_request      _sync_timeout_request   { false, 0};
+--			Timeout_request      _secure_timeout_request { false, 0};
+--			bool                 _execute_progress       { false };
+--			Pool                 _request_pool { };
+--
+--			Splitter _splitter { };
+--
+--			Crypto   _crypto        { "All your base are belong to us  " };
+--			Block_data _crypto_data { };
+--
+--			Block_Io      _io      { };
+--			Io_data _io_data { };
+--
+--			Cache           _cache          { };
+--			Cache_Data      _cache_data     { };
+--			Cache_Job_Data  _cache_job_data { };
+--			Cache_flusher   _cache_flusher        { };
+--
+--			Translation_Data _trans_data     { };
+--			Virtual_block_device _vbd { };
+--
+--			Write_back      _write_back { };
+--			Write_back_data _write_back_data { };
+--
+--			Sync_superblock _sync_sb { };
+--
+--			Free_tree        _free_tree { };
+--			uint32_t                      _free_tree_retry_count { 0 };
+--			Translation_Data              _free_tree_trans_data { };
+--			Query_data                    _free_tree_query_data { };
+--
+--			Cbe::Super_block       _super_block[Cbe::NUM_SUPER_BLOCKS] { };
+--			Cbe::Super_block_index _cur_sb { Cbe::Super_block_index::INVALID };
+--			Cbe::Generation  _cur_gen { 0 };
+--			Cbe::Generation  _last_secured_generation { 0 };
+--			uint32_t         _cur_snap { 0 };
+--			uint32_t         _last_snapshot_id { 0 };
+--			bool             _seal_generation { false };
+--			bool             _secure_superblock { false };
+--			bool             _superblock_dirty { false };
+--		);
+--
+----
+---- Not translated as object sizes must be checked only for the Library
+---- Module itself from now on.
+----
 ----		--
 ----		-- We have to make sure we actually execute the code to check
 ----		-- if we provide enough space for the SPARK objects.
