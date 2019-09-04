@@ -68,7 +68,13 @@ is
 	is
 	begin
 		Obj.Nr_Of_Found_Blocks := 0;
-		Obj.Curr_Query_Prim    := Primitive.Invalid_Object;
+
+		Obj.Curr_Query_Prim := Primitive.Valid_Object (
+			Op     => Request.Read,
+			Succ   => Request.Success_Type(False),
+			Tg     => Request.Tag_Type(Tag_Invalid),
+			Blk_Nr => Request.Block_Number_Type(0),
+			Idx    => 0);
 
 		--
 		-- Reset query branches
@@ -119,65 +125,44 @@ is
 			return;
 		end if;
 
-		Obj.Do_Update   := False;
-		Obj.Do_WB       := False;
-		Obj.WB_Done     := False;
-		Obj.Curr_Type_2 := IO_Entry_Invalid;
+		Obj.Nr_Of_Blocks       := Nr_Of_Blks;
+		Obj.Nr_Of_Found_Blocks := 0;
+		Obj.Curr_Type_2        := IO_Entry_Invalid;
+
+		Obj.Do_Update        := False;
+		Obj.Do_WB            := False;
+		Obj.WB_Done          := False;
+		Obj.WB_Data.Finished := False;
 
 		For_WB_IOs:
 		for WB_IO_ID in Obj.WB_IOs'Range loop
 			Obj.WB_IOs (WB_IO_ID).State := Invalid;
 		end loop For_WB_IOs;
 
-		Obj.Nr_Of_Blocks       := Nr_Of_Blks;
-		Obj.Nr_Of_Found_Blocks := 0;
+		Reset_Query_Prim (Obj);
 
-		-- FIXME assert sizeof (_free_pba) == sizeof (free_pba)
-		Obj.Free_PBAs := Fr_PBAs;
-		-- For_Free_PBAs:
-		-- for Free_PBA_ID in Obj.Free_PBAs'Range loop
-		-- 	if Obj.Free_PBAs (Free_PBA_ID) /= 0 then
-		-- 		Print_String ("FRTR Submit_Request free[");
-		-- 		Print_Word_Dec (Free_PBA_ID);
-		-- 		Print_String ("]: ");
-		-- 		Print_Word_Hex (Obj.Free_PBAs (Free_PBA_ID));
-		-- 		Print_Line_Break;
-		-- 	end if;
-		-- end loop For_Free_PBAs;
-
-		Obj.WB_Data.Finished    := False;
+		--
+		-- Prepare the write-back data that is used later on by
+		-- the Write_back module.
+		--
 		Obj.WB_Data.Prim        := Req_Prim;
 		Obj.WB_Data.Gen         := Curr_Gen;
 		Obj.WB_Data.VBA         := VBA;
 		Obj.WB_Data.Tree_Height := Tree_Height;
 
-		-- FIXME assert sizeof (_wb_data.new_pba) == sizeof (new_pba)
+		--
+		-- Store given lists in the module.
+		--
+		-- (The free and old PBA lists are part of the write-back data
+		--  as we have to pass them on to the Write_back module b/c it
+		--  needs the addresses for the updating the nodes.
+		--
+		--  Also putting the lists into a proper structure would allow
+		--  for statically size match checking...)
+		--
 		Obj.WB_Data.New_PBAs := New_PBAs;
-		-- For_New_PBAs:
-		-- for New_PBA_ID in Obj.New_PBAs'Range loop
-		-- 	if Obj.New_PBAs (New_PBA_ID) /= 0 then
-		-- 		Print_String ("FRTR Submit_Request free[");
-		-- 		Print_Word_Dec (New_PBA_ID);
-		-- 		Print_String ("]: ");
-		-- 		Print_Word_Hex (Obj.WB_Data.New_PBAs (New_PBA_ID));
-		-- 		Print_Line_Break;
-		-- 	end if;
-		-- end loop For_Free_PBAs;
-
-		-- FIXME assert sizeof (_wb_data.old_pba) == sizeof (old_pba)
 		Obj.WB_Data.Old_PBAs := Old_PBAs;
-		-- For_Old_PBAs:
-		-- for Old_PBA_ID in Obj.Old_PBAs'Range loop
-		-- 	if Obj.Old_PBAs (Old_PBA_ID).PBA /= 0 then
-		-- 		Print_String ("FRTR Submit_Request free[");
-		-- 		Print_Word_Dec (Old_PBA_ID);
-		-- 		Print_String ("]: ");
-		-- 		Print_Word_Hex (Obj.WB_Data.Old_PBAs (Old_PBA_ID).PBA);
-		-- 		Print_Line_Break;
-		-- 	end if;
-		-- end loop For_Free_PBAs;
-
-		Reset_Query_Prim (Obj);
+		Obj.Free_PBAs        := Fr_PBAs;
 
 	end Submit_Request;
 
@@ -300,8 +285,9 @@ is
 		-- invoke the Cache module.
 		--
 		Translation.Execute (Obj.Trans, Trans_Data);
-		Obj.Execute_Progress :=
-			Obj.Execute_Progress or Translation.Execute_Progress (Obj.Trans);
+		if Translation.Execute_Progress (Obj.Trans) then
+			Obj.Execute_Progress := True;
+		end if;
 
 		Loop_Handle_Trans_Generated_Prim:
 		loop
@@ -528,11 +514,13 @@ is
 					else
 
 						-- arm query primitive and check next type 2 node
-						Primitive.Block_Number (Obj.Curr_Query_Prim,
-							Primitive.Block_Number (Obj.Curr_Query_Prim) +
-							Block_Number_Type (Tree_Helper.Degree (Obj.Trans_Helper)));
-
-						Primitive.Operation (Obj.Curr_Query_Prim, Request.Read);
+						Obj.Curr_Query_Prim := Primitive.Valid_Object (
+							Op     => Request.Read,
+							Succ   => False,
+							Tg     => Request.Tag_Type(Tag_Free_Tree),
+							Blk_Nr => Primitive.Block_Number(Obj.Curr_Query_Prim)
+							        + Block_Number_Type (Tree_Helper.Degree (Obj.Trans_Helper)),
+							Idx    => 0);
 					end if;
 				elsif Obj.Nr_Of_Blocks = Obj.Nr_Of_Found_Blocks then
 
@@ -550,11 +538,9 @@ is
 							For_PBAs_Of_Free_Blocks:
 							for PBA_Index in 0 .. Obj.Query_Branches (Branch_Index).Nr_Of_Free_Blocks - 1 loop
 
+								--  store iterator out-side so we start from the last set entry
 								For_Unhandled_New_PBAs:
 								for New_PBA_Index in Last_New_PBA_Index .. Tree_Level_Index_Type'Last loop
-
-									--  store iterator out-side so we start from the last set entry
-									Last_New_PBA_Index := New_PBA_Index;
 
 									--
 									-- Same convention as during the invalid entries check,
@@ -569,6 +555,9 @@ is
 										exit For_Unhandled_New_PBAs;
 
 									end if;
+
+									Last_New_PBA_Index := Last_New_PBA_Index + 1;
+
 								end loop For_Unhandled_New_PBAs;
 							end loop For_PBAs_Of_Free_Blocks;
 						end loop For_Query_Branches_Less_Than_Curr_1;

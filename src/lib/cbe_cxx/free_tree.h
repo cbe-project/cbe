@@ -289,7 +289,7 @@ struct Cbe::Free_tree : Cbe::Spark_object<8352>
 	 *
 	 * \return write-back data
 	 */
-	Write_back_data const &peek_completed_wb_data(Cbe::Primitive const &prim) const;
+	Write_back_data peek_completed_wb_data(Cbe::Primitive const &prim) const;
 
 	/**
 	 * Discard given completed primitive

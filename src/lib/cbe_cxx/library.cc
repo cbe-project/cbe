@@ -1508,7 +1508,7 @@ bool Cbe::Library::give_write_data(Time::Timestamp const now,
 		 * and probably will not work with SPARK - we have to get rid of
 		 * the 'block_data' pointer.
 		 */
-		Free_tree::Write_back_data const &wb = _free_tree->peek_completed_wb_data(prim);
+		Free_tree::Write_back_data const wb = _free_tree->peek_completed_wb_data(prim);
 
 		_write_back.submit_primitive(wb.prim, wb.gen, wb.vba,
 		                             wb.new_pba, wb.old_pba, wb.tree_height,

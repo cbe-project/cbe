@@ -181,5 +181,6 @@ is
 	function Tag_Write_Back  return Tag_Type is (16#70#);
 	function Tag_Cache       return Tag_Type is (16#20#);
 	function Tag_Encrypt     return Tag_Type is (16#32#);
+	function Tag_Free_Tree   return Tag_Type is (16#200#);
 
 end CBE;
