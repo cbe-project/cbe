@@ -200,16 +200,19 @@ is
 	procedure Initialize_Object(Obj : out Object_Type)
 	is
 	begin
-		for Item_Id in Obj.Cache_Items'Range loop
-			Obj.Cache_Items(Item_Id) := Cache_Item.Unused_Object;
-		end loop;
-
-		for Item_Id in Obj.Job_Items'Range loop
-			Obj.Job_Items(Item_Id) := Job_Item.Unused_Object;
-		end loop;
-
-		Obj.Active_Jobs := 0;
+		Obj := Initialized_Object;
 	end Initialize_Object;
+
+	--
+	-- Initialized_Object
+	--
+	function Initialized_Object
+	return Object_Type
+	is (
+		Cache_Items      => (others => Cache_Item.Unused_Object),
+		Job_Items        => (others => Job_Item.Unused_Object),
+		Active_Jobs      => 0,
+		Execute_Progress => False);
 
 	--
 	-- Data_Available

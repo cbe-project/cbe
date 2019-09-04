@@ -63,6 +63,8 @@ is
 	-- \param  dregree   number of edges of a node
 	-- \param  leafs     total number of leafs in the tree
 	--
+	-- FIXME will not be used anymore when the library module is in spark
+	--
 	procedure Initialize_Object (
 		Obj     : out Object_Type;
 		Rt_PBA  :     Physical_Block_Address_Type;
@@ -71,6 +73,15 @@ is
 		Hght    :     Tree_Level_Type;
 		Degr    :     Tree_Degree_Type;
 		Lfs     :     Tree_Number_Of_Leafs_Type);
+
+	function Initialized_Object (
+		Rt_PBA  :     Physical_Block_Address_Type;
+		Rt_Gen  :     Generation_Type;
+		Rt_Hash :     Hash_Type;
+		Hght    :     Tree_Level_Type;
+		Degr    :     Tree_Degree_Type;
+		Lfs     :     Tree_Number_Of_Leafs_Type)
+	return Object_Type;
 
 	----------------------
 	-- Module interface --

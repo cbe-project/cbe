@@ -21,9 +21,17 @@ is
 	procedure Initialize_Object(Obj : out Object_Type)
 	is
 	begin
-		Obj := (Entries => (others => Invalid_Entry),
-		        Used_Entries => 0);
+		Obj := Initialized_Object;
 	end Initialize_Object;
+
+	--
+	-- Initialized_Object
+	--
+	function Initialized_Object
+	return Object_Type
+	is (
+		Entries => (others => Invalid_Entry),
+		Used_Entries => 0);
 
 	function Primitive_Acceptable(Obj : Object_Type) return Boolean
 	is (Obj.Used_Entries < Num_Entries_Type'Last);

@@ -20,7 +20,16 @@ is
 	--
 	-- Initialize_Object
 	--
+	-- FIXME will not be used anymore when the library module is in spark
+	--
 	procedure Initialize_Object(Obj : out Object_Type);
+
+
+	--
+	-- Initialized_Object
+	--
+	function Initialized_Object
+	return Object_Type;
 
 	--
 	-- Request_Acceptable
@@ -106,7 +115,8 @@ private
 		--
 		-- Invalid_Item
 		--
-		procedure Invalid_Item(Obj  : out Item_Type);
+		function Invalid_Item
+		return Item_Type;
 
 		--
 		-- Pending_Item

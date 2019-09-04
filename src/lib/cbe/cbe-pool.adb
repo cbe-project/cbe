@@ -100,10 +100,15 @@ is
 	procedure Initialize_Object(Obj : out Object_Type)
 	is
 	begin
-		for Item_Id in Obj.Items'Range loop
-			Obj.Items(Item_Id) := Item.Invalid_Object;
-		end loop;
+		Obj := Initialized_Object;
 	end Initialize_Object;
+
+	--
+	-- Initialized_Object
+	--
+	function Initialized_Object
+	return Object_Type
+	is (Items => (others => Item.Invalid_Object));
 
 
 	--

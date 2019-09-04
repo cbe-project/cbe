@@ -23,10 +23,24 @@ is
 		Degr    :     Tree_Degree_Type;
 		Lfs     :     Tree_Number_Of_Leafs_Type)
 	is
+	begin
+		Obj := Initialized_Object (
+			Rt_PBA, Rt_Gen, Rt_Hash, Hght, Degr, Lfs);
+	end Initialize_Object;
+
+	function Initialized_Object (
+		Rt_PBA  :     Physical_Block_Address_Type;
+		Rt_Gen  :     Generation_Type;
+		Rt_Hash :     Hash_Type;
+		Hght    :     Tree_Level_Type;
+		Degr    :     Tree_Degree_Type;
+		Lfs     :     Tree_Number_Of_Leafs_Type)
+	return Object_Type
+	is
 		Tr_Helper : constant Tree_Helper.Object_Type :=
 			Tree_Helper.Initialized_Object (Degr, Hght, Lfs);
 	begin
-		Obj := (
+		return (
 			Trans_Helper       => Tr_Helper,
 			Trans              => Translation.Initialized_Object (Tr_Helper, True),
 			Execute_Progress   => False,
@@ -46,7 +60,7 @@ is
 			Curr_Type_2        => IO_Entry_Invalid,
 			WB_IOs             => (others => IO_Entry_Invalid),
 			WB_Data            => Write_Back_Data_Invalid);
-	end Initialize_Object;
+	end Initialized_Object;
 
 
 	procedure Retry_Allocation (Obj : in out Object_Type)

@@ -20,14 +20,27 @@ is
 		Degree :     Tree_Degree_Type;
 		Leafs  :     Tree_Number_Of_Leafs_Type)
 	is
+	begin
+		Obj := Initialized_Object (Height, Degree, Leafs);
+	end Initialize_Object;
+
+	--
+	-- Initialized_Object
+	--
+	function Initialized_Object (
+		Height :     Tree_Level_Type;
+		Degree :     Tree_Degree_Type;
+		Leafs  :     Tree_Number_Of_Leafs_Type)
+	return Object_Type
+	is
 		Trans_Helpr : constant Tree_Helper.Object_Type :=
 			Tree_Helper.Initialized_Object (Degree, Height, Leafs);
 	begin
-		Obj := (
-			Trans_Helper => Trans_Helpr,
-			Trans => Translation.Initialized_Object (Trans_Helpr, False),
+		return (
+			Trans_Helper     => Trans_Helpr,
+			Trans            => Translation.Initialized_Object (Trans_Helpr, False),
 			Execute_Progress => False);
-	end Initialize_Object;
+	end Initialized_Object;
 
 	--
 	-- Trans_Inhibit_Translation

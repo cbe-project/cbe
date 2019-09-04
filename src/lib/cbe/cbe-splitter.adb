@@ -44,8 +44,20 @@ is
 	procedure Initialize_Object(Obj : out Object_Type)
 	is
 	begin
-		Reset_Curr_Req(Obj);
+		Obj := Initialized_Object;
 	end Initialize_Object;
+
+
+	--
+	-- Initialized_Object
+	--
+	function Initialized_Object
+	return Object_Type
+	is (
+		Curr_Req    => Request.Invalid_Object,
+		Curr_Blk_Nr => 0,
+		Curr_Idx    => 0,
+		Nr_Of_Prims => 0);
 
 
 	--

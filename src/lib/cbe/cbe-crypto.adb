@@ -160,11 +160,18 @@ is
 		Key :     Key_Type)
 	is
 	begin
-		Obj := (
-			Key              => Key,
-			Items            => (others => Item.Invalid_Object),
-			Execute_Progress => False);
+		Obj := Initialized_Object (Key);
 	end Initialize_Object;
+
+	--
+	-- Initialized_Object
+	--
+	function Initialized_Object (Key : Key_Type)
+	return Object_Type
+	is (
+		Key              => Key,
+		Items            => (others => Item.Invalid_Object),
+		Execute_Progress => False);
 
 	--
 	-- Primitive_Acceptable

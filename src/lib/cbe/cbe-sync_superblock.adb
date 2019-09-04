@@ -22,15 +22,12 @@ is
 		--
 		-- Pending_Item
 		--
-		procedure Invalid_Item(
-			Obj  : out Item_Type)
-		is
-		begin
-			Set_State(Obj, Sta => Invalid);
-
-			Obj.Idx := 0;
-			Obj.Gen := 0;
-		end Invalid_Item;
+		function Invalid_Item
+		return Item_Type
+		is (
+			Sta => Invalid,
+			Idx => 0,
+			Gen => 0);
 
 		--
 		-- Pending_Item
@@ -75,9 +72,17 @@ is
 	procedure Initialize_Object(Obj : out Object_Type)
 	is
 	begin
-		Item.Invalid_Item(Obj.Current_Item);
-		Obj.Current_Primitive := Primitive.Invalid_Object;
+		Obj := Initialized_Object;
 	end Initialize_Object;
+
+	--
+	-- Initialized_Object
+	--
+	function Initialized_Object
+	return Object_Type
+	is (
+		Current_Item      => Item.Invalid_Item,
+		Current_Primitive => Primitive.Invalid_Object);
 
 	--
 	-- Request_Acceptable
@@ -150,7 +155,7 @@ is
 		if Item.Complete(Obj.Current_Item) and
 		   Primitive.Block_Number(Obj.Current_Primitive) = Primitive.Block_Number(Prim)
 		then
-			Item.Invalid_Item(Obj.Current_Item);
+			Obj.Current_Item := Item.Invalid_Item;
 			Obj.Current_Primitive := Primitive.Invalid_Object;
 			return;
 		end if;

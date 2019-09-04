@@ -24,11 +24,22 @@ is
 	--
 	-- Initialize_Object
 	--
+	-- FIXME will not be used anymore when the library module is in spark
+	--
 	procedure Initialize_Object (
 		Obj    : out Object_Type;
 		Height :     Tree_Level_Type;
 		Degree :     Tree_Degree_Type;
 		Leafs  :     Tree_Number_Of_Leafs_Type);
+
+	--
+	-- Initialized_Object
+	--
+	function Initialized_Object (
+		Height :     Tree_Level_Type;
+		Degree :     Tree_Degree_Type;
+		Leafs  :     Tree_Number_Of_Leafs_Type)
+	return Object_Type;
 
 	--
 	-- Trans_Inhibit_Translation

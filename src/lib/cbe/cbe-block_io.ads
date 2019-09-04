@@ -27,7 +27,15 @@ is
 	--
 	-- Initialize_Object
 	--
+	-- FIXME will not be used anymore when the library module is in spark
+	--
 	procedure Initialize_Object(Obj : out Object_Type);
+
+	--
+	-- Initialized_Object
+	--
+	function Initialized_Object
+	return Object_Type;
 
 	--
 	-- Check if the module can accept new primitives

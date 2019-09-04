@@ -116,16 +116,23 @@ is
 	procedure Initialize_Object(Obj : out Object_Type)
 	is
 	begin
-		Obj := (
-			Entries           => (others => Invalid_Entry),
-			Hashes            => (others => (others => 0)),
-			Levels            => 0,
-			State             => Invalid,
-			Pending_Primitive => Primitive.Invalid_Object,
-			Pending_Failure   => False,
-			VBA               => Virtual_Block_Address_Type'Last,
-			New_Generation    => 0);
+		Obj := Initialized_Object;
 	end;
+
+	--
+	-- Initialized_Object
+	--
+	function Initialized_Object
+	return Object_Type
+	is (
+		Entries           => (others => Invalid_Entry),
+		Hashes            => (others => (others => 0)),
+		Levels            => 0,
+		State             => Invalid,
+		Pending_Primitive => Primitive.Invalid_Object,
+		Pending_Failure   => False,
+		VBA               => Virtual_Block_Address_Type'Last,
+		New_Generation    => 0);
 
 
 	procedure Update (

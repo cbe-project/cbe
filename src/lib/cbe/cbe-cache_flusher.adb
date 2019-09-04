@@ -18,16 +18,15 @@ is
 	with Spark_Mode
 	is
 		--
-		-- Pending_Item
+		-- Invalid_Item
 		--
-		procedure Invalid_Item(
-			Obj  : out Item_Type)
-		is
-		begin
-			State(Obj, Sta => Invalid);
-			Obj.Pba := 0;
-			Obj.Idx := Cache.Cache_Index_Type'Last;
-		end Invalid_Item;
+		function Invalid_Item
+		return Item_Type
+		is (
+			Sta => Invalid,
+			Pba => 0,
+			Idx => Cache.Cache_Index_Type'Last,
+			Suc => False);
 
 		--
 		-- Pending_Item
@@ -82,10 +81,15 @@ is
 	procedure Initialize_Object(Obj : out Object_Type)
 	is
 	begin
-		for Item_Id in Obj.Items'Range loop
-			Item.Invalid_Item(Obj.Items(Item_Id));
-		end loop;
+		Obj := Initialized_Object;
 	end Initialize_Object;
+
+	--
+	-- Initialized_Object
+	--
+	function Initialized_Object
+	return Object_Type
+	is (Items => (others => Item.Invalid_Item));
 
 	--
 	-- Request_Acceptable
@@ -158,7 +162,7 @@ is
 			if Item.Complete(Obj.Items(Item_Id)) and
 			   Item.Pba(Obj.Items(Item_Id)) = Physical_Block_Address_Type(Primitive.Block_Number(Prim))
 			then
-				Item.Invalid_Item(Obj.Items(Item_Id));
+				Obj.Items(Item_Id) := Item.Invalid_Item;
 				return;
 			end if;
 		end loop Drop_Primitive;
