@@ -145,6 +145,18 @@ is
 		 4 * 8 + -- ID
 		 4 * 8;  -- Flags
 
+	function Tree_Min_Degree
+	return Tree_Degree_Type
+	is (1);
+
+	function Tree_Min_Height
+	return Tree_Level_Type
+	is (1);
+
+	function Tree_Max_Height
+	return Tree_Level_Type
+	is (Tree_Level_Type (Tree_Level_Index_Type'Last) + 1);
+
 	function Snapshot_ID_Invalid
 	return Snapshot_ID_Type
 	is (Snapshot_ID_Type'Last);
@@ -168,6 +180,11 @@ is
 
 	type Type_1_Node_Infos_Type is array (0..Natural (Tree_Level_Index_Type'Last)) of Type_1_Node_Info_Type;
 
+
+	function Snapshot_ID_Invalid_Slot
+	return Snapshot_ID_Type
+	is (Snapshot_ID_Type (Snapshots_Index_Type'Last) + 1);
+
 	function Type_1_Node_Info_Invalid
 	return Type_1_Node_Info_Type
 	is (
@@ -179,6 +196,7 @@ is
 	function VBA_Invalid return Virtual_Block_Address_Type is (Virtual_Block_Address_Type'Last);
 	function PBA_Invalid return Physical_Block_Address_Type is (Physical_Block_Address_Type'Last);
 	function Tree_Level_Invalid return Tree_Level_Type is (Tree_Level_Type'Last);
+	function Superblock_Index_Invalid return Superblock_Index_Type is (Superblock_Index_Type'Last);
 
 	--
 	-- Tag meanings

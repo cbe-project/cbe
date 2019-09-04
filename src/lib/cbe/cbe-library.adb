@@ -52,105 +52,84 @@ is
 		Valid   => False,
 		Timeout => 0);
 
-----
----- Not translated as it seems to be only for debugging
-----
-----	void _Dump_Cur_Sb_Info () const
-----	is begin
-----		Cbe::Super_Block const &sb := _Super_Block (_Cur_Sb.Value);
-----		Snapshot_Type    const &snap := sb.Snapshots (_Cur_Snap);
-----
-----		Cbe::Physical_Block_Address const root_Number := snap.Pba;
-----		Cbe::Height                 const height      := snap.Height;
-----		Cbe::Number_Of_Leaves       const leaves      := snap.Leaves;
-----
-----		Cbe::Degree                 const degree      := sb.Degree;
-----		Cbe::Physical_Block_Address const free_Number := sb.Free_Number;
-----		Cbe::Number_Of_Leaves       const free_Leaves := sb.Free_Leaves;
-----		Cbe::Height                 const free_Height := sb.Free_Height;
-----
-----		Genode::log ("Virtual block-device info in SB (", _Cur_Sb, "): ",
-----		            " SNAP (", _Cur_Snap, "): ",
-----		            "tree height: ", height, " ",
-----		            "edges per node: ", degree, " ",
-----		            "leaves: ", leaves, " ",
-----		            "root block address: ", root_Number, " ",
-----		            "free block address: ", free_Number, " ",
-----		            "free leaves: (", free_Leaves, "/", free_Height, ")"
-----		);
-----	end ;
 --
+-- Not translated yet as it seems to be only for debugging
 --
---	procedure Initialize_Object (
---		Obj     : out Object_Type;
---		Now     :     Timestamp_Type;
---		Sync    :     Timestamp_Type;
---		Secure  :     Timestamp_Type;
---		Sbs     :     Super_Blocks_Type;
---		Curr_Sb :     Super_Blocks_Index_Type)
---	is
---	begin
+--	void _Dump_Cur_Sb_Info () const
+--	is begin
+--		Cbe::Super_Block const &sb := _Super_Block (_Cur_Sb.Value);
+--		Snapshot_Type    const &snap := sb.Snapshots (_Cur_Snap);
 --
---		Obj := (
+--		Cbe::Physical_Block_Address const root_Number := snap.PBA;
+--		Cbe::Height                 const height      := snap.Height;
+--		Cbe::Number_Of_Leafs       const leafs      := snap.Leafs;
 --
---			Cbe::Time::Timestamp _sync_interval          { SYNC_INTERVAL };
---			Cbe::Time::Timestamp _last_time              { 0 };
---			Cbe::Time::Timestamp _secure_interval        { SECURE_INTERVAL };
---			Cbe::Time::Timestamp _last_secure_time       { 0 };
---			Timeout_request      _sync_timeout_request   { false, 0};
---			Timeout_request      _secure_timeout_request { false, 0};
---			bool                 _execute_progress       { false };
---			Pool                 _request_pool { };
+--		Cbe::Degree                 const degree      := sb.Degree;
+--		Cbe::Physical_Block_Address const free_Number := sb.Free_Number;
+--		Cbe::Number_Of_Leafs       const free_Leafs := sb.Free_Leafs;
+--		Cbe::Height                 const free_Height := sb.Free_Height;
 --
---			Splitter _splitter { };
---
---			Crypto   _crypto        { "All your base are belong to us  " };
---			Block_data _crypto_data { };
---
---			Block_Io      _io      { };
---			Io_data _io_data { };
---
---			Cache           _cache          { };
---			Cache_Data      _cache_data     { };
---			Cache_Job_Data  _cache_job_data { };
---			Cache_flusher   _cache_flusher        { };
---
---			Translation_Data _trans_data     { };
---			Virtual_block_device _vbd { };
---
---			Write_back      _write_back { };
---			Write_back_data _write_back_data { };
---
---			Sync_superblock _sync_sb { };
---
---			Free_tree        _free_tree { };
---			uint32_t                      _free_tree_retry_count { 0 };
---			Translation_Data              _free_tree_trans_data { };
---			Query_data                    _free_tree_query_data { };
---
---			Cbe::Super_block       _super_block[Cbe::NUM_SUPER_BLOCKS] { };
---			Cbe::Super_block_index _cur_sb { Cbe::Super_block_index::INVALID };
---			Cbe::Generation  _cur_gen { 0 };
---			Cbe::Generation  _last_secured_generation { 0 };
---			uint32_t         _cur_snap { 0 };
---			uint32_t         _last_snapshot_id { 0 };
---			bool             _seal_generation { false };
---			bool             _secure_superblock { false };
---			bool             _superblock_dirty { false };
+--		Genode::log ("Virtual block-device info in SB (", _Cur_Sb, "): ",
+--		            " SNAP (", _Cur_Snap, "): ",
+--		            "tree height: ", height, " ",
+--		            "edges per node: ", degree, " ",
+--		            "leafs: ", leafs, " ",
+--		            "root block address: ", root_Number, " ",
+--		            "free block address: ", free_Number, " ",
+--		            "free leafs: (", free_Leafs, "/", free_Height, ")"
 --		);
+--	end ;
+
+	function Super_Block_Snapshot_Slot (SB : Super_Block_Type)
+	return Snapshot_ID_Type
+	is
+		Snap_Slot : Snapshot_ID_Type := Snapshot_ID_Invalid_Slot;
+	begin
+		For_Snapshots:
+		for Snap_Index in Snapshots_Index_Type loop
+			if
+				Snapshot_Valid (SB.Snapshots (Snap_Index)) and
+				SB.Snapshots (Snap_Index).ID = SB.Snapshot_ID
+			then
+				Snap_Slot := Snapshot_ID_Type (Snap_Index);
+				exit For_Snapshots;
+			end if;
+		end loop For_Snapshots;
+		return Snap_Slot;
+	end Super_Block_Snapshot_Slot;
+
+
+	procedure Initialize_Object (
+		Obj     : out Object_Type;
+		Now     :     Timestamp_Type;
+		Sync    :     Timestamp_Type;
+		Secure  :     Timestamp_Type;
+		SBs     :     Super_Blocks_Type;
+		Curr_SB :     Super_Blocks_Index_Type)
+	is
+		Snap_Slot : constant Snapshot_ID_Type :=
+			Super_Block_Snapshot_Slot (SBs (Curr_SB));
+
+		Degree : constant Tree_Degree_Type          := SBs (Curr_SB).Degree;
+		Height : constant Tree_Level_Type           := SBs (Curr_SB).Snapshots (Snapshots_Index_Type (Snap_Slot)).Height;
+		Leafs  : constant Tree_Number_Of_Leafs_Type := SBs (Curr_SB).Snapshots (Snapshots_Index_Type (Snap_Slot)).Nr_Of_Leafs;
+	begin
+
 --
-----
----- Not translated as object sizes must be checked only for the Library
----- Module itself from now on.
-----
-----		--
-----		-- We have to make sure we actually execute the code to check
-----		-- if we provide enough space for the SPARK objects.
-----		--
-----		if not _Object_Sizes_Match then
-----			-- Genode::error ("object size mismatch");
-----			raise program_error -- throw Spark_Object_Size_Mismatch;
-----		end if;
+-- Not translated as object sizes must be checked only for the Library
+-- Module itself from now on.
+--
+--		--
+--		-- We have to make sure we actually execute the code to check
+--		-- if we provide enough space for the SPARK objects.
+--		--
+--		if not _Object_Sizes_Match then
+--			-- Genode::error ("object size mismatch");
+--			raise program_error; -- throw Spark_Object_Size_Mismatch;
+--		end if;
+
+--
+-- Not translated as it is done already during the Obj assignment
 --
 --		--
 --		-- Copy initial state of all super-blocks. During the life-time
@@ -164,24 +143,30 @@ is
 --		for uint32_T i := 0; i < Cbe::NUM_SUPER_BLOCKS; i++ loop
 --			Genode::memcpy (&_Super_Block (i), &Sbs (i), sizeof (Cbe::Super_Block));
 --		end loop;
+
+--
+-- Already done in the declarative part of the procedure
 --
 --		--
 --		-- Now we look up the proper snapshot from theCurr super-block
 --		-- and fill in our internal meta-data.
 --		--
 --
---		_Cur_Sb =Curr_Sb;
+--		_Cur_SB =Curr_SB;
 --
 --		using SB := Cbe::Super_Block;
 --		using SS := Cbe::Snapshot;
 --
---		SB const &sb := _Super_Block (_Cur_Sb.Value);
---
+--		SB const &sb := _Super_Block (_Cur_SB.Value);
 --		uint32_T snap_Slot := sb.Snapshot_Slot ();
---		if snap_Slot = Super_Block::INVALID_SNAPSHOT_SLOT then
---			-- Genode::error ("snapshot slot not found");
---			raise program_error -- throw Invalid_Snapshot_Slot;
---		end if;
+
+		if Snap_Slot = Snapshot_ID_Invalid_Slot then
+			-- Genode::error ("snapshot slot not found");
+			raise program_error; -- throw Invalid_Snapshot_Slot;
+		end if;
+
+--
+-- Already done in the declarative part of the procedure
 --
 --		_Cur_Snap := snap_Slot;
 --
@@ -189,22 +174,22 @@ is
 --
 --		Cbe::Degree           const degree := sb.Degree;
 --		Cbe::Height           const height := snap.Height;
---		Cbe::Number_Of_Leaves const leaves := snap.Leaves;
---
---		--
---		-- TheCurr implementation is limited with regard to the
---		-- tree topology. Make sure it fits.
---		--
---		if height > Cbe::TREE_MAX_HEIGHT || height < Cbe::TREE_MIN_HEIGHT then
---			-- Genode::error ("tree height of ", height, " not supported");
---			raise program_error -- throw Invalid_Tree;
---		end if;
---
---		if degree < Cbe::TREE_MIN_DEGREE then
---			-- Genode::error ("tree outer-degree of ", degree, " not supported");
---			raise program_error -- throw Invalid_Tree;
---		end if;
---
+--		Cbe::Number_Of_Leafs const leafs := snap.Leafs;
+
+		--
+		-- The Current implementation is limited with regard to the
+		-- tree topology. Make sure it fits.
+		--
+		if Height > Tree_Max_Height or Height < Tree_Min_Height then
+			-- Genode::error ("tree height of ", height, " not supported");
+			raise program_error; -- throw Invalid_Tree;
+		end if;
+
+		if Degree < Tree_Min_Degree then
+			-- Genode::error ("tree outer-degree of ", degree, " not supported");
+			raise program_error; -- throw Invalid_Tree;
+		end if;
+
 --		--
 --		-- The VBD class isCurrly nothing more than a glorified
 --		-- Translation meta-module - pass on all information that is
@@ -217,15 +202,68 @@ is
 --		--  there and have an extended versions that is also able to
 --		--  manage theCurr active working snapshot.)
 --		--
---		_Vbd.Construct (height, degree, leaves);
+--		_VBD.Construct (height, degree, leafs);
 --
 --		Cbe::Physical_Block_Address const free_Number := sb.Free_Number;
 --		Cbe::Generation             const free_Gen    := sb.Free_Gen;
 --		Cbe::Hash                   const free_Hash   := sb.Free_Hash;
 --		Cbe::Height                 const free_Height := sb.Free_Height;
 --		Cbe::Degree                 const free_Degree := sb.Free_Degree;
---		Cbe::Number_Of_Leaves       const free_Leafs  := sb.Free_Leaves;
---
+--		Cbe::Number_Of_Leafs       const free_Leafs  := sb.Free_Leafs;
+
+
+		Obj := (
+			Sync_Interval           => Sync,
+			Last_Time               => Now,
+			Secure_Interval         => Secure,
+			Last_Secure_Time        => Now,
+			Sync_Timeout_Request    => Timeout_Request_Invalid,
+			Secure_Timeout_Request  => Timeout_Request_Invalid,
+			Execute_Progress        => False,
+			Request_Pool_Obj        => Pool.Initialized_Object,
+			Splitter_Obj            => Splitter.Initialized_Object,
+			Crypto_Obj              => Crypto.Initialized_Object (
+				Key => (
+					65, 108, 108, 32,
+					121, 111, 117, 114,
+					32, 98, 97, 115,
+					101, 32, 97, 114,
+					101, 32, 98, 101,
+					108, 111, 110, 103,
+					32, 116, 111, 32,
+					117, 115, 32, 32)), -- "All your base are belong to us  "
+			Crypto_Data             => (others => 0),
+			Io_Obj                  => Block_IO.Initialized_Object,
+			Io_Data                 => (others => (others => 0)),
+			Cache_Obj               => Cache.Initialized_Object,
+			Cache_Data              => (others => (others => 0)),
+			Cache_Job_Data          => (others => (others => 0)),
+			Cache_Flusher_Obj       => Cache_Flusher.Initialized_Object,
+			Trans_Data              => (others => (others => 0)),
+			VBD                     => Virtual_Block_Device.Initialized_Object (Height, Degree, Leafs),
+			Write_Back_Obj          => Write_Back.Initialized_Object,
+			Write_Back_Data         => (others => (others => 0)),
+			Sync_SB_Obj             => Sync_Superblock.Initialized_Object,
+			Free_Tree_Obj           => Free_Tree.Initialized_Object (
+				SBs (Curr_SB).Free_Number,
+				SBs (Curr_SB).Free_Gen,
+				SBs (Curr_SB).Free_Hash,
+				SBs (Curr_SB).Free_Height,
+				SBs (Curr_SB).Free_Degree,
+				SBs (Curr_SB).Free_Leafs),
+			Free_Tree_Retry_Count   => 0,
+			Free_Tree_Trans_Data    => (others => (others => 0)),
+			Free_Tree_Query_Data    => (others => (others => 0)),
+			Super_Blocks            => SBs,
+			Cur_SB                  => Superblock_Index_Type (Curr_SB),
+			Cur_Gen                 => 0,
+			Last_Secured_Generation => 0,
+			Cur_Snap                => Snap_Slot,
+			Last_Snapshot_ID        => 0,
+			Seal_Generation         => False,
+			Secure_Superblock       => False,
+			Superblock_Dirty        => False);
+
 --		--
 --		-- The FT encapsulates all modules needed for traversing the
 --		-- free-tree and allocating new blocks. For now we do not update
@@ -247,7 +285,7 @@ is
 --		--
 --		_Last_Secured_Generation := sb.Last_Secured_Generation;
 --		_Cur_Gen                := _Last_Secured_Generation + 1;
---		_Last_Snapshot_Id        := Snap.ID;
+--		_Last_Snapshot_ID        := Snap.ID;
 --
 --		--
 --		-- If the timeout intervals were configured set initial timeout.
@@ -264,19 +302,19 @@ is
 --		end if;
 --
 --		-- for diagnostic reasons--
---		_Dump_Cur_Sb_Info ();
+--		_Dump_Cur_SB_Info ();
+	end Initialize_Object;
+--
+--
+--	void dump_Cur_SB_Info () const
+--	is begin
+--		_Dump_Cur_SB_Info ();
 --	end ;
 --
 --
---	void dump_Cur_Sb_Info () const
+--	Cbe::Virtual_Block_Address max_VBA () const
 --	is begin
---		_Dump_Cur_Sb_Info ();
---	end ;
---
---
---	Cbe::Virtual_Block_Address max_Vba () const
---	is begin
---		return _Super_Block (_Cur_Sb.Value).Snapshots (_Cur_Snap).Leaves - 1;
+--		return _Super_Block (_Cur_SB.Value).Snapshots (_Cur_Snap).Leafs - 1;
 --	end ;
 --
 --
@@ -340,7 +378,7 @@ is
 --
 --			if _Superblock_Dirty then
 --				Genode::log ("\033[93;44m", __Func__,
---				            " SEALCurr super-block: ", _Cur_Sb);
+--				            " SEALCurr super-block: ", _Cur_SB);
 --				_Secure_Superblock := True;
 --			} else {
 --				-- DBG("no snapshots created, re-arm trigger");
@@ -369,7 +407,7 @@ is
 --		--  do not know how well theCurr solution works with SPARK...)
 --		--
 --		{
---			Cbe::Super_Block const &sb := _Super_Block (_Cur_Sb.Value);
+--			Cbe::Super_Block const &sb := _Super_Block (_Cur_SB.Value);
 --
 --			_Free_Tree->execute (sb.Snapshots,
 --			                    _Last_Secured_Generation,
@@ -411,8 +449,8 @@ is
 --			-- DBG("allocating new blocks failed: ", _Free_Tree_Retry_Count);
 --			if _Free_Tree_Retry_Count < FREE_TREE_RETRY_LIMIT then
 --
---				Cbe::Super_Block &sb := _Super_Block (_Cur_Sb.Value);
---				uint32_T constCurr := sb.Snapshots (_Cur_Snap).Id;
+--				Cbe::Super_Block &sb := _Super_Block (_Cur_SB.Value);
+--				uint32_T constCurr := sb.Snapshots (_Cur_Snap).ID;
 --				if _Discard_Snapshot (sb.Snapshots,Curr) then
 --					_Free_Tree_Retry_Count++;
 --					--
@@ -437,7 +475,7 @@ is
 --			-- DBG("----------------------->Curr primitive: ", current_Primitive, " FINISHED");
 --			current_Primitive := Cbe::Primitive { };
 --			-- FIXME
---			_Vbd->trans_Resume_Translation ();
+--			_VBD->trans_Resume_Translation ();
 --
 --			_Free_Tree->drop_Completed_Primitive (prim);
 --			progress |= True;
@@ -532,7 +570,7 @@ is
 --			if not prim.Valid () then
 --				break;
 --			end if;
---			if not _Vbd->primitive_Acceptable () then
+--			if not _VBD->primitive_Acceptable () then
 --				break;
 --			end if;
 --
@@ -551,14 +589,14 @@ is
 --			-- For every new request, we have to use theCurrly active
 --			-- snapshot as a previous request may have changed the tree.
 --			--
---			Cbe::Super_Block const &sb := _Super_Block (_Cur_Sb.Value);
+--			Cbe::Super_Block const &sb := _Super_Block (_Cur_SB.Value);
 --			Snapshot_Type    const &snap := sb.Snapshots (_Cur_Snap);
 --
---			Cbe::Physical_Block_Address const  pba  := snap.Pba;
+--			Cbe::Physical_Block_Address const  pba  := snap.PBA;
 --			Cbe::Hash                   const &hash := snap.Hash;
 --			Cbe::Generation             const  gen  := snap.Gen;
 --
---			_Vbd->submit_Primitive (pba, gen, hash, prim);
+--			_VBD->submit_Primitive (pba, gen, hash, prim);
 --			progress |= True;
 --		}
 --
@@ -581,8 +619,8 @@ is
 --		-- (Basically the same issue regarding SPARK as the FT module...)
 --		--
 --		{
---			_Vbd->execute (_Trans_Data, _Cache, _Cache_Data, _Time.Timestamp ());
---			bool const vbd_Progress := _Vbd->execute_Progress ();
+--			_VBD->execute (_Trans_Data, _Cache, _Cache_Data, _Time.Timestamp ());
+--			bool const vbd_Progress := _VBD->execute_Progress ();
 --			progress |= vbd_Progress;
 --			LOG_PROGRESS(vbd_Progress);
 --		}
@@ -615,7 +653,7 @@ is
 --
 --			if prim.Success != Cbe::Primitive::Success::TRUE then
 --				-- DBG(prim);
---				raise program_error -- throw Primitive_Failed;
+--				raise program_error; -- throw Primitive_Failed;
 --			end if;
 --
 --			Cbe::Physical_Block_Address const pba := prim.Block_Number;
@@ -678,7 +716,7 @@ is
 --
 --			if prim.Success != Cbe::Primitive::Success::TRUE then
 --				-- DBG(prim);
---				raise program_error -- throw Primitive_Failed;
+--				raise program_error; -- throw Primitive_Failed;
 --			end if;
 --
 --			if _Seal_Generation then
@@ -719,7 +757,7 @@ is
 --				-- we manual intervention b/c there are too many snapshots
 --				-- flagged as keep
 --				--
---				Cbe::Super_Block &sb := _Super_Block (_Cur_Sb.Value);
+--				Cbe::Super_Block &sb := _Super_Block (_Cur_SB.Value);
 --				uint32_T next_Snap := _Cur_Snap;
 --				for uint32_T i := 0; i < Cbe::NUM_SNAPSHOTS; i++ loop
 --					next_Snap := (next_Snap + 1) % Cbe::NUM_SNAPSHOTS;
@@ -736,7 +774,7 @@ is
 --				if next_Snap = _Cur_Snap then
 --					-- Genode::error ("could not find free snapshot slot");
 --					-- proper handling pending--
---					raise program_error -- throw Invalid_Snapshot_Slot;
+--					raise program_error; -- throw Invalid_Snapshot_Slot;
 --					break;
 --				end if;
 --
@@ -747,15 +785,15 @@ is
 --				--
 --				Snapshot_Type &snap := sb.Snapshots (next_Snap);
 --
---				snap.Pba := _Write_Back.Peek_Completed_Root (prim);
+--				snap.PBA := _Write_Back.Peek_Completed_Root (prim);
 --				Cbe::Hash *snap_Hash := &snap.Hash;
 --				_Write_Back.Peek_Competed_Root_Hash (prim, *snap_Hash);
 --
---				Cbe::Tree_Helper const &tree := _Vbd->tree_Helper ();
+--				Cbe::Tree_Helper const &tree := _VBD->tree_Helper ();
 --				snap.Height := tree.Height ();
---				snap.Leaves := tree.Leafs ();
+--				snap.Leafs := tree.Leafs ();
 --				snap.Gen := _Cur_Gen;
---				Snap.ID  := ++_Last_Snapshot_Id;
+--				Snap.ID  := ++_Last_Snapshot_ID;
 --
 --				-- DBG("new snapshot for generation: ", _Cur_Gen, " snap: ", snap);
 --
@@ -777,15 +815,15 @@ is
 --				-- and move on.
 --				--
 --
---				Cbe::Super_Block &sb := _Super_Block (_Cur_Sb.Value);
+--				Cbe::Super_Block &sb := _Super_Block (_Cur_SB.Value);
 --				Snapshot_Type    &snap := sb.Snapshots (_Cur_Snap);
 --
 --				-- update snapshot--
 --				Cbe::Physical_Block_Address const pba := _Write_Back.Peek_Completed_Root (prim);
 --				-- FIXME why do we need that again?
---				if snap.Pba != pba then
+--				if snap.PBA != pba then
 --					snap.Gen := _Cur_Gen;
---					snap.Pba := pba;
+--					snap.PBA := pba;
 --				end if;
 --
 --				Cbe::Hash *snap_Hash := &snap.Hash;
@@ -815,7 +853,7 @@ is
 --			-- FIXME stalling translation as long as the write-back takes places
 --			--     is not a good idea
 --			--
---			_Vbd->trans_Resume_Translation ();
+--			_VBD->trans_Resume_Translation ();
 --		}
 --
 --
@@ -876,7 +914,7 @@ is
 --
 --			using PBA := Cbe::Physical_Block_Address;
 --			PBA const pba        := prim.Block_Number;
---			PBA const update_Pba := _Write_Back.Peek_Generated_Cache_Update_Pba (prim);
+--			PBA const update_PBA := _Write_Back.Peek_Generated_Cache_Update_PBA (prim);
 --
 --			--
 --			-- Check if the cache contains the needed entries. In case of the
@@ -894,11 +932,11 @@ is
 --				cache_Miss |= True;
 --			end if;
 --
---			if pba != update_Pba then
---				if not _Cache.Data_Available (update_Pba) then
---					-- DBG("cache miss update_Pba: ", update_Pba);
---					if _Cache.Cxx_Request_Acceptable (update_Pba) then
---						_Cache.Cxx_Submit_Request (update_Pba);
+--			if pba != update_PBA then
+--				if not _Cache.Data_Available (update_PBA) then
+--					-- DBG("cache miss update_PBA: ", update_PBA);
+--					if _Cache.Cxx_Request_Acceptable (update_PBA) then
+--						_Cache.Cxx_Submit_Request (update_PBA);
 --					end if;
 --					cache_Miss |= True;
 --				end if;
@@ -912,26 +950,26 @@ is
 --
 --			_Write_Back.Drop_Generated_Cache_Primitive (prim);
 --
---			-- DBG("cache hot pba: ", pba, " update_Pba: ", update_Pba);
+--			-- DBG("cache hot pba: ", pba, " update_PBA: ", update_PBA);
 --
 --			--
 --			-- To keep it simply, always set both properly - even if
 --			-- the old and new node are the same.
 --			--
 --			Cache_Index const idx        := _Cache.Data_Index (pba, _Time.Timestamp ());
---			Cache_Index const update_Idx := _Cache.Data_Index (update_Pba, _Time.Timestamp ());
+--			Cache_Index const update_IDx := _Cache.Data_Index (update_PBA, _Time.Timestamp ());
 --
 --			Cbe::Block_Data const &data        := _Cache_Data.Item (idx.Value);
---			Cbe::Block_Data       &update_Data := _Cache_Data.Item (update_Idx.Value);
+--			Cbe::Block_Data       &update_Data := _Cache_Data.Item (update_IDx.Value);
 --
 --			--
 --			-- (Later on we can remove the tree_Helper here as the outer degree,
 --			--  which is used to calculate the entry in the inner node from the
 --			--  VBA is set at compile-time.)
 --			--
---			_Write_Back.Update (pba, _Vbd->tree_Helper (), data, update_Data);
+--			_Write_Back.Update (pba, _VBD->tree_Helper (), data, update_Data);
 --			-- make the potentially new entry as dirty so it gets flushed next time--
---			_Cache.Mark_Dirty (update_Pba);
+--			_Cache.Mark_Dirty (update_PBA);
 --			progress |= True;
 --		}
 --
@@ -943,17 +981,17 @@ is
 --		-- Store theCurr generation and snapshot id in the current
 --		-- super-block before it gets secured.
 --		--
---		if _Secure_Superblock && _Sync_Sb.Cxx_Request_Acceptable () then
+--		if _Secure_Superblock && _Sync_SB.Cxx_Request_Acceptable () then
 --
---			Cbe::Super_Block &sb := _Super_Block (_Cur_Sb.Value);
+--			Cbe::Super_Block &sb := _Super_Block (_Cur_SB.Value);
 --
 --			sb.Last_Secured_Generation := _Cur_Gen;
---			sb.Snapshot_Id             := _Cur_Snap;
+--			sb.Snapshot_ID             := _Cur_Snap;
 --
 --			-- DBG("secureCurr super-block gen: ", _Cur_Gen,
 --			    " Snap.ID: ", _Cur_Snap);
 --
---			_Sync_Sb.Cxx_Submit_Request (_Cur_Sb.Value, _Cur_Gen);
+--			_Sync_SB.Cxx_Submit_Request (_Cur_SB.Value, _Cur_Gen);
 --		end if;
 --
 --		--
@@ -961,33 +999,33 @@ is
 --		--
 --		while (True) {
 --
---			Cbe::Primitive prim := _Sync_Sb.Cxx_Peek_Completed_Primitive ();
+--			Cbe::Primitive prim := _Sync_SB.Cxx_Peek_Completed_Primitive ();
 --			if not prim.Valid () then
 --				break;
 --			end if;
 --
 --			if prim.Success != Cbe::Primitive::Success::TRUE then
 --				-- DBG(prim);
---				raise program_error -- throw Primitive_Failed;
+--				raise program_error; -- throw Primitive_Failed;
 --			end if;
 --
 --			-- DBG("primitive: ", prim);
 --
 --
---			Super_Blocks_Index_Type  next_Sb := Super_Blocks_Index_Type {
---				.Value := (uint8_T)((_Cur_Sb.Value + 1) % Cbe::NUM_SUPER_BLOCKS)
+--			Super_Blocks_Index_Type  next_SB := Super_Blocks_Index_Type {
+--				.Value := (uint8_T)((_Cur_SB.Value + 1) % Cbe::NUM_SUPER_BLOCKS)
 --			};
---			Cbe::Super_Block       &next    := _Super_Block (next_Sb.Value);
---			Cbe::Super_Block const &curr    := _Super_Block (_Cur_Sb.Value);
+--			Cbe::Super_Block       &next    := _Super_Block (next_SB.Value);
+--			Cbe::Super_Block const &curr    := _Super_Block (_Cur_SB.Value);
 --			Genode::memcpy (&next, &curr, sizeof (Cbe::Super_Block));
 --
 --			-- handle state--
---			_Cur_Sb                  := next_Sb;
---			_Last_Secured_Generation := _Sync_Sb.Cxx_Peek_Completed_Generation (prim);
+--			_Cur_SB                  := next_SB;
+--			_Last_Secured_Generation := _Sync_SB.Cxx_Peek_Completed_Generation (prim);
 --			_Superblock_Dirty        := False;
 --			_Secure_Superblock       := False;
 --
---			_Sync_Sb.Cxx_Drop_Completed_Primitive (prim);
+--			_Sync_SB.Cxx_Drop_Completed_Primitive (prim);
 --			progress |= True;
 --
 --			--
@@ -1004,7 +1042,7 @@ is
 --		--
 --		while (True) {
 --
---			Cbe::Primitive prim := _Sync_Sb.Cxx_Peek_Generated_Primitive ();
+--			Cbe::Primitive prim := _Sync_SB.Cxx_Peek_Generated_Primitive ();
 --			if not prim.Valid () then
 --				break;
 --			end if;
@@ -1012,12 +1050,12 @@ is
 --				break;
 --			end if;
 --
---			uint64_T   const  id      := _Sync_Sb.Cxx_Peek_Generated_Id (prim);
+--			uint64_T   const  id      := _Sync_SB.Cxx_Peek_Generated_ID (prim);
 --			Cbe::Super_Block &sb      := _Super_Block (id);
 --			Cbe::Block_Data  &sb_Data := *reinterpret_Cast<Cbe::Block_Data*>(&sb);
 --
 --			_Io.Submit_Primitive (Tag::SYNC_SB_TAG, prim, _Io_Data, sb_Data);
---			_Sync_Sb.Cxx_Drop_Generated_Primitive (prim);
+--			_Sync_SB.Cxx_Drop_Generated_Primitive (prim);
 --			progress |= True;
 --		}
 --
@@ -1047,7 +1085,7 @@ is
 --
 --			if prim.Success != Cbe::Primitive::Success::TRUE then
 --				-- DBG(prim);
---				raise program_error -- throw Primitive_Failed;
+--				raise program_error; -- throw Primitive_Failed;
 --			end if;
 --
 --			Write_Back_Data_Index const idx := _Write_Back.Peek_Generated_Crypto_Data (prim);
@@ -1142,7 +1180,7 @@ is
 --
 --			if prim.Success != Cbe::Primitive::Success::TRUE then
 --				-- DBG(prim);
---				raise program_error -- throw Primitive_Failed;
+--				raise program_error; -- throw Primitive_Failed;
 --			end if;
 --
 --			Genode::uint32_T const idx := _Io.Peek_Completed_Data_Index (prim);
@@ -1192,7 +1230,7 @@ is
 --				break;
 --
 --			case Tag::SYNC_SB_TAG:
---				_Sync_Sb.Cxx_Mark_Generated_Primitive_Complete (prim);
+--				_Sync_SB.Cxx_Mark_Generated_Primitive_Complete (prim);
 --				break;
 --
 --			case Tag::FREE_TREE_TAG_WB:
@@ -1413,7 +1451,7 @@ is
 --		-- from where to read the new leaf data.
 --		--
 --		{
---			Cbe::Primitive prim := _Vbd->peek_Completed_Primitive ();
+--			Cbe::Primitive prim := _VBD->peek_Completed_Primitive ();
 --			if prim.Valid () then
 --
 --				Cbe::Request const req := _Request_Pool.Request_For_Tag (prim.Tag);
@@ -1493,7 +1531,7 @@ is
 --			_Frontend_Req_Prim := Req_Prim { };
 --			if _Io.Primitive_Acceptable () then
 --				_Io.Submit_Primitive (Tag::CRYPTO_TAG_DECRYPT, prim, _Io_Data, data, True);
---				_Vbd->drop_Completed_Primitive (prim);
+--				_VBD->drop_Completed_Primitive (prim);
 --
 --				return True;
 --			end if;
@@ -1533,10 +1571,10 @@ is
 --			-- and probably will not work with SPARK - we have to get rid of
 --			-- the 'block_Data' pointer.
 --			--
---			Free_Tree::Write_Back_Data const &wb := _Free_Tree->peek_Completed_Wb_Data (prim);
+--			Free_Tree::Write_Back_Data const &wb := _Free_Tree->peek_Completed_WB_Data (prim);
 --
---			_Write_Back.Submit_Primitive (wb.Prim, wb.Gen, wb.Vba,
---			                             wb.New_Pba, wb.Old_Pba, wb.Tree_Height,
+--			_Write_Back.Submit_Primitive (wb.Prim, wb.Gen, wb.VBA,
+--			                             wb.New_PBA, wb.Old_PBA, wb.Tree_Height,
 --			                             data, _Write_Back_Data);
 --
 --			_Free_Tree->drop_Completed_Primitive (prim);
@@ -1572,33 +1610,33 @@ is
 --			-- The order of the array items corresponds to the level within
 --			-- the tree.
 --			--
---			Cbe::Type_1_Node_Info Old_Pba (Translation::MAX_LEVELS) { };
---			if not _Vbd->trans_Can_Get_Type_1_Info (prim, old_Pba) then
+--			Cbe::Type_1_Node_Info Old_PBA (Translation::MAX_LEVELS) { };
+--			if not _VBD->trans_Can_Get_Type_1_Info (prim, old_PBA) then
 --				return False;
 --			end if;
---			_Vbd->trans_Get_Type_1_Info (old_Pba);
+--			_VBD->trans_Get_Type_1_Info (old_PBA);
 --
---			uint32_T const trans_Height := _Vbd->tree_Height () + 1;
+--			uint32_T const trans_Height := _VBD->tree_Height () + 1;
 --
 --			--
 --			-- Make sure we work with the proper snapshot.
 --			--
 --			-- (This check may be removed at some point.)
 --			--
---			Cbe::Super_Block const &sb := _Super_Block (_Cur_Sb.Value);
+--			Cbe::Super_Block const &sb := _Super_Block (_Cur_SB.Value);
 --			Snapshot_Type    const &snap := sb.Snapshots (_Cur_Snap);
---			if Old_Pba (trans_Height-1).Pba != snap.Pba then
+--			if Old_PBA (trans_Height-1).PBA != snap.PBA then
 --				-- Genode::error ("BUG");
 --			end if;
 --
 --			--
---			-- The array of new_Pba will either get populated from the old_Pba
+--			-- The array of new_PBA will either get populated from the old_PBA
 --			-- content or from newly allocated blocks.
 --			-- The order of the array items corresponds to the level within
 --			-- the tree.
 --			--
---			Cbe::Physical_Block_Address New_Pba (Translation::MAX_LEVELS) { };
---			Genode::memset (new_Pba, 0, sizeof (new_Pba));
+--			Cbe::Physical_Block_Address New_PBA (Translation::MAX_LEVELS) { };
+--			Genode::memset (new_PBA, 0, sizeof (new_PBA));
 --			uint32_T new_Blocks := 0;
 --
 --			--
@@ -1606,14 +1644,14 @@ is
 --			-- marked as reserved in the FT as they are still referenced by
 --			-- an snapshot.
 --			--
---			Cbe::Physical_Block_Address Free_Pba (Translation::MAX_LEVELS) { };
+--			Cbe::Physical_Block_Address Free_PBA (Translation::MAX_LEVELS) { };
 --			uint32_T free_Blocks := 0;
 --
 --			--
 --			-- Get the corresponding VBA that we use to calculate the index
 --			-- for the edge in the node for a given level within the tree.
 --			--
---			Cbe::Primitive::Number const vba := _Vbd->trans_Get_Virtual_Block_Address (prim);
+--			Cbe::Primitive::Number const vba := _VBD->trans_Get_Virtual_Block_Address (prim);
 --
 --			--
 --			-- Here only the inner nodes, i.E. all nodes excluding root and leaf,
@@ -1626,11 +1664,11 @@ is
 --				-- Use the old PBA to get the node's data from the cache and
 --				-- use it check how we have to handle the node.
 --				--
---				Cbe::Physical_Block_Address const pba := Old_Pba (i).Pba;
+--				Cbe::Physical_Block_Address const pba := Old_PBA (i).PBA;
 --				Cache_Index     const idx   := _Cache.Data_Index (pba, _Time.Timestamp ());
 --				Cbe::Block_Data const &data := _Cache_Data.Item (idx.Value);
 --
---				uint32_T const id := _Vbd->index_For_Level (vba, i);
+--				uint32_T const id := _VBD->index_For_Level (vba, i);
 --				Cbe::Type_I_Node const *n := reinterpret_Cast<Cbe::Type_I_Node const*>(&data);
 --
 --				uint64_T const gen := N (id).Gen;
@@ -1638,55 +1676,55 @@ is
 --				-- In case the generation of the entry is the same as theCurr
 --				-- generation OR if the generation is 0 (which means it was never
 --				-- used before) the block is volatile and we change it in place
---				-- and store it directly in the new_Pba array.
+--				-- and store it directly in the new_PBA array.
 --				--
 --				if gen = _Cur_Gen || gen = 0 then
---					Cbe::Physical_Block_Address const npba := N (id).Pba;
+--					Cbe::Physical_Block_Address const npba := N (id).PBA;
 --					(void)npba;
 --					-- DBG("IN PLACE pba: ", pba, " gen: ", gen, " npba: ", npba);
 --
---					New_Pba (i-1) := Old_Pba (i-1).Pba;
+--					New_PBA (i-1) := Old_PBA (i-1).PBA;
 --					continue;
 --				end if;
 --
 --				--
---				-- Otherwise add the block to the free_Pba array so that the
+--				-- Otherwise add the block to the free_PBA array so that the
 --				-- FT will reserved it and note that we need another new block.
 --				--
---				Free_Pba (free_Blocks) := Old_Pba (i-1).Pba;
---				-- DBG("FREE PBA: ", Free_Pba (free_Blocks));
+--				Free_PBA (free_Blocks) := Old_PBA (i-1).PBA;
+--				-- DBG("FREE PBA: ", Free_PBA (free_Blocks));
 --				free_Blocks++;
 --				new_Blocks++;
 --			end loop;
 --
 --			-- check root node--
 --			if snap.Gen = _Cur_Gen || snap.Gen = 0 then
---				-- DBG("IN PLACE root pba: ", Old_Pba (trans_Height-1).Pba);
---				New_Pba (trans_Height-1) := Old_Pba (trans_Height-1).Pba;
+--				-- DBG("IN PLACE root pba: ", Old_PBA (trans_Height-1).PBA);
+--				New_PBA (trans_Height-1) := Old_PBA (trans_Height-1).PBA;
 --			} else {
---				Free_Pba (free_Blocks) := Old_Pba (trans_Height-1).Pba;
---				-- DBG("FREE PBA: ", Free_Pba (free_Blocks));
+--				Free_PBA (free_Blocks) := Old_PBA (trans_Height-1).PBA;
+--				-- DBG("FREE PBA: ", Free_PBA (free_Blocks));
 --				free_Blocks++;
 --				new_Blocks++;
 --			end if;
 --
 --			-- DBG("new blocks: ", new_Blocks);
 --			for uint32_T i := 0; i < trans_Height; i++ loop
---				-- DBG("New_Pba (", i, ") := ", New_Pba (i));
+--				-- DBG("New_PBA (", i, ") := ", New_PBA (i));
 --			end loop;
 --
 --			--
 --			-- Since there are blocks we cannot change in place, use the
 --			-- FT module to allocate the blocks. As we have to reserve
---			-- the blocks we implicitly will free (free_Pba items), pass
+--			-- the blocks we implicitly will free (free_PBA items), pass
 --			-- on theCurr generation.
 --			--
 --			if new_Blocks then
 --				_Free_Tree->submit_Request (_Cur_Gen,
 --				                           new_Blocks,
---				                           new_Pba, old_Pba,
+--				                           new_PBA, old_PBA,
 --				                           trans_Height,
---				                           free_Pba,
+--				                           free_PBA,
 --				                           prim, vba);
 --			} else {
 --				--
@@ -1698,11 +1736,11 @@ is
 --				--
 --				-- DBG("UPDATE ALL IN PACE");
 --				_Write_Back.Submit_Primitive (prim, _Cur_Gen, vba,
---				                             new_Pba, old_Pba, trans_Height,
+--				                             new_PBA, old_PBA, trans_Height,
 --				                             data, _Write_Back_Data);
 --			end if;
 --
---			_Vbd->drop_Completed_Primitive (prim);
+--			_VBD->drop_Completed_Primitive (prim);
 --			_Frontend_Req_Prim := Req_Prim { };
 --
 --			--
@@ -1715,7 +1753,7 @@ is
 --			--  if we make sure that only the requests belonging to
 --			--  the same branch are serialized.)
 --			--
---			_Vbd->trans_Inhibit_Translation ();
+--			_VBD->trans_Inhibit_Translation ();
 --			return True;
 --		end if;
 --		return False;

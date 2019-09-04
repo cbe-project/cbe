@@ -22,19 +22,8 @@ with CBE.Block_IO;
 package CBE.Library
 with Spark_Mode
 is
---	-- FIXME cannot be pure yet because of CBE.Crypto
---	-- pragma Pure;
-
-	type Timeout_Request_Type is record
-		Valid   : Boolean;
-		Timeout : Timestamp_Type;
-	end record;
-
-	type Object_Type is private;
-
-private
-
-	type Free_Tree_Retry_Count_Type is mod 2**32;
+--	FIXME cannot be pure yet because of CBE.Crypto
+--	pragma Pure;
 
 	type Key_Value_Index_Type is range 0 .. 63;
 	type Key_Value_Type is array (Key_Value_Index_Type) of Byte_Type with Size => 64 * 8;
@@ -96,7 +85,7 @@ private
 		Free_Hash               : Hash_Type;
 		Free_Height             : Tree_Level_Type;
 		Free_Degree             : Tree_Degree_Type;
-		Free_Leaves             : Tree_Number_Of_Leafs_Type;
+		Free_Leafs              : Tree_Number_Of_Leafs_Type;
 		Padding                 : Super_Block_Padding_Type;
 	end record with Size =>
 		 2 * 68 * 8 + -- Keys
@@ -109,13 +98,32 @@ private
 		     32 * 8 + -- Free_Hash
 		      4 * 8 + -- Free_Height
 		      4 * 8 + -- Free_Degree
-		      8 * 8 + -- Free_Leaves
+		      8 * 8 + -- Free_Leafs
 		    424 * 8;  -- Padding
 
 	pragma Assert (Super_Block_Type'Size = Block_Data_Type'Size);
 
 	type Super_Blocks_Index_Type is range 0 .. 7;
 	type Super_Blocks_Type is array (Super_Blocks_Index_Type) of Super_Block_Type;
+
+	type Timeout_Request_Type is record
+		Valid   : Boolean;
+		Timeout : Timestamp_Type;
+	end record;
+
+	type Object_Type is private;
+
+	procedure Initialize_Object (
+		Obj     : out Object_Type;
+		Now     :     Timestamp_Type;
+		Sync    :     Timestamp_Type;
+		Secure  :     Timestamp_Type;
+		SBs     :     Super_Blocks_Type;
+		Curr_SB :     Super_Blocks_Index_Type);
+
+private
+
+	type Free_Tree_Retry_Count_Type is mod 2**32;
 
 	type Object_Type is record
 		Sync_Interval           : Timestamp_Type;
@@ -136,24 +144,27 @@ private
 		Cache_Job_Data          : Cache.Cache_Job_Data_Type;
 		Cache_Flusher_Obj       : Cache_Flusher.Object_Type;
 		Trans_Data              : Translation_Data_Type;
-		Vbd                     : Virtual_Block_Device.Object_Type;
+		VBD                     : Virtual_Block_Device.Object_Type;
 		Write_Back_Obj          : Write_Back.Object_Type;
 		Write_Back_Data         : Write_Back.Data_Type;
-		Sync_Sb_Obj             : Sync_Superblock.Object_Type;
+		Sync_SB_Obj             : Sync_Superblock.Object_Type;
 		Free_Tree_Obj           : Free_Tree.Object_Type;
 		Free_Tree_Retry_Count   : Free_Tree_Retry_Count_Type;
 		Free_Tree_Trans_Data    : Translation_Data_Type;
 		Free_Tree_Query_Data    : Query_Data_Type;
 		Super_Blocks            : Super_Blocks_Type;
-		Cur_Sb                  : Superblock_Index_Type;
+		Cur_SB                  : Superblock_Index_Type;
 		Cur_Gen                 : Generation_Type;
 		Last_Secured_Generation : Generation_Type;
 		Cur_Snap                : Snapshot_ID_Type;
-		Last_Snapshot_Id        : Snapshot_ID_Type;
+		Last_Snapshot_ID        : Snapshot_ID_Type;
 		Seal_Generation         : Boolean;
 		Secure_Superblock       : Boolean;
 		Superblock_Dirty        : Boolean;
 	end record;
+
+	function Super_Block_Snapshot_Slot (SB : Super_Block_Type)
+	return Snapshot_ID_Type;
 
 	function Discard_Snapshot (Active_Snaps : in out Snapshots_Type;
 	                           Curr_Snap_ID :        Snapshot_ID_Type)
