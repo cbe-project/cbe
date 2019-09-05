@@ -427,13 +427,15 @@ namespace Cbe {
 	struct Super_block_index
 	{
 		enum { INVALID  = 255, };
-		uint8_t value;
+		uint8_t value { INVALID };
 
 		/* debug */
 		void print(Genode::Output &out) const
 		{
 			Genode::print(out, value);
 		}
+
+		bool valid() const { return value != INVALID; }
 	};
 
 
