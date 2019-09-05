@@ -25,11 +25,17 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 		Vfs::Env          &_env;
 		Single_vfs_handle *_backend { nullptr };
 
-		Cbe::Time  _time { _env.env() }; //XXX: not supported
+		Cbe::Time                          _time { _env.env() }; //XXX: not supported
 		Constructible<Cbe::Public_Library> _cbe;
 
 		Cbe::Super_block_index _cur_sb { Cbe::Super_block_index::INVALID };
 		Cbe::Super_block       _super_block[Cbe::NUM_SUPER_BLOCKS] { };
+
+		/* configuration options */
+		bool           _show_progress { false };
+		Cbe::Timestamp _sync_interval { 1000 * 5};
+		Cbe::Timestamp _secure_interval { 1000 * 30 };
+		Config         _block_device { "/dev/block" };
 
 		static Config _config()
 		{
@@ -37,6 +43,14 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 			Xml_generator xml(buf, sizeof(buf), type_name(), [&] () { });
 
 			return Config(Cstring(buf));
+		}
+
+		void _read_config(Xml_node config)
+		{
+			_show_progress   = config.attribute_value("show_progress", false);
+			_sync_interval   = config.attribute_value("sync_interval", 5u) * 1000;
+			_secure_interval = config.attribute_value("secure_interval", 30u) * 1000;
+			_block_device    = config.attribute_value("block", _block_device);
 		}
 
 		Cbe::Super_block_index _read_superblocks(Cbe::Super_block sb[Cbe::NUM_SUPER_BLOCKS])
@@ -86,11 +100,13 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 			           File_io_service   &fs,
 			           Genode::Allocator &alloc,
 			           Cbe::Public_Library &cbe,
-			           Single_vfs_handle *backend)
+			           Single_vfs_handle *backend,
+			           bool show_progress)
 			: Single_vfs_handle(ds, fs, alloc, 0),
 			  _alloc(alloc),
 			  _cbe(cbe),
-			  _backend(backend)
+			  _backend(backend),
+			  _show_progress(show_progress)
 			{ }
 
 			enum Request_state { NONE, PENDING, ERROR };
@@ -281,15 +297,14 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 
 			bool read_ready() override
 			{
-				Genode::warning(__PRETTY_FUNCTION__, " called");
-				return false;
+				return true;
 			}
 		};
 
-		Block_file_system(Vfs::Env &env)
+		Block_file_system(Vfs::Env &env, Xml_node config)
 		: Single_file_system(NODE_TYPE_BLOCK_DEVICE, type_name(), _config().string()),
 		  _env(env)
-		{ }
+		{ _read_config(config); }
 
 
 		/***************************
@@ -304,21 +319,25 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 				return OPEN_ERR_UNACCESSIBLE;
 
 			if (!_backend) {
-				Open_result res = _env.root_dir().open("/dev/block", 0,
+				Open_result res = _env.root_dir().open(_block_device.string(), 0,
 				                                       (Vfs::Vfs_handle **)&_backend,
 				                                       _env.alloc());
-				if (res != OPEN_OK)
+				if (res != OPEN_OK) {
+					error("Could not open back end block device: '", _block_device, "'");
 					return OPEN_ERR_UNACCESSIBLE;
+				}
 
 				_cur_sb = _read_superblocks(_super_block);
 
 				if (!_cur_sb.valid())
 					return OPEN_ERR_UNACCESSIBLE;
 
-			  _cbe.construct(_time, 5000, 30000, _super_block, _cur_sb);
+				_cbe.construct(_time, _sync_interval, _secure_interval, _super_block,
+				               _cur_sb);
 			}
 			log("open: ", path);
-			*out_handle = new (alloc) Vfs_handle(*this, *this, alloc, *_cbe, _backend);
+			*out_handle = new (alloc) Vfs_handle(*this, *this, alloc, *_cbe, _backend,
+			                                     _show_progress);
 
 			return OPEN_OK;
 		}
@@ -333,7 +352,7 @@ struct Vfs_cbe::Local_factory : File_system_factory
 	Block_file_system _block_fs;
 
 	Local_factory(Vfs::Env &env, Xml_node config)
-	: _block_fs(env) { }
+	: _block_fs(env, config) { }
 
 	Vfs::File_system *create(Vfs::Env&, Xml_node node) override
 	{
