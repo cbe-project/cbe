@@ -121,6 +121,16 @@ is
 		SBs     :     Super_Blocks_Type;
 		Curr_SB :     Super_Blocks_Index_Type);
 
+	function Peek_Sync_Timeout_Request (Obj : Object_Type)
+	return Timeout_Request_Type;
+
+	function Peek_Secure_Timeout_Request (Obj : Object_Type)
+	return Timeout_Request_Type;
+
+	procedure Ack_Sync_Timeout_Request (Obj : in out Object_Type);
+
+	procedure Ack_Secure_Timeout_Request (Obj : in out Object_Type);
+
 private
 
 	type Free_Tree_Retry_Count_Type is mod 2**32;

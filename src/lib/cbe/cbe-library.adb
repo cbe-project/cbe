@@ -46,14 +46,16 @@ is
 		Valid   => True,
 		Timeout => Time);
 
+
 	function Timeout_Request_Invalid
 	return Timeout_Request_Type
 	is (
 		Valid   => False,
 		Timeout => 0);
 
+
 --
--- Not translated yet as it seems to be only for debugging
+-- Not translated as only for debugging
 --
 --	void _Dump_Cur_Sb_Info () const
 --	is begin
@@ -79,6 +81,7 @@ is
 --		            "free leafs: (", free_Leafs, "/", free_Height, ")"
 --		);
 --	end ;
+
 
 	function Super_Block_Snapshot_Slot (SB : Super_Block_Type)
 	return Snapshot_ID_Type
@@ -116,7 +119,7 @@ is
 	begin
 
 --
--- Not translated as object sizes must be checked only for the Library
+-- Not translated as object size must be checked only for the Library
 -- Module itself from now on.
 --
 --		--
@@ -129,7 +132,7 @@ is
 --		end if;
 
 --
--- Not translated as it is done already during the Obj assignment
+-- Not translated as it is done already during Obj assignment
 --
 --		--
 --		-- Copy initial state of all super-blocks. During the life-time
@@ -145,7 +148,7 @@ is
 --		end loop;
 
 --
--- Already done in the declarative part of the procedure
+-- Not translated as already done in the declarative part of the procedure
 --
 --		--
 --		-- Now we look up the proper snapshot from theCurr super-block
@@ -166,7 +169,7 @@ is
 		end if;
 
 --
--- Already done in the declarative part of the procedure
+-- Not translated as already done in the declarative part of the procedure
 --
 --		_Cur_Snap := snap_Slot;
 --
@@ -190,6 +193,9 @@ is
 			raise program_error; -- throw Invalid_Tree;
 		end if;
 
+--
+-- Not translated as already done during Obj assignment
+--
 --		--
 --		-- The VBD class isCurrly nothing more than a glorified
 --		-- Translation meta-module - pass on all information that is
@@ -210,60 +216,7 @@ is
 --		Cbe::Height                 const free_Height := sb.Free_Height;
 --		Cbe::Degree                 const free_Degree := sb.Free_Degree;
 --		Cbe::Number_Of_Leafs       const free_Leafs  := sb.Free_Leafs;
-
-
-		Obj := (
-			Sync_Interval           => Sync,
-			Last_Time               => Now,
-			Secure_Interval         => Secure,
-			Last_Secure_Time        => Now,
-			Sync_Timeout_Request    => Timeout_Request_Invalid,
-			Secure_Timeout_Request  => Timeout_Request_Invalid,
-			Execute_Progress        => False,
-			Request_Pool_Obj        => Pool.Initialized_Object,
-			Splitter_Obj            => Splitter.Initialized_Object,
-			Crypto_Obj              => Crypto.Initialized_Object (
-				Key => (
-					65, 108, 108, 32,
-					121, 111, 117, 114,
-					32, 98, 97, 115,
-					101, 32, 97, 114,
-					101, 32, 98, 101,
-					108, 111, 110, 103,
-					32, 116, 111, 32,
-					117, 115, 32, 32)), -- "All your base are belong to us  "
-			Crypto_Data             => (others => 0),
-			Io_Obj                  => Block_IO.Initialized_Object,
-			Io_Data                 => (others => (others => 0)),
-			Cache_Obj               => Cache.Initialized_Object,
-			Cache_Data              => (others => (others => 0)),
-			Cache_Job_Data          => (others => (others => 0)),
-			Cache_Flusher_Obj       => Cache_Flusher.Initialized_Object,
-			Trans_Data              => (others => (others => 0)),
-			VBD                     => Virtual_Block_Device.Initialized_Object (Height, Degree, Leafs),
-			Write_Back_Obj          => Write_Back.Initialized_Object,
-			Write_Back_Data         => (others => (others => 0)),
-			Sync_SB_Obj             => Sync_Superblock.Initialized_Object,
-			Free_Tree_Obj           => Free_Tree.Initialized_Object (
-				SBs (Curr_SB).Free_Number,
-				SBs (Curr_SB).Free_Gen,
-				SBs (Curr_SB).Free_Hash,
-				SBs (Curr_SB).Free_Height,
-				SBs (Curr_SB).Free_Degree,
-				SBs (Curr_SB).Free_Leafs),
-			Free_Tree_Retry_Count   => 0,
-			Free_Tree_Trans_Data    => (others => (others => 0)),
-			Free_Tree_Query_Data    => (others => (others => 0)),
-			Super_Blocks            => SBs,
-			Cur_SB                  => Superblock_Index_Type (Curr_SB),
-			Cur_Gen                 => 0,
-			Last_Secured_Generation => 0,
-			Cur_Snap                => Snap_Slot,
-			Last_Snapshot_ID        => 0,
-			Seal_Generation         => False,
-			Secure_Superblock       => False,
-			Superblock_Dirty        => False);
-
+--
 --		--
 --		-- The FT encapsulates all modules needed for traversing the
 --		-- free-tree and allocating new blocks. For now we do not update
@@ -280,32 +233,120 @@ is
 --		                     free_Degree, free_Leafs);
 --
 --		--
---		-- TheCurr version always is the last secured version incremented
+--		-- The Current version always is the last secured version incremented
 --		-- by one.
 --		--
 --		_Last_Secured_Generation := sb.Last_Secured_Generation;
---		_Cur_Gen                := _Last_Secured_Generation + 1;
+--		_Cur_Gen                 := _Last_Secured_Generation + 1;
 --		_Last_Snapshot_ID        := Snap.ID;
 --
 --		--
 --		-- If the timeout intervals were configured set initial timeout.
 --		--
---		--
 --		-- (It stands to reasons if we should initial or rather only set
 --		--  them when a write request was submitted.)
---		--
---		if _Sync_Interval then
---			_Time.Schedule_Sync_Timeout (_Sync_Interval);
---		end if;
---		if _Secure_Interval then
---			_Time.Schedule_Secure_Timeout (_Secure_Interval);
---		end if;
+--		if (_sync_interval)   { _sync_timeout_request = { true, _sync_interval }; }
+--		if (_secure_interval) { _secure_timeout_request = { true, _secure_interval }; }
+
+		Obj := (
+			Sync_Interval           => Sync,
+			Last_Time               => Now,
+			Secure_Interval         => Secure,
+			Last_Secure_Time        => Now,
+			Sync_Timeout_Request    => (
+				if Sync /= 0 then Timeout_Request_Valid (Sync)
+				else Timeout_Request_Invalid),
+
+			Secure_Timeout_Request  => (
+				if Secure /= 0 then Timeout_Request_Valid (Secure)
+				else Timeout_Request_Invalid),
+
+			Execute_Progress        => False,
+			Request_Pool_Obj        => Pool.Initialized_Object,
+			Splitter_Obj            => Splitter.Initialized_Object,
+			Crypto_Obj              => Crypto.Initialized_Object (
+				Key => (
+					65, 108, 108, 32,
+					121, 111, 117, 114,
+					32, 98, 97, 115,
+					101, 32, 97, 114,
+					101, 32, 98, 101,
+					108, 111, 110, 103,
+					32, 116, 111, 32,
+					117, 115, 32, 32)), -- "All your base are belong to us  "
+
+			Crypto_Data             => (others => 0),
+			Io_Obj                  => Block_IO.Initialized_Object,
+			Io_Data                 => (others => (others => 0)),
+			Cache_Obj               => Cache.Initialized_Object,
+			Cache_Data              => (others => (others => 0)),
+			Cache_Job_Data          => (others => (others => 0)),
+			Cache_Flusher_Obj       => Cache_Flusher.Initialized_Object,
+			Trans_Data              => (others => (others => 0)),
+			VBD                     =>
+				Virtual_Block_Device.Initialized_Object (
+					Height, Degree, Leafs),
+
+			Write_Back_Obj          => Write_Back.Initialized_Object,
+			Write_Back_Data         => (others => (others => 0)),
+			Sync_SB_Obj             => Sync_Superblock.Initialized_Object,
+			Free_Tree_Obj           => Free_Tree.Initialized_Object (
+				SBs (Curr_SB).Free_Number,
+				SBs (Curr_SB).Free_Gen,
+				SBs (Curr_SB).Free_Hash,
+				SBs (Curr_SB).Free_Height,
+				SBs (Curr_SB).Free_Degree,
+				SBs (Curr_SB).Free_Leafs),
+
+			Free_Tree_Retry_Count   => 0,
+			Free_Tree_Trans_Data    => (others => (others => 0)),
+			Free_Tree_Query_Data    => (others => (others => 0)),
+			Super_Blocks            => SBs,
+			Cur_SB                  => Superblock_Index_Type (Curr_SB),
+			Cur_Gen                 => SBs (Curr_SB).Last_Secured_Generation + 1,
+			Last_Secured_Generation => SBs (Curr_SB).Last_Secured_Generation,
+			Cur_Snap                => Snap_Slot,
+			Last_Snapshot_ID        =>
+				SBs (Curr_SB).
+					Snapshots (Snapshots_Index_Type (Snap_Slot)).ID,
+
+			Seal_Generation         => False,
+			Secure_Superblock       => False,
+			Superblock_Dirty        => False);
+
+--
+-- Not translated as only for debugging
 --
 --		-- for diagnostic reasons--
 --		_Dump_Cur_SB_Info ();
+
 	end Initialize_Object;
---
---
+
+
+	function Peek_Sync_Timeout_Request (Obj : Object_Type)
+	return Timeout_Request_Type
+	is (Obj.Sync_Timeout_Request);
+
+
+	function Peek_Secure_Timeout_Request (Obj : Object_Type)
+	return Timeout_Request_Type
+	is (Obj.Secure_Timeout_Request);
+
+
+	procedure Ack_Sync_Timeout_Request (Obj : in out Object_Type)
+	is
+	begin
+		Obj.Sync_Timeout_Request := Timeout_Request_Invalid;
+	end Ack_Sync_Timeout_Request;
+
+
+	procedure Ack_Secure_Timeout_Request (Obj : in out Object_Type)
+	is
+	begin
+		Obj.Secure_Timeout_Request := Timeout_Request_Invalid;
+	end Ack_Secure_Timeout_Request;
+
+
 --	void dump_Cur_SB_Info () const
 --	is begin
 --		_Dump_Cur_SB_Info ();
