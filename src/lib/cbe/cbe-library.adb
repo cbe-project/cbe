@@ -35,7 +35,7 @@ is
 		Active_Snaps (Snapshots_Index_Type (Lowest_Snap_ID)).ID :=
 			Snapshot_ID_Invalid;
 
-		-- DBG("discard snapshot: ", snap);
+		-- DBG("discard snapshot: ", Snap);
 		return True;
 	end Discard_Snapshot;
 
@@ -57,22 +57,22 @@ is
 --
 -- Not translated as only for debugging
 --
---	void _Dump_Cur_Sb_Info () const
+--	procedure Dump_Cur_Sb_Info () const
 --	is begin
---		Cbe::Super_Block const &sb := _Super_Block (_Cur_Sb.Value);
---		Snapshot_Type    const &snap := sb.Snapshots (_Cur_Snap);
+--		Cbe::Super_Block const &sb := Obj.Super_Blocks (Obj.Cur_SB);
+--		Snapshot_Type    const &Snap := sb.Snapshots (Obj.Cur_SB);
 --
---		Cbe::Physical_Block_Address const root_Number := snap.PBA;
---		Cbe::Height                 const height      := snap.Height;
---		Cbe::Number_Of_Leafs       const leafs      := snap.Leafs;
+--		Cbe::Physical_Block_Address const root_Number := Snap.PBA;
+--		Cbe::Height                 const height      := Snap.Height;
+--		Cbe::Number_Of_Leafs       const leafs      := Snap.Leafs;
 --
 --		Cbe::Degree                 const degree      := sb.Degree;
 --		Cbe::Physical_Block_Address const free_Number := sb.Free_Number;
 --		Cbe::Number_Of_Leafs       const free_Leafs := sb.Free_Leafs;
 --		Cbe::Height                 const free_Height := sb.Free_Height;
 --
---		Genode::log ("Virtual block-device info in SB (", _Cur_Sb, "): ",
---		            " SNAP (", _Cur_Snap, "): ",
+--		Genode::log ("Virtual block-device info in SB (", Obj.Cur_SB, "): ",
+--		            " SNAP (", Obj.Cur_SB, "): ",
 --		            "tree height: ", height, " ",
 --		            "edges per node: ", degree, " ",
 --		            "leafs: ", leafs, " ",
@@ -80,7 +80,7 @@ is
 --		            "free block address: ", free_Number, " ",
 --		            "free leafs: (", free_Leafs, "/", free_Height, ")"
 --		);
---	end ;
+--	end Dump_Cur_Sb_Info;
 
 
 	function Super_Block_Snapshot_Slot (SB : Super_Block_Type)
@@ -144,7 +144,7 @@ is
 --		--  CBE work during run-time - not sure if this is necessary.)
 --		--
 --		for uint32_T i := 0; i < Cbe::NUM_SUPER_BLOCKS; i++ loop
---			Genode::memcpy (&_Super_Block (i), &Sbs (i), sizeof (Cbe::Super_Block));
+--			Genode::memcpy (&Obj.Super_Blocks (i), &Sbs (i), sizeof (Cbe::Super_Block));
 --		end loop;
 
 --
@@ -155,12 +155,12 @@ is
 --		-- and fill in our internal meta-data.
 --		--
 --
---		_Cur_SB =Curr_SB;
+--		Obj.Cur_SB =Curr_SB;
 --
 --		using SB := Cbe::Super_Block;
 --		using SS := Cbe::Snapshot;
 --
---		SB const &sb := _Super_Block (_Cur_SB.Value);
+--		SB const &sb := Obj.Super_Blocks (Obj.Cur_SB);
 --		uint32_T snap_Slot := sb.Snapshot_Slot ();
 
 		if Snap_Slot = Snapshot_ID_Invalid_Slot then
@@ -171,13 +171,13 @@ is
 --
 -- Not translated as already done in the declarative part of the procedure
 --
---		_Cur_Snap := snap_Slot;
+--		Obj.Cur_SB := snap_Slot;
 --
---		SS const &snap := sb.Snapshots (_Cur_Snap);
+--		SS const &Snap := sb.Snapshots (Obj.Cur_SB);
 --
 --		Cbe::Degree           const degree := sb.Degree;
---		Cbe::Height           const height := snap.Height;
---		Cbe::Number_Of_Leafs const leafs := snap.Leafs;
+--		Cbe::Height           const height := Snap.Height;
+--		Cbe::Number_Of_Leafs const leafs := Snap.Leafs;
 
 		--
 		-- The Current implementation is limited with regard to the
@@ -224,7 +224,7 @@ is
 --		--
 --		--
 --		-- (Later, when the FT itself is updating its inner-nodes in a CoW
---		--  fashion, we will store the root and hash for a given generation.
+--		--  fashion, we will store the root and Hash for a given generation.
 --		--  That means every super-block will probably have its own FT.
 --		--  After all the FT includes all nodes used by the list of active
 --		--  snapshots.)
@@ -245,8 +245,8 @@ is
 --		--
 --		-- (It stands to reasons if we should initial or rather only set
 --		--  them when a write request was submitted.)
---		if (_sync_interval)   { _sync_timeout_request = { true, _sync_interval }; }
---		if (_secure_interval) { _secure_timeout_request = { true, _secure_interval }; }
+--		if _sync_interval   then _sync_timeout_request = { true, _sync_interval }; end if;
+--		if _secure_interval then _secure_timeout_request = { true, _secure_interval }; end if;
 
 		Obj := (
 			Sync_Interval           => Sync,
@@ -347,21 +347,51 @@ is
 	end Ack_Secure_Timeout_Request;
 
 
---	void dump_Cur_SB_Info () const
+--
+-- Not translated as only for debugging
+--
+--	procedure Dump_Cur_SB_Info () const
 --	is begin
 --		_Dump_Cur_SB_Info ();
---	end ;
---
---
---	Cbe::Virtual_Block_Address max_VBA () const
---	is begin
---		return _Super_Block (_Cur_SB.Value).Snapshots (_Cur_Snap).Leafs - 1;
---	end ;
---
---
---	function Execute (bool show_Progress, bool show_If_Progress)
---	return Boolean
---	is begin
+--	end Dump_Cur_SB_Info;
+
+
+	function Curr_SB (Obj : Object_Type)
+	return Super_Blocks_Index_Type
+	is
+	begin
+		if Obj.Cur_SB > Superblock_Index_Type (Super_Blocks_Index_Type'Last) then
+			raise program_error;
+		end if;
+		return Super_Blocks_Index_Type (Obj.Cur_SB);
+	end Curr_SB;
+
+
+	function Curr_Snap (Obj : Object_Type)
+	return Snapshots_Index_Type
+	is
+	begin
+		if Obj.Cur_Snap > Snapshot_ID_Type (Snapshots_Index_Type'Last) then
+			raise program_error;
+		end if;
+		return Snapshots_Index_Type (Obj.Cur_Snap);
+	end Curr_Snap;
+
+
+	function Max_VBA (Obj : Object_Type)
+	return Virtual_Block_Address_Type
+	is
+	begin
+		return
+			Virtual_Block_Address_Type (
+				Obj.Super_Blocks (Curr_SB (Obj)).
+					Snapshots (Curr_Snap (Obj)).Nr_Of_Leafs - 1);
+	end Max_VBA;
+
+
+--	procedure Execute (bool show_Progress, bool show_If_Progress)
+--	is
+--	begin
 --		bool progress := False;
 --
 --		-------------------
@@ -391,18 +421,18 @@ is
 --				Cache_Index const idx := Cache_Index { .Value := (uint32_T)i };
 --				if _Cache.Dirty (idx) then
 --					cache_Dirty |= True;
---					break;
---				}
+--					exit;
+--				end if;
 --			end loop;
 --
 --			if cache_Dirty then
 --				Genode::log ("\033[93;44m", __Func__, " SEALCurr generation: ", _Cur_Gen);
 --				_Seal_Generation := True;
---			} else {
+--			else
 --				-- DBG("cache is not dirty, re-arm trigger");
 --				_Last_Time := _Time.Timestamp ();
 --				_Time.Schedule_Sync_Timeout (_Sync_Interval);
---			}
+--			end if;
 --		end if;
 --
 --		--
@@ -419,9 +449,9 @@ is
 --
 --			if _Superblock_Dirty then
 --				Genode::log ("\033[93;44m", __Func__,
---				            " SEALCurr super-block: ", _Cur_SB);
+--				            " SEALCurr super-block: ", Obj.Cur_SB);
 --				_Secure_Superblock := True;
---			} else {
+--			else
 --				-- DBG("no snapshots created, re-arm trigger");
 --				_Last_Secure_Time := _Time.Timestamp ();
 --			end if;
@@ -447,9 +477,9 @@ is
 --		--  be better to use a different interface for that purpose as I
 --		--  do not know how well theCurr solution works with SPARK...)
 --		--
---		{
---			Cbe::Super_Block const &sb := _Super_Block (_Cur_SB.Value);
---
+--		declare
+--			Cbe::Super_Block const &sb := Obj.Super_Blocks (Obj.Cur_SB);
+--		begin
 --			_Free_Tree->execute (sb.Snapshots,
 --			                    _Last_Secured_Generation,
 --			                    _Free_Tree_Trans_Data,
@@ -459,7 +489,7 @@ is
 --			bool const ft_Progress := _Free_Tree->execute_Progress ();
 --			progress |= ft_Progress;
 --			LOG_PROGRESS(ft_Progress);
---		}
+--		end;
 --
 --		--
 --		-- A complete primitive was either successful or has failed.
@@ -476,22 +506,22 @@ is
 --		-- failed and will result in an I/O error at the Block session.
 --		--
 --		--
---		while (True) {
+--		loop
 --
 --			Cbe::Primitive prim := _Free_Tree->peek_Completed_Primitive ();
 --			if not prim.Valid () then
---				break;
+--				exit;
 --			end if;
 --
 --			if prim.Success != Cbe::Primitive::Success::FALSE then
---				break;
+--				exit;
 --			end if;
 --
 --			-- DBG("allocating new blocks failed: ", _Free_Tree_Retry_Count);
 --			if _Free_Tree_Retry_Count < FREE_TREE_RETRY_LIMIT then
 --
---				Cbe::Super_Block &sb := _Super_Block (_Cur_SB.Value);
---				uint32_T constCurr := sb.Snapshots (_Cur_Snap).ID;
+--				Cbe::Super_Block &sb := Obj.Super_Blocks (Obj.Cur_SB);
+--				uint32_T constCurr := sb.Snapshots (Obj.Cur_SB).ID;
 --				if _Discard_Snapshot (sb.Snapshots,Curr) then
 --					_Free_Tree_Retry_Count++;
 --					--
@@ -508,7 +538,7 @@ is
 --					--
 --					_Free_Tree->retry_Allocation ();
 --				end if;
---				break;
+--				exit;
 --			end if;
 --
 --			-- Genode::error ("could not find enough useable blocks");
@@ -520,7 +550,7 @@ is
 --
 --			_Free_Tree->drop_Completed_Primitive (prim);
 --			progress |= True;
---		}
+--		end loop;
 --
 --		--
 --		-- There are two types of generated primitives by FT module,
@@ -536,14 +566,14 @@ is
 --		--   branch back to the block device. Having the branch written
 --		--   will lead to a complete primitve.
 --		--
---		while (True) {
+--		loop
 --
 --			Cbe::Primitive prim := _Free_Tree->peek_Generated_Primitive ();
 --			if not prim.Valid () then
---				break;
+--				exit;
 --			end if;
 --			if not _Io.Primitive_Acceptable () then
---				break;
+--				exit;
 --			end if;
 --
 --			Index const idx := _Free_Tree->peek_Generated_Data_Index (prim);
@@ -564,19 +594,19 @@ is
 --				--  place would be the preferable solution.)
 --				--
 --				data := &_Cache_Data.Item (idx.Value);
---				break;
+--				exit;
 --			case Tag::IO_TAG:
 --				tag  := Tag::FREE_TREE_TAG_IO;
 --				data := &_Free_Tree_Query_Data.Item (idx.Value);
---				break;
---			default: break;
+--				exit;
+--			default: exit;
 --			}
 --
 --			_Io.Submit_Primitive (tag, prim, _Io_Data, *data, True);
 --
 --			_Free_Tree->drop_Generated_Primitive (prim);
 --			progress |= True;
---		}
+--		end loop;
 --
 --		-------------------------------
 --		-- Put request into splitter --
@@ -586,40 +616,40 @@ is
 --		-- An arbitrary sized Block request will be cut into 4096 byte
 --		-- sized primitves by the Splitter module.
 --		--
---		while (True) {
+--		loop
 --
 --			Cbe::Request const &req := _Request_Pool.Peek_Pending_Request ();
 --			if not req.Valid () then
---				break;
+--				exit;
 --			end if;
 --			if not _Splitter.Request_Acceptable () then
---				break;
+--				exit;
 --			end if;
 --
 --			_Request_Pool.Drop_Pending_Request (req);
 --			_Splitter.Submit_Request (req);
 --
 --			progress |= True;
---		}
+--		end loop;
 --
 --		--
 --		-- Give primitive to the translation module
 --		--
---		while (True) {
+--		loop
 --
 --			Cbe::Primitive prim := _Splitter.Peek_Generated_Primitive ();
 --			if not prim.Valid () then
---				break;
+--				exit;
 --			end if;
 --			if not _VBD->primitive_Acceptable () then
---				break;
+--				exit;
 --			end if;
 --
 --			-- FIXME why is _Seal_Generation check not necessary?
 --			-- that mainly is intended to block write primitives--
 --			if _Secure_Superblock then
 --				-- DBG("prevent processing new primitives while securing super-block");
---				break;
+--				exit;
 --			end if;
 --
 --			_Splitter.Drop_Generated_Primitive (prim);
@@ -630,16 +660,16 @@ is
 --			-- For every new request, we have to use theCurrly active
 --			-- snapshot as a previous request may have changed the tree.
 --			--
---			Cbe::Super_Block const &sb := _Super_Block (_Cur_SB.Value);
---			Snapshot_Type    const &snap := sb.Snapshots (_Cur_Snap);
+--			Cbe::Super_Block const &sb := Obj.Super_Blocks (Obj.Cur_SB);
+--			Snapshot_Type    const &Snap := sb.Snapshots (Obj.Cur_SB);
 --
---			Cbe::Physical_Block_Address const  pba  := snap.PBA;
---			Cbe::Hash                   const &hash := snap.Hash;
---			Cbe::Generation             const  gen  := snap.Gen;
+--			Physical_Block_Address_Type const  PBA  := Snap.PBA;
+--			Cbe::Hash                   const &Hash := Snap.Hash;
+--			Cbe::Generation             const  gen  := Snap.Gen;
 --
---			_VBD->submit_Primitive (pba, gen, hash, prim);
+--			_VBD->submit_Primitive (PBA, gen, Hash, prim);
 --			progress |= True;
---		}
+--		end loop;
 --
 --		if current_Primitive.Valid () then
 --			-- DBG("----------------------->Curr primitive: ", current_Primitive);
@@ -685,11 +715,11 @@ is
 --		-- Mark the corresponding cache entry as clean. If it was
 --		-- evicted in the meantime it will be ignored.
 --		--
---		while (True) {
+--		loop
 --
 --			Cbe::Primitive prim := _Cache_Flusher.Cxx_Peek_Completed_Primitive ();
 --			if not prim.Valid () then
---				break;
+--				exit;
 --			end if;
 --
 --			if prim.Success != Cbe::Primitive::Success::TRUE then
@@ -697,22 +727,22 @@ is
 --				raise program_error; -- throw Primitive_Failed;
 --			end if;
 --
---			Cbe::Physical_Block_Address const pba := prim.Block_Number;
---			_Cache.Mark_Clean (pba);
---			-- DBG("mark_Clean: ", pba);
+--			Physical_Block_Address_Type const PBA := prim.Block_Number;
+--			_Cache.Mark_Clean (PBA);
+--			-- DBG("mark_Clean: ", PBA);
 --
 --			_Cache_Flusher.Cxx_Drop_Completed_Primitive (prim);
 --			progress |= True;
---		}
+--		end loop;
 --
 --		--
 --		-- Just pass the primitive on to the I/O module.
 --		--
---		while (True) {
+--		loop
 --
 --			Cbe::Primitive prim := _Cache_Flusher.Cxx_Peek_Generated_Primitive ();
---			if not prim.Valid () then break; }
---			if not _Io.Primitive_Acceptable () then break; }
+--			if not prim.Valid () then exit; end if;
+--			if not _Io.Primitive_Acceptable () then exit; end if;
 --
 --			Cache_Index     const  idx  := _Cache_Flusher.Cxx_Peek_Generated_Data_Index (prim);
 --			Cbe::Block_Data       &data := _Cache_Data.Item (idx.Value);
@@ -721,7 +751,7 @@ is
 --
 --			_Cache_Flusher.Cxx_Drop_Generated_Primitive (prim);
 --			progress |= True;
---		}
+--		end loop;
 --
 --		-------------------------
 --		-- Write-back handling --
@@ -736,23 +766,23 @@ is
 --		--    2. (IO)       it hands the encrypted leaf data to I/O module to write it
 --		--                  to the block device
 --		--    3. (CACHE)    starting by the lowest inner node it will update the node
---		--                  entry (pba and hash)
---		--    4. (COMPLETE) it returns the new root pba and root hash
+--		--                  entry (PBA and Hash)
+--		--    4. (COMPLETE) it returns the new root PBA and root Hash
 --		--
 --		-- When '_Seal_Generation' is set, it will first instruct the Cache_Flusher
 --		-- module to clean the cache. Afterwards it will store theCurr snapshot
---		-- and increment the '_Cur_Snap' as well as '_Cur_Gen' (-> there is only one
+--		-- and increment the 'Obj.Cur_SB' as well as '_Cur_Gen' (-> there is only one
 --		-- snapshot per generation and there areCurrly only 48 snapshot slots per
 --		-- super-block) and set the sync trigger.
 --		--
---		-- Otherwise it will just update the root hash in place.
+--		-- Otherwise it will just update the root Hash in place.
 --		--
 --
---		while (True) {
+--		loop
 --
 --			Cbe::Primitive prim := _Write_Back.Peek_Completed_Primitive ();
 --			if not prim.Valid () then
---				break;
+--				exit;
 --			end if;
 --
 --			if prim.Success != Cbe::Primitive::Success::TRUE then
@@ -767,7 +797,7 @@ is
 --				--     a 'active' function that returns True whenever is doing
 --				--     its job. I fear itCurrly only works by chance
 --				if not _Cache_Flusher.Cxx_Request_Acceptable () then
---					break;
+--					exit;
 --				end if;
 --
 --				bool cache_Dirty := False;
@@ -776,10 +806,10 @@ is
 --					if _Cache.Dirty (idx) then
 --						cache_Dirty |= True;
 --
---						Cbe::Physical_Block_Address const pba := _Cache.Flush (idx);
---						-- DBG(" i: ", idx.Value, " pba: ", pba, " needs flushing");
+--						Physical_Block_Address_Type const PBA := _Cache.Flush (idx);
+--						-- DBG(" i: ", idx.Value, " PBA: ", PBA, " needs flushing");
 --
---						_Cache_Flusher.Cxx_Submit_Request (pba, idx);
+--						_Cache_Flusher.Cxx_Submit_Request (PBA, idx);
 --					end if;
 --				end loop;
 --
@@ -790,7 +820,7 @@ is
 --				if cache_Dirty then
 --					-- DBG("CACHE FLUSH NEEDED: progress: ", progress);
 --					progress |= True;
---					break;
+--					exit;
 --				end if;
 --
 --				--
@@ -798,25 +828,25 @@ is
 --				-- we manual intervention b/c there are too many snapshots
 --				-- flagged as keep
 --				--
---				Cbe::Super_Block &sb := _Super_Block (_Cur_SB.Value);
---				uint32_T next_Snap := _Cur_Snap;
+--				Cbe::Super_Block &sb := Obj.Super_Blocks (Obj.Cur_SB);
+--				uint32_T next_Snap := Obj.Cur_SB;
 --				for uint32_T i := 0; i < Cbe::NUM_SNAPSHOTS; i++ loop
 --					next_Snap := (next_Snap + 1) % Cbe::NUM_SNAPSHOTS;
---					Snapshot_Type const &snap := sb.Snapshots (next_Snap);
+--					Snapshot_Type const &Snap := sb.Snapshots (next_Snap);
 --					if not Snapshot_Valid (Snap) then
---						break;
---					} else {
---						if not (snap.Flags & Cbe::Snapshot::FLAG_KEEP) then
---							break;
+--						exit;
+--					else
+--						if not (Snap.Flags & Cbe::Snapshot::FLAG_KEEP) then
+--							exit;
 --						end if;
 --					end if;
 --				end loop;
 --
---				if next_Snap = _Cur_Snap then
+--				if next_Snap = Obj.Cur_SB then
 --					-- Genode::error ("could not find free snapshot slot");
 --					-- proper handling pending--
 --					raise program_error; -- throw Invalid_Snapshot_Slot;
---					break;
+--					exit;
 --				end if;
 --
 --				--
@@ -824,22 +854,22 @@ is
 --				-- meta-data in a new slot and afterwards setting the
 --				-- seal timeout again.
 --				--
---				Snapshot_Type &snap := sb.Snapshots (next_Snap);
+--				Snapshot_Type &Snap := sb.Snapshots (next_Snap);
 --
---				snap.PBA := _Write_Back.Peek_Completed_Root (prim);
---				Cbe::Hash *snap_Hash := &snap.Hash;
+--				Snap.PBA := _Write_Back.Peek_Completed_Root (prim);
+--				Cbe::Hash *snap_Hash := &Snap.Hash;
 --				_Write_Back.Peek_Competed_Root_Hash (prim, *snap_Hash);
 --
 --				Cbe::Tree_Helper const &tree := _VBD->tree_Helper ();
---				snap.Height := tree.Height ();
---				snap.Leafs := tree.Leafs ();
---				snap.Gen := _Cur_Gen;
+--				Snap.Height := tree.Height ();
+--				Snap.Leafs := tree.Leafs ();
+--				Snap.Gen := _Cur_Gen;
 --				Snap.ID  := ++_Last_Snapshot_ID;
 --
---				-- DBG("new snapshot for generation: ", _Cur_Gen, " snap: ", snap);
+--				-- DBG("new snapshot for generation: ", _Cur_Gen, " Snap: ", Snap);
 --
 --				_Cur_Gen++;
---				_Cur_Snap++;
+--				Obj.Cur_SB++;
 --
 --				_Seal_Generation := False;
 --				--
@@ -849,25 +879,25 @@ is
 --				--
 --				_Last_Time := _Time.Timestamp ();
 --				_Time.Schedule_Sync_Timeout (_Sync_Interval);
---			} else {
+--			else
 --
 --				--
---				-- No need to create a new snapshot, just update the hash in place
+--				-- No need to create a new snapshot, just update the Hash in place
 --				-- and move on.
 --				--
 --
---				Cbe::Super_Block &sb := _Super_Block (_Cur_SB.Value);
---				Snapshot_Type    &snap := sb.Snapshots (_Cur_Snap);
+--				Cbe::Super_Block &sb := Obj.Super_Blocks (Obj.Cur_SB);
+--				Snapshot_Type    &Snap := sb.Snapshots (Obj.Cur_SB);
 --
 --				-- update snapshot--
---				Cbe::Physical_Block_Address const pba := _Write_Back.Peek_Completed_Root (prim);
+--				Physical_Block_Address_Type const PBA := _Write_Back.Peek_Completed_Root (prim);
 --				-- FIXME why do we need that again?
---				if snap.PBA != pba then
---					snap.Gen := _Cur_Gen;
---					snap.PBA := pba;
+--				if Snap.PBA != PBA then
+--					Snap.Gen := _Cur_Gen;
+--					Snap.PBA := PBA;
 --				end if;
 --
---				Cbe::Hash *snap_Hash := &snap.Hash;
+--				Cbe::Hash *snap_Hash := &Snap.Hash;
 --				_Write_Back.Peek_Competed_Root_Hash (prim, *snap_Hash);
 --			end if;
 --
@@ -895,20 +925,20 @@ is
 --			--     is not a good idea
 --			--
 --			_VBD->trans_Resume_Translation ();
---		}
+--		end loop;
 --
 --
 --		--
 --		-- Give the leaf data to the Crypto module.
 --		--
---		while (True) {
+--		loop
 --
 --			Cbe::Primitive prim := _Write_Back.Peek_Generated_Crypto_Primitive ();
 --			if not prim.Valid () then
---				break;
+--				exit;
 --			end if;
 --			if not _Crypto.Cxx_Primitive_Acceptable () then
---				break;
+--				exit;
 --			end if;
 --
 --			Write_Back_Data_Index const idx := _Write_Back.Peek_Generated_Crypto_Data (prim);
@@ -918,19 +948,19 @@ is
 --
 --			_Write_Back.Drop_Generated_Crypto_Primitive (prim);
 --			progress |= True;
---		}
+--		end loop;
 --
 --		--
 --		-- Pass the encrypted leaf data to the I/O module.
 --		--
---		while (True) {
+--		loop
 --
 --			Cbe::Primitive prim := _Write_Back.Peek_Generated_Io_Primitive ();
 --			if not prim.Valid () then
---				break;
+--				exit;
 --			end if;
 --			if not _Io.Primitive_Acceptable () then
---				break;
+--				exit;
 --			end if;
 --
 --			Write_Back_Data_Index const idx := _Write_Back.Peek_Generated_Io_Data (prim);
@@ -939,22 +969,22 @@ is
 --
 --			_Write_Back.Drop_Generated_Io_Primitive (prim);
 --			progress |= True;
---		}
+--		end loop;
 --
 --		--
 --		-- Update the inner nodes of the tree. This is always done after the
 --		-- encrypted leaf node was stored by the I/O module.
 --		--
---		while (True) {
+--		loop
 --
 --			Cbe::Primitive prim := _Write_Back.Peek_Generated_Cache_Primitive ();
 --			-- DBG(prim);
 --			if not prim.Valid () then
---				break;
+--				exit;
 --			end if;
 --
---			using PBA := Cbe::Physical_Block_Address;
---			PBA const pba        := prim.Block_Number;
+--			using PBA := Physical_Block_Address_Type;
+--			PBA const PBA        := prim.Block_Number;
 --			PBA const update_PBA := _Write_Back.Peek_Generated_Cache_Update_PBA (prim);
 --
 --			--
@@ -965,15 +995,15 @@ is
 --			--
 --
 --			bool cache_Miss := False;
---			if not _Cache.Data_Available (pba) then
---				-- DBG("cache miss pba: ", pba);
---				if _Cache.Cxx_Request_Acceptable (pba) then
---					_Cache.Cxx_Submit_Request (pba);
+--			if not _Cache.Data_Available (PBA) then
+--				-- DBG("cache miss PBA: ", PBA);
+--				if _Cache.Cxx_Request_Acceptable (PBA) then
+--					_Cache.Cxx_Submit_Request (PBA);
 --				end if;
 --				cache_Miss |= True;
 --			end if;
 --
---			if pba != update_PBA then
+--			if PBA != update_PBA then
 --				if not _Cache.Data_Available (update_PBA) then
 --					-- DBG("cache miss update_PBA: ", update_PBA);
 --					if _Cache.Cxx_Request_Acceptable (update_PBA) then
@@ -986,18 +1016,18 @@ is
 --			-- read the needed blocks first--
 --			if cache_Miss then
 --				-- DBG("cache_Miss");
---				break;
+--				exit;
 --			end if;
 --
 --			_Write_Back.Drop_Generated_Cache_Primitive (prim);
 --
---			-- DBG("cache hot pba: ", pba, " update_PBA: ", update_PBA);
+--			-- DBG("cache hot PBA: ", PBA, " update_PBA: ", update_PBA);
 --
 --			--
 --			-- To keep it simply, always set both properly - even if
 --			-- the old and new node are the same.
 --			--
---			Cache_Index const idx        := _Cache.Data_Index (pba, _Time.Timestamp ());
+--			Cache_Index const idx        := _Cache.Data_Index (PBA, _Time.Timestamp ());
 --			Cache_Index const update_IDx := _Cache.Data_Index (update_PBA, _Time.Timestamp ());
 --
 --			Cbe::Block_Data const &data        := _Cache_Data.Item (idx.Value);
@@ -1008,11 +1038,11 @@ is
 --			--  which is used to calculate the entry in the inner node from the
 --			--  VBA is set at compile-time.)
 --			--
---			_Write_Back.Update (pba, _VBD->tree_Helper (), data, update_Data);
+--			_Write_Back.Update (PBA, _VBD->tree_Helper (), data, update_Data);
 --			-- make the potentially new entry as dirty so it gets flushed next time--
 --			_Cache.Mark_Dirty (update_PBA);
 --			progress |= True;
---		}
+--		end loop;
 --
 --		--------------------------
 --		-- Super-block handling --
@@ -1024,25 +1054,25 @@ is
 --		--
 --		if _Secure_Superblock && _Sync_SB.Cxx_Request_Acceptable () then
 --
---			Cbe::Super_Block &sb := _Super_Block (_Cur_SB.Value);
+--			Cbe::Super_Block &sb := Obj.Super_Blocks (Obj.Cur_SB);
 --
 --			sb.Last_Secured_Generation := _Cur_Gen;
---			sb.Snapshot_ID             := _Cur_Snap;
+--			sb.Snapshot_ID             := Obj.Cur_SB;
 --
 --			-- DBG("secureCurr super-block gen: ", _Cur_Gen,
---			    " Snap.ID: ", _Cur_Snap);
+--			    " Snap.ID: ", Obj.Cur_SB);
 --
---			_Sync_SB.Cxx_Submit_Request (_Cur_SB.Value, _Cur_Gen);
+--			_Sync_SB.Cxx_Submit_Request (Obj.Cur_SB, _Cur_Gen);
 --		end if;
 --
 --		--
 --		-- When theCurr super-block was secured, select the next one.
 --		--
---		while (True) {
+--		loop
 --
 --			Cbe::Primitive prim := _Sync_SB.Cxx_Peek_Completed_Primitive ();
 --			if not prim.Valid () then
---				break;
+--				exit;
 --			end if;
 --
 --			if prim.Success != Cbe::Primitive::Success::TRUE then
@@ -1054,14 +1084,14 @@ is
 --
 --
 --			Super_Blocks_Index_Type  next_SB := Super_Blocks_Index_Type {
---				.Value := (uint8_T)((_Cur_SB.Value + 1) % Cbe::NUM_SUPER_BLOCKS)
+--				.Value := (uint8_T)((Obj.Cur_SB + 1) % Cbe::NUM_SUPER_BLOCKS)
 --			};
---			Cbe::Super_Block       &next    := _Super_Block (next_SB.Value);
---			Cbe::Super_Block const &curr    := _Super_Block (_Cur_SB.Value);
+--			Cbe::Super_Block       &next    := Obj.Super_Blocks (next_SB.Value);
+--			Cbe::Super_Block const &curr    := Obj.Super_Blocks (Obj.Cur_SB);
 --			Genode::memcpy (&next, &curr, sizeof (Cbe::Super_Block));
 --
 --			-- handle state--
---			_Cur_SB                  := next_SB;
+--			Obj.Cur_SB                  := next_SB;
 --			_Last_Secured_Generation := _Sync_SB.Cxx_Peek_Completed_Generation (prim);
 --			_Superblock_Dirty        := False;
 --			_Secure_Superblock       := False;
@@ -1076,29 +1106,29 @@ is
 --			--
 --			_Last_Secure_Time := _Time.Timestamp ();
 --			_Time.Schedule_Secure_Timeout (_Secure_Interval);
---		}
+--		end loop;
 --
 --		--
 --		-- Use I/O module to write super-block to the block device.
 --		--
---		while (True) {
+--		loop
 --
 --			Cbe::Primitive prim := _Sync_SB.Cxx_Peek_Generated_Primitive ();
 --			if not prim.Valid () then
---				break;
+--				exit;
 --			end if;
 --			if not _Io.Primitive_Acceptable () then
---				break;
+--				exit;
 --			end if;
 --
 --			uint64_T   const  id      := _Sync_SB.Cxx_Peek_Generated_ID (prim);
---			Cbe::Super_Block &sb      := _Super_Block (id);
+--			Cbe::Super_Block &sb      := Obj.Super_Blocks (id);
 --			Cbe::Block_Data  &sb_Data := *reinterpret_Cast<Cbe::Block_Data*>(&sb);
 --
 --			_Io.Submit_Primitive (Tag::SYNC_SB_TAG, prim, _Io_Data, sb_Data);
 --			_Sync_SB.Cxx_Drop_Generated_Primitive (prim);
 --			progress |= True;
---		}
+--		end loop;
 --
 --		---------------------
 --		-- Crypto handling --
@@ -1117,11 +1147,11 @@ is
 --		-- Only writes primitives (encrypted data) are handled here,
 --		-- read primitives (decrypred data) are handled in 'give_Read_Data'.
 --		--
---		while (True) {
+--		loop
 --
 --			Cbe::Primitive prim := _Crypto.Cxx_Peek_Completed_Primitive ();
 --			if not prim.Valid () || prim.Read () then
---				break;
+--				exit;
 --			end if;
 --
 --			if prim.Success != Cbe::Primitive::Success::TRUE then
@@ -1132,31 +1162,31 @@ is
 --			Write_Back_Data_Index const idx := _Write_Back.Peek_Generated_Crypto_Data (prim);
 --			Cbe::Block_Data &data := _Write_Back_Data.Item (idx.Value);
 --			-- FIXME instead of copying the data just ask the crypto module for the resulting
---			--     hash and omit further processing in case the operation failed
+--			--     Hash and omit further processing in case the operation failed
 --			_Crypto.Cxx_Copy_Completed_Data (prim, data);
 --			_Write_Back.Mark_Completed_Crypto_Primitive (prim, data);
 --
 --			_Crypto.Cxx_Drop_Completed_Primitive (prim);
 --			progress |= True;
---		}
+--		end loop;
 --
 --		--
 --		-- Since encryption is performed when calling 'execute' and decryption
 --		-- is handled differently, all we have to do here is to drop and mark
 --		-- complete.
 --		--
---		while (True) {
+--		loop
 --
 --			Cbe::Primitive prim := _Crypto.Cxx_Peek_Generated_Primitive ();
 --			if not prim.Valid () then
---				break;
+--				exit;
 --			end if;
 --
 --			_Crypto.Cxx_Drop_Generated_Primitive (prim);
 --			_Crypto.Cxx_Mark_Completed_Primitive (prim);
 --
 --			progress |= True;
---		}
+--		end loop;
 --
 --		--------------------
 --		-- Cache handling --
@@ -1183,14 +1213,14 @@ is
 --		--  works the rest of modules. That would require restructing
 --		--  the modules, though.)
 --		--
---		while (True) {
+--		loop
 --
 --			Cbe::Primitive prim := _Cache.Peek_Generated_Primitive ();
 --			if not prim.Valid () then
---				break;
+--				exit;
 --			end if;
 --			if not _Io.Primitive_Acceptable () then
---				break;
+--				exit;
 --			end if;
 --
 --			Cache_Index const idx := _Cache.Peek_Generated_Data_Index (prim);
@@ -1200,7 +1230,7 @@ is
 --
 --			_Io.Submit_Primitive (Tag::CACHE_TAG, prim, _Io_Data, data, True);
 --			progress |= True;
---		}
+--		end loop;
 --
 --		------------------
 --		-- I/O handling --
@@ -1212,11 +1242,11 @@ is
 --		-- to differentiate the modules.
 --		--
 --
---		while (True) {
+--		loop
 --
 --			Cbe::Primitive prim := _Io.Peek_Completed_Primitive ();
 --			if not prim.Valid () then
---				break;
+--				exit;
 --			end if;
 --
 --			if prim.Success != Cbe::Primitive::Success::TRUE then
@@ -1239,7 +1269,7 @@ is
 --			case Tag::CRYPTO_TAG_DECRYPT:
 --				if not _Crypto.Cxx_Primitive_Acceptable () then
 --					mod_Progress := False;
---				} else {
+--				else
 --					Cbe::Tag const orig_Tag := _Io.Peek_Completed_Tag (prim);
 --
 --					--
@@ -1252,7 +1282,7 @@ is
 --					prim.Tag := orig_Tag;
 --					_Crypto.Cxx_Submit_Primitive (prim, data, _Crypto_Data);
 --				end if;
---				break;
+--				exit;
 --
 --			case Tag::CACHE_TAG:
 --				-- FIXME we need a proper method for getting the right cache job
@@ -1260,24 +1290,24 @@ is
 --				--     only one item
 --				Genode::memcpy (&_Cache_Job_Data.Item (0), &data, sizeof (Cbe::Block_Data));
 --				_Cache.Cxx_Mark_Completed_Primitive (prim);
---				break;
+--				exit;
 --
 --			case Tag::CACHE_FLUSH_TAG:
 --				_Cache_Flusher.Cxx_Mark_Generated_Primitive_Complete (prim);
---				break;
+--				exit;
 --
 --			case Tag::WRITE_BACK_TAG:
 --				_Write_Back.Mark_Completed_Io_Primitive (prim);
---				break;
+--				exit;
 --
 --			case Tag::SYNC_SB_TAG:
 --				_Sync_SB.Cxx_Mark_Generated_Primitive_Complete (prim);
---				break;
+--				exit;
 --
 --			case Tag::FREE_TREE_TAG_WB:
 --				prim.Tag := Tag::WRITE_BACK_TAG;
 --				_Free_Tree->mark_Generated_Primitive_Complete (prim);
---				break;
+--				exit;
 --
 --			case Tag::FREE_TREE_TAG_IO:
 --				prim.Tag := Tag::IO_TAG;
@@ -1286,55 +1316,56 @@ is
 --				--     is only one item
 --				Genode::memcpy (&_Free_Tree_Query_Data.Item (0), &data, sizeof (Cbe::Block_Data));
 --				_Free_Tree->mark_Generated_Primitive_Complete (prim);
---				break;
+--				exit;
 --
---			default: break;
+--			default: exit;
 --			}
 --			if not mod_Progress then
---				break;
+--				exit;
 --			end if;
 --
 --			_Io.Drop_Completed_Primitive (prim);
 --			progress |= True;
---		}
+--		end loop;
 --
---		return progress;
---	end ;
+--		Obj.Execute_Progress := Progress;
+--	end Execute;
 --
 --
 --	function Request_Acceptable () const
 --	return Boolean
 --	is begin
 --		return _Request_Pool.Request_Acceptable ();
---	end ;
+--	end Request_Acceptable;
 --
 --
---	void submit_Request (Cbe::Request const &request)
+--	procedure Submit_Request (Cbe::Request const &request)
 --	is begin
 --		Number_Of_Primitives const num := _Splitter.Number_Of_Primitives (request);
 --		_Request_Pool.Submit_Request (request, num);
---	end ;
+--	end Submit_Request;
 --
 --
---	Cbe::Request peek_Completed_Request () const
+--	Cbe::Request Peek_Completed_Request () const
 --	is begin
 --		return _Request_Pool.Peek_Completed_Request ();
---	end ;
+--	end Peek_Completed_Request;
 --
 --
---	void drop_Completed_Request (Cbe::Request const &req)
+--	procedure Drop_Completed_Request (Cbe::Request const &req)
 --	is begin
 --		_Request_Pool.Drop_Completed_Request (req);
---	end ;
+--	end Drop_Completed_Request;
 --
 --
---	Cbe::Request need_Data ()
+--	Cbe::Request Need_Data ()
 --	is begin
---		if _Backend_Req_Prim.Prim.Valid () then return Cbe::Request { }; }
+--		if _Backend_Req_Prim.Prim.Valid () then return Cbe::Request { }; end if;
 --
 --		-- I/O module--
---		{
+--		declare
 --			Cbe::Primitive prim := _Io.Peek_Generated_Primitive ();
+--		begin
 --			if prim.Valid () then
 --				Cbe::Request req := Cbe::convert_From (prim);
 --
@@ -1346,10 +1377,10 @@ is
 --				};
 --				return req;
 --			end if;
---		end if;
+--		end;
 --
 --		return Cbe::Request { };
---	end ;
+--	end Need_Data;
 --
 --
 --	function Take_Read_Data (Cbe::Request const &request)
@@ -1359,7 +1390,7 @@ is
 --		-- For now there is only one request pending.
 --		--
 --		if (!_Backend_Req_Prim.Req.Equal (request)
---		    || _Backend_Req_Prim.In_Progress) { return False; }
+--		    || _Backend_Req_Prim.In_Progress) then return False; end if;
 --
 --		Cbe::Primitive prim := _Backend_Req_Prim.Prim;
 --
@@ -1370,7 +1401,7 @@ is
 --			return True;
 --		end if;
 --		return False;
---	end ;
+--	end Take_Read_Data;
 --
 --
 --	function Ack_Read_Data (Cbe::Request    const &request,
@@ -1381,7 +1412,7 @@ is
 --		-- For now there is only one request pending.
 --		--
 --		if (!_Backend_Req_Prim.Req.Equal (request)
---		    || !_Backend_Req_Prim.In_Progress) { return False; }
+--		    || !_Backend_Req_Prim.In_Progress) then return False; end if;
 --
 --		Cbe::Primitive prim := _Backend_Req_Prim.Prim;
 --
@@ -1405,7 +1436,7 @@ is
 --		end if;
 --
 --		return False;
---	end ;
+--	end Ack_Read_Data;
 --
 --
 --	function Take_Write_Data (Cbe::Request    const &request,
@@ -1416,7 +1447,7 @@ is
 --		-- For now there is only one request pending.
 --		--
 --		if (!_Backend_Req_Prim.Req.Equal (request)
---		    || _Backend_Req_Prim.In_Progress) { return False; }
+--		    || _Backend_Req_Prim.In_Progress) then return False; end if;
 --
 --		Cbe::Primitive const prim := _Backend_Req_Prim.Prim;
 --
@@ -1433,7 +1464,7 @@ is
 --		end if;
 --
 --		return False;
---	end ;
+--	end Take_Write_Data;
 --
 --
 --	function Ack_Write_Data (Cbe::Request const &request)
@@ -1443,7 +1474,7 @@ is
 --		-- For now there is only one request pending.
 --		--
 --		if (!_Backend_Req_Prim.Req.Equal (request)
---		    || !_Backend_Req_Prim.In_Progress) { return False; }
+--		    || !_Backend_Req_Prim.In_Progress) then return False; end if;
 --
 --		Cbe::Primitive prim := _Backend_Req_Prim.Prim;
 --
@@ -1460,20 +1491,21 @@ is
 --		end if;
 --
 --		return False;
---	end ;
+--	end Ack_Write_Data;
 --
 --
---	Cbe::Request have_Data ()
+--	Cbe::Request Have_Data ()
 --	is begin
 --		-- FIXME move req_Prim allocation into execute
---		if _Frontend_Req_Prim.Prim.Valid () then return Cbe::Request { }; }
+--		if _Frontend_Req_Prim.Prim.Valid () then return Cbe::Request { }; end if;
 --
 --		--
 --		-- When it was a read request, we need the location to
 --		-- where the Crypto should copy the decrypted data.
 --		--
---		{
+--		declare
 --			Cbe::Primitive prim := _Crypto.Cxx_Peek_Completed_Primitive ();
+--		begin
 --			if prim.Valid () && prim.Read () then
 --				Cbe::Request const req := _Request_Pool.Request_For_Tag (prim.Tag);
 --				_Frontend_Req_Prim := Req_Prim {
@@ -1484,15 +1516,16 @@ is
 --				};
 --				return req;
 --			end if;
---		end if;
+--		end;
 --
 --		--
 --		-- When it was a read request, we need access to the data the Crypto
 --		-- module should decrypt and if it was a write request we need the location
 --		-- from where to read the new leaf data.
 --		--
---		{
+--		declare
 --			Cbe::Primitive prim := _VBD->peek_Completed_Primitive ();
+--		begin
 --			if prim.Valid () then
 --
 --				Cbe::Request const req := _Request_Pool.Request_For_Tag (prim.Tag);
@@ -1503,14 +1536,15 @@ is
 --					.In_Progress := False,
 --				};
 --				return req;
---			}
---		end if;
+--			end if;
+--		end;
 --
 --		--
 --		-- The free-tree needs the data to give to the Write_Back module.
 --		--
---		{
+--		declare
 --			Cbe::Primitive prim := _Free_Tree->peek_Completed_Primitive ();
+--		begin
 --			if prim.Valid () && (prim.Success = Cbe::Primitive::Success::TRUE) then
 --
 --				Cbe::Request const req := _Request_Pool.Request_For_Tag (prim.Tag);
@@ -1521,14 +1555,14 @@ is
 --					.In_Progress := False,
 --				};
 --				return req;
---			}
---		end if;
+--			end if;
+--		end;
 --
 --		return Cbe::Request { };
---	end ;
+--	end Have_Data;
 --
 --
---	Genode::uint64_T give_Data_Index (Cbe::Request const &request)
+--	Genode::uint64_T Give_Data_Index (Cbe::Request const &request)
 --	is begin
 --		--
 --		-- For now there is only one request pending.
@@ -1538,7 +1572,7 @@ is
 --		end if;
 --
 --		return _Frontend_Req_Prim.Prim.Index;
---	end ;
+--	end Give_Data_Index;
 --
 --
 --	function Give_Read_Data (Cbe::Request const &request, Cbe::Block_Data &data)
@@ -1580,7 +1614,7 @@ is
 --		default:
 --			return False;
 --		}
---	end ;
+--	end Give_Read_Data;
 --
 --
 --	function Give_Write_Data (Cbe::Request    const &request,
@@ -1636,7 +1670,7 @@ is
 --		-- Those steps are handled by different modules, depending on
 --		-- the allocation of new blocks.
 --		--
---		} else if _Frontend_Req_Prim.Tag = Cbe::Tag::VBD_TAG then
+--		elsif _Frontend_Req_Prim.Tag = Cbe::Tag::VBD_TAG then
 --
 --			--
 --			-- As usual check first we can submit new requests.
@@ -1664,9 +1698,9 @@ is
 --			--
 --			-- (This check may be removed at some point.)
 --			--
---			Cbe::Super_Block const &sb := _Super_Block (_Cur_SB.Value);
---			Snapshot_Type    const &snap := sb.Snapshots (_Cur_Snap);
---			if Old_PBA (trans_Height-1).PBA != snap.PBA then
+--			Cbe::Super_Block const &sb := Obj.Super_Blocks (Obj.Cur_SB);
+--			Snapshot_Type    const &Snap := sb.Snapshots (Obj.Cur_SB);
+--			if Old_PBA (trans_Height-1).PBA != Snap.PBA then
 --				-- Genode::error ("BUG");
 --			end if;
 --
@@ -1676,7 +1710,7 @@ is
 --			-- The order of the array items corresponds to the level within
 --			-- the tree.
 --			--
---			Cbe::Physical_Block_Address New_PBA (Translation::MAX_LEVELS) { };
+--			Physical_Block_Address_Type New_PBA (Translation::MAX_LEVELS) { };
 --			Genode::memset (new_PBA, 0, sizeof (new_PBA));
 --			uint32_T new_Blocks := 0;
 --
@@ -1685,14 +1719,14 @@ is
 --			-- marked as reserved in the FT as they are still referenced by
 --			-- an snapshot.
 --			--
---			Cbe::Physical_Block_Address Free_PBA (Translation::MAX_LEVELS) { };
+--			Physical_Block_Address_Type Free_PBA (Translation::MAX_LEVELS) { };
 --			uint32_T free_Blocks := 0;
 --
 --			--
 --			-- Get the corresponding VBA that we use to calculate the index
 --			-- for the edge in the node for a given level within the tree.
 --			--
---			Cbe::Primitive::Number const vba := _VBD->trans_Get_Virtual_Block_Address (prim);
+--			Cbe::Primitive::Number const VBA := _VBD->trans_Get_Virtual_Block_Address (prim);
 --
 --			--
 --			-- Here only the inner nodes, i.E. all nodes excluding root and leaf,
@@ -1705,11 +1739,11 @@ is
 --				-- Use the old PBA to get the node's data from the cache and
 --				-- use it check how we have to handle the node.
 --				--
---				Cbe::Physical_Block_Address const pba := Old_PBA (i).PBA;
---				Cache_Index     const idx   := _Cache.Data_Index (pba, _Time.Timestamp ());
+--				Physical_Block_Address_Type const PBA := Old_PBA (i).PBA;
+--				Cache_Index     const idx   := _Cache.Data_Index (PBA, _Time.Timestamp ());
 --				Cbe::Block_Data const &data := _Cache_Data.Item (idx.Value);
 --
---				uint32_T const id := _VBD->index_For_Level (vba, i);
+--				uint32_T const id := _VBD->index_For_Level (VBA, i);
 --				Cbe::Type_I_Node const *n := reinterpret_Cast<Cbe::Type_I_Node const*>(&data);
 --
 --				uint64_T const gen := N (id).Gen;
@@ -1720,9 +1754,9 @@ is
 --				-- and store it directly in the new_PBA array.
 --				--
 --				if gen = _Cur_Gen || gen = 0 then
---					Cbe::Physical_Block_Address const npba := N (id).PBA;
---					(void)npba;
---					-- DBG("IN PLACE pba: ", pba, " gen: ", gen, " npba: ", npba);
+--					Physical_Block_Address_Type const nPBA := N (id).PBA;
+--					(void)nPBA;
+--					-- DBG("IN PLACE PBA: ", PBA, " gen: ", gen, " nPBA: ", nPBA);
 --
 --					New_PBA (i-1) := Old_PBA (i-1).PBA;
 --					continue;
@@ -1739,10 +1773,10 @@ is
 --			end loop;
 --
 --			-- check root node--
---			if snap.Gen = _Cur_Gen || snap.Gen = 0 then
---				-- DBG("IN PLACE root pba: ", Old_PBA (trans_Height-1).PBA);
+--			if Snap.Gen = _Cur_Gen || Snap.Gen = 0 then
+--				-- DBG("IN PLACE root PBA: ", Old_PBA (trans_Height-1).PBA);
 --				New_PBA (trans_Height-1) := Old_PBA (trans_Height-1).PBA;
---			} else {
+--			else
 --				Free_PBA (free_Blocks) := Old_PBA (trans_Height-1).PBA;
 --				-- DBG("FREE PBA: ", Free_PBA (free_Blocks));
 --				free_Blocks++;
@@ -1766,8 +1800,8 @@ is
 --				                           new_PBA, old_PBA,
 --				                           trans_Height,
 --				                           free_PBA,
---				                           prim, vba);
---			} else {
+--				                           prim, VBA);
+--			else
 --				--
 --				-- The complete branch is still part of theCurr generation,
 --				-- call the Write_Back module directly.
@@ -1776,7 +1810,7 @@ is
 --				--  the request...)
 --				--
 --				-- DBG("UPDATE ALL IN PACE");
---				_Write_Back.Submit_Primitive (prim, _Cur_Gen, vba,
+--				_Write_Back.Submit_Primitive (prim, _Cur_Gen, VBA,
 --				                             new_PBA, old_PBA, trans_Height,
 --				                             data, _Write_Back_Data);
 --			end if;
@@ -1798,7 +1832,7 @@ is
 --			return True;
 --		end if;
 --		return False;
---	end ;
+--	end Give_Write_Data;
 
 
 end CBE.Library;

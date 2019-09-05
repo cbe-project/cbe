@@ -186,4 +186,7 @@ private
 	function Timeout_Request_Invalid
 	return Timeout_Request_Type;
 
+	function Max_VBA (Obj : Object_Type)
+	return Virtual_Block_Address_Type;
+
 end CBE.Library;
