@@ -49,6 +49,16 @@ is
 				Count       (Valid_Object'Result) = Cnt    and
 				Tag         (Valid_Object'Result) = Tg));
 
+	--
+	-- Equal
+	--
+	function Equal(
+		Obj_1 : Object_Type;
+		Obj_2 : Object_Type)
+	return Boolean
+	with
+		Pre => Valid(Obj_1) and Valid(Obj_2);
+
 
 	---------------
 	-- Accessors --

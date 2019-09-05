@@ -45,6 +45,18 @@ is
 		Count        => Cnt,
 		Tag          => Tg);
 
+	--
+	-- Equal
+	--
+	function Equal(
+		Obj_1 : Object_Type;
+		Obj_2 : Object_Type)
+	return Boolean
+	is (
+		Obj_1.Block_Number = Obj_2.Block_Number and
+		Obj_1.Tag          = Obj_2.Tag and
+		Obj_1.Operation    = Obj_2.Operation);
+
 
 	---------------
 	-- Accessors --
