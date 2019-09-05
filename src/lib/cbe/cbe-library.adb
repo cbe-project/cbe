@@ -1401,6 +1401,17 @@ is
 	end Need_Data;
 
 
+	--
+	-- For now there can be only one Request pending.
+	--
+	function Back_End_Busy_With_Other_Request (
+		Obj : Object_Type;
+		Req : Request.Object_Type)
+	return Boolean
+	is (not Request.Equal(Obj.Back_End_Req_Prim.Req, Req) or
+		Obj.Back_End_Req_Prim.In_Progress);
+
+
 	procedure Take_Read_Data (
 		Obj      : in out Object_Type;
 		Req      :        Request.Object_Type;
@@ -1409,11 +1420,7 @@ is
 	begin
 		Progress := false;
 
-		--
-		-- For now there is only one Request pending.
-		--
-		if not Request.Equal(Obj.Back_End_Req_Prim.Req, Req) or
-			Obj.Back_End_Req_Prim.In_Progress then
+		if Back_End_Busy_With_Other_Request (Obj, Req) then
 			return;
 		end if;
 
@@ -1429,41 +1436,44 @@ is
 	end Take_Read_Data;
 
 
---	function Ack_Read_Data (Request.Object_Type    const &Request,
---	                                 Cbe::Block_Data const &data)
---	return Boolean
---	is begin
---		--
---		-- For now there is only one Request pending.
---		--
---		if (!_Backend_Req_Prim.Req.Equal (Request)
---		    || !_Backend_Req_Prim.In_Progress) then return False; end if;
---
---		Cbe::Primitive prim := _Backend_Req_Prim.Prim;
---
---		if _Backend_Req_Prim.Tag = Cbe::Tag::IO_TAG then
---
---			bool const success := Request.Success = Request.Object_Type::Success::TRUE;
---
---			if success then
---
---				Genode::uint32_T const idx := _Io.Peek_Generated_Data_Index (prim);
---				Cbe::Block_Data   &io_Data := _Io_Data.Item (idx);
---				Genode::memcpy (&io_Data, &data, sizeof (Cbe::Block_Data));
---			end if;
---
---			prim.Success := success ? Cbe::Primitive::Success::TRUE
---			                       : Cbe::Primitive::Success::FALSE;
---			_Io.Mark_Generated_Primitive_Complete (prim);
---
---			_Backend_Req_Prim := Req_Prim { };
---			return True;
---		end if;
---
---		return False;
---	end Ack_Read_Data;
---
---
+	procedure Ack_Read_Data (
+		Obj     : in out Object_Type;
+		Req     :        Request.Object_Type;
+		Data    :        Block_Data_Type;
+		Progess :    out Boolean)
+	is
+		Prim : constant Primitive.Object_Type := Obj.Back_End_Req_Prim.Prim;
+	begin
+		Progess := False;
+
+		if Back_End_Busy_With_Other_Request (Obj, Req) then
+			return;
+		end if;
+
+		if Obj.Back_End_Req_Prim.Tag /= Tag_IO then
+			return;
+		end if;
+
+		if Request.Success(Req) then
+			Obj.Io_Data(Block_IO.Peek_Completed_Data_Index(Obj.Io_Obj)) := Data;
+		end if;
+
+		Block_IO.mark_Generated_Primitive_Complete (
+			Obj.Io_Obj,
+			Primitive.Valid_Object (
+				Op     => Primitive.Operation    (Prim),
+				Succ   => Request.Success (Req),
+				Tg     => Primitive.Tag          (Prim),
+				Blk_Nr => Primitive.Block_Number (Prim),
+				Idx    => Primitive.Index        (Prim))
+		);
+
+		Obj.Back_End_Req_Prim := Request_Primitive_Invalid;
+
+		Progess := True;
+	end Ack_Read_Data;
+
+
 --	function Take_Write_Data (Request.Object_Type    const &Request,
 --	                                   Cbe::Block_Data       &data)
 --	return Boolean

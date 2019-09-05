@@ -147,7 +147,7 @@ is
 	-- This method must only be called after executing 'Request_Acceptable'
 	-- returned true.
 	--
-	-- \param request  block request
+	-- \param Req  block request
 	--
 	procedure Submit_Request (
 		Obj : in out Object_Type;
@@ -185,13 +185,28 @@ is
 	--
 	-- Take read request for backend block session
 	--
-	-- \param Request   reference to the request from the CBE
+	-- \param Req       reference to the request from the CBE
 	-- \param Progress  return true if the CBE could process the request
 	--
 	procedure Take_Read_Data (
 		Obj      : in out Object_Type;
 		Req      :        Request.Object_Type;
 		Progress :    out Boolean);
+
+	--
+	-- Acknowledge read request to the backend block session
+	--
+	-- The given data will be transfered to the CBE.
+	--
+	-- \param Req       reference to the request from the CBE
+	-- \param Data      reference to the data associated with the request
+	-- \param Progress  return true if the CBE acknowledged the request
+	--
+	procedure Ack_Read_Data (
+		Obj     : in out Object_Type;
+		Req     :        Request.Object_Type;
+		Data    :        Block_Data_Type;
+		Progess :    out Boolean);
 
 	--
 	-- Request access to the Block::Request data for reading data
