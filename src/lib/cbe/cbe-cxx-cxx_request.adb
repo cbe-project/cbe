@@ -18,8 +18,8 @@ is
 	return Success_Type
 	is (
 		case Success is
-		when Request.False => 0,
-		when Request.True  => 1);
+		when False => 0,
+		when True  => 1);
 
 
 	--
@@ -64,8 +64,8 @@ is
 	return Request.Success_Type
 	is (
 		case Success is
-		when 0 => Request.False,
-		when 1 => Request.True);
+		when 0 => False,
+		when 1 => True);
 
 
 	--

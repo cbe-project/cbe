@@ -22,7 +22,6 @@ is
 			Obj  : in out Item_Type;
 			Prim :        Primitive.Object_Type)
 		is
-			use Request;
 			Rq : Request.Object_Type;
 		begin
 			if not Primitive.Success(Prim) then
@@ -143,7 +142,7 @@ is
 
 			if Item.Invalid(Obj.Items(Item_Id)) then
 
-				Request.Success(Req_Buf, Request.True);
+				Request.Success(Req_Buf, True);
 				Obj.Items(Item_Id) :=
 					Item.Pending_Object(
 						Rq               => Req_Buf,

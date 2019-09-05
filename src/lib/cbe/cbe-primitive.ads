@@ -16,7 +16,6 @@ is
 	pragma Pure;
 
 	use type Request.Operation_Type;
-	use type Request.Success_Type;
 	use type Request.Block_Number_Type;
 
 	type Index_Type  is mod 2**64;

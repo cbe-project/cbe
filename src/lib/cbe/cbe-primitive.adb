@@ -19,7 +19,7 @@ is
 	is (
 		Valid        => False,
 		Operation    => Request.Read,
-		Success      => Request.False,
+		Success      => False,
 		Tag          => Request.Tag_Type (Tag_Invalid),
 		Block_Number => 0,
 		Index        => 0);

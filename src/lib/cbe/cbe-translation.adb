@@ -240,11 +240,11 @@ is
 	is (
 		if Obj.Data_PBA /= PBA_Invalid then
 			Primitive.Valid_Object (
-				Primitive.Operation (Obj.Current),
-				Request.False,
-				Primitive.Tag (Obj.Current),
-				Request.Block_Number_Type (Obj.Data_PBA),
-				Primitive.Index (Obj.Current))
+				Op     => Primitive.Operation (Obj.Current),
+				Succ   => False,
+				Tg     => Primitive.Tag (Obj.Current),
+				Blk_Nr => Request.Block_Number_Type (Obj.Data_PBA),
+				Idx    => Primitive.Index (Obj.Current))
 		else
 			Primitive.Invalid_Object);
 
@@ -321,11 +321,11 @@ is
 	is (
 		if Obj.Next_PBA /= PBA_Invalid then
 			Primitive.Valid_Object (
-				Request.Read,
-				Request.False,
-				Request.Tag_Type (Tag_Translation),
-				Request.Block_Number_Type (Obj.Next_PBA),
-				0)
+				Op     => Request.Read,
+				Succ   => False,
+				Tg     => Request.Tag_Type (Tag_Translation),
+				Blk_Nr => Request.Block_Number_Type (Obj.Next_PBA),
+				Idx    => 0)
 		else
 			Primitive.Invalid_Object);
 

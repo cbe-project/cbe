@@ -811,7 +811,7 @@ is
 					Obj.Do_WB := False;
 					Obj.WB_Done := True;
 					Obj.WB_Data.Finished := True;
-					Primitive.Success(Obj.WB_Data.Prim, Request.True);
+					Primitive.Success(Obj.WB_Data.Prim, True);
 					Obj.Execute_Progress := True;
 				end if;
 			end Declare_WB_Ongoing;
@@ -836,7 +836,7 @@ is
 			return Primitive.Valid_Object (
 				Tg     => Request.Tag_Type (Tag_IO),
 				Op     => Request.Read,
-				Succ   => Request.False,
+				Succ   => False,
 				Blk_Nr => Request.Block_Number_Type (Obj.Curr_Type_2.PBA),
 				Idx    => 0);
 		end if;
@@ -852,7 +852,7 @@ is
 					return Primitive.Valid_Object (
 						Tg     => Request.Tag_Type (Tag_Write_Back),
 						Op     => Request.Write,
-						Succ   => Request.False,
+						Succ   => False,
 						Blk_Nr => Request.Block_Number_Type (Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).PBA),
 						Idx    => 0);
 				end if;
@@ -950,7 +950,7 @@ is
 					if Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).State = In_Progress then
 						Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).State := Complete;
 
-						if Request."=" (Primitive.Success (Prim), Request.False) then
+						if not Primitive.Success (Prim) then
 							-- FIXME propagate failure
 							null;
 							-- MOD_ERR("failed primitive: ", prim);

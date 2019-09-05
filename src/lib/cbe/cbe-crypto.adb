@@ -35,7 +35,7 @@ is
 					Aes_Cbc_4k.Block_Number_Type(Primitive.Block_Number(Obj.Prim)),
 					Obj.Plain_Data, Obj.Cipher_Data);
 
-				Primitive.Success(Obj.Prim, Request.True);
+				Primitive.Success(Obj.Prim, True);
 				Obj.State := Complete;
 
 			when others =>
@@ -64,7 +64,7 @@ is
 
 			if
 				Primitive.Operation(Obj.Prim) = Request.Read and
-				Primitive.Success(Prm)        = Request.True
+				Primitive.Success(Prm)
 			then
 				Aes_Cbc_4k.Decrypt(
 					Key,
@@ -96,7 +96,7 @@ is
 
 			if
 				Primitive.Operation(Obj.Prim) = Request.Read and
-				Primitive.Success(Prm)        = Request.True
+				Primitive.Success(Prm)
 			then
 				-- XXX not sure if that works as expected
 				Plain_Data := Obj.Plain_Data;

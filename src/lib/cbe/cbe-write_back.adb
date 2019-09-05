@@ -362,7 +362,7 @@ is
 		SHA256_4K.Hash(SHA256_4K.Data_Type(Crypto_Data),
 		               SHA256_4K.Hash_Type(Obj.Hashes(0)));
 
-		if Request."=" (Primitive.Success(Prim), Request.False) then
+		if not Primitive.Success (Prim) then
 			Obj.Pending_Failure := True;
 			Obj.State           := Complete;
 			return;
@@ -430,7 +430,7 @@ is
 			raise Program_Error;
 		end if;
 
-		if Request."=" (Primitive.Success(Prim), Request.False) then
+		if not Primitive.Success (Prim) then
 			Obj.Pending_Failure := True;
 			Obj.State           := Complete;
 			return;

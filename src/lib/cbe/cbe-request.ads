@@ -13,13 +13,13 @@ with Spark_Mode
 is
 	pragma Pure;
 
-	type Operation_Type    is (Read, Write, Sync);
-	type Success_Type      is new Boolean;
-	type Block_Number_Type is mod 2**64;
-	type Offset_Type       is mod 2**64;
-	type Count_Type        is mod 2**32;
-	type Tag_Type          is mod 2**32;
-	type Object_Type       is private;
+	type    Operation_Type    is (Read, Write, Sync);
+	subtype Success_Type      is Boolean;
+	type    Block_Number_Type is mod 2**64;
+	type    Offset_Type       is mod 2**64;
+	type    Count_Type        is mod 2**32;
+	type    Tag_Type          is mod 2**32;
+	type    Object_Type       is private;
 
 	--
 	-- Invalid_Object
