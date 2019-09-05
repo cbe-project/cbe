@@ -1358,33 +1358,45 @@ is
 --	is begin
 --		_Request_Pool.Drop_Completed_Request (req);
 --	end Drop_Completed_Request;
---
---
---	Request.Object_Type Need_Data ()
---	is begin
---		if _Backend_Req_Prim.Prim.Valid () then return Request.Object_Type { }; end if;
---
---		-- I/O module--
---		declare
---			Cbe::Primitive prim := _Io.Peek_Generated_Primitive ();
---		begin
---			if prim.Valid () then
---				Request.Object_Type req := Cbe::convert_From (prim);
---
---				_Backend_Req_Prim := Req_Prim {
---					.Req         := req,
---					.Prim        := prim,
---					.Tag         := Cbe::Tag::IO_TAG,
---					.In_Progress := False,
---				};
---				return req;
---			end if;
---		end;
---
---		return Request.Object_Type { };
---	end Need_Data;
---
---
+
+
+	procedure Need_Data (
+		Obj : in out Object_Type;
+		Req :    out Request.Object_Type)
+	is
+	begin
+		if Primitive.Valid(Obj.Back_End_Req_Prim.Prim) then
+			Req := Request.Invalid_Object;
+			return;
+		end if;
+
+		-- I/O module--
+		declare
+			Prim : constant Primitive.Object_Type :=
+				Block_IO.Peek_Generated_Primitive(Obj.Io_Obj);
+		begin
+			if Primitive.Valid(Prim) then
+				Obj.Back_End_Req_Prim := (
+					Req => Request.Valid_Object (
+						Op     => Primitive.Operation(Prim),
+						Succ   => False,
+						Blk_Nr => Primitive.Block_Number(Prim),
+						Off    => 0,
+						Cnt    => 1,
+						Tg     => Request.Tag_Type(Tag_Invalid)
+					),
+					Prim => Prim,
+					Tag  => Tag_IO,
+					In_Progress => False
+				);
+				Req := Obj.Back_End_Req_Prim.Req;
+			else
+				Req := Request.Invalid_Object;
+			end if;
+		end;
+	end Need_Data;
+
+
 --	function Take_Read_Data (Request.Object_Type const &Request)
 --	return Boolean
 --	is begin

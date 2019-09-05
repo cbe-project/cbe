@@ -134,6 +134,16 @@ is
 	procedure Ack_Secure_Timeout_Request (Obj : in out Object_Type);
 
 	--
+	-- Return a request for the backend block session
+	--
+	-- \param Req  return valid request in case the is one pending that
+	--             needs data, otherwise an invalid one is returned
+	--
+	procedure Need_Data (
+		Obj : in out Object_Type;
+		Req :    out Request.Object_Type);
+
+	--
 	-- Request access to the Block::Request data for reading data
 	--
 	-- \param  Request  reference to the Block::Request processed
