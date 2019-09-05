@@ -69,6 +69,14 @@ is
 	return Boolean;
 
 	--
+	-- Trans_Can_Get_Type_1_Info_Spark
+	--
+	function Trans_Can_Get_Type_1_Info_Spark (
+		Obj   : Object_Type;
+		Prim  : Primitive.Object_Type)
+	return Boolean;
+
+	--
 	-- Trans_Get_Type_1_Info
 	--
 	procedure Trans_Get_Type_1_Info (
