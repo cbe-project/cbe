@@ -145,6 +145,7 @@ is
 	--
 	function Give_Write_Data (
 		Obj  : in out Object_Type;
+		Now  :        Timestamp_Type;
 		Req  :        Request.Object_Type;
 		Data :        Block_Data_Type)
 	return Boolean;

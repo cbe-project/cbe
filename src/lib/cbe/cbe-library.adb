@@ -1623,6 +1623,7 @@ is
 
 	function Give_Write_Data (
 		Obj     : in out Object_Type;
+		Now     :        Timestamp_Type;
 		Req     :        Request.Object_Type;
 		Data    :        Block_Data_Type)
 	return Boolean
@@ -1690,6 +1691,11 @@ is
 				return False;
 			end if;
 
+			if not Virtual_Block_Device.Trans_Can_Get_Type_1_Info_Spark(Obj.VBD, Prim)
+			then
+				return False;
+			end if;
+
 			--
 			-- Then (ab-)use the Translation module and its still pending
 			-- Request to get all old PBAs, whose generation we then check.
@@ -1698,10 +1704,8 @@ is
 			--
 			Declare_Old_PBAs: declare
 
---				Cbe::Type_1_Node_Info Old_PBA (Translation::MAX_LEVELS) { };
 				Old_PBAs : Type_1_Node_Infos_Type := (others => Type_1_Node_Info_Invalid);
 
---				uint32_T const trans_Height := _VBD->tree_Height () + 1;
 				Trans_Height : constant Tree_Level_Type :=
 					Virtual_Block_Device.Tree_Height(Obj.VBD) + 1;
 
@@ -1725,14 +1729,15 @@ is
 				-- an snapshot.
 				--
 				Free_PBAs   : Free_Tree.Free_PBAs_Type := (others => 0);
-				Free_Blocks : Number_Of_Blocks_Type := 0;
-			begin
+				Free_Blocks : Tree_Level_Index_Type := 0;
 
-				-- XXX Old_PBAs argument does not match the third parameter (Address_Type)
---				if not Virtual_Block_Device.Trans_Can_Get_Type_1_Info(Obj.VBD, Prim, Old_PBAs)
---				then
---					return False;
---				end if;
+				--
+				-- Get the corresponding VBA that we use to calculate the index
+				-- for the edge in the node for a given level within the tree.
+				--
+				VBA : constant Virtual_Block_Address_Type :=
+					Virtual_Block_Address_Type(Virtual_Block_Device.trans_Get_Virtual_Block_Address(Obj.VBD, prim));
+			begin
 
 				Virtual_Block_Device.trans_Get_Type_1_Info(Obj.VBD, Old_PBAs);
 
@@ -1745,114 +1750,121 @@ is
 					raise Program_Error;
 				end if;
 
---				--
---				-- Get the corresponding VBA that we use to calculate the index
---				-- for the edge in the node for a given level within the tree.
---				--
---				Cbe::Primitive::Number const VBA := _VBD->trans_Get_Virtual_Block_Address (prim);
---
---				--
---				-- Here only the inner nodes, i.E. all nodes excluding root and leaf,
---				-- are considered. The root node is checked afterwards as we need the
---				-- information of theCurr snapshot for that.
---				--
---				for uint32_T i := 1; i < trans_Height; i++ loop
---
---					--
---					-- Use the old PBA to get the node's data from the cache and
---					-- use it check how we have to handle the node.
---					--
---					Physical_Block_Address_Type const PBA := Old_PBA (i).PBA;
---					Cache_Index     const idx   := _Cache.Data_Index (PBA, _Time.Timestamp ());
---					Cbe::Block_Data const &data := _Cache_Data.Item (idx.Value);
---
---					uint32_T const id := _VBD->index_For_Level (VBA, i);
---					Cbe::Type_I_Node const *n := reinterpret_Cast<Cbe::Type_I_Node const*>(&data);
---
---					uint64_T const gen := N (id).Gen;
---					--
---					-- In case the generation of the entry is the same as theCurr
---					-- generation OR if the generation is 0 (which means it was never
---					-- used before) the block is volatile and we change it in place
---					-- and store it directly in the new_PBA array.
---					--
---					if gen = _Cur_Gen || gen = 0 then
---						Physical_Block_Address_Type const nPBA := N (id).PBA;
---						(void)nPBA;
---						-- DBG("IN PLACE PBA: ", PBA, " gen: ", gen, " nPBA: ", nPBA);
---
---						New_PBA (i-1) := Old_PBA (i-1).PBA;
---						continue;
---					end if;
---
---					--
---					-- Otherwise add the block to the free_PBA array so that the
---					-- FT will reserved it and note that we need another new block.
---					--
---					Free_PBA (free_Blocks) := Old_PBA (i-1).PBA;
---					-- DBG("FREE PBA: ", Free_PBA (free_Blocks));
---					free_Blocks++;
---					new_Blocks++;
---				end loop;
---
---				-- check root node--
---				if Snap.Gen = _Cur_Gen || Snap.Gen = 0 then
---					-- DBG("IN PLACE root PBA: ", Old_PBA (trans_Height-1).PBA);
---					New_PBA (trans_Height-1) := Old_PBA (trans_Height-1).PBA;
---				else
---					Free_PBA (free_Blocks) := Old_PBA (trans_Height-1).PBA;
---					-- DBG("FREE PBA: ", Free_PBA (free_Blocks));
---					free_Blocks++;
---					new_Blocks++;
---				end if;
---
---				-- DBG("new blocks: ", new_Blocks);
---				for uint32_T i := 0; i < trans_Height; i++ loop
---					-- DBG("New_PBA (", i, ") := ", New_PBA (i));
---				end loop;
---
---				--
---				-- Since there are blocks we cannot change in place, use the
---				-- FT module to allocate the blocks. As we have to reserve
---				-- the blocks we implicitly will free (free_PBA items), pass
---				-- on theCurr generation.
---				--
---				if new_Blocks then
---					_Free_Tree->submit_Request (_Cur_Gen,
---					                           new_Blocks,
---					                           new_PBA, old_PBA,
---					                           trans_Height,
---					                           free_PBA,
---					                           prim, VBA);
---				else
---					--
---					-- The complete branch is still part of theCurr generation,
---					-- call the Write_Back module directly.
---					--
---					-- (We would have to check if the module can acutally accept
---					--  the Request...)
---					--
---					-- DBG("UPDATE ALL IN PACE");
---					_Write_Back.Submit_Primitive (prim, _Cur_Gen, VBA,
---					                             new_PBA, old_PBA, trans_Height,
---					                             data, _Write_Back_Data);
---				end if;
---
---				_VBD->drop_Completed_Primitive (prim);
---				_Frontend_Req_Prim := Req_Prim { };
---
---				--
---				-- Inhibit translation which effectively will suspend the
---				-- Translation modules operation and will stall all other
---				-- pending requests to make sure all following Request will
---				-- use the newest tree.
---				--
---				-- (It stands to reasons whether we can remove this check
---				--  if we make sure that only the requests belonging to
---				--  the same branch are serialized.)
---				--
---				_VBD->trans_Inhibit_Translation ();
---				return True;
+				--
+				-- Here only the inner nodes, i.E. all nodes excluding root and leaf,
+				-- are considered. The root node is checked afterwards as we need the
+				-- information of theCurr snapshot for that.
+				--
+				for I in 1 .. Trans_Height - 1 loop
+
+					--
+					-- Use the old PBA to get the node's data from the cache and
+					-- use it check how we have to handle the node.
+					--
+					declare
+						PBA : constant Physical_Block_Address_Type :=
+							Old_PBAs(Natural(I)).PBA;
+
+						Idx : constant Cache.Cache_Index_Type :=
+							Cache.Data_Index(Obj.Cache_Obj, PBA, Now);
+
+						ID : constant Tree_Child_Index_Type :=
+							Virtual_Block_Device.index_For_Level(Obj.VBD, VBA, I);
+
+--						Cbe::Block_Data const &data := _Cache_Data.Item (idx.Value);
+--						uint32_T const id := _VBD->index_For_Level (VBA, i);
+--						Cbe::Type_I_Node const *n := reinterpret_Cast<Cbe::Type_I_Node const*>(&data);
+						Node : Type_I_Node_Block_Type with Address => Obj.Cache_Data(Idx)'Address;
+
+						Gen : constant Generation_Type := Node(Natural(ID)).Gen;
+					begin
+						--
+						-- In case the generation of the entry is the same as theCurr
+						-- generation OR if the generation is 0 (which means it was never
+						-- used before) the block is volatile and we change it in place
+						-- and store it directly in the new_PBA array.
+						--
+						if Gen = Obj.Cur_Gen or Gen = 0 then
+
+							New_PBAs (Tree_Level_Index_Type(I - 1)) :=
+								Old_PBAs (Natural(I - 1)).PBA;
+
+						--
+						-- Otherwise add the block to the free_PBA array so that the
+						-- FT will reserved it and note that we need another new block.
+						--
+						else
+							Free_PBAs (Free_Blocks) := Old_PBAs (Natural(I - 1)).PBA;
+							Free_Blocks := Free_Blocks + 1;
+							New_Blocks  := New_Blocks  + 1;
+						end if;
+					end;
+
+				end loop;
+
+				-- check root node--
+				if Snap.Gen = Obj.Cur_Gen or Snap.Gen = 0 then
+					New_PBAs (Tree_Level_Index_Type(Trans_Height - 1)) :=
+						Old_PBAs (Natural(Trans_Height - 1)).PBA;
+				else
+					Free_PBAs (Free_Blocks) := Old_PBAs (Natural(Trans_Height - 1)).PBA;
+					Free_Blocks := Free_Blocks + 1;
+					New_Blocks  := New_Blocks  + 1;
+				end if;
+
+				--
+				-- Since there are blocks we cannot change in place, use the
+				-- FT module to allocate the blocks. As we have to reserve
+				-- the blocks we implicitly will free (free_PBA items), pass
+				-- on theCurr generation.
+				--
+				if New_Blocks > 0 then
+					Free_Tree.Submit_Request (
+						Obj         => Obj.Free_Tree_Obj,
+						Curr_Gen    => Obj.Cur_Gen,
+						Nr_of_Blks  => New_Blocks,
+						New_PBAs    => New_PBAs,
+						Old_PBAs    => Old_PBAs,
+						Tree_Height => Trans_Height,
+						Fr_PBAs     => Free_PBAs,
+						Req_Prim    => Prim,
+						VBA         => VBA);
+				else
+					--
+					-- The complete branch is still part of theCurr generation,
+					-- call the Write_Back module directly.
+					--
+					-- (We would have to check if the module can acutally accept
+					--  the Request...)
+					--
+					Write_Back.Submit_Primitive (
+						Obj      => Obj.Write_Back_Obj,
+						Prim     => Prim,
+						Gen      => Obj.Cur_Gen,
+						VBA      => VBA,
+						New_PBAs => New_PBAs,
+						Old_PBAs => Old_PBAs,
+						N        => Tree_Level_Index_Type(Trans_Height),
+						Data     => Data,
+						WB_Data  => Obj.Write_Back_Data);
+				end if;
+
+				Virtual_Block_Device.Drop_Completed_Primitive (Obj.VBD);
+
+				Obj.Front_End_Req_Prim := Request_Primitive_Invalid;
+
+				--
+				-- Inhibit translation which effectively will suspend the
+				-- Translation modules operation and will stall all other
+				-- pending requests to make sure all following Request will
+				-- use the newest tree.
+				--
+				-- (It stands to reasons whether we can remove this check
+				--  if we make sure that only the requests belonging to
+				--  the same branch are serialized.)
+				--
+				Virtual_Block_Device.Trans_Inhibit_Translation (Obj.VBD);
+				return True;
 			end Declare_Old_PBAs;
 		end if;
 		return False;
