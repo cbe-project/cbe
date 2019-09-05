@@ -218,7 +218,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						Cbe::Block_data &data = *reinterpret_cast<Cbe::Block_data*>(addr);
 
 						if (cbe_request.read()) {
-							progress |= _cbe->give_read_data(cbe_request, data);
+							bool processable;
+							_cbe->give_read_data(cbe_request, data, processable);
+							progress |= processable;
 						} else
 
 						if (cbe_request.write()) {

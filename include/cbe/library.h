@@ -186,23 +186,22 @@ class Cbe::Public_Library
 		Cbe::Request have_data();
 
 		/**
-		 * Get primitive index
-		 *
-		 * \return 
+		 * Return primitive index
 		 */
 		uint64_t give_data_index(Cbe::Request const &request);
 
 		/**
 		 * Request access to the Block::Request data for storing data
 		 *
-		 * \param  request  reference to the Block::Request processed
-		 *                  by the CBE
-		 * \param  data     reference to the data associated with the
-		 *                  Block::Request
-		 *
-		 * \return  true if the CBE could process the request
+		 * \param  request      reference to the Block::Request processed
+		 *                      by the CBE
+		 * \param  data         reference to the data associated with the
+		 *                      Block::Request
+		 * \param  processable  'true' on return if the CBE could process the request
 		 */
-		bool give_read_data(Cbe::Request const &request, Cbe::Block_data &data);
+		void give_read_data(Cbe::Request const &request,
+		                    Cbe::Block_data    &data,
+		                    bool               &processable);
 
 		/**
 		 * Request access to the Block::Request data for reading data

@@ -367,10 +367,9 @@ class Cbe::Library
 		 *                  by the CBE
 		 * \param  data     reference to the data associated with the
 		 *                  Block::Request
-		 *
-		 * \return  true if the CBE could process the request
+		 * \param  processable  'true' on return if the CBE could process the request
 		 */
-		bool give_read_data(Cbe::Request const &request, Cbe::Block_data &data);
+		void give_read_data(Cbe::Request const &request, Cbe::Block_data &data, bool &processable);
 
 		/**
 		 * Request access to the Block::Request data for reading data

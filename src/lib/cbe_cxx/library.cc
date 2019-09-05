@@ -1444,12 +1444,12 @@ Genode::uint64_t Cbe::Library::give_data_index(Cbe::Request const &request)
 }
 
 
-bool Cbe::Library::give_read_data(Cbe::Request const &request, Cbe::Block_data &data)
+void Cbe::Library::give_read_data(Cbe::Request const &request, Cbe::Block_data &data, bool &processable)
 {
 	/*
 	 * For now there is only one request pending.
 	 */
-	if (!_frontend_req_prim.req.equal(request)) { return false; }
+	if (!_frontend_req_prim.req.equal(request)) { processable = false; return; }
 
 	Cbe::Primitive const prim = _frontend_req_prim.prim;
 
@@ -1463,7 +1463,7 @@ bool Cbe::Library::give_read_data(Cbe::Request const &request, Cbe::Block_data &
 		DBG("pool complete: ", prim);
 
 		_frontend_req_prim = Req_prim { };
-		return true;
+		processable = true; return;
 	case Cbe::Tag::VBD_TAG:
 		/*
 		 * We have reset _frontend_req_prim before because in case there is currently
@@ -1474,11 +1474,11 @@ bool Cbe::Library::give_read_data(Cbe::Request const &request, Cbe::Block_data &
 			_io.submit_primitive(Tag::CRYPTO_TAG_DECRYPT, prim, _io_data, data, true);
 			_vbd->drop_completed_primitive(prim);
 
-			return true;
+			processable = true; return;
 		}
 		[[fallthrough]];
 	default:
-		return false;
+		processable = false; return;
 	}
 }
 
@@ -1829,10 +1829,11 @@ Genode::uint64_t Cbe::Public_Library::give_data_index(Cbe::Request const &r)
 }
 
 
-bool Cbe::Public_Library::give_read_data(Cbe::Request const &r,
-                                         Cbe::Block_data    &d)
+void Cbe::Public_Library::give_read_data(Cbe::Request const &r,
+                                         Cbe::Block_data    &d,
+                                         bool               &p)
 {
-	return _cbe_library->give_read_data(r, d);
+	return _cbe_library->give_read_data(r, d, p);
 }
 
 
