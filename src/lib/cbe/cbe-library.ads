@@ -18,6 +18,8 @@ with CBE.Write_Back;
 with CBE.Sync_Superblock;
 with CBE.Free_Tree;
 with CBE.Block_IO;
+with CBE.Request;
+with CBE.Primitive;
 
 package CBE.Library
 with Spark_Mode
@@ -135,6 +137,26 @@ private
 
 	type Free_Tree_Retry_Count_Type is mod 2**32;
 
+	--
+	-- Defining the structure here is just an interims solution
+	-- and should be properly managed, especially handling more
+	-- than one request is "missing".
+	--
+	type Request_Primitive_Type is record
+		Req         : Request.Object_Type;
+		Prim        : Primitive.Object_Type;
+		Tag         : Tag_Type;
+		In_Progress : Boolean;
+	end record;
+
+	function Request_Primitive_Invalid
+	return Request_Primitive_Type
+	is (
+		Req         => Request.Invalid_Object,
+		Prim        => Primitive.Invalid_Object,
+		Tag         => Tag_Invalid,
+		In_Progress => False);
+
 	type Object_Type is record
 		Sync_Interval           : Timestamp_Type;
 		Last_Time               : Timestamp_Type;
@@ -171,6 +193,8 @@ private
 		Seal_Generation         : Boolean;
 		Secure_Superblock       : Boolean;
 		Superblock_Dirty        : Boolean;
+		Front_End_Req_Prim      : Request_Primitive_Type;
+		Back_End_Req_Prim       : Request_Primitive_Type;
 	end record;
 
 	function Super_Block_Snapshot_Slot (SB : Super_Block_Type)

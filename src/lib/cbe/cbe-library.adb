@@ -244,7 +244,7 @@ is
 --		-- If the timeout intervals were configured set initial timeout.
 --		--
 --		-- (It stands to reasons if we should initial or rather only set
---		--  them when a write request was submitted.)
+--		--  them when a write Request was submitted.)
 --		if _sync_interval   then _sync_timeout_request = { true, _sync_interval }; end if;
 --		if _secure_interval then _secure_timeout_request = { true, _secure_interval }; end if;
 
@@ -312,7 +312,9 @@ is
 
 			Seal_Generation         => False,
 			Secure_Superblock       => False,
-			Superblock_Dirty        => False);
+			Superblock_Dirty        => False,
+			Front_End_Req_Prim      => Request_Primitive_Invalid,
+			Back_End_Req_Prim       => Request_Primitive_Invalid);
 
 --
 -- Not translated as only for debugging
@@ -496,7 +498,7 @@ is
 --		--
 --		-- In the former case we will instruct the Write_Back module to
 --		-- write all changed nodes of the VBD back to the block device
---		-- and eventually will leadt to ACKing the block request.
+--		-- and eventually will leadt to ACKing the block Request.
 --		--
 --		-- In the later case we will attempt to free reserved blocks in
 --		-- the FT by discarding snapshots. Briefly speaking all snapshots
@@ -528,13 +530,13 @@ is
 --					-- Instructing the FT to retry the allocation will
 --					-- lead to clearing its internal 'query branches'
 --					-- state and executing the previously submitted
---					-- request again.
+--					-- Request again.
 --					--
 --					-- (This retry attempt is a shortcut as we do not have
 --					--  all information available at this point to call
 --					--  'submit_Request' again - so we must not call
 --					--  'drop_Completed_Primitive' as this will clear the
---					--  request.)
+--					--  Request.)
 --					--
 --					_Free_Tree->retry_Allocation ();
 --				end if;
@@ -586,7 +588,7 @@ is
 --				--
 --				-- FIXME Accessing the cache in this way could be dangerous because
 --				-- the cache is shared by the VBD as well as the FT. If we would
---				-- not suspend the VBD while doing the write-back, another request
+--				-- not suspend the VBD while doing the write-back, another Request
 --				-- could evict the entry belonging to the idx value and replace it.
 --				--
 --				-- (Since the prim contains the PBA we could check the validity of
@@ -609,16 +611,16 @@ is
 --		end loop;
 --
 --		-------------------------------
---		-- Put request into splitter --
+--		-- Put Request into splitter --
 --		-------------------------------
 --
 --		--
---		-- An arbitrary sized Block request will be cut into 4096 byte
+--		-- An arbitrary sized Block Request will be cut into 4096 byte
 --		-- sized primitves by the Splitter module.
 --		--
 --		loop
 --
---			Cbe::Request const &req := _Request_Pool.Peek_Pending_Request ();
+--			Request.Object_Type const &req := _Request_Pool.Peek_Pending_Request ();
 --			if not req.Valid () then
 --				exit;
 --			end if;
@@ -657,8 +659,8 @@ is
 --			current_Primitive := prim;
 --
 --			--
---			-- For every new request, we have to use theCurrly active
---			-- snapshot as a previous request may have changed the tree.
+--			-- For every new Request, we have to use theCurrly active
+--			-- snapshot as a previous Request may have changed the tree.
 --			--
 --			Cbe::Super_Block const &sb := Obj.Super_Blocks (Obj.Cur_SB);
 --			Snapshot_Type    const &Snap := sb.Snapshots (Obj.Cur_SB);
@@ -875,7 +877,7 @@ is
 --				--
 --				-- (As already briefly mentioned in the time handling section,
 --				--  it would be more reasonable to only set the timeouts when
---				--  we actually perform write request.)
+--				--  we actually perform write Request.)
 --				--
 --				_Last_Time := _Time.Timestamp ();
 --				_Time.Schedule_Sync_Timeout (_Sync_Interval);
@@ -911,7 +913,7 @@ is
 --			_Write_Back.Drop_Completed_Primitive (prim);
 --
 --			--
---			-- Since the write request is finally finished, all nodes stored
+--			-- Since the write Request is finally finished, all nodes stored
 --			-- at some place "save" (leafs on the block device, inner nodes within
 --			-- the cache, acknowledge the primitive.
 --			--
@@ -991,7 +993,7 @@ is
 --			-- Check if the cache contains the needed entries. In case of the
 --			-- of the old node's block that is most likely. The new one, if
 --			-- there is one (that happens when the inner nodes are _Not_ updated
---			-- in place, might not be in the cache - check and request both.
+--			-- in place, might not be in the cache - check and Request both.
 --			--
 --
 --			bool cache_Miss := False;
@@ -1208,7 +1210,7 @@ is
 --		--
 --		-- (The Cache module has no 'peek_Completed_Primitive ()' method,
 --		--  all modules using the cache have to poll and might be try to
---		--  submit the same request multiple times (see its acceptable
+--		--  submit the same Request multiple times (see its acceptable
 --		--  method). It makes sense to change the Cache module so that it
 --		--  works the rest of modules. That would require restructing
 --		--  the modules, though.)
@@ -1339,35 +1341,35 @@ is
 --	end Request_Acceptable;
 --
 --
---	procedure Submit_Request (Cbe::Request const &request)
+--	procedure Submit_Request (Request.Object_Type const &Request)
 --	is begin
---		Number_Of_Primitives const num := _Splitter.Number_Of_Primitives (request);
---		_Request_Pool.Submit_Request (request, num);
+--		Number_Of_Primitives const num := _Splitter.Number_Of_Primitives (Request);
+--		_Request_Pool.Submit_Request (Request, num);
 --	end Submit_Request;
 --
 --
---	Cbe::Request Peek_Completed_Request () const
+--	Request.Object_Type Peek_Completed_Request () const
 --	is begin
 --		return _Request_Pool.Peek_Completed_Request ();
 --	end Peek_Completed_Request;
 --
 --
---	procedure Drop_Completed_Request (Cbe::Request const &req)
+--	procedure Drop_Completed_Request (Request.Object_Type const &req)
 --	is begin
 --		_Request_Pool.Drop_Completed_Request (req);
 --	end Drop_Completed_Request;
 --
 --
---	Cbe::Request Need_Data ()
+--	Request.Object_Type Need_Data ()
 --	is begin
---		if _Backend_Req_Prim.Prim.Valid () then return Cbe::Request { }; end if;
+--		if _Backend_Req_Prim.Prim.Valid () then return Request.Object_Type { }; end if;
 --
 --		-- I/O module--
 --		declare
 --			Cbe::Primitive prim := _Io.Peek_Generated_Primitive ();
 --		begin
 --			if prim.Valid () then
---				Cbe::Request req := Cbe::convert_From (prim);
+--				Request.Object_Type req := Cbe::convert_From (prim);
 --
 --				_Backend_Req_Prim := Req_Prim {
 --					.Req         := req,
@@ -1379,17 +1381,17 @@ is
 --			end if;
 --		end;
 --
---		return Cbe::Request { };
+--		return Request.Object_Type { };
 --	end Need_Data;
 --
 --
---	function Take_Read_Data (Cbe::Request const &request)
+--	function Take_Read_Data (Request.Object_Type const &Request)
 --	return Boolean
 --	is begin
 --		--
---		-- For now there is only one request pending.
+--		-- For now there is only one Request pending.
 --		--
---		if (!_Backend_Req_Prim.Req.Equal (request)
+--		if (!_Backend_Req_Prim.Req.Equal (Request)
 --		    || _Backend_Req_Prim.In_Progress) then return False; end if;
 --
 --		Cbe::Primitive prim := _Backend_Req_Prim.Prim;
@@ -1404,21 +1406,21 @@ is
 --	end Take_Read_Data;
 --
 --
---	function Ack_Read_Data (Cbe::Request    const &request,
+--	function Ack_Read_Data (Request.Object_Type    const &Request,
 --	                                 Cbe::Block_Data const &data)
 --	return Boolean
 --	is begin
 --		--
---		-- For now there is only one request pending.
+--		-- For now there is only one Request pending.
 --		--
---		if (!_Backend_Req_Prim.Req.Equal (request)
+--		if (!_Backend_Req_Prim.Req.Equal (Request)
 --		    || !_Backend_Req_Prim.In_Progress) then return False; end if;
 --
 --		Cbe::Primitive prim := _Backend_Req_Prim.Prim;
 --
 --		if _Backend_Req_Prim.Tag = Cbe::Tag::IO_TAG then
 --
---			bool const success := request.Success = Cbe::Request::Success::TRUE;
+--			bool const success := Request.Success = Request.Object_Type::Success::TRUE;
 --
 --			if success then
 --
@@ -1439,14 +1441,14 @@ is
 --	end Ack_Read_Data;
 --
 --
---	function Take_Write_Data (Cbe::Request    const &request,
+--	function Take_Write_Data (Request.Object_Type    const &Request,
 --	                                   Cbe::Block_Data       &data)
 --	return Boolean
 --	is begin
 --		--
---		-- For now there is only one request pending.
+--		-- For now there is only one Request pending.
 --		--
---		if (!_Backend_Req_Prim.Req.Equal (request)
+--		if (!_Backend_Req_Prim.Req.Equal (Request)
 --		    || _Backend_Req_Prim.In_Progress) then return False; end if;
 --
 --		Cbe::Primitive const prim := _Backend_Req_Prim.Prim;
@@ -1467,20 +1469,20 @@ is
 --	end Take_Write_Data;
 --
 --
---	function Ack_Write_Data (Cbe::Request const &request)
+--	function Ack_Write_Data (Request.Object_Type const &Request)
 --	return Boolean
 --	is begin
 --		--
---		-- For now there is only one request pending.
+--		-- For now there is only one Request pending.
 --		--
---		if (!_Backend_Req_Prim.Req.Equal (request)
+--		if (!_Backend_Req_Prim.Req.Equal (Request)
 --		    || !_Backend_Req_Prim.In_Progress) then return False; end if;
 --
 --		Cbe::Primitive prim := _Backend_Req_Prim.Prim;
 --
 --		if _Backend_Req_Prim.Tag = Cbe::Tag::IO_TAG then
 --
---			bool const success := request.Success = Cbe::Request::Success::TRUE;
+--			bool const success := Request.Success = Request.Object_Type::Success::TRUE;
 --
 --			prim.Success := success ? Cbe::Primitive::Success::TRUE
 --			                       : Cbe::Primitive::Success::FALSE;
@@ -1494,20 +1496,20 @@ is
 --	end Ack_Write_Data;
 --
 --
---	Cbe::Request Have_Data ()
+--	Request.Object_Type Have_Data ()
 --	is begin
 --		-- FIXME move req_Prim allocation into execute
---		if _Frontend_Req_Prim.Prim.Valid () then return Cbe::Request { }; end if;
+--		if _Frontend_Req_Prim.Prim.Valid () then return Request.Object_Type { }; end if;
 --
 --		--
---		-- When it was a read request, we need the location to
+--		-- When it was a read Request, we need the location to
 --		-- where the Crypto should copy the decrypted data.
 --		--
 --		declare
 --			Cbe::Primitive prim := _Crypto.Cxx_Peek_Completed_Primitive ();
 --		begin
 --			if prim.Valid () && prim.Read () then
---				Cbe::Request const req := _Request_Pool.Request_For_Tag (prim.Tag);
+--				Request.Object_Type const req := _Request_Pool.Request_For_Tag (prim.Tag);
 --				_Frontend_Req_Prim := Req_Prim {
 --					.Req  := req,
 --					.Prim := prim,
@@ -1519,8 +1521,8 @@ is
 --		end;
 --
 --		--
---		-- When it was a read request, we need access to the data the Crypto
---		-- module should decrypt and if it was a write request we need the location
+--		-- When it was a read Request, we need access to the data the Crypto
+--		-- module should decrypt and if it was a write Request we need the location
 --		-- from where to read the new leaf data.
 --		--
 --		declare
@@ -1528,7 +1530,7 @@ is
 --		begin
 --			if prim.Valid () then
 --
---				Cbe::Request const req := _Request_Pool.Request_For_Tag (prim.Tag);
+--				Request.Object_Type const req := _Request_Pool.Request_For_Tag (prim.Tag);
 --				_Frontend_Req_Prim := Req_Prim {
 --					.Req  := req,
 --					.Prim := prim,
@@ -1547,7 +1549,7 @@ is
 --		begin
 --			if prim.Valid () && (prim.Success = Cbe::Primitive::Success::TRUE) then
 --
---				Cbe::Request const req := _Request_Pool.Request_For_Tag (prim.Tag);
+--				Request.Object_Type const req := _Request_Pool.Request_For_Tag (prim.Tag);
 --				_Frontend_Req_Prim := Req_Prim {
 --					.Req  := req,
 --					.Prim := prim,
@@ -1558,30 +1560,32 @@ is
 --			end if;
 --		end;
 --
---		return Cbe::Request { };
+--		return Request.Object_Type { };
 --	end Have_Data;
 --
 --
---	Genode::uint64_T Give_Data_Index (Cbe::Request const &request)
+--	Genode::uint64_T Give_Data_Index (Request.Object_Type const &Request)
 --	is begin
 --		--
---		-- For now there is only one request pending.
+--		-- For now there is only one Request pending.
 --		--
---		if not _Frontend_Req_Prim.Req.Equal (request) then
+--		if not _Frontend_Req_Prim.Req.Equal (Request) then
 --			return ~0ull;
 --		end if;
 --
 --		return _Frontend_Req_Prim.Prim.Index;
 --	end Give_Data_Index;
---
---
---	function Give_Read_Data (Cbe::Request const &request, Cbe::Block_Data &data)
+
+
+--	function Give_Read_Data (
+--		Obj : Object_Type;
+--		Request, Cbe::Block_Data &data)
 --	return Boolean
 --	is begin
 --		--
---		-- For now there is only one request pending.
+--		-- For now there is only one Request pending.
 --		--
---		if not _Frontend_Req_Prim.Req.Equal (request) then
+--		if not _Frontend_Req_Prim.Req.Equal (Request) then
 --			return False;
 --		end if;
 --
@@ -1615,16 +1619,16 @@ is
 --			return False;
 --		}
 --	end Give_Read_Data;
---
---
---	function Give_Write_Data (Cbe::Request    const &request,
+
+
+--	function Give_Write_Data (Request.Object_Type    const &Request,
 --	                                   Cbe::Block_Data const &data)
 --	return Boolean
 --	is begin
 --		--
---		-- For now there is only one request pending.
+--		-- For now there is only one Request pending.
 --		--
---		if not _Frontend_Req_Prim.Req.Equal (request) then
+--		if not _Frontend_Req_Prim.Req.Equal (Request) then
 --			return False;
 --		end if;
 --
@@ -1657,7 +1661,7 @@ is
 --			return True;
 --
 --		--
---		-- The VBD module translated a write request, writing the data
+--		-- The VBD module translated a write Request, writing the data
 --		-- now to disk involves multiple steps:
 --		--
 --		--  1. Gathering of all nodes in the branch and looking up the
@@ -1681,7 +1685,7 @@ is
 --
 --			--
 --			-- Then (ab-)use the Translation module and its still pending
---			-- request to get all old PBAs, whose generation we then check.
+--			-- Request to get all old PBAs, whose generation we then check.
 --			-- The order of the array items corresponds to the level within
 --			-- the tree.
 --			--
@@ -1807,7 +1811,7 @@ is
 --				-- call the Write_Back module directly.
 --				--
 --				-- (We would have to check if the module can acutally accept
---				--  the request...)
+--				--  the Request...)
 --				--
 --				-- DBG("UPDATE ALL IN PACE");
 --				_Write_Back.Submit_Primitive (prim, _Cur_Gen, VBA,
@@ -1821,7 +1825,7 @@ is
 --			--
 --			-- Inhibit translation which effectively will suspend the
 --			-- Translation modules operation and will stall all other
---			-- pending requests to make sure all following request will
+--			-- pending requests to make sure all following Request will
 --			-- use the newest tree.
 --			--
 --			-- (It stands to reasons whether we can remove this check
