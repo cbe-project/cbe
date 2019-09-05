@@ -144,6 +144,17 @@ is
 		Req :    out Request.Object_Type);
 
 	--
+	-- Take read request for backend block session
+	--
+	-- \param Request   reference to the request from the CBE
+	-- \param Progress  return true if the CBE could process the request
+	--
+	procedure Take_Read_Data (
+		Obj      : in out Object_Type;
+		Req      :        Request.Object_Type;
+		Progress :    out Boolean);
+
+	--
 	-- Request access to the Block::Request data for reading data
 	--
 	-- \param  Request  reference to the Block::Request processed

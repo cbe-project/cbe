@@ -1397,27 +1397,34 @@ is
 	end Need_Data;
 
 
---	function Take_Read_Data (Request.Object_Type const &Request)
---	return Boolean
---	is begin
---		--
---		-- For now there is only one Request pending.
---		--
---		if (!_Backend_Req_Prim.Req.Equal (Request)
---		    || _Backend_Req_Prim.In_Progress) then return False; end if;
---
---		Cbe::Primitive prim := _Backend_Req_Prim.Prim;
---
---		if _Backend_Req_Prim.Tag = Cbe::Tag::IO_TAG then
---			_Io.Drop_Generated_Primitive (prim);
---
---			_Backend_Req_Prim.In_Progress := True;
---			return True;
---		end if;
---		return False;
---	end Take_Read_Data;
---
---
+	procedure Take_Read_Data (
+		Obj      : in out Object_Type;
+		Req      :        Request.Object_Type;
+		Progress :    out Boolean)
+	is
+	begin
+		Progress := false;
+
+		--
+		-- For now there is only one Request pending.
+		--
+		if not Request.Equal(Obj.Back_End_Req_Prim.Req, Req) or
+			Obj.Back_End_Req_Prim.In_Progress then
+			return;
+		end if;
+
+		if Obj.Back_End_Req_Prim.Tag = Tag_IO then
+
+			Block_IO.Drop_Generated_Primitive (
+				Obj.Io_Obj,
+				Obj.Back_End_Req_Prim.Prim);
+
+			Obj.Back_End_Req_Prim.In_Progress := True;
+			Progress := True;
+		end if;
+	end Take_Read_Data;
+
+
 --	function Ack_Read_Data (Request.Object_Type    const &Request,
 --	                                 Cbe::Block_Data const &data)
 --	return Boolean
