@@ -126,7 +126,7 @@ is
 		Obj             : in out Object_Type;
 		Curr_Gen        :        Generation_Type;
 		Nr_of_Blks      :        Number_Of_Blocks_Type;
-		New_PBAs        :        WB_Data_New_PBAs_Type;
+		New_PBAs        :        Write_Back.New_PBAs_Type;
 		Old_PBAs        :        Type_1_Node_Infos_Type;
 		Tree_Height     :        Tree_Level_Type;
 		Fr_PBAs         :        Free_PBAs_Type;

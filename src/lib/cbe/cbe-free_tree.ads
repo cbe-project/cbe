@@ -12,6 +12,7 @@ with CBE.Primitive;
 with CBE.Cache;
 with CBE.Tree_Helper;
 with CBE.Translation;
+with CBE.Write_Back;
 
 --
 -- The Free_tree meta-module handles the allocation and freeing, i.e.,
@@ -44,14 +45,13 @@ is
 	type Query_Branches_Index_Type is range 0 .. Max_query_branches - 1;
 	type WB_IO_Entries_Index_Type is range 0 .. Max_levels*Max_query_branches - 1;
 	type WB_IO_Entries_Type is array (WB_IO_Entries_Index_Type) of IO_Entry_Type;
-	type WB_Data_New_PBAs_Type is array (Tree_Level_Index_Type) of Physical_Block_Address_Type;
 
 	type Write_Back_Data_Type is record
 		Prim        : Primitive.Object_Type;
 		Gen         : Generation_Type;
 		VBA         : Virtual_Block_Address_Type;
 		Tree_Height : Tree_Level_Type;
-		New_PBAs    : WB_Data_New_PBAs_Type;
+		New_PBAs    : Write_Back.New_PBAs_Type;
 		Old_PBAs    : Type_1_Node_Infos_Type;
 		Finished    : Boolean;
 	end record;
@@ -110,7 +110,7 @@ is
 		Obj             : in out Object_Type;
 		Curr_Gen        :        Generation_Type;
 		Nr_of_Blks      :        Number_Of_Blocks_Type;
-		New_PBAs        :        WB_Data_New_PBAs_Type;
+		New_PBAs        :        Write_Back.New_PBAs_Type;
 		Old_PBAs        :        Type_1_Node_Infos_Type;
 		Tree_Height     :        Tree_Level_Type;
 		Fr_PBAs         :        Free_PBAs_Type;
