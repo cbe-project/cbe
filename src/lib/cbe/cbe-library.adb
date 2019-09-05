@@ -1332,32 +1332,36 @@ is
 --
 --		Obj.Execute_Progress := Progress;
 --	end Execute;
---
---
---	function Request_Acceptable () const
---	return Boolean
---	is begin
---		return _Request_Pool.Request_Acceptable ();
---	end Request_Acceptable;
---
---
---	procedure Submit_Request (Request.Object_Type const &Request)
---	is begin
---		Number_Of_Primitives const num := _Splitter.Number_Of_Primitives (Request);
---		_Request_Pool.Submit_Request (Request, num);
---	end Submit_Request;
---
---
---	Request.Object_Type Peek_Completed_Request () const
---	is begin
---		return _Request_Pool.Peek_Completed_Request ();
---	end Peek_Completed_Request;
---
---
---	procedure Drop_Completed_Request (Request.Object_Type const &req)
---	is begin
---		_Request_Pool.Drop_Completed_Request (req);
---	end Drop_Completed_Request;
+
+
+	function Request_Acceptable (Obj : Object_Type)
+	return Boolean
+	is (Pool.Request_Acceptable(Obj.Request_Pool_Obj));
+
+
+	procedure Submit_Request (
+		Obj : in out Object_Type;
+		Req :        Request.Object_Type)
+	is
+	begin
+		Pool.Submit_Request (
+			Obj.Request_Pool_Obj,
+			Req,
+			Splitter.Number_Of_Primitives (Req) );
+	end Submit_Request;
+
+
+	function Peek_Completed_Request (Obj : Object_Type)
+	return Request.Object_Type
+	is (Pool.Peek_Completed_Request (Obj.Request_Pool_Obj));
+
+
+	procedure Drop_Completed_Request (
+		Obj : in out Object_Type;
+		Req :        Request.Object_Type)
+	is begin
+		Pool.Drop_Completed_Request (Obj.Request_Pool_Obj, Req);
+	end Drop_Completed_Request;
 
 
 	procedure Need_Data (

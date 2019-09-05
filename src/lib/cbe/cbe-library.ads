@@ -134,6 +134,45 @@ is
 	procedure Ack_Secure_Timeout_Request (Obj : in out Object_Type);
 
 	--
+	-- Check if the CBE can accept a new requeust
+	--
+	-- \return true if a request can be accepted, otherwise false
+	--
+	function Request_Acceptable (Obj : Object_Type)
+	return Boolean;
+
+	--
+	-- Submit a new request
+	--
+	-- This method must only be called after executing 'Request_Acceptable'
+	-- returned true.
+	--
+	-- \param request  block request
+	--
+	procedure Submit_Request (
+		Obj : in out Object_Type;
+		Req :        Request.Object_Type);
+
+	--
+	-- Check for any completed request
+	--
+	-- \return a valid block request will be returned if there is an
+	--         completed request, otherwise an invalid one
+	--
+	function Peek_Completed_Request (Obj : Object_Type)
+	return Request.Object_Type;
+
+	--
+	-- Drops the completed request
+	--
+	-- This method must only be called after executing
+	-- 'Peek_Completed_Request' returned a valid request.
+	--
+	procedure Drop_Completed_Request (
+		Obj : in out Object_Type;
+		Req :        Request.Object_Type);
+
+	--
 	-- Return a request for the backend block session
 	--
 	-- \param Req  return valid request in case the is one pending that
