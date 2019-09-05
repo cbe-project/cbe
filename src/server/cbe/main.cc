@@ -181,7 +181,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 * CBE handling
 				 */
 
-				progress |= _cbe->execute(_time.timestamp(), _show_progress, _show_if_progress);
+				_cbe->execute(_time.timestamp(), _show_progress, _show_if_progress);
+				progress |= _cbe->execute_progress();
 				_handle_cbe_timeout_requests();
 
 				using Payload = Block::Request_stream::Payload;

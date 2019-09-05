@@ -325,7 +325,7 @@ Cbe::Virtual_block_address Cbe::Library::max_vba() const
 }
 
 
-bool Cbe::Library::execute(Time::Timestamp now, bool show_progress, bool show_if_progress)
+void Cbe::Library::execute(Time::Timestamp now, bool show_progress, bool show_if_progress)
 {
 	bool progress = false;
 
@@ -1208,7 +1208,7 @@ bool Cbe::Library::execute(Time::Timestamp now, bool show_progress, bool show_if
 		progress |= true;
 	}
 
-	return progress;
+	_execute_progress = progress;
 }
 
 
@@ -1749,9 +1749,15 @@ Cbe::Virtual_block_address Cbe::Public_Library::max_vba() const
 }
 
 
-bool Cbe::Public_Library::execute(Time::Timestamp now, bool show_progress, bool show_if_progress)
+void Cbe::Public_Library::execute(Time::Timestamp now, bool show_progress, bool show_if_progress)
 {
-	return _cbe_library->execute(now, show_progress, show_if_progress);
+	_cbe_library->execute(now, show_progress, show_if_progress);
+}
+
+
+bool Cbe::Public_Library::execute_progress() const
+{
+	return _cbe_library->execute_progress();
 }
 
 

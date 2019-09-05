@@ -43,6 +43,7 @@ class Cbe::Library
 
 	private:
 
+		bool                 _execute_progress       { false };
 		Cbe::Time::Timestamp _sync_interval          { SYNC_INTERVAL };
 		Cbe::Time::Timestamp _last_time              { 0 };
 		Cbe::Time::Timestamp _secure_interval        { SECURE_INTERVAL };
@@ -227,7 +228,8 @@ class Cbe::Library
 		 *
 		 * \return  true if progress was made, false otherwise
 		 */
-		bool execute(Time::Timestamp now, bool show_progress, bool show_if_progress);
+		void execute(Time::Timestamp now, bool show_progress, bool show_if_progress);
+		bool execute_progress() const { return _execute_progress; };
 
 		/**
 		 * Check if the CBE can accept a new requeust
