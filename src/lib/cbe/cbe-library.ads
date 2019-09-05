@@ -133,6 +133,22 @@ is
 
 	procedure Ack_Secure_Timeout_Request (Obj : in out Object_Type);
 
+	--
+	-- Request access to the Block::Request data for reading data
+	--
+	-- \param  Request  reference to the Block::Request processed
+	--                  by the CBE
+	-- \param  Data     reference to the data associated with the
+	--                  Block::Request
+	--
+	-- \return  true if the CBE could process the request
+	--
+	function Give_Write_Data (
+		Obj  : in out Object_Type;
+		Req  :        Request.Object_Type;
+		Data :        Block_Data_Type)
+	return Boolean;
+
 private
 
 	type Free_Tree_Retry_Count_Type is mod 2**32;
