@@ -52,14 +52,7 @@ is
 	is (
 		Obj_1.Block_Number = Obj_2.Block_Number and
 		Obj_1.Index        = Obj_2.Index        and
-		--
-		-- FIXME We should check the Tag also, but introducing this check breaks
-		--       the test for some reason.
-		--       From the beginning, the SPARK world worked fine with checking
-		--       the Index instead of the Tag like in the C++ version. Probably
-		--       the C++ version is also wrong and we should check both Tag and Index.
-		--
-		-- Request."=" (Obj_1.Tag, Obj_2.Tag)      and
+		Request."=" (Obj_1.Tag, Obj_2.Tag)      and
 		Obj_1.Operation    = Obj_2.Operation);
 
 

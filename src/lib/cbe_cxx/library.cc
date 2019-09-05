@@ -1128,7 +1128,7 @@ void Cbe::Library::execute(Time::Timestamp now, bool show_progress, bool show_if
 
 	while (true) {
 
-		Cbe::Primitive prim = _io.peek_completed_primitive();
+		Cbe::Primitive const prim = _io.peek_completed_primitive();
 		if (!prim.valid()) { break; }
 
 		if (prim.success != Cbe::Primitive::Success::TRUE) {
@@ -1161,8 +1161,11 @@ void Cbe::Library::execute(Time::Timestamp now, bool show_progress, bool show_if
 				 * pool in the read case, we have to use the tag the pool
 				 * module uses.
 				 */
-				prim.tag = orig_tag;
-				_crypto.cxx_submit_primitive(prim, data, _crypto_data);
+				{
+					Primitive crypt_prim = prim;
+					crypt_prim.tag = orig_tag;
+					_crypto.cxx_submit_primitive(crypt_prim, data, _crypto_data);
+				}
 			}
 			break;
 
@@ -1187,17 +1190,23 @@ void Cbe::Library::execute(Time::Timestamp now, bool show_progress, bool show_if
 			break;
 
 		case Tag::FREE_TREE_TAG_WB:
-			prim.tag = Tag::WRITE_BACK_TAG;
-			_free_tree->mark_generated_primitive_complete(prim);
+			{
+				Primitive wb_prim = prim;
+				wb_prim.tag = Tag::WRITE_BACK_TAG;
+				_free_tree->mark_generated_primitive_complete(wb_prim);
+			}
 			break;
 
 		case Tag::FREE_TREE_TAG_IO:
-			prim.tag = Tag::IO_TAG;
-			// XXX we need a proper method for getting the right query
-			//     data index, for now rely on the knowledge that there
-			//     is only one item
-			Genode::memcpy(&_free_tree_query_data.item[0], &data, sizeof (Cbe::Block_data));
-			_free_tree->mark_generated_primitive_complete(prim);
+			{
+				Primitive ft_prim = prim;
+				ft_prim.tag = Tag::IO_TAG;
+				// XXX we need a proper method for getting the right query
+				//     data index, for now rely on the knowledge that there
+				//     is only one item
+				Genode::memcpy(&_free_tree_query_data.item[0], &data, sizeof (Cbe::Block_data));
+				_free_tree->mark_generated_primitive_complete(ft_prim);
+			}
 			break;
 
 		default: break;
