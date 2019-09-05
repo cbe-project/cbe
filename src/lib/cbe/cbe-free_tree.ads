@@ -36,10 +36,13 @@ is
 		Index       : Cache.Cache_Index_Type;
 	end record;
 
+	Max_levels         : constant := Tree_Level_Index_Type'Last + 1;
+	Max_query_branches : constant := 8;
+
 	type Object_Type is private;
 	type Free_PBAs_Type is array (Tree_Level_Index_Type) of Physical_Block_Address_Type;
-	type Query_Branches_Index_Type is range 0 .. 7;
-	type WB_IO_Entries_Index_Type is range 0 .. (Natural ((Tree_Level_Index_Type'Last + 1)) * Natural ((Query_Branches_Index_Type'Last + 1))) - 1;
+	type Query_Branches_Index_Type is range 0 .. Max_query_branches - 1;
+	type WB_IO_Entries_Index_Type is range 0 .. Max_levels*Max_query_branches - 1;
 	type WB_IO_Entries_Type is array (WB_IO_Entries_Index_Type) of IO_Entry_Type;
 	type WB_Data_New_PBAs_Type is array (Tree_Level_Index_Type) of Physical_Block_Address_Type;
 
@@ -247,7 +250,7 @@ private
 	--       used ones, hardcode that.
 	--
 	type Query_Branch_PBAs_Type is array (0 .. 63) of Physical_Block_Address_Type;
-	type Found_PBAs_Type is array (0 .. ((Tree_Level_Index_Type'Last + 1) * 2) - 1) of Physical_Block_Address_Type;
+	type Found_PBAs_Type is array (0 .. Max_levels*2 - 1) of Physical_Block_Address_Type;
 
 	type Query_Branch_Type is record
 		Trans_Infos       : Type_1_Node_Infos_Type;
