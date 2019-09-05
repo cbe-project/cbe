@@ -168,6 +168,29 @@ class Cbe::Library
 		bool             _superblock_dirty { false };
 
 
+		/*
+		 * Defining the structure here is just an interims solution
+		 * and should be properly managed, especially handling more
+		 * than one request is "missing".
+		 */
+		struct Req_prim
+		{
+			Cbe::Request   req;
+			Cbe::Primitive prim;
+			Cbe::Tag       tag;
+
+			bool in_progress;
+		};
+
+		Req_prim _frontend_req_prim { };
+
+		/*
+		 * Backend block I/O
+		 */
+
+		Req_prim _backend_req_prim { };
+
+
 		static bool _discard_snapshot(Cbe::Snapshot active[Cbe::NUM_SNAPSHOTS],
 		                              uint32_t      current);
 
@@ -265,26 +288,6 @@ class Cbe::Library
 		 */
 		void drop_completed_request(Cbe::Request const &req);
 
-		/*
-		 * Defining the structure here is just an interims solution
-		 * and should be properly managed, especially handling more
-		 * than one request is "missing".
-		 */
-		struct Req_prim
-		{
-			Cbe::Request   req;
-			Cbe::Primitive prim;
-			Cbe::Tag       tag;
-
-			bool in_progress;
-		};
-
-		/*
-		 * Backend block I/O
-		 */
-
-		Req_prim _backend_req_prim { };
-
 		/**
 		 * Return a request for the backend block session
 		 *
@@ -342,8 +345,6 @@ class Cbe::Library
 		/*
 		 * Frontend block I/O
 		 */
-
-		Req_prim _frontend_req_prim { };
 
 		/**
 		 * Return a request that provides data to the frontend block data
