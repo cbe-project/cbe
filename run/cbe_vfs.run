@@ -171,5 +171,4 @@ build_boot_image {
 
 
 append qemu_args " -nographic -m 1280 "
-
-run_genode_until {.*child "block_tester" exited with exit value 0.*\n} 240
+run_genode_until {.*child "test-libc_vfs_block" exited with exit value 1.*\n} 20
