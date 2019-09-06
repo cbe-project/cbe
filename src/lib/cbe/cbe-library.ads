@@ -285,6 +285,19 @@ is
 	return Primitive.Index_Type;
 
 	--
+	-- Request access to the Block::Request data for storing data
+	--
+	-- \param Req       reference to the request processed by the CBE
+	-- \param Data      data associated with the request
+	-- \param Progress  return 'True' if the CBE could process the request
+	--
+	procedure Give_Read_Data (
+		Obj      : in out Object_Type;
+		Req      :        Request.Object_Type;
+		Data     :    out Crypto.Plain_Data_Type;
+		Progress :    out Boolean);
+
+	--
 	-- Request access to the Block::Request data for reading data
 	--
 	-- \param Request  reference to the Block::Request processed

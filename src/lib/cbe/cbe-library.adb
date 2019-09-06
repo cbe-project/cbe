@@ -1446,6 +1446,15 @@ is
 		Obj.Back_End_Req_Prim.Tag /= Tag_IO);
 
 
+	--
+	-- For now there can be only one Request pending.
+	--
+	function Front_End_Busy_With_Other_Request (
+		Obj : Object_Type;
+		Req : Request.Object_Type)
+	return Boolean
+	is (not Request.Equal (Obj.Front_End_Req_Prim.Req, Req));
+
 	procedure Take_Read_Data (
 		Obj      : in out Object_Type;
 		Req      :        Request.Object_Type;
@@ -1642,10 +1651,7 @@ is
 	return Primitive.Index_Type
 	is
 	begin
-		--
-		-- For now there can be only one Request pending.
-		--
-		if not Request.Equal (Obj.Front_End_Req_Prim.Req, Req) then
+		if Front_End_Busy_With_Other_Request (Obj, Req) then
 			return Primitive.Invalid_Index;
 		end if;
 
@@ -1653,48 +1659,59 @@ is
 	end Give_Data_Index;
 
 
---	function Give_Read_Data (
---		Obj : Object_Type;
---		Request, Cbe::Block_Data &data)
---	return Boolean
---	is begin
---		--
---		-- For now there is only one Request pending.
---		--
---		if not _Frontend_Req_Prim.Req.Equal (Request) then
---			return False;
---		end if;
---
---		Cbe::Primitive const prim := _Frontend_Req_Prim.Prim;
---
---		switch (_Frontend_Req_Prim.Tag) {
---		case Cbe::Tag::CRYPTO_TAG:
---			_Crypto.Cxx_Copy_Completed_Data (prim, data);
---			_Crypto.Cxx_Drop_Completed_Primitive (prim);
---			_Request_Pool.Mark_Completed_Primitive (prim);
---			-- DBG("----------------------->Curr primitive: ", current_Primitive, " FINISHED");
---			current_Primitive := Cbe::Primitive { };
---			-- DBG("pool complete: ", prim);
---
---			_Frontend_Req_Prim := Req_Prim { };
---			return True;
---		case Cbe::Tag::VBD_TAG:
---			--
---			-- We have reset _Frontend_Req_Prim before because in case there isCurrly
---			-- I/O pending, we have to make sure 'have_Data' is called again.
---			--
---			_Frontend_Req_Prim := Req_Prim { };
---			if _Io.Primitive_Acceptable () then
---				_Io.Submit_Primitive (Tag::CRYPTO_TAG_DECRYPT, prim, _Io_Data, data, True);
---				_VBD->drop_Completed_Primitive (prim);
---
---				return True;
---			end if;
---			 ([fallthrough)];
---		default:
---			return False;
---		}
---	end Give_Read_Data;
+	procedure Give_Read_Data (
+		Obj      : in out Object_Type;
+		Req      :        Request.Object_Type;
+		Data     :    out Crypto.Plain_Data_Type;
+		Progress :    out Boolean)
+	is
+		Prim : constant Primitive.Object_Type := Obj.Front_End_Req_Prim.Prim;
+		Tag  : constant Tag_Type              := Obj.Front_End_Req_Prim.Tag;
+	begin
+		Progress := False;
+
+		if Front_End_Busy_With_Other_Request (Obj, Req) then
+			return;
+		end if;
+
+		if Tag = Tag_Crypto then
+
+			Crypto.Copy_Completed_Data (Obj.Crypto_Obj, Prim, Data);
+			Crypto.Drop_Completed_Primitive (Obj.Crypto_Obj, Prim);
+			Pool.Mark_Completed_Primitive (Obj.Request_Pool_Obj, Prim);
+
+			Obj.Front_End_Req_Prim := Request_Primitive_Invalid;
+			Progress := True;
+
+		elsif Tag = Tag_VBD then
+
+			--
+			-- We have to reset Front_End_Req_Prim before because in case there
+			-- is current I/O pending, we have to make sure 'Have_Data' is
+			-- called again.
+			--
+			Obj.Front_End_Req_Prim := Request_Primitive_Invalid;
+
+			if Block_IO.Primitive_Acceptable (Obj.Io_Obj) then
+
+				declare
+					-- cast Crypto.Plain_Data_Type to Block_Data_Type
+					Block_Data : Block_Data_Type with Address => Data'Address;
+				begin
+					Block_IO.Submit_Primitive (
+						Obj     => Obj.Io_Obj,
+						Tag     => Tag_Decrypt,
+						Prim    => Prim,
+						IO_Data => Obj.IO_Data,
+						Data    => Block_Data);
+				end;
+
+				Virtual_Block_Device.Drop_Completed_Primitive (Obj.VBD);
+
+				Progress := True;
+			end if;
+		end if;
+	end Give_Read_Data;
 
 
 	function Give_Write_Data (
