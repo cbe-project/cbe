@@ -241,12 +241,48 @@ is
 		Progess :    out Boolean);
 
 	--
+	-- Take write request for the backend block session
+	--
+	-- The CBE will transfer the payload to the given data.
+	--
+	-- \param Req       reference to the request processed by the CBE
+	-- \param Data      reference to the data associated with the request
+	-- \param Progress  return true if the CBE could process the request
+	--
+	procedure Take_Write_Data (
+		Obj      : in out Object_Type;
+		Req      :        Request.Object_Type;
+		Data     :    out Block_Data_Type;
+		Progress :    out Boolean);
+
+	--
+	-- Acknowledge write request to backend block session
+	--
+	-- \param Req       reference to the request processed by the CBE
+	-- \param Progress  return true if the CBE acknowledged the request
+	--
+	procedure Ack_Write_Data (
+		Obj      : in out Object_Type;
+		Req      :        Request.Object_Type;
+		Progress :    out Boolean);
+
+	--
+	-- Return a request that provides data to the frontend block data
+	--
+	-- \param Req  return valid request in case the is one pending that
+	--             needs data, otherwise an invalid one is returned
+	--
+	procedure Have_Data (
+		Obj : in out Object_Type;
+		Req :    out Request.Object_Type);
+
+	--
 	-- Request access to the Block::Request data for reading data
 	--
-	-- \param  Request  reference to the Block::Request processed
-	--                  by the CBE
-	-- \param  Data     reference to the data associated with the
-	--                  Block::Request
+	-- \param Request  reference to the Block::Request processed
+	--                 by the CBE
+	-- \param Data     reference to the data associated with the
+	--                 Block::Request
 	--
 	-- \return  true if the CBE could process the request
 	--

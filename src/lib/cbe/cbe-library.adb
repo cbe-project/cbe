@@ -1442,7 +1442,8 @@ is
 		Req : Request.Object_Type)
 	return Boolean
 	is (not Request.Equal(Obj.Back_End_Req_Prim.Req, Req) or
-		Obj.Back_End_Req_Prim.In_Progress);
+		Obj.Back_End_Req_Prim.In_Progress or
+		Obj.Back_End_Req_Prim.Tag /= Tag_IO);
 
 
 	procedure Take_Read_Data (
@@ -1457,16 +1458,29 @@ is
 			return;
 		end if;
 
-		if Obj.Back_End_Req_Prim.Tag = Tag_IO then
+		Block_IO.Drop_Generated_Primitive (
+			Obj.Io_Obj,
+			Obj.Back_End_Req_Prim.Prim);
 
-			Block_IO.Drop_Generated_Primitive (
-				Obj.Io_Obj,
-				Obj.Back_End_Req_Prim.Prim);
-
-			Obj.Back_End_Req_Prim.In_Progress := True;
-			Progress := True;
-		end if;
+		Obj.Back_End_Req_Prim.In_Progress := True;
+		Progress := True;
 	end Take_Read_Data;
+
+
+	--
+	-- Return copy of Primitive with specified Success state
+	--
+	function Primitive_With_Success (
+		Prim    : Primitive.Object_Type;
+		Success : Request.Success_Type)
+	return Primitive.Object_Type
+	is
+		(Primitive.Valid_Object (
+			Op     => Primitive.Operation    (Prim),
+			Succ   => Success,
+			Tg     => Primitive.Tag          (Prim),
+			Blk_Nr => Primitive.Block_Number (Prim),
+			Idx    => Primitive.Index        (Prim)));
 
 
 	procedure Ack_Read_Data (
@@ -1483,22 +1497,13 @@ is
 			return;
 		end if;
 
-		if Obj.Back_End_Req_Prim.Tag /= Tag_IO then
-			return;
-		end if;
-
 		if Request.Success(Req) then
 			Obj.Io_Data(Block_IO.Peek_Completed_Data_Index(Obj.Io_Obj)) := Data;
 		end if;
 
-		Block_IO.mark_Generated_Primitive_Complete (
+		Block_IO.Mark_Generated_Primitive_Complete (
 			Obj.Io_Obj,
-			Primitive.Valid_Object (
-				Op     => Primitive.Operation    (Prim),
-				Succ   => Request.Success (Req),
-				Tg     => Primitive.Tag          (Prim),
-				Blk_Nr => Primitive.Block_Number (Prim),
-				Idx    => Primitive.Index        (Prim))
+			Primitive_With_Success (Prim, Request.Success(Req))
 		);
 
 		Obj.Back_End_Req_Prim := Request_Primitive_Invalid;
@@ -1507,129 +1512,130 @@ is
 	end Ack_Read_Data;
 
 
---	function Take_Write_Data (Request.Object_Type    const &Request,
---	                                   Cbe::Block_Data       &data)
---	return Boolean
---	is begin
---		--
---		-- For now there is only one Request pending.
---		--
---		if (!_Backend_Req_Prim.Req.Equal (Request)
---		    || _Backend_Req_Prim.In_Progress) then return False; end if;
---
---		Cbe::Primitive const prim := _Backend_Req_Prim.Prim;
---
---		if _Backend_Req_Prim.Tag = Cbe::Tag::IO_TAG then
---
---			Genode::uint32_T const idx := _Io.Peek_Generated_Data_Index (prim);
---			Cbe::Block_Data   &io_Data := _Io_Data.Item (idx);
---			Genode::memcpy (&data, &io_Data, sizeof (Cbe::Block_Data));
---
---			_Io.Drop_Generated_Primitive (prim);
---
---			_Backend_Req_Prim.In_Progress := True;
---			return True;
---		end if;
---
---		return False;
---	end Take_Write_Data;
---
---
---	function Ack_Write_Data (Request.Object_Type const &Request)
---	return Boolean
---	is begin
---		--
---		-- For now there is only one Request pending.
---		--
---		if (!_Backend_Req_Prim.Req.Equal (Request)
---		    || !_Backend_Req_Prim.In_Progress) then return False; end if;
---
---		Cbe::Primitive prim := _Backend_Req_Prim.Prim;
---
---		if _Backend_Req_Prim.Tag = Cbe::Tag::IO_TAG then
---
---			bool const success := Request.Success = Request.Object_Type::Success::TRUE;
---
---			prim.Success := success ? Cbe::Primitive::Success::TRUE
---			                       : Cbe::Primitive::Success::FALSE;
---			_Io.Mark_Generated_Primitive_Complete (prim);
---
---			_Backend_Req_Prim := Req_Prim { };
---			return True;
---		end if;
---
---		return False;
---	end Ack_Write_Data;
---
---
---	Request.Object_Type Have_Data ()
---	is begin
---		-- FIXME move req_Prim allocation into execute
---		if _Frontend_Req_Prim.Prim.Valid () then return Request.Object_Type { }; end if;
---
---		--
---		-- When it was a read Request, we need the location to
---		-- where the Crypto should copy the decrypted data.
---		--
---		declare
---			Cbe::Primitive prim := _Crypto.Cxx_Peek_Completed_Primitive ();
---		begin
---			if prim.Valid () && prim.Read () then
---				Request.Object_Type const req := _Request_Pool.Request_For_Tag (prim.Tag);
---				_Frontend_Req_Prim := Req_Prim {
---					.Req  := req,
---					.Prim := prim,
---					.Tag  := Cbe::Tag::CRYPTO_TAG,
---					.In_Progress := False,
---				};
---				return req;
---			end if;
---		end;
---
---		--
---		-- When it was a read Request, we need access to the data the Crypto
---		-- module should decrypt and if it was a write Request we need the location
---		-- from where to read the new leaf data.
---		--
---		declare
---			Cbe::Primitive prim := _VBD->peek_Completed_Primitive ();
---		begin
---			if prim.Valid () then
---
---				Request.Object_Type const req := _Request_Pool.Request_For_Tag (prim.Tag);
---				_Frontend_Req_Prim := Req_Prim {
---					.Req  := req,
---					.Prim := prim,
---					.Tag  := Cbe::Tag::VBD_TAG,
---					.In_Progress := False,
---				};
---				return req;
---			end if;
---		end;
---
---		--
---		-- The free-tree needs the data to give to the Write_Back module.
---		--
---		declare
---			Cbe::Primitive prim := _Free_Tree->peek_Completed_Primitive ();
---		begin
---			if prim.Valid () && (prim.Success = Cbe::Primitive::Success::TRUE) then
---
---				Request.Object_Type const req := _Request_Pool.Request_For_Tag (prim.Tag);
---				_Frontend_Req_Prim := Req_Prim {
---					.Req  := req,
---					.Prim := prim,
---					.Tag  := Cbe::Tag::FREE_TREE_TAG,
---					.In_Progress := False,
---				};
---				return req;
---			end if;
---		end;
---
---		return Request.Object_Type { };
---	end Have_Data;
---
---
+	procedure Take_Write_Data (
+		Obj      : in out Object_Type;
+		Req      :        Request.Object_Type;
+		Data     :    out Block_Data_Type;
+		Progress :    out Boolean)
+	is
+		Prim : constant Primitive.Object_Type := Obj.Back_End_Req_Prim.Prim;
+	begin
+		Progress := False;
+
+		if Back_End_Busy_With_Other_Request (Obj, Req) then
+			return;
+		end if;
+
+		Data := Obj.Io_Data(Block_IO.Peek_Generated_Data_Index(Obj.Io_Obj, Prim));
+
+		Block_IO.Drop_Generated_Primitive(Obj.Io_Obj, Prim);
+
+		Progress := True;
+	end Take_Write_Data;
+
+
+	procedure Ack_Write_Data (
+		Obj      : in out Object_Type;
+		Req      :        Request.Object_Type;
+		Progress :    out Boolean)
+	is
+		Prim : constant Primitive.Object_Type := Obj.Back_End_Req_Prim.Prim;
+	begin
+		Progress := False;
+
+		if Back_End_Busy_With_Other_Request (Obj, Req) then
+			return;
+		end if;
+
+		Block_IO.Mark_Generated_Primitive_Complete (
+			Obj.Io_Obj,
+			Primitive_With_Success (Prim, Request.Success(Req))
+		);
+
+		Obj.Back_End_Req_Prim := Request_Primitive_Invalid;
+
+		Progress := True;
+	end Ack_Write_Data;
+
+
+	-- FIXME move Front_End_Req_Prim allocation into execute,
+	--       turn procedure into function
+	procedure Have_Data (
+		Obj : in out Object_Type;
+		Req :    out Request.Object_Type)
+	is
+
+		procedure Assign_Front_End_Req_Prim (
+			Prim : Primitive.Object_Type;
+			Tag  : Tag_Type)
+		is
+		begin
+			Obj.Front_End_Req_Prim := (
+				Req         => Pool.Request_For_Tag (Obj.Request_Pool_Obj,
+				                                     Primitive.Tag(Prim)),
+				Prim        => Prim,
+				Tag         => Tag,
+				In_Progress => False
+			);
+		end Assign_Front_End_Req_Prim;
+
+	begin
+		Req := Request.Invalid_Object;
+
+		if Primitive.Valid(Obj.Front_End_Req_Prim.Prim) then
+			return;
+		end if;
+
+		--
+		-- When it was a read Request, we need the location to
+		-- where the Crypto should copy the decrypted data.
+		--
+		declare
+			Prim : constant Primitive.Object_Type :=
+				Crypto.Peek_Completed_Primitive (Obj.Crypto_Obj);
+		begin
+			if
+				Primitive.Valid (Prim) and
+				Request."=" (Primitive.Operation (Prim), Request.Read)
+			then
+				Assign_Front_End_Req_Prim (Prim, Tag_Crypto);
+				Req := Obj.Front_End_Req_Prim.Req;
+				return;
+			end if;
+		end;
+
+		--
+		-- When it was a read Request, we need access to the data the Crypto
+		-- module should decrypt and if it was a write Request we need the location
+		-- from where to read the new leaf data.
+		--
+		declare
+			Prim : constant Primitive.Object_Type :=
+				Virtual_Block_Device.Peek_Completed_Primitive (Obj.VBD);
+		begin
+			if Primitive.Valid (Prim) then
+				Assign_Front_End_Req_Prim (Prim, Tag_VBD);
+				Req := Obj.Front_End_Req_Prim.Req;
+				return;
+			end if;
+		end;
+
+		--
+		-- The free-tree needs the data to give to the Write_Back module.
+		--
+		declare
+			Prim : constant Primitive.Object_Type :=
+				Free_Tree.Peek_Completed_Primitive (Obj.Free_Tree_Obj);
+		begin
+			if Primitive.Valid (Prim) and Primitive.Success (Prim) then
+				Assign_Front_End_Req_Prim (Prim, Tag_Free_Tree);
+				Req := Obj.Front_End_Req_Prim.Req;
+				return;
+			end if;
+		end;
+	end Have_Data;
+
+
 --	Genode::uint64_T Give_Data_Index (Request.Object_Type const &Request)
 --	is begin
 --		--

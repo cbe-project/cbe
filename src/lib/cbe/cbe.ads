@@ -206,6 +206,7 @@ is
 	function Tag_Translation return Tag_Type is (16#60#);
 	function Tag_Write_Back  return Tag_Type is (16#70#);
 	function Tag_Cache       return Tag_Type is (16#20#);
+	function Tag_Crypto      return Tag_Type is (16#30#);
 	function Tag_Encrypt     return Tag_Type is (16#32#);
 	function Tag_VBD         return Tag_Type is (16#100#);
 	function Tag_Free_Tree   return Tag_Type is (16#200#);
