@@ -1636,17 +1636,21 @@ is
 	end Have_Data;
 
 
---	Genode::uint64_T Give_Data_Index (Request.Object_Type const &Request)
---	is begin
---		--
---		-- For now there is only one Request pending.
---		--
---		if not _Frontend_Req_Prim.Req.Equal (Request) then
---			return ~0ull;
---		end if;
---
---		return _Frontend_Req_Prim.Prim.Index;
---	end Give_Data_Index;
+	function Give_Data_Index (
+		Obj : Object_Type;
+		Req : Request.Object_Type)
+	return Primitive.Index_Type
+	is
+	begin
+		--
+		-- For now there can be only one Request pending.
+		--
+		if not Request.Equal (Obj.Front_End_Req_Prim.Req, Req) then
+			return Primitive.Invalid_Index;
+		end if;
+
+		return Primitive.Index(Obj.Front_End_Req_Prim.Prim);
+	end Give_Data_Index;
 
 
 --	function Give_Read_Data (

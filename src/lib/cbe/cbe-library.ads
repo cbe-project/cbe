@@ -277,6 +277,14 @@ is
 		Req :    out Request.Object_Type);
 
 	--
+	-- Get primitive index
+	--
+	function Give_Data_Index (
+		Obj : Object_Type;
+		Req : Request.Object_Type)
+	return Primitive.Index_Type;
+
+	--
 	-- Request access to the Block::Request data for reading data
 	--
 	-- \param Request  reference to the Block::Request processed

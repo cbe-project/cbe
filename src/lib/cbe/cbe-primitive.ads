@@ -21,6 +21,8 @@ is
 	type Index_Type  is mod 2**64;
 	type Object_Type is private;
 
+	function Invalid_Index return Index_Type is (Index_Type'Last);
+
 	--
 	-- Invalid_Object
 	--
