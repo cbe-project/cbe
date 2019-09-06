@@ -1676,7 +1676,7 @@ is
 
 		if Tag = Tag_Crypto then
 
-			Crypto.Copy_Completed_Data (Obj.Crypto_Obj, Prim, Data);
+			Crypto.Copy_Decrypted_Data (Obj.Crypto_Obj, Prim, Data);
 			Crypto.Drop_Completed_Primitive (Obj.Crypto_Obj, Prim);
 			Pool.Mark_Completed_Primitive (Obj.Request_Pool_Obj, Prim);
 

@@ -127,16 +127,28 @@ is
 	end Mark_Completed_Primitive;
 
 	--
-	-- Copy_Completed_Data
+	-- Copy_Decrypted_Data
 	--
-	procedure Copy_Completed_Data(
-		Obj        : in out Crypto.Object_Type;
-		Prim       :        CXX_Primitive.Object_Type;
-		Plain_Data : in out Crypto.Plain_Data_Type)
+	procedure Copy_Decrypted_Data (
+		Obj        :     Crypto.Object_Type;
+		Prim       :     CXX_Primitive.Object_Type;
+		Plain_Data : out Crypto.Plain_Data_Type)
 	is
 	begin
-		Crypto.Copy_Completed_Data(Obj, CXX_Primitive.To_Spark(Prim), Plain_Data);
-	end Copy_Completed_Data;
+		Crypto.Copy_Decrypted_Data (Obj, CXX_Primitive.To_Spark(Prim), Plain_Data);
+	end Copy_Decrypted_Data;
+
+	--
+	-- Copy_Encrypted_Data
+	--
+	procedure Copy_Encrypted_Data (
+		Obj         :     Crypto.Object_Type;
+		Prim        :     CXX_Primitive.Object_Type;
+		Cipher_Data : out Crypto.Cipher_Data_Type)
+	is
+	begin
+		Crypto.Copy_Encrypted_Data (Obj, CXX_Primitive.To_Spark(Prim), Cipher_Data);
+	end Copy_Encrypted_Data;
 
 
 	---------------

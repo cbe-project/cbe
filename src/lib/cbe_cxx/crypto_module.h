@@ -175,16 +175,23 @@ struct Cbe::Module::Crypto : Cbe::Spark_object<8264>
 	/**
 	 * Copy the internal data buffer of the completed primitive
 	 *
-	 * \param p     reference to Primitive that is used to lookup
-	 *              the corresponding internal primitive
-	 * \param data  reference to destination buffer the internal data
-	 *              should be copied to
+	 * \param p      reference to Primitive that is used to lookup
+	 *               the corresponding internal primitive
+	 * \param data   reference to destination buffer the internal data
+	 *               should be copied to
 	 */
-	void copy_completed_data(Primitive const &p, Cbe::Block_data &data);
-	void cxx_copy_completed_data(Primitive const &p, Cbe::Block_data &data)
+	void copy_decrypted_data(Primitive const &p, Cbe::Block_data &data);
+	void cxx_copy_decrypted_data(Primitive const &p, Cbe::Block_data &data)
 	{
 		MOD_DBG(p);
-		copy_completed_data(p, data);
+		copy_decrypted_data(p, data);
+	}
+
+	void copy_encrypted_data(Primitive const &p, Cbe::Block_data &data);
+	void cxx_copy_encrypted_data(Primitive const &p, Cbe::Block_data &data)
+	{
+		MOD_DBG(p);
+		copy_encrypted_data(p, data);
 	}
 };
 

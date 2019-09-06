@@ -77,32 +77,61 @@ is
 
 		end Mark_Completed_Primitive;
 
+
 		--
-		-- Copy_Completed_Data
+		-- Return true if crypto item belongs to primitive and the result
+		-- is ready to be consumed.
 		--
-		procedure Copy_Completed_Data(
-			Obj        : in     Item_Type;
-			Prm        :        Primitive.Object_Type;
-			Plain_Data : in out Crypto.Plain_Data_Type)
+		function Item_Complete (
+			Item : Item_Type;
+			Prim : Primitive.Object_Type)
+		return Boolean
+		is (Item.State = Complete and Primitive.Equal (Item.Prim, Prim));
+
+
+		--
+		-- Copy_Decrypted_Data
+		--
+		procedure Copy_Decrypted_Data (
+			Item       :     Item_Type;
+			Prim       :     Primitive.Object_Type;
+			Plain_Data : out Plain_Data_Type)
 		is
 			use Request;
 		begin
-			if
-				Obj.State /= Complete or
-				not Primitive.Equal(Obj.Prim, Prm)
-			then
+			if not Item_Complete (Item, Prim) then
 				return;
 			end if;
 
 			if
-				Primitive.Operation(Obj.Prim) = Request.Read and
-				Primitive.Success(Prm)
+				Primitive.Operation(Item.Prim) = Request.Read and
+				Primitive.Success(Prim)
 			then
-				-- XXX not sure if that works as expected
-				Plain_Data := Obj.Plain_Data;
+				Plain_Data := Item.Plain_Data;
+			end if;
+		end Copy_Decrypted_Data;
+
+		--
+		-- Copy_Encrypted_Data
+		--
+		procedure Copy_Encrypted_Data (
+			Item        :     Item_Type;
+			Prim        :     Primitive.Object_Type;
+			Cipher_Data : out Cipher_Data_Type)
+		is
+			use Request;
+		begin
+			if not Item_Complete (Item, Prim) then
+				return;
 			end if;
 
-		end Copy_Completed_Data;
+			if
+				Primitive.Operation(Item.Prim) = Request.Write and
+				Primitive.Success(Prim)
+			then
+				Cipher_Data := Item.Cipher_Data;
+			end if;
+		end Copy_Encrypted_Data;
 
 		--
 		-- Invalid_Object
@@ -299,19 +328,30 @@ is
 		end loop;
 	end Mark_Completed_Primitive;
 
-	--
-	-- Mark_Completed_Primitive
-	--
-	procedure Copy_Completed_Data(
-		Obj        : in out Crypto.Object_Type;
-		Prim       :        Primitive.Object_Type;
-		Plain_Data : in out Crypto.Plain_Data_Type)
+
+	procedure Copy_Decrypted_Data(
+		Obj        :     Crypto.Object_Type;
+		Prim       :     Primitive.Object_Type;
+		Plain_Data : out Crypto.Plain_Data_Type)
 	is
 	begin
 		for Item_Id in Obj.Items'Range loop
-			Item.Copy_Completed_Data(Obj.Items(Item_Id), Prim, Plain_Data);
+			Item.Copy_Decrypted_Data(Obj.Items(Item_Id), Prim, Plain_Data);
 		end loop;
-	end Copy_Completed_Data;
+	end Copy_Decrypted_Data;
+
+
+	procedure Copy_Encrypted_Data(
+		Obj         :     Crypto.Object_Type;
+		Prim        :     Primitive.Object_Type;
+		Cipher_Data : out Cipher_Data_Type)
+	is
+	begin
+		for Item_Id in Obj.Items'Range loop
+			Item.Copy_Encrypted_Data(Obj.Items(Item_Id), Prim, Cipher_Data);
+		end loop;
+	end Copy_Encrypted_Data;
+
 
 	---------------
 	-- Accessors --

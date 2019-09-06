@@ -100,12 +100,20 @@ is
 		Prim :        Primitive.Object_Type);
 
 	--
-	-- Copy_Completed_Data
+	-- Copy_Decrypted_Data
 	--
-	procedure Copy_Completed_Data(
-		Obj        : in out Crypto.Object_Type;
-		Prim       :        Primitive.Object_Type;
-		Plain_Data : in out Crypto.Plain_Data_Type);
+	procedure Copy_Decrypted_Data (
+		Obj        :     Object_Type;
+		Prim       :     Primitive.Object_Type;
+		Plain_Data : out Plain_Data_Type);
+
+	--
+	-- Copy_Encrypted_Data
+	--
+	procedure Copy_Encrypted_Data (
+		Obj         :     Object_Type;
+		Prim        :     Primitive.Object_Type;
+		Cipher_Data : out Cipher_Data_Type);
 
 	---------------
 	-- Accessors --
@@ -139,12 +147,20 @@ private
 			Key :        Key_Type);
 
 		--
-		-- Copy_Completed_Data
+		-- Copy_Decrypted_Data
 		--
-		procedure Copy_Completed_Data(
-			Obj        : in     Item_Type;
-			Prm        :        Primitive.Object_Type;
-			Plain_Data : in out Crypto.Plain_Data_Type);
+		procedure Copy_Decrypted_Data (
+			Item       :     Item_Type;
+			Prim       :     Primitive.Object_Type;
+			Plain_Data : out Crypto.Plain_Data_Type);
+
+		--
+		-- Copy_Encrypted_Data
+		--
+		procedure Copy_Encrypted_Data (
+			Item        :     Item_Type;
+			Prim        :     Primitive.Object_Type;
+			Cipher_Data : out Crypto.Cipher_Data_Type);
 
 		--
 		-- Invalid_Object

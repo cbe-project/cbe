@@ -1054,7 +1054,7 @@ void Cbe::Library::execute(Time::Timestamp now, bool show_progress, bool show_if
 		Cbe::Block_data &data = _write_back_data.item[idx.value];
 		// XXX instead of copying the data just ask the crypto module for the resulting
 		//     hash and omit further processing in case the operation failed
-		_crypto.cxx_copy_completed_data(prim, data);
+		_crypto.cxx_copy_encrypted_data(prim, data);
 		_write_back.mark_completed_crypto_primitive(prim, data);
 
 		_crypto.cxx_drop_completed_primitive(prim);
@@ -1164,7 +1164,7 @@ void Cbe::Library::execute(Time::Timestamp now, bool show_progress, bool show_if
 				{
 					Primitive crypt_prim = prim;
 					crypt_prim.tag = orig_tag;
-					_crypto.cxx_submit_primitive(crypt_prim, data, _crypto_data);
+					_crypto.cxx_submit_primitive(crypt_prim, _crypto_data, data);
 				}
 			}
 			break;
@@ -1464,7 +1464,7 @@ void Cbe::Library::give_read_data(Cbe::Request const &request, Cbe::Block_data &
 
 	switch (_frontend_req_prim.tag) {
 	case Cbe::Tag::CRYPTO_TAG:
-		_crypto.cxx_copy_completed_data(prim, data);
+		_crypto.cxx_copy_decrypted_data(prim, data);
 		_crypto.cxx_drop_completed_primitive(prim);
 		_request_pool.mark_completed_primitive(prim);
 		DBG("-----------------------> current primitive: ", current_primitive, " FINISHED");
