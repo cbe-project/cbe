@@ -24,6 +24,8 @@ namespace Vfs_cbe {
 	class  File_system;
 }
 
+extern "C" void print_u8(unsigned char const u) { Genode::log(u); }
+
 class Vfs_cbe::Block_file_system : public Single_file_system
 {
 	private:
@@ -32,17 +34,16 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 		Vfs::Env          &_env;
 		Single_vfs_handle *_backend { nullptr };
 
-		Cbe::Time                          _time { _env.env() }; //XXX: not supported
 		Constructible<Cbe::Public_Library> _cbe;
 
 		Cbe::Super_block_index _cur_sb { Cbe::Super_block_index::INVALID };
 		Cbe::Super_block       _super_block[Cbe::NUM_SUPER_BLOCKS] { };
 
 		/* configuration options */
-		bool           _show_progress { false };
-		Cbe::Timestamp _sync_interval { 1000 * 5};
-		Cbe::Timestamp _secure_interval { 1000 * 30 };
-		Config         _block_device { "/dev/block" };
+		bool                 _show_progress { false };
+		Cbe::Time::Timestamp _sync_interval { 1000 * 5};
+		Cbe::Time::Timestamp _secure_interval { 1000 * 30 };
+		Config               _block_device { "/dev/block" };
 
 		static Config _config()
 		{
@@ -87,7 +88,6 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 					last_gen = sb[i].last_secured_generation;
 				}
 			}
-			log("most_recent: ", most_recent_sb);
 			return most_recent_sb;
 		}
 
@@ -152,10 +152,7 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 					return;
 				}
 
-				char ch[2];
-				ch[0] = buf[0];
-				ch[1] = 0;
-				log("back read data: ", (char const*)ch);
+				log("back read data: ", Hex(buf[0]));
 
 				log("backend read: ", out);
 
@@ -183,10 +180,7 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 				_backend->seek(request.block_number * Cbe::BLOCK_SIZE);
 
 				try {
-					char ch[2];
-					ch[0] = buf[0];
-					ch[1] = 0;
-					log("back write data: ", (char const*)ch);
+					log("back write data: ", Hex(buf[0]));
 					_backend->write(buf, count, out);
 				} catch (Insufficient_buffer) {
 					_alloc.free(buf, count);
@@ -229,7 +223,8 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 						progress = true;
 					}
 
-					progress |= _cbe.execute(_show_progress, _show_if_progress);
+					_cbe.execute(0, _show_progress, _show_if_progress);
+					progress |= _cbe.execute_progress();
 
 					Cbe::Request cbe_request = _cbe.have_data();
 					if (cbe_request.valid()) {
@@ -244,18 +239,19 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 						Cbe::Block_data &data = *reinterpret_cast<Cbe::Block_data*>(cbe_request.offset + (prim_index * Cbe::BLOCK_SIZE));
 
 						if (cbe_request.read()) {
-							_cbe.give_read_data(cbe_request, data);
+							bool processable;
+							_cbe.give_read_data(cbe_request, data, processable);
 						} else
 
 						if (cbe_request.write()) {
-							_cbe.give_write_data(cbe_request, data);
+							_cbe.give_write_data(0, cbe_request, data);
 						}
 						char *DATA = (char *)(cbe_request.offset + (prim_index * Cbe::BLOCK_SIZE));
 						uint64_t b = cbe_request.block_number;
 						uint32_t c = cbe_request.count;
 						log("data: ", cbe_request.read() ? "read" :  "write", ": block: ", b,  " count: ", c, " idx: ", prim_index);
 						DATA[1] = 0;
-						log("DATA[0]: ", (char const *)DATA);
+						log("DATA[0]: ", Hex(DATA[0]));
 						progress = true;
 					}
 
@@ -296,6 +292,8 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 				}
 
 				_state = NONE;
+
+				out_count = count;
 				return READ_OK;
 			}
 
@@ -319,6 +317,7 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 
 				_state = NONE;
 
+				out_count = count;
 				return WRITE_OK;
 			}
 
@@ -361,7 +360,7 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 					return OPEN_ERR_UNACCESSIBLE;
 				}
 
-				_cbe.construct(_time, _sync_interval, _secure_interval, _super_block,
+				_cbe.construct(0, _sync_interval, _secure_interval, _super_block,
 				               _cur_sb);
 			}
 			log("open: ", path);
@@ -385,8 +384,6 @@ struct Vfs_cbe::Local_factory : File_system_factory
 
 	Vfs::File_system *create(Vfs::Env&, Xml_node node) override
 	{
-		Genode::log(__func__, node);
-
 		if (node.has_type(Block_file_system::type_name()))
 			return &_block_fs;
 
