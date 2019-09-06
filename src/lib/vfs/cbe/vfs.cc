@@ -1,9 +1,17 @@
+/*
+ * Copyright (C) 2019 Genode Labs GmbH, Componolit GmbH, secunet AG
+ *
+ * This file is part of the Consistent Block Encrypter project, which is
+ * distributed under the terms of the GNU Affero General Public License
+ * version 3.
+ */
 
+/* Genode includes */
 #include <vfs/dir_file_system.h>
 #include <vfs/single_file_system.h>
-
 #include <util/xml_generator.h>
 
+/* cbe includes */
 #include <block/request_stream.h> //XXX: library depends on this
 #include <cbe/library.h>
 
@@ -15,7 +23,6 @@ namespace Vfs_cbe {
 	struct Local_factory;
 	class  File_system;
 }
-
 
 class Vfs_cbe::Block_file_system : public Single_file_system
 {
@@ -145,6 +152,11 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 					return;
 				}
 
+				char ch[2];
+				ch[0] = buf[0];
+				ch[1] = 0;
+				log("back read data: ", (char const*)ch);
+
 				log("backend read: ", out);
 
 				Cbe::Block_data &data = *reinterpret_cast<Cbe::Block_data *>(buf);
@@ -171,6 +183,10 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 				_backend->seek(request.block_number * Cbe::BLOCK_SIZE);
 
 				try {
+					char ch[2];
+					ch[0] = buf[0];
+					ch[1] = 0;
+					log("back write data: ", (char const*)ch);
 					_backend->write(buf, count, out);
 				} catch (Insufficient_buffer) {
 					_alloc.free(buf, count);
@@ -217,7 +233,15 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 
 					Cbe::Request cbe_request = _cbe.have_data();
 					if (cbe_request.valid()) {
-						Cbe::Block_data &data = *reinterpret_cast<Cbe::Block_data*>(cbe_request.offset);
+
+						uint64_t const prim_index = _cbe.give_data_index(cbe_request);
+						if (prim_index == ~0ull) {
+							Genode::error("prim_index invalid: ", cbe_request);
+							_state = ERROR;
+							return;
+						}
+
+						Cbe::Block_data &data = *reinterpret_cast<Cbe::Block_data*>(cbe_request.offset + (prim_index * Cbe::BLOCK_SIZE));
 
 						if (cbe_request.read()) {
 							_cbe.give_read_data(cbe_request, data);
@@ -226,8 +250,12 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 						if (cbe_request.write()) {
 							_cbe.give_write_data(cbe_request, data);
 						}
-						char const  *DATA = (char const *)request.offset;
-						log("DATA:", DATA);
+						char *DATA = (char *)(cbe_request.offset + (prim_index * Cbe::BLOCK_SIZE));
+						uint64_t b = cbe_request.block_number;
+						uint32_t c = cbe_request.count;
+						log("data: ", cbe_request.read() ? "read" :  "write", ": block: ", b,  " count: ", c, " idx: ", prim_index);
+						DATA[1] = 0;
+						log("DATA[0]: ", (char const *)DATA);
 						progress = true;
 					}
 
@@ -247,8 +275,6 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 					if (!progress) break;
 					progress = false;
 				}
-				error("PEEK: ", _cbe.peek_completed_request());
-				error("DATA: ", _cbe.have_data());
 			}
 
 			Read_result read(char *dst, file_size count,
@@ -277,6 +303,7 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 			                   file_size &out_count) override
 			{
 				Genode::warning(__PRETTY_FUNCTION__, " called");
+				log("write buf ", count, "bytes: ", src);
 				using Operation = Cbe::Request::Operation;
 				Cbe::Request request = cbe_request(const_cast<char *>(src), count, Operation::WRITE);
 
@@ -323,14 +350,16 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 				                                       (Vfs::Vfs_handle **)&_backend,
 				                                       _env.alloc());
 				if (res != OPEN_OK) {
-					error("Could not open back end block device: '", _block_device, "'");
+					error("cbe_fs: Could not open back end block device: '", _block_device, "'");
 					return OPEN_ERR_UNACCESSIBLE;
 				}
 
 				_cur_sb = _read_superblocks(_super_block);
 
-				if (!_cur_sb.valid())
+				if (!_cur_sb.valid()) {
+					error("cbe_fs: No valid super block");
 					return OPEN_ERR_UNACCESSIBLE;
+				}
 
 				_cbe.construct(_time, _sync_interval, _secure_interval, _super_block,
 				               _cur_sb);
@@ -371,7 +400,7 @@ class Vfs_cbe::File_system : private Local_factory,
 {
 	private:
 
-		typedef String<200> Config;
+		typedef String<128> Config;
 
 		static Config _config(Xml_node node)
 		{
