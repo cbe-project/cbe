@@ -16,6 +16,7 @@ SRC_ADB += cbe-cxx-cxx_virtual_block_device.adb
 SRC_ADB += cbe-cxx-cxx_free_tree.adb
 SRC_ADB += cbe-cxx-cxx_block_io.adb
 SRC_ADB += cbe-cxx-cxx_write_back.adb
+SRC_ADB += cbe-cxx-cxx_library.adb
 SRC_ADB += cbe-cxx.adb
 SRC_ADB += cbe-library.adb
 SRC_ADB += cbe-splitter.adb

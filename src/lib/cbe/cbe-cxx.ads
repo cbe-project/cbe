@@ -35,6 +35,11 @@ is
 	type CXX_Tree_Degree_Type            is new Uint32_Type;
 	type CXX_Tree_Child_Index_Type       is new Uint32_Type;
 
+	type CXX_Timeout_Request_Type is record
+		Valid   : CXX_Bool_Type;
+		Timeout : Timestamp_Type;
+	end record;
+
 	type CXX_Tree_Helper_Type is record
 		Degree       : CXX_Tree_Degree_Type;
 		Height       : CXX_Tree_Level_Type;
@@ -161,5 +166,12 @@ is
 		CXX_Sz   : CXX_Size_Type)
 	return Boolean
 	is (Number_Of_Bytes_Type(CXX_Sz) >= Number_Of_Bits_To_Bytes(Spark_Sz));
+
+
+	function CXX_Timeout_Request_From_SPARK (Obj : Timeout_Request_Type)
+	return CXX_Timeout_Request_Type
+	is (
+		Valid => CXX_Bool_From_SPARK (Obj.Valid),
+		Timeout => Obj.Timeout);
 
 end CBE.CXX;
