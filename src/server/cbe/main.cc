@@ -515,7 +515,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			/*
 			 * Dump the current SB info for diagnostic reasons.
 			 */
-			_cbe->dump_cur_sb_info();
+//			_cbe->dump_cur_sb_info();
 
 			return _block_session->cap();
 		}
@@ -560,6 +560,8 @@ void Component::construct(Genode::Env &env)
 	env.exec_static_constructors();
 
 	adainit();
+
+	Cbe::assert_valid_object_size<Cbe::Public_Library>();
 
 	static Cbe::Main inst(env);
 }

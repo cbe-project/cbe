@@ -13,6 +13,11 @@ with CBE.Request;
 package body CBE.CXX.CXX_Library
 with Spark_Mode
 is
+	function Object_Size (Obj : Library.Object_Type)
+	return CXX_Object_Size_Type
+	is (Obj'Size / 8);
+
+
 	procedure Initialize_Object (
 		Obj     : out Library.Object_Type;
 		Now     :     Timestamp_Type;

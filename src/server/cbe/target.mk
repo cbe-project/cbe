@@ -8,4 +8,4 @@ SRC_ADS := dummy.ads
 LIBS    += spark
 
 INC_DIR := $(PRG_DIR)
-LIBS    += base cbe_cxx cbe sha256_4k
+LIBS    += base cbe sha256_4k
