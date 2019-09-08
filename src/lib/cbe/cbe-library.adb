@@ -8,6 +8,8 @@
 
 pragma Ada_2012;
 
+with CBE.Tree_Helper;
+
 package body CBE.Library
 with Spark_Mode
 is
@@ -397,6 +399,46 @@ is
 --		Show_Progress    :        Boolean;
 --		Show_If_Progress :        Boolean)
 	is
+		procedure Create_New_Snapshot (
+			Obj  :        Object_Type;
+			Snap : in out Snapshot_Type;
+			Prim :        Primitive.Object_Type)
+		is
+		begin
+			Snap.PBA := Write_Back.Peek_Completed_Root (Obj.Write_Back_Obj, Prim);
+			Write_Back.Peek_Completed_Root_Hash (Obj.Write_Back_Obj, Prim, Snap.Hash);
+
+			Declare_Tree:
+			declare
+				Tree : constant Tree_Helper.Object_Type :=
+					Virtual_Block_Device.Get_Tree_Helper (Obj.VBD);
+			begin
+				Snap.Height      := Tree_Helper.Height (Tree);
+				Snap.Nr_Of_Leafs := Tree_Helper.Leafs (Tree);
+				Snap.Gen         := Obj.Cur_Gen;
+				Snap.ID          := Obj.Last_Snapshot_ID + 1;
+			end Declare_Tree;
+
+		end Create_New_Snapshot;
+
+		procedure Update_Snapshot_Hash (
+			Obj  :        Object_Type;
+			Snap : in out Snapshot_Type;
+			Prim :        Primitive.Object_Type)
+		is
+			PBA : constant Physical_Block_Address_Type :=
+				Write_Back.Peek_Completed_Root (Obj.Write_Back_Obj, Prim);
+		begin
+			-- FIXME why do we need that again?
+			if Snap.PBA /= PBA then
+				Snap.Gen := Obj.Cur_Gen;
+				Snap.PBA := PBA;
+			end if;
+			Write_Back.Peek_Completed_Root_Hash (
+				Obj.Write_Back_Obj, Prim, Snap.Hash);
+
+		end Update_Snapshot_Hash;
+
 		Progress : Boolean := False;
 	begin
 
@@ -423,17 +465,17 @@ is
 			Now - Obj.Last_Time >= Obj.Sync_Interval and
 			not Obj.Seal_Generation
 		then
-			Declare_Cache_Dirty:
+			Declare_Cache_Dirty_1:
 			declare
 				Cache_Dirty : Boolean := False;
 			begin
-				For_Cache_Data:
+				For_Cache_Data_1:
 				for Cache_Index in Cache.Cache_Index_Type loop
 					if Cache.Dirty (Obj.Cache_Obj, Cache_Index) then
 						Cache_Dirty := True;
-						exit For_Cache_Data;
+						exit For_Cache_Data_1;
 					end if;
-				end loop For_Cache_Data;
+				end loop For_Cache_Data_1;
 
 				if Cache_Dirty then
 					-- Genode::log ("\033[93;44m", __Func__, " SEAL current generation: ", Obj.Cur_Gen);
@@ -443,7 +485,7 @@ is
 					Obj.Last_Time := Now;
 					Obj.Sync_Timeout_Request := Timeout_Request_Valid (Obj.Sync_Interval);
 				end if;
-			end Declare_Cache_Dirty;
+			end Declare_Cache_Dirty_1;
 		end if;
 
 		--
@@ -524,18 +566,14 @@ is
 		--
 		Loop_Free_Tree_Completed_Prims:
 		loop
-			Declare_Prim:
+			Declare_Prim_1:
 			declare
 				Prim : constant Primitive.Object_Type :=
 					Free_Tree.Peek_Completed_Primitive (Obj.Free_Tree_Obj);
 			begin
-				if not Primitive.Valid (Prim) then
-					exit Loop_Free_Tree_Completed_Prims;
-				end if;
-
-				if Primitive.Success (Prim) = True then
-					exit Loop_Free_Tree_Completed_Prims;
-				end if;
+				exit Loop_Free_Tree_Completed_Prims when
+					not Primitive.Valid (Prim) or
+					Primitive.Success (Prim);
 
 				-- DBG("allocating new blocks failed: ", Obj.Free_Tree_Retry_Count);
 				if Obj.Free_Tree_Retry_Count < Free_Tree_Retry_Limit then
@@ -581,789 +619,958 @@ is
 				Virtual_Block_Device.Trans_Resume_Translation (Obj.VBD);
 				Free_Tree.Drop_Completed_Primitive (Obj.Free_Tree_Obj, Prim);
 
-			end Declare_Prim;
+			end Declare_Prim_1;
 			Progress := True;
 
 		end loop Loop_Free_Tree_Completed_Prims;
 
--------------------------------------------------------------------------------
---		--
---		-- There are two types of generated primitives by FT module,
---		-- the traversing of the tree is done by the internal Translation
---		-- module, which will access the nodes through the Cache - I/O
---		-- primitives will therefor be generated as a side-effect of the
---		-- querying attempt by the Cache module.
---		--
---		-- - IO_TAG primitives are only used for querying type 2 nodes, i.E.,
---		--   inner nodes of the free-tree containg free or reserved blocks.
---		--
---		-- - WRITE_BACK_TAG primitve are only used for writing one changed
---		--   branch back to the block device. Having the branch written
---		--   will lead to a complete primitve.
---		--
---		loop
---
---			Prim : Primitive.Object_Type := Free_Tree.Peek_Generated_Primitive (Obj.Free_Tree_Obj);
---			if not Primitive.Valid (Prim) then
---				exit;
---			end if;
---			if not Obj.Io.Primitive_Acceptable () then
---				exit;
---			end if;
---
---			constant Index idx := Free_Tree.Peek_Generated_Data_Index (Obj.Free_Tree_Obj, Prim);
---
---			Cbe::Block_Data *data := nullptr;
---			Cbe::Tag tag { Tag_Invalid_Tag };
---			switch (Prim.Tag) {
---			case Tag_Write_Back_Tag:
---				tag  := Tag_Free_Tree_Tag_Wb;
---				--
---				-- FIXME Accessing the Cache in this way could be dangerous because
---				-- the Cache is shared by the VBD as well as the FT. If we would
---				-- not suspend the VBD while doing the write-back, another Request
---				-- could evict the entry belonging to the idx value and replace it.
---				--
---				-- (Since the Prim contains the PBA we could check the validity of
---				--  the index beforehand - but not storing the index in the first
---				--  place would be the preferable solution.)
---				--
---				data := &_Cache_Data.Item (idx.Value);
---				exit;
---			case Tag_Io_Tag:
---				tag  := Tag_Free_Tree_Tag_Io;
---				data := &_Free_Tree_Query_Data.Item (idx.Value);
---				exit;
---			default: exit;
---			}
---
---			Obj.Io.Submit_Primitive (tag, Prim, Obj.Io_Data, *data, True);
---
---			Obj.Free_Tree_Obj->drop_Generated_Primitive (Prim);
---			Progress |= True;
---		end loop;
---
---		-------------------------------
---		-- Put Request into splitter --
---		-------------------------------
---
---		--
---		-- An arbitrary sized Block Request will be cut into 4096 byte
---		-- sized primitves by the Splitter module.
---		--
---		loop
---
---			Request.constant Object_Type &req := Obj.Pool.Peek_Pending_Request ();
---			if not req.Valid () then
---				exit;
---			end if;
---			if not Obj.Splitter.Request_Acceptable () then
---				exit;
---			end if;
---
---			Obj.Pool.Drop_Pending_Request (req);
---			Obj.Splitter.Submit_Request (req);
---
---			Progress |= True;
---		end loop;
---
---		--
---		-- Give primitive to the translation module
---		--
---		loop
---
---			Prim : Primitive.Object_Type := Obj.Splitter.Peek_Generated_Primitive ();
---			if not Primitive.Valid (Prim) then
---				exit;
---			end if;
---			if not Obj.VBD->primitive_Acceptable () then
---				exit;
---			end if;
---
---			-- FIXME why is Obj.Seal_Generation check not necessary?
---			-- that mainly is intended to block write primitives--
---			if Obj.Secure_Superblock then
---				-- DBG("prevent processing new primitives while securing super-block");
---				exit;
---			end if;
---
---			Obj.Splitter.Drop_Generated_Primitive (Prim);
---
---			-- current_Primitive := Prim;
---
---			--
---			-- For every new Request, we have to use theCurrly active
---			-- snapshot as a previous Request may have changed the tree.
---			--
---			constant Cbe::Super_Block &SB := Obj.Super_Blocks (Curr_SB (Obj));
---			Snapshot_Type   constant  &Snap := SB.Snapshots (Curr_Snap (Obj));
---
---			constant Physical_Block_Address_Type  PBA  := Snap.PBA;
---			Cbe::Hash                  constant  &Hash := Snap.Hash;
---			Cbe::Generation            constant   gen  := Snap.Gen;
---
---			Obj.VBD->submit_Primitive (PBA, gen, Hash, Prim);
---			Progress |= True;
---		end loop;
---
---		-- if current_Primitive.Valid () then
---		-- 	DBG("-----------------------> current primitive: ", current_Primitive);
---		-- end if;
---
---		------------------
---		-- VBD handling --
---		------------------
---
---		--
---		-- The VBD meta-module uses the Translation module internally and
---		-- needs access to the Cache since it wants to use its data.
---		-- Because accessing a Cache entry will update its LRU value, the
---		-- Cache must be mutable (that is also the reason we need the
---		-- time object).
---		--
---		--
---		-- (Basically the same issue regarding SPARK as the FT module...)
---		--
---		{
---			VBD.Execute (Obj.VBD_Obj, Obj.Trans_Data, Obj.Cache, Obj.Cache_Data, Now);
---			constant Boolean vbd_Progress := Obj.VBD->execute_Progress ();
---			Progress |= vbd_Progress;
---			-- LOG_PROGRESS(vbd_Progress);
---		}
---
---		----------------------------
---		-- Cache_Flusher handling --
---		----------------------------
---
---		--
---		-- The Cache_Flusher module is used to flush all dirty Cache entries
---		-- to the block device and mark them as clean again. While the flusher
---		-- is doing its work, all Cache entries should be locked, i.E., do not
---		-- Cache an entry while its flushed - otherwise the change might not
---		-- end up on the block device. Should be guarded by 'Obj.Seal_Generation'.
---		--
---		-- (For better or worse it is just a glorified I/O manager. At some
---		--  point it should be better merged into the Cache module later on.)
---		--
---
---		--
---		-- Mark the corresponding Cache entry as clean. If it was
---		-- evicted in the meantime it will be ignored.
---		--
---		loop
---
---			Prim : Primitive.Object_Type := Cache_Flusher.Peek_Completed_Primitive (Obj.Cache_Flusher_Obj);
---			if not Primitive.Valid (Prim) then
---				exit;
---			end if;
---
---			if Primitive.Success (Prim) /= Request.True then
---				-- DBG(Prim);
---				raise program_Error; -- throw Primitive_Failed;
---			end if;
---
---			constant Physical_Block_Address_Type PBA := Prim.Block_Number;
---			Cache.Mark_Clean (Obj.Cache_Obj, PBA);
---			-- DBG("mark_Clean: ", PBA);
---
---			Obj.Cache_Flusher.Drop_Completed_Primitive (Prim);
---			Progress |= True;
---		end loop;
---
---		--
---		-- Just pass the primitive on to the I/O module.
---		--
---		loop
---
---			Prim : Primitive.Object_Type := Obj.Cache_Flusher.Peek_Generated_Primitive ();
---			if not Primitive.Valid (Prim) then exit; end if;
---			if not Obj.Io.Primitive_Acceptable () then exit; end if;
---
---			Cache_Index    constant   idx  := Obj.Cache_Flusher.Peek_Generated_Data_Index (Prim);
---			Cbe::Block_Data       &data := Obj.Cache_Data.Item (idx.Value);
---
---			Obj.Io.Submit_Primitive (Tag_Cache_Flush_Tag, Prim, Obj.Io_Data, data);
---
---			Obj.Cache_Flusher.Drop_Generated_Primitive (Prim);
---			Progress |= True;
---		end loop;
---
---		-------------------------
---		-- Write-back handling --
---		-------------------------
---
---		--
---		-- The Write_Back module will store a changed branch including its leaf
---		-- node on the block device.
---		--
---		-- The way itCurrly operates is as follows:
---		--    1. (CRYPTO)   it hands the leaf data to the Crypto module for encryption
---		--    2. (IO)       it hands the encrypted leaf data to I/O module to write it
---		--                  to the block device
---		--    3. (CACHE)    starting by the lowest inner node it will update the node
---		--                  entry (PBA and Hash)
---		--    4. (COMPLETE) it returns the new root PBA and root Hash
---		--
---		-- When 'Obj.Seal_Generation' is set, it will first instruct the Cache_Flusher
---		-- module to clean the Cache. Afterwards it will store the current snapshot
---		-- and increment the 'Obj.Cur_SB' as well as '_Cur_Gen' (-> there is only one
---		-- snapshot per generation and there areCurrly only 48 snapshot slots per
---		-- super-block) and set the sync trigger.
---		--
---		-- Otherwise it will just update the root Hash in place.
---		--
---
---		loop
---
---			Prim : Primitive.Object_Type := Write_Back.Peek_Completed_Primitive (Obj.Write_Back_Obj);
---			if not Primitive.Valid (Prim) then
---				exit;
---			end if;
---
---			if Primitive.Success (Prim) /= Request.True then
---				-- DBG(Prim);
---				raise program_Error; -- throw Primitive_Failed;
---			end if;
---
---			if Obj.Seal_Generation then
---
---				-- FIXME only check flusher when the Cache is dirty
---				-- FIXME and track if flusher is already active, e.G. by adding
---				--     a 'active' function that returns True whenever is doing
---				--     its job. I fear itCurrly only works by chance
---				if not Obj.Cache_Flusher.Request_Acceptable () then
---					exit;
---				end if;
---
---				Cache_Dirty : Boolean := False;
---				for uint32_T i := 0; i < Cache.Cache_Slots (Obj.Cache_Obj); i++ loop
---					constant Cache_Index idx := Cache_Index { .Value := (uint32_T)i };
---					if Cache.Dirty (Obj.Cache_Obj, idx) then
---						Cache_Dirty |= True;
---
---						constant Physical_Block_Address_Type PBA := Cache.Flush (Obj.Cache_Obj, idx);
---						-- DBG(" i: ", idx.Value, " PBA: ", PBA, " needs flushing");
---
---						Obj.Cache_Flusher.Submit_Request (PBA, idx);
---					end if;
---				end loop;
---
---				--
---				-- In case we have to flush the Cache, wait until we have finished
---				-- doing that.
---				--
---				if Cache_Dirty then
---					-- DBG("CACHE FLUSH NEEDED: Progress: ", Progress);
---					Progress |= True;
---					exit;
---				end if;
---
---				--
---				-- Look for a new snapshot slot. If we cannot find one
---				-- we manual intervention b/c there are too many snapshots
---				-- flagged as keep
---				--
---				Cbe::Super_Block &SB := Obj.Super_Blocks (Curr_SB (Obj));
---				uint32_T next_Snap := Obj.Cur_SB;
---				for uint32_T i := 0; i < Cbe::NUM_SNAPSHOTS; i++ loop
---					next_Snap := (next_Snap + 1) % Cbe::NUM_SNAPSHOTS;
---					constant Snapshot_Type &Snap := SB.Snapshots (next_Snap);
---					if not Snapshot_Valid (Snap) then
---						exit;
---					else
---						if not (Snap.Flags & Cbe::Snapshot::FLAG_KEEP) then
---							exit;
---						end if;
---					end if;
---				end loop;
---
---				if next_Snap = Obj.Cur_SB then
---					-- Genode::error ("could not find free snapshot slot");
---					-- proper handling pending--
---					raise program_Error; -- throw Invalid_Snapshot_Slot;
---					exit;
---				end if;
---
---				--
---				-- Creating a new snapshot only involves storing its
---				-- meta-data in a new slot and afterwards setting the
---				-- seal timeout again.
---				--
---				Snapshot_Type &Snap := SB.Snapshots (next_Snap);
---
---				Snap.PBA := Write_Back.Peek_Completed_Root (Obj.Write_Back_Obj, Prim);
---				Cbe::Hash *snap_Hash := &Snap.Hash;
---				Obj.Write_Back.Peek_Competed_Root_Hash (Prim, *snap_Hash);
---
---				constant Cbe::Tree_Helper &tree := Obj.VBD->tree_Helper ();
---				Snap.Height := tree.Height ();
---				Snap.Leafs := tree.Leafs ();
---				Snap.Gen := Obj.Cur_Gen;
---				Snap.ID  := ++Obj.Last_Snapshot_ID;
---
---				-- DBG("new snapshot for generation: ", Obj.Cur_Gen, " Snap: ", Snap);
---
---				Obj.Cur_Gen++;
---				Obj.Cur_SB++;
---
---				Obj.Seal_Generation := False;
---				--
---				-- (As already briefly mentioned in the time handling section,
---				--  it would be more reasonable to only set the timeouts when
---				--  we actually perform write Request.)
---				--
---				Obj.Last_Time := Now;
---				Obj.Sync_Timeout_Request := Timeout_Request_Valid (Obj.Sync_Interval);
---			else
---
---				--
---				-- No need to create a new snapshot, just update the Hash in place
---				-- and move on.
---				--
---
---				Cbe::Super_Block &SB := Obj.Super_Blocks (Curr_SB (Obj));
---				Snapshot_Type    &Snap := SB.Snapshots (Curr_Snap (Obj));
---
---				-- update snapshot--
---				constant Physical_Block_Address_Type PBA := Write_Back.Peek_Completed_Root (Obj.Write_Back_Obj, Prim);
---				-- FIXME why do we need that again?
---				if Snap.PBA /= PBA then
---					Snap.Gen := Obj.Cur_Gen;
---					Snap.PBA := PBA;
---				end if;
---
---				Cbe::Hash *snap_Hash := &Snap.Hash;
---				Obj.Write_Back.Peek_Competed_Root_Hash (Prim, *snap_Hash);
---			end if;
---
---			--
---			-- We touched the super-block, either by updating a snapshot or by
---			-- creating a new one - make sure it gets secured within the next
---			-- interval.
---			--
---			Obj.Superblock_Dirty |= True;
---
---			Obj.Write_Back.Drop_Completed_Primitive (Prim);
---
---			--
---			-- Since the write Request is finally finished, all nodes stored
---			-- at some place "save" (leafs on the block device, inner nodes within
---			-- the Cache, acknowledge the primitive.
---			--
---			Pool.Mark_Completed_Primitive (Obj.Request_Pool_Obj, Prim);
---			-- DBG("-----------------------> current primitive: ", current_Primitive, " FINISHED");
---			-- current_Primitive :=  : Primitive.Object_Type{ };
---			Progress |= True;
---
---			--
---			-- FIXME stalling translation as long as the write-back takes places
---			--     is not a good idea
---			--
---			Obj.VBD->trans_Resume_Translation ();
---		end loop;
---
---
---		--
---		-- Give the leaf data to the Crypto module.
---		--
---		loop
---
---			Prim : Primitive.Object_Type := Obj.Write_Back.Peek_Generated_Crypto_Primitive ();
---			if not Primitive.Valid (Prim) then
---				exit;
---			end if;
---			if not Obj.Crypto.Primitive_Acceptable () then
---				exit;
---			end if;
---
---			constant Write_Back_Data_Index idx := Obj.Write_Back.Peek_Generated_Crypto_Data (Prim);
---			Cbe::Block_Data           &data := Obj.Write_Back_Data.Item (idx.Value);
---			-- the data will be copied into the Crypto module's internal buffer--
---			Obj.Crypto.Submit_Primitive (Prim, data, Obj.Crypto_Data);
---
---			Obj.Write_Back.Drop_Generated_Crypto_Primitive (Prim);
---			Progress |= True;
---		end loop;
---
---		--
---		-- Pass the encrypted leaf data to the I/O module.
---		--
---		loop
---
---			Prim : Primitive.Object_Type := Obj.Write_Back.Peek_Generated_Io_Primitive ();
---			if not Primitive.Valid (Prim) then
---				exit;
---			end if;
---			if not Obj.Io.Primitive_Acceptable () then
---				exit;
---			end if;
---
---			constant Write_Back_Data_Index idx := Obj.Write_Back.Peek_Generated_Io_Data (Prim);
---			Cbe::Block_Data           &data := Obj.Write_Back_Data.Item (idx.Value);
---			Obj.Io.Submit_Primitive (Tag_Write_Back_Tag, Prim, Obj.Io_Data, data);
---
---			Obj.Write_Back.Drop_Generated_Io_Primitive (Prim);
---			Progress |= True;
---		end loop;
---
---		--
---		-- Update the inner nodes of the tree. This is always done after the
---		-- encrypted leaf node was stored by the I/O module.
---		--
---		loop
---
---			Prim : Primitive.Object_Type := Obj.Write_Back.Peek_Generated_Cache_Primitive ();
---			-- DBG(Prim);
---			if not Primitive.Valid (Prim) then
---				exit;
---			end if;
---
---			using PBA := Physical_Block_Address_Type;
---			constant PBA PBA        := Prim.Block_Number;
---			constant PBA update_PBA := Obj.Write_Back.Peek_Generated_Cache_Update_PBA (Prim);
---
---			--
---			-- Check if the Cache contains the needed entries. In case of the
---			-- of the old node's block that is most likely. The new one, if
---			-- there is one (that happens when the inner nodes are Obj.Not_ updated
---			-- in place, might not be in the Cache - check and Request both.
---			--
---
---			Cache_Miss : Boolean := False;
---			if not Cache.Data_Available (Obj.Cache_Obj, PBA) then
---				-- DBG("Cache miss PBA: ", PBA);
---				if Cache.Request_Acceptable (Obj.Cache_Obj, PBA) then
---					Cache.Submit_Request (Obj.Cache_Obj, PBA);
---				end if;
---				Cache_Miss |= True;
---			end if;
---
---			if PBA /= update_PBA then
---				if not Cache.Data_Available (Obj.Cache_Obj, update_PBA) then
---					-- DBG("Cache miss update_PBA: ", update_PBA);
---					if Cache.Request_Acceptable (Obj.Cache_Obj, update_PBA) then
---						Cache.Submit_Request (Obj.Cache_Obj, update_PBA);
---					end if;
---					Cache_Miss |= True;
---				end if;
---			end if;
---
---			-- read the needed blocks first--
---			if Cache_Miss then
---				-- DBG("Cache_Miss");
---				exit;
---			end if;
---
---			Obj.Write_Back.Drop_Generated_Cache_Primitive (Prim);
---
---			-- DBG("Cache hot PBA: ", PBA, " update_PBA: ", update_PBA);
---
---			--
---			-- To keep it simply, always set both properly - even if
---			-- the old and new node are the same.
---			--
---			constant Cache_Index idx        := Cache.Data_Index (Obj.Cache_Obj, PBA, Now);
---			constant Cache_Index update_IDx := Cache.Data_Index (Obj.Cache_Obj, update_PBA, Now);
---
---			constant Cbe::Block_Data &data        := Obj.Cache_Data.Item (idx.Value);
---			Cbe::Block_Data       &update_Data := Obj.Cache_Data.Item (update_IDx.Value);
---
---			--
---			-- (Later on we can remove the tree_Helper here as the outer degree,
---			--  which is used to calculate the entry in the inner node from the
---			--  VBA is set at compile-time.)
---			--
---			Obj.Write_Back.Update (PBA, Obj.VBD->tree_Helper (), data, update_Data);
---			-- make the potentially new entry as dirty so it gets flushed next time--
---			Cache.Mark_Dirty (Obj.Cache_Obj, update_PBA);
---			Progress |= True;
---		end loop;
---
---		--------------------------
---		-- Super-block handling --
---		--------------------------
---
---		--
---		-- Store the current generation and snapshot id in the current
---		-- super-block before it gets secured.
---		--
---		if Obj.Secure_Superblock and Obj.Sync_SB.Request_Acceptable () then
---
---			Cbe::Super_Block &SB := Obj.Super_Blocks (Curr_SB (Obj));
---
---			SB.Last_Secured_Generation := Obj.Cur_Gen;
---			SB.Snapshot_ID             := Obj.Cur_SB;
---
---			-- DBG("secure current super-block gen: ", Obj.Cur_Gen,
---			    " Snap.ID: ", Obj.Cur_SB);
---
---			Obj.Sync_SB.Submit_Request (Obj.Cur_SB, Obj.Cur_Gen);
---		end if;
---
---		--
---		-- When the current super-block was secured, select the next one.
---		--
---		loop
---
---			Prim : Primitive.Object_Type := Sync_SB.Peek_Completed_Primitive (Obj.Sync_SB_Obj);
---			if not Primitive.Valid (Prim) then
---				exit;
---			end if;
---
---			if Primitive.Success (Prim) /= Request.True then
---				-- DBG(Prim);
---				raise program_Error; -- throw Primitive_Failed;
---			end if;
---
---			-- DBG("primitive: ", Prim);
---
---
---			Super_Blocks_Index_Type  next_SB := Super_Blocks_Index_Type {
---				.Value := (uint8_T)((Obj.Cur_SB + 1) % Cbe::NUM_SUPER_BLOCKS)
---			};
---			Cbe::Super_Block       &next    := Obj.Super_Blocks (next_SB.Value);
---			constant Cbe::Super_Block &curr    := Obj.Super_Blocks (Curr_SB (Obj));
---			Genode::memcpy (&next, &curr, sizeof (Cbe::Super_Block));
---
---			-- handle state--
---			Obj.Cur_SB                  := next_SB;
---			Obj.Last_Secured_Generation := Sync_SB.Peek_Completed_Generation (Obj.Sync_SB_Obj, Prim);
---			Obj.Superblock_Dirty        := False;
---			Obj.Secure_Superblock       := False;
---
---			Obj.Sync_SB.Drop_Completed_Primitive (Prim);
---			Progress |= True;
---
---			--
---			-- (FIXME same was with sealing the generation, it might make
---			--  sense to set the trigger only when a write operation
---			--  was performed.)
---			--
---			Obj.Last_Secure_Time := Now;
---			Obj.Secure_Timeout_Request := Timeout_Request_Valid (Obj.Secure_Interval);
---		end loop;
---
---		--
---		-- Use I/O module to write super-block to the block device.
---		--
---		loop
---
---			Prim : Primitive.Object_Type := Obj.Sync_SB.Peek_Generated_Primitive ();
---			if not Primitive.Valid (Prim) then
---				exit;
---			end if;
---			if not Obj.Io.Primitive_Acceptable () then
---				exit;
---			end if;
---
---			uint64_T  constant   id      := Obj.Sync_SB.Peek_Generated_ID (Prim);
---			Cbe::Super_Block &SB      := Obj.Super_Blocks (id);
---			Cbe::Block_Data  &sb_Data := *reinterpret_Cast<Cbe::Block_Data*>(&SB);
---
---			Obj.Io.Submit_Primitive (Tag_Sync_Sb_Tag, Prim, Obj.Io_Data, sb_Data);
---			Obj.Sync_SB.Drop_Generated_Primitive (Prim);
---			Progress |= True;
---		end loop;
---
---		---------------------
---		-- Crypto handling --
---		---------------------
---
---		--
---		-- The Crypto module has its own internal buffer, data has to be
---		-- copied in and copied out.
---		--
---
---		constant Boolean crypto_Progress := Obj.Crypto.Execute ();
---		Progress |= crypto_Progress;
---		-- LOG_PROGRESS(crypto_Progress);
---
---		--
---		-- Only writes primitives (encrypted data) are handled here,
---		-- read primitives (decrypred data) are handled in 'give_Read_Data'.
---		--
---		loop
---
---			Prim : Primitive.Object_Type := Crypto.Peek_Completed_Primitive (Obj.Crypto_Obj);
---			if not Primitive.Valid (Prim) or Primitive.Read (Prim) then
---				exit;
---			end if;
---
---			if Primitive.Success (Prim) /= Request.True then
---				-- DBG(Prim);
---				raise program_Error; -- throw Primitive_Failed;
---			end if;
---
---			constant Write_Back_Data_Index idx := Obj.Write_Back.Peek_Generated_Crypto_Data (Prim);
---			Cbe::Block_Data &data := Obj.Write_Back_Data.Item (idx.Value);
---			-- FIXME instead of copying the data just ask the crypto module for the resulting
---			--     Hash and omit further processing in case the operation failed
---			Obj.Crypto.Copy_Completed_Data (Prim, data);
---			Write_Back.Mark_Completed_Crypto_Primitive (Obj.Write_Back_Obj, Prim, data);
---
---			Obj.Crypto.Drop_Completed_Primitive (Prim);
---			Progress |= True;
---		end loop;
---
---		--
---		-- Since encryption is performed when calling 'execute' and decryption
---		-- is handled differently, all we have to do here is to drop and mark
---		-- complete.
---		--
---		loop
---
---			Prim : Primitive.Object_Type := Obj.Crypto.Peek_Generated_Primitive ();
---			if not Primitive.Valid (Prim) then
---				exit;
---			end if;
---
---			Obj.Crypto.Drop_Generated_Primitive (Prim);
---			Crypto.Mark_Completed_Primitive (Obj.Crypto_Obj, Prim);
---
---			Progress |= True;
---		end loop;
---
---		--------------------
---		-- Cache handling --
---		--------------------
---
---		--
---		-- Pass the data used by the module in by reference so that it
---		-- can be shared by the other modules. The method will internally
---		-- copy read job data into the chosen entry. In doing so it might
---		-- evict an already populated entry.
---		--
---		constant Boolean Cache_Progress := Cache.Execute (Obj.Cache_Obj, Obj.Cache_Data, Obj.Cache_Job_Data,
---		                                           Now);
---		Progress |= Cache_Progress;
---		-- LOG_PROGRESS(Cache_Progress);
---
---		--
---		-- Read data from the block device to fill the Cache.
---		--
---		-- (The Cache module has no 'peek_Completed_Primitive ()' method,
---		--  all modules using the Cache have to poll and might be try to
---		--  submit the same Request multiple times (see its acceptable
---		--  method). It makes sense to change the Cache module so that it
---		--  works the rest of modules. That would require restructing
---		--  the modules, though.)
---		--
---		loop
---
---			Prim : Primitive.Object_Type := Cache.Peek_Generated_Primitive (Obj.Cache_Obj);
---			if not Primitive.Valid (Prim) then
---				exit;
---			end if;
---			if not Obj.Io.Primitive_Acceptable () then
---				exit;
---			end if;
---
---			constant Cache_Index idx := Cache.Peek_Generated_Data_Index (Obj.Cache_Obj, Prim);
---			Cbe::Block_Data &data := Obj.Cache_Job_Data.Item (idx.Value);
---
---			Cache.Drop_Generated_Primitive (Obj.Cache_Obj, Prim);
---
---			Obj.Io.Submit_Primitive (Tag_Cache_Tag, Prim, Obj.Io_Data, data, True);
---			Progress |= True;
---		end loop;
---
---		------------------
---		-- I/O handling --
---		------------------
---
---		--
---		-- This module handles all the block backend I/O and has to
---		-- work with all most all modules. IT uses the 'Tag' field
---		-- to differentiate the modules.
---		--
---
---		loop
---
---			Prim : Primitive.Object_Type := Io.Peek_Completed_Primitive (Obj.Io_Obj);
---			if not Primitive.Valid (Prim) then
---				exit;
---			end if;
---
---			if Primitive.Success (Prim) /= Request.True then
---				-- DBG(Prim);
---				raise program_Error; -- throw Primitive_Failed;
---			end if;
---
---			Genode::uint32constant Obj.T idx := Io.Peek_Completed_Data_Index (Obj.Io_Obj, Prim);
---			Cbe::Block_Data      &data := Obj.Io_Data.Item (idx);
---
---			--
---			-- Whenever we cannot hand a successful primitive over
---			-- to the corresponding module, leave the loop but keep
---			-- the completed primitive so that it might be processed
---			-- next time.
---			--
---			mod_Progress : Boolean := True;
---			switch (Prim.Tag) {
---
---			case Tag_Crypto_Tag_Decrypt:
---				if not Obj.Crypto.Primitive_Acceptable () then
---					mod_Progress := False;
---				else
---					constant Cbe::Tag orig_Tag := Io.Peek_Completed_Tag (Obj.Io_Obj, Prim);
---
---					--
---					-- Having to override the tag is needed because of the way
---					-- the Crypto module is hooked up in the overall data flow.
---					-- Since it is the one that acknowledges the primitive to the
---					-- pool in the read case, we have to use the tag the pool
---					-- module uses.
---					--
---					Prim.Tag := orig_Tag;
---					Obj.Crypto.Submit_Primitive (Prim, data, Obj.Crypto_Data);
---				end if;
---				exit;
---
---			case Tag_Cache_Tag:
---				-- FIXME we need a proper method for getting the right Cache job
---				--     data index, for now rely on the knowledge that there is
---				--     only one item
---				Genode::memcpy (&_Cache_Job_Data.Item (0), &data, sizeof (Cbe::Block_Data));
---				Cache.Mark_Completed_Primitive (Obj.Cache_Obj, Prim);
---				exit;
---
---			case Tag_Cache_Flush_Tag:
---				Cache_Flusher.Mark_Generated_Primitive_Complete (Obj.Cache_Flusher_Obj, Prim);
---				exit;
---
---			case Tag_Write_Back_Tag:
---				Write_Back.Mark_Completed_Io_Primitive (Obj.Write_Back_Obj, Prim);
---				exit;
---
---			case Tag_Sync_Sb_Tag:
---				Sync_SB.Mark_Generated_Primitive_Complete (Obj.Sync_SB_Obj, Prim);
---				exit;
---
---			case Tag_Free_Tree_Tag_Wb:
---				Prim.Tag := Tag_Write_Back_Tag;
---				Obj.Free_Tree_Obj->mark_Generated_Primitive_Complete (Prim);
---				exit;
---
---			case Tag_Free_Tree_Tag_Io:
---				Prim.Tag := Tag_Io_Tag;
---				-- FIXME we need a proper method for getting the right query
---				--     data index, for now rely on the knowledge that there
---				--     is only one item
---				Genode::memcpy (&_Free_Tree_Query_Data.Item (0), &data, sizeof (Cbe::Block_Data));
---				Obj.Free_Tree_Obj->mark_Generated_Primitive_Complete (Prim);
---				exit;
---
---			default: exit;
---			}
---			if not mod_Progress then
---				exit;
---			end if;
---
---			Obj.Io.Drop_Completed_Primitive (Prim);
---			Progress |= True;
---		end loop;
+		--
+		-- There are two types of generated primitives by FT module,
+		-- the traversing of the tree is done by the internal Translation
+		-- module, which will access the nodes through the Cache - I/O
+		-- primitives will therefor be generated as a side-effect of the
+		-- querying attempt by the Cache module.
+		--
+		-- - IO_TAG primitives are only used for querying type 2 nodes, i.E.,
+		--   inner nodes of the free-tree containg free or reserved blocks.
+		--
+		-- - WRITE_BACK_TAG primitve are only used for writing one changed
+		--   branch back to the block device. Having the branch written
+		--   will lead to a complete primitve.
+		--
+		Loop_Free_Tree_Generated_Prims:
+		loop
 
+			Declare_Prim_2:
+			declare
+				Prim : constant Primitive.Object_Type :=
+					Free_Tree.Peek_Generated_Primitive (Obj.Free_Tree_Obj);
+			begin
+				exit Loop_Free_Tree_Generated_Prims when
+					not Primitive.Valid (Prim) or
+					not Block_IO.Primitive_Acceptable (Obj.IO_Obj);
+
+				Declare_Index_1:
+				declare
+					Index : constant Index_Type :=
+						Free_Tree.Peek_Generated_Data_Index (
+							Obj.Free_Tree_Obj, Prim);
+				begin
+					if Tag_Type (Primitive.Tag (Prim)) = Tag_Write_Back then
+						--
+						-- FIXME Accessing the Cache in this way could be dangerous because
+						-- the Cache is shared by the VBD as well as the FT. If we would
+						-- not suspend the VBD while doing the write-back, another Request
+						-- could evict the entry belonging to the Index value and replace it.
+						--
+						-- (Since the Prim contains the PBA we could check the validity of
+						--  the index beforehand - but not storing the index in the first
+						--  place would be the preferable solution.)
+						--
+						Block_IO.Submit_Primitive (
+							Obj.IO_Obj, Tag_Free_Tree_WB, Prim, Obj.IO_Data,
+							Obj.Cache_Data (Cache.Cache_Index_Type (Index)));
+
+					elsif Tag_Type (Primitive.Tag (Prim)) = Tag_IO then
+						Block_IO.Submit_Primitive (
+							Obj.IO_Obj, Tag_Free_Tree_IO, Prim, Obj.IO_Data,
+							Obj.Free_Tree_Query_Data (Natural (Index)));
+
+					end if;
+				end Declare_Index_1;
+				Free_Tree.Drop_Generated_Primitive (Obj.Free_Tree_Obj, Prim);
+
+			end Declare_Prim_2;
+			Progress := True;
+
+		end loop Loop_Free_Tree_Generated_Prims;
+
+		-------------------------------
+		-- Put Request into splitter --
+		-------------------------------
+
+		--
+		-- An arbitrary sized Block Request will be cut into 4096 byte
+		-- sized primitves by the Splitter module.
+		--
+		Loop_Pool_Pending_Requests:
+		loop
+			Declare_Req:
+			declare
+				Req : constant Request.Object_Type :=
+					Pool.Peek_Pending_Request (Obj.Request_Pool_Obj);
+			begin
+				exit Loop_Pool_Pending_Requests when
+					not Request.Valid (Req) or
+					not Splitter.Request_Acceptable (Obj.Splitter_Obj);
+
+				Pool.Drop_Pending_Request (Obj.Request_Pool_Obj, Req);
+				Splitter.Submit_Request (Obj.Splitter_Obj, Req);
+
+			end Declare_Req;
+			Progress := True;
+
+		end loop Loop_Pool_Pending_Requests;
+
+		--
+		-- Give primitive to the translation module
+		--
+		Loop_Splitter_Generated_Prims:
+		loop
+			Declare_Prim_3:
+			declare
+				Prim : constant Primitive.Object_Type :=
+					Splitter.Peek_Generated_Primitive (Obj.Splitter_Obj);
+			begin
+				exit Loop_Splitter_Generated_Prims when
+					not Primitive.Valid (Prim) or
+					not Virtual_Block_Device.Primitive_Acceptable (Obj.VBD);
+
+				--
+				-- FIXME why is Obj.Seal_Generation check not necessary?
+				-- that mainly is intended to block write primitives--
+				--
+				if Obj.Secure_Superblock then
+					-- DBG("prevent processing new primitives while securing super-block");
+					exit Loop_Splitter_Generated_Prims;
+				end if;
+
+				Splitter.Drop_Generated_Primitive (Obj.Splitter_Obj, Prim);
+
+				-- current_Primitive := Prim;
+
+				--
+				-- For every new Request, we have to use the currlently active
+				-- snapshot as a previous Request may have changed the tree.
+				--
+				Virtual_Block_Device.Submit_Primitive (
+					Obj.VBD,
+					Obj.Super_Blocks (Curr_SB (Obj)).Snapshots (Curr_Snap (Obj)).PBA,
+					Obj.Super_Blocks (Curr_SB (Obj)).Snapshots (Curr_Snap (Obj)).Gen,
+					Obj.Super_Blocks (Curr_SB (Obj)).Snapshots (Curr_Snap (Obj)).Hash,
+					Prim);
+
+			end Declare_Prim_3;
+			Progress := True;
+		end loop Loop_Splitter_Generated_Prims;
+
+		-- if current_Primitive.Valid () then
+		-- 	DBG("-----------------------> current primitive: ", current_Primitive);
+		-- end if;
+
+		------------------
+		-- VBD handling --
+		------------------
+
+		--
+		-- The VBD meta-module uses the Translation module internally and
+		-- needs access to the Cache since it wants to use its Data.
+		-- Because accessing a Cache entry will update its LRU value, the
+		-- Cache must be mutable (that is also the reason we need the
+		-- time object).
+		--
+		--
+		-- (Basically the same issue regarding SPARK as the FT module...)
+		--
+		Virtual_Block_Device.Execute (Obj.VBD, Obj.Trans_Data, Obj.Cache_Obj, Obj.Cache_Data, Now);
+		if Virtual_Block_Device.Execute_Progress (Obj.VBD) then
+			Progress := True;
+		end if;
+		-- LOG_PROGRESS(vbd_Progress);
+
+		----------------------------
+		-- Cache_Flusher handling --
+		----------------------------
+
+		--
+		-- The Cache_Flusher module is used to flush all dirty Cache entries
+		-- to the block device and mark them as clean again. While the flusher
+		-- is doing its work, all Cache entries should be locked, i.E., do not
+		-- Cache an entry while its flushed - otherwise the change might not
+		-- end up on the block device. Should be guarded by 'Obj.Seal_Generation'.
+		--
+		-- (For better or worse it is just a glorified I/O manager. At some
+		--  point it should be better merged into the Cache module later on.)
+		--
+
+		--
+		-- Mark the corresponding Cache entry as clean. If it was
+		-- evicted in the meantime it will be ignored.
+		--
+		Loop_Cache_Flusher_Completed_Prims:
+		loop
+			Declare_Prim_4:
+			declare
+				Prim : constant Primitive.Object_Type :=
+					Cache_Flusher.Peek_Completed_Primitive (
+						Obj.Cache_Flusher_Obj);
+			begin
+				exit Loop_Cache_Flusher_Completed_Prims when
+					not Primitive.Valid (Prim);
+
+				if not Primitive.Success (Prim) then
+					-- DBG(Prim);
+					raise program_error; -- throw Primitive_Failed;
+				end if;
+
+				Cache.Mark_Clean (
+					Obj.Cache_Obj,
+					Physical_Block_Address_Type (
+						Primitive.Block_Number (Prim)));
+
+				-- DBG("mark_Clean: ", PBA);
+				Cache_Flusher.Drop_Completed_Primitive (
+					Obj.Cache_Flusher_Obj, Prim);
+
+			end Declare_Prim_4;
+			Progress := True;
+
+		end loop Loop_Cache_Flusher_Completed_Prims;
+
+		--
+		-- Just pass the primitive on to the I/O module.
+		--
+		Loop_Cache_Flusher_Generated_Prims:
+		loop
+
+			Declare_Prim_5:
+			declare
+				Prim : constant Primitive.Object_Type :=
+					Cache_Flusher.Peek_Generated_Primitive (
+						Obj.Cache_Flusher_Obj);
+			begin
+				exit Loop_Cache_Flusher_Generated_Prims when
+					not Primitive.Valid (Prim) or
+					not Block_IO.Primitive_Acceptable (Obj.IO_Obj);
+
+				Block_IO.Submit_Primitive (
+					Obj.IO_Obj, Tag_Cache_Flush, Prim, Obj.IO_Data,
+					Obj.Cache_Data (
+						Cache_Flusher.Peek_Generated_Data_Index (
+							Obj.Cache_Flusher_Obj, Prim)));
+
+				Cache_Flusher.Drop_Generated_Primitive (
+					Obj.Cache_Flusher_Obj, Prim);
+
+			end Declare_Prim_5;
+			Progress := True;
+
+		end loop Loop_Cache_Flusher_Generated_Prims;
+
+		-------------------------
+		-- Write-back handling --
+		-------------------------
+
+		--
+		-- The Write_Back module will store a changed branch including its leaf
+		-- node on the block device.
+		--
+		-- The way it currently operates is as follows:
+		--    1. (CRYPTO)   it hands the leaf Data to the Crypto module for encryption
+		--    2. (IO)       it hands the encrypted leaf Data to I/O module to write it
+		--                  to the block device
+		--    3. (CACHE)    starting by the lowest inner node it will update the node
+		--                  entry (PBA and Hash)
+		--    4. (COMPLETE) it returns the new root PBA and root Hash
+		--
+		-- When 'Obj.Seal_Generation' is set, it will first instruct the Cache_Flusher
+		-- module to clean the Cache. Afterwards it will store the current snapshot
+		-- and increment the 'Obj.Cur_SB' as well as '_Cur_Gen' (-> there is only one
+		-- snapshot per generation and there are currently only 48 snapshot slots per
+		-- super-block) and set the sync trigger.
+		--
+		-- Otherwise it will just update the root Hash in place.
+		--
+
+		Loop_WB_Completed_Prims:
+		loop
+			Declare_Prim_6:
+			declare
+				Prim : constant Primitive.Object_Type :=
+					Write_Back.Peek_Completed_Primitive (Obj.Write_Back_Obj);
+			begin
+				exit Loop_WB_Completed_Prims when
+					not Primitive.Valid (Prim);
+
+				if not Primitive.Success (Prim) then
+					-- DBG(Prim);
+					raise program_error; -- throw Primitive_Failed;
+				end if;
+
+				if Obj.Seal_Generation then
+
+					-- FIXME only check flusher when the Cache is dirty
+					-- FIXME and track if flusher is already active, e.G. by adding
+					--     a 'active' function that returns True whenever is doing
+					--     its job. I fear it currently only works by chance
+					exit Loop_WB_Completed_Prims when
+						not Cache_Flusher.Request_Acceptable (Obj.Cache_Flusher_Obj);
+
+					Declare_Cache_Dirty_2:
+					declare
+						Cache_Dirty : Boolean := False;
+					begin
+
+						For_Cache_Data_2:
+						for Cache_Index in Cache.Cache_Index_Type loop
+							if Cache.Dirty (Obj.Cache_Obj, Cache_Index) then
+
+								Cache_Dirty := True;
+								-- DBG(" i: ", Idx.Value, " PBA: ", PBA, " needs flushing");
+
+								Cache_Flusher.Submit_Request (
+									Obj.Cache_Flusher_Obj,
+									Cache.Flush (Obj.Cache_Obj, Cache_Index),
+									Cache_Index);
+							end if;
+						end loop For_Cache_Data_2;
+
+						--
+						-- In case we have to flush the Cache, wait until we have finished
+						-- doing that.
+						--
+						if Cache_Dirty then
+							-- DBG("CACHE FLUSH NEEDED: Progress: ", Progress);
+							Progress := True;
+							exit Loop_WB_Completed_Prims;
+						end if;
+
+					end Declare_Cache_Dirty_2;
+
+					--
+					-- Look for a new snapshot slot. If we cannot find one
+					-- we manual intervention b/c there are too many snapshots
+					-- flagged as keep
+					--
+					Declare_Next_Snap:
+					declare
+						Next_Snap : Snapshot_ID_Type :=
+							Snapshot_ID_Type (Obj.Cur_SB);
+					begin
+						For_Snapshots:
+						for Snap_ID in Snapshots_Index_Type loop
+							Next_Snap :=
+								(Next_Snap + 1) mod
+								Snapshot_ID_Type (Snapshots_Index_Type'Last) + 1;
+
+							if not Snapshot_Valid (
+								Obj.Super_Blocks (Curr_SB (Obj)).
+									Snapshots (Snapshots_Index_Type (Next_Snap)))
+							then
+								exit For_Snapshots;
+							else
+								exit For_Snapshots when not Snapshot_Keep (
+									Obj.Super_Blocks (Curr_SB (Obj)).
+										Snapshots (Snapshots_Index_Type (Next_Snap)));
+							end if;
+						end loop For_Snapshots;
+
+						if Next_Snap = Snapshot_ID_Type (Obj.Cur_SB) then
+							-- Genode::error ("could not find free snapshot slot");
+							-- proper handling pending--
+							raise program_error; -- throw Invalid_Snapshot_Slot;
+						end if;
+
+						--
+						-- Creating a new snapshot only involves storing its
+						-- meta-Data in a new slot and afterwards setting the
+						-- seal timeout again.
+						--
+						Create_New_Snapshot (
+							Obj,
+							Obj.Super_Blocks (Curr_SB (Obj)).
+								Snapshots (Snapshots_Index_Type (Next_Snap)),
+							Prim);
+
+						-- DBG("new snapshot for generation: ", Obj.Cur_Gen, " Snap: ", Snap);
+					end Declare_Next_Snap;
+
+					Obj.Cur_Gen         := Obj.Cur_Gen + 1;
+					Obj.Cur_SB          := Obj.Cur_SB + 1;
+					Obj.Seal_Generation := False;
+
+					--
+					-- (As already briefly mentioned in the time handling section,
+					--  it would be more reasonable to only set the timeouts when
+					--  we actually perform write Request.)
+					--
+					Obj.Last_Time            := Now;
+					Obj.Sync_Timeout_Request := Timeout_Request_Valid (Obj.Sync_Interval);
+
+				else
+
+					--
+					-- No need to create a new snapshot, just update the Hash in place
+					-- and move on.
+					--
+					Update_Snapshot_Hash (
+						Obj,
+						Obj.Super_Blocks (Curr_SB (Obj)).
+							Snapshots (Curr_Snap (Obj)),
+						Prim);
+				end if;
+
+				--
+				-- We touched the super-block, either by updating a snapshot or by
+				-- creating a new one - make sure it gets secured within the next
+				-- interval.
+				--
+				Obj.Superblock_Dirty := True;
+				Write_Back.Drop_Completed_Primitive (Obj.Write_Back_Obj, Prim);
+
+				--
+				-- Since the write Request is finally finished, all nodes stored
+				-- at some place "save" (leafs on the block device, inner nodes within
+				-- the Cache, acknowledge the primitive.
+				--
+				Pool.Mark_Completed_Primitive (Obj.Request_Pool_Obj, Prim);
+
+			end Declare_Prim_6;
+			-- DBG("-----------------------> current primitive: ", current_Primitive, " FINISHED");
+			-- current_Primitive :=  : Primitive.Object_Type{ };
+			Progress := True;
+
+			--
+			-- FIXME stalling translation as long as the write-back takes places
+			--     is not a good idea
+			--
+			Virtual_Block_Device.Trans_Resume_Translation (Obj.VBD);
+
+		end loop Loop_WB_Completed_Prims;
+
+		--
+		-- Give the leaf Data to the Crypto module.
+		--
+		Loop_WB_Generated_Crypto_Prims:
+		loop
+
+			Declare_Prim_7:
+			declare
+				Prim : constant Primitive.Object_Type :=
+					Write_Back.Peek_Generated_Crypto_Primitive (Obj.Write_Back_Obj);
+			begin
+				exit Loop_WB_Generated_Crypto_Prims when
+					not Primitive.Valid (Prim) or
+					not Crypto.Primitive_Acceptable (Obj.Crypto_Obj);
+
+				-- the Data will be copied into the Crypto module's internal buffer--
+				Declare_Crypto_Data:
+				declare
+					Plain_Data_Index : constant Write_Back.Data_Index_Type :=
+						Write_Back.Peek_Generated_Crypto_Data (
+							Obj.Write_Back_Obj, Prim);
+
+					Plain_Data : Crypto.Plain_Data_Type with Address =>
+						Obj.Write_Back_Data (Plain_Data_Index)'Address;
+
+					Cipher_Data : Crypto.Cipher_Data_Type with Address =>
+						Obj.Crypto_Data'Address;
+				begin
+					Crypto.Submit_Primitive (
+						Obj.Crypto_Obj, Prim, Plain_Data, Cipher_Data);
+
+				end Declare_Crypto_Data;
+				Write_Back.Drop_Generated_Crypto_Primitive (
+					Obj.Write_Back_Obj, Prim);
+
+			end Declare_Prim_7;
+			Progress := True;
+
+		end loop Loop_WB_Generated_Crypto_Prims;
+
+		--
+		-- Pass the encrypted leaf Data to the I/O module.
+		--
+		Loop_WB_Generated_IO_Prims:
+		loop
+			Declare_Prim_8:
+			declare
+				Prim : constant Primitive.Object_Type := Write_Back.Peek_Generated_IO_Primitive (Obj.Write_Back_Obj);
+			begin
+				exit Loop_WB_Generated_IO_Prims when
+					not Primitive.Valid (Prim) or
+					not Block_IO.Primitive_Acceptable (Obj.IO_Obj);
+
+				Block_IO.Submit_Primitive (
+					Obj.IO_Obj, Tag_Write_Back, Prim, Obj.IO_Data,
+					Obj.Write_Back_Data (
+						Write_Back.Peek_Generated_IO_Data (
+							Obj.Write_Back_Obj, Prim)));
+
+				Write_Back.Drop_Generated_IO_Primitive (
+					Obj.Write_Back_Obj, Prim);
+
+			end Declare_Prim_8;
+			Progress := True;
+
+		end loop Loop_WB_Generated_IO_Prims;
+
+		--
+		-- Update the inner nodes of the tree. This is always done after the
+		-- encrypted leaf node was stored by the I/O module.
+		--
+		Loop_WB_Generated_Cache_Prims:
+		loop
+
+			Declare_Prim_9:
+			declare
+				Prim : constant Primitive.Object_Type :=
+					Write_Back.Peek_Generated_Cache_Primitive (Obj.Write_Back_Obj);
+			begin
+				-- DBG(Prim);
+				exit Loop_WB_Generated_Cache_Prims when
+					not Primitive.Valid (Prim);
+
+				Declare_PBAs:
+				declare
+					PBA : constant Physical_Block_Address_Type :=
+						Physical_Block_Address_Type (
+							Primitive.Block_Number (Prim));
+
+					Update_PBA : constant Physical_Block_Address_Type :=
+						Write_Back.Peek_Generated_Cache_Update_PBA (
+							Obj.Write_Back_Obj, Prim);
+
+					Cache_Miss : Boolean := False;
+				begin
+
+					--
+					-- Check if the Cache contains the needed entries. In case of the
+					-- of the old node's block that is most likely. The new one, if
+					-- there is one (that happens when the inner nodes are Obj.Not_ updated
+					-- in place, might not be in the Cache - check and Request both.
+					--
+					if not Cache.Data_Available (Obj.Cache_Obj, PBA) then
+						-- DBG("Cache miss PBA: ", PBA);
+						if Cache.Request_Acceptable (Obj.Cache_Obj, PBA) then
+							Cache.Submit_Request (Obj.Cache_Obj, PBA);
+						end if;
+						Cache_Miss := True;
+					end if;
+
+					if PBA /= Update_PBA then
+						if not Cache.Data_Available (Obj.Cache_Obj, Update_PBA) then
+							-- DBG("Cache miss Update_PBA: ", Update_PBA);
+							if Cache.Request_Acceptable (Obj.Cache_Obj, Update_PBA) then
+								Cache.Submit_Request (Obj.Cache_Obj, Update_PBA);
+							end if;
+							Cache_Miss := True;
+						end if;
+					end if;
+
+					-- read the needed blocks first--
+					if Cache_Miss then
+						-- DBG("Cache_Miss");
+						exit Loop_WB_Generated_Cache_Prims;
+					end if;
+
+					Write_Back.Drop_Generated_Cache_Primitive (
+						Obj.Write_Back_Obj, Prim);
+
+					-- DBG("Cache hot PBA: ", PBA, " Update_PBA: ", Update_PBA);
+
+					--
+					-- To keep it simply, always set both properly - even if
+					-- the old and new node are the same.
+					--
+					Declare_Indices:
+					declare
+						Index : constant Cache.Cache_Index_Type :=
+							Cache.Data_Index (Obj.Cache_Obj, PBA, Now);
+
+						Update_Index : constant Cache.Cache_Index_Type :=
+							Cache.Data_Index (Obj.Cache_Obj, Update_PBA, Now);
+					begin
+						--
+						-- (Later on we can remove the tree_Helper here as the outer degree,
+						--  which is used to calculate the entry in the inner node from the
+						--  VBA is set at compile-time.)
+						--
+						Write_Back.Update (
+							Obj.Write_Back_Obj,
+							PBA, Virtual_Block_Device.Get_Tree_Helper (Obj.VBD),
+							Obj.Cache_Data (Index),
+							Obj.Cache_Data (Update_Index));
+
+						-- make the potentially new entry as dirty so it gets flushed next time--
+						Cache.Mark_Dirty (Obj.Cache_Obj, Update_PBA);
+
+					end Declare_Indices;
+				end Declare_PBAs;
+
+			end Declare_Prim_9;
+			Progress := True;
+
+		end loop Loop_WB_Generated_Cache_Prims;
+
+		--------------------------
+		-- Super-block handling --
+		--------------------------
+
+		--
+		-- Store the current generation and snapshot id in the current
+		-- super-block before it gets secured.
+		--
+		if
+			Obj.Secure_Superblock and
+			Sync_Superblock.Request_Acceptable (Obj.Sync_SB_Obj)
+		then
+			Obj.Super_Blocks (Curr_SB (Obj)).Last_Secured_Generation :=
+				Obj.Cur_Gen;
+
+			Obj.Super_Blocks (Curr_SB (Obj)).Snapshot_ID :=
+				Snapshot_ID_Type (Obj.Cur_SB);
+
+			-- DBG("secure current super-block Gen: ", Obj.Cur_Gen,
+			--     " Snap.ID: ", Obj.Cur_SB);
+
+			Sync_Superblock.Submit_Request (
+				Obj.Sync_SB_Obj, Obj.Cur_SB, Obj.Cur_Gen);
+		end if;
+
+		--
+		-- When the current super-block was secured, select the next one.
+		--
+		Loop_Sync_SB_Completed_Prims:
+		loop
+			Declare_Prim_10:
+			declare
+				Prim : constant Primitive.Object_Type := Sync_Superblock.Peek_Completed_Primitive (Obj.Sync_SB_Obj);
+			begin
+				exit Loop_Sync_SB_Completed_Prims when
+					not Primitive.Valid (Prim);
+
+				if not Primitive.Success (Prim) then
+					-- DBG(Prim);
+					raise program_error; -- throw Primitive_Failed;
+				end if;
+
+				-- DBG("primitive: ", Prim);
+				Declare_Next_SB:
+				declare
+					Next_SB : constant Superblock_Index_Type :=
+						Obj.Cur_SB + 1 mod
+							Superblock_Index_Type (Super_Blocks_Index_Type'Last) + 1;
+				begin
+					Obj.Super_Blocks (Super_Blocks_Index_Type (Next_SB)) :=
+						Obj.Super_Blocks (Curr_SB (Obj));
+
+					-- handle state--
+					Obj.Cur_SB                  := Next_SB;
+					Obj.Last_Secured_Generation :=
+						Sync_Superblock.Peek_Completed_Generation (
+							Obj.Sync_SB_Obj, Prim);
+
+					Obj.Superblock_Dirty  := False;
+					Obj.Secure_Superblock := False;
+
+				end Declare_Next_SB;
+				Sync_Superblock.Drop_Completed_Primitive (Obj.Sync_SB_Obj, Prim);
+
+			end Declare_Prim_10;
+			Progress := True;
+
+			--
+			-- (FIXME same was with sealing the generation, it might make
+			--  sense to set the trigger only when a write operation
+			--  was performed.)
+			--
+			Obj.Last_Secure_Time := Now;
+			Obj.Secure_Timeout_Request :=
+				Timeout_Request_Valid (Obj.Secure_Interval);
+		end loop Loop_Sync_SB_Completed_Prims;
+
+		--
+		-- Use I/O module to write super-block to the block device.
+		--
+		Loop_Sync_SB_Generated_Prims:
+		loop
+			Declare_Prim_11:
+			declare
+				Prim : constant Primitive.Object_Type :=
+					Sync_Superblock.Peek_Generated_Primitive (Obj.Sync_SB_Obj);
+			begin
+				exit Loop_Sync_SB_Generated_Prims when
+					not Primitive.Valid (Prim) or
+					not Block_IO.Primitive_Acceptable (Obj.IO_Obj);
+
+				Declare_SB_Data:
+				declare
+					SB_Index : constant Superblock_Index_Type :=
+						Sync_Superblock.Peek_Generated_Index (Obj.Sync_SB_Obj, Prim);
+
+					SB_Data : Block_Data_Type with
+						Address => Obj.Super_Blocks (
+							Super_Blocks_Index_Type (SB_Index))'Address;
+				begin
+					Block_IO.Submit_Primitive (
+						Obj.IO_Obj, Tag_Sync_SB, Prim, Obj.IO_Data,
+						SB_Data);
+
+				end Declare_SB_Data;
+				Sync_Superblock.Drop_Generated_Primitive (
+					Obj.Sync_SB_Obj, Prim);
+
+			end Declare_Prim_11;
+			Progress := True;
+
+		end loop Loop_Sync_SB_Generated_Prims;
+
+		---------------------
+		-- Crypto handling --
+		---------------------
+
+		--
+		-- The Crypto module has its own internal buffer, Data has to be
+		-- copied in and copied out.
+		--
+		Crypto.Execute (Obj.Crypto_Obj);
+		if Crypto.Execute_Progress (Obj.Crypto_Obj) then
+			Progress := True;
+		end if;
+		-- LOG_PROGRESS(crypto_Progress);
+
+		--
+		-- Only writes primitives (encrypted Data) are handled here,
+		-- read primitives (decrypred Data) are handled in 'give_Read_Data'.
+		--
+		Loop_Crypto_Completed_Prims:
+		loop
+			Declare_Prim_12:
+			declare
+				Prim : constant Primitive.Object_Type :=
+					Crypto.Peek_Completed_Primitive (Obj.Crypto_Obj);
+			begin
+				exit Loop_Crypto_Completed_Prims when
+					not Primitive.Valid (Prim) or
+					Request."=" (Primitive.Operation (Prim), Request.Read);
+
+				if not Primitive.Success (Prim) then
+					-- DBG(Prim);
+					raise program_error; -- throw Primitive_Failed;
+				end if;
+
+				Declare_Index_2:
+				declare
+					Index : constant Write_Back.Data_Index_Type :=
+						Write_Back.Peek_Generated_Crypto_Data (
+							Obj.Write_Back_Obj, Prim);
+
+					Cipher_Data : Crypto.Cipher_Data_Type with Address =>
+						Obj.Write_Back_Data (Index)'Address;
+				begin
+					--
+					-- FIXME instead of copying the Data just ask the crypto module for the resulting
+					--     Hash and omit further processing in case the operation failed
+					--
+					Crypto.Copy_Encrypted_Data (
+						Obj.Crypto_Obj, Prim, Cipher_Data);
+
+					Write_Back.Mark_Completed_Crypto_Primitive (
+						Obj.Write_Back_Obj, Prim, Obj.Write_Back_Data (Index));
+
+				end Declare_Index_2;
+				Crypto.Drop_Completed_Primitive (Obj.Crypto_Obj, Prim);
+
+			end Declare_Prim_12;
+			Progress := True;
+
+		end loop Loop_Crypto_Completed_Prims;
+
+		--
+		-- Since encryption is performed when calling 'execute' and decryption
+		-- is handled differently, all we have to do here is to drop and mark
+		-- complete.
+		--
+		Loop_Crypto_Generated_Prims:
+		loop
+			Declare_Prim_13:
+			declare
+				Prim : constant Primitive.Object_Type :=
+					Crypto.Peek_Generated_Primitive (Obj.Crypto_Obj);
+			begin
+				exit Loop_Crypto_Generated_Prims when
+					not Primitive.Valid (Prim);
+
+				Crypto.Drop_Generated_Primitive (Obj.Crypto_Obj, Prim);
+				Crypto.Mark_Completed_Primitive (Obj.Crypto_Obj, Prim);
+
+			end Declare_Prim_13;
+			Progress := True;
+
+		end loop Loop_Crypto_Generated_Prims;
+
+		--------------------
+		-- Cache handling --
+		--------------------
+
+		--
+		-- Pass the Data used by the module in by reference so that it
+		-- can be shared by the other modules. The method will internally
+		-- copy read job Data into the chosen entry. In doing so it might
+		-- evict an already populated entry.
+		--
+		Cache.Fill_Cache (Obj.Cache_Obj, Obj.Cache_Data, Obj.Cache_Job_Data, Now);
+		if Cache.Execute_Progress (Obj.Cache_Obj) then
+			Progress := True;
+		end if;
+
+		-- LOG_PROGRESS(Cache_Progress);
+
+		--
+		-- Read Data from the block device to fill the Cache.
+		--
+		-- (The Cache module has no 'peek_Completed_Primitive ()' method,
+		--  all modules using the Cache have to poll and might be try to
+		--  submit the same Request multiple times (see its acceptable
+		--  method). It makes sense to change the Cache module so that it
+		--  works the rest of modules. That would require restructing
+		--  the modules, though.)
+		--
+		Loop_Cache_Generated_Prims:
+		loop
+			Declare_Prim_14:
+			declare
+				Prim : constant Primitive.Object_Type :=
+					Cache.Peek_Generated_Primitive (Obj.Cache_Obj);
+			begin
+				exit Loop_Cache_Generated_Prims when
+					not Primitive.Valid (Prim) or
+					not Block_IO.Primitive_Acceptable (Obj.IO_Obj);
+
+				Cache.Drop_Generated_Primitive (Obj.Cache_Obj, Prim);
+
+				Block_IO.Submit_Primitive (
+					Obj.IO_Obj, Tag_Cache, Prim, Obj.IO_Data,
+					Obj.Cache_Job_Data (
+						Cache.Cache_Job_Index_Type (
+							Cache.Peek_Generated_Data_Index (Obj.Cache_Obj, Prim))));
+
+			end Declare_Prim_14;
+			Progress := True;
+
+		end loop Loop_Cache_Generated_Prims;
+
+		------------------
+		-- I/O handling --
+		------------------
+
+		--
+		-- This module handles all the block backend I/O and has to
+		-- work with all most all modules. IT uses the 'Tag' field
+		-- to differentiate the modules.
+		--
+
+		Loop_IO_Completed_Prims:
+		loop
+			Declare_Prim_15:
+			declare
+				Prim : constant Primitive.Object_Type :=
+					Block_IO.Peek_Completed_Primitive (Obj.IO_Obj);
+			begin
+				exit Loop_IO_Completed_Prims when not Primitive.Valid (Prim);
+
+				if not Primitive.Success (Prim) then
+					-- DBG(Prim);
+					raise program_error; -- throw Primitive_Failed;
+				end if;
+
+				Declare_Index_3:
+				declare
+					Index : constant Block_IO.Data_Index_Type :=
+						Block_IO.Peek_Completed_Data_Index (Obj.IO_Obj);
+
+					--
+					-- Whenever we cannot hand a successful primitive over
+					-- to the corresponding module, leave the loop but keep
+					-- the completed primitive so that it might be processed
+					-- next time.
+					--
+					Mod_Progress : Boolean := True;
+				begin
+					if Tag_Type (Primitive.Tag (Prim)) = Tag_Decrypt then
+
+						if not Crypto.Primitive_Acceptable (Obj.Crypto_Obj) then
+							Mod_Progress := False;
+						else
+							Declare_Data:
+							declare
+								Plain_Data : Crypto.Plain_Data_Type with Address =>
+									Obj.IO_Data (Index)'Address;
+
+								Cipher_Data : Crypto.Cipher_Data_Type with Address =>
+									Obj.Crypto_Data'Address;
+							begin
+								--
+								-- Having to override the Tag is needed because of the way
+								-- the Crypto module is hooked up in the overall Data flow.
+								-- Since it is the one that acknowledges the primitive to the
+								-- pool in the read case, we have to use the Tag the pool
+								-- module uses.
+								--;
+								Crypto.Submit_Primitive (
+									Obj.Crypto_Obj,
+									Primitive.Copy_Valid_Object_Change_Tag (
+										Prim,
+										Block_IO.Peek_Completed_Tag (
+											Obj.IO_Obj, Prim)),
+									Plain_Data,
+									Cipher_Data);
+
+							end Declare_Data;
+						end if;
+
+					elsif Tag_Type (Primitive.Tag (Prim)) = Tag_Cache then
+						--
+						-- FIXME we need a proper method for getting the right Cache job
+						--       Data index, for now rely on the knowledge that there is
+						--       only one item
+						--
+						Obj.Cache_Job_Data (0) := Obj.IO_Data (Index);
+						Cache.Mark_Completed_Primitive (Obj.Cache_Obj, Prim);
+
+					elsif Tag_Type (Primitive.Tag (Prim)) = Tag_Cache_Flush then
+						Cache_Flusher.Mark_Generated_Primitive_Complete (
+							Obj.Cache_Flusher_Obj, Prim);
+
+					elsif Tag_Type (Primitive.Tag (Prim)) = Tag_Write_Back then
+						Write_Back.Mark_Completed_IO_Primitive (
+							Obj.Write_Back_Obj, Prim);
+
+					elsif Tag_Type (Primitive.Tag (Prim)) = Tag_Sync_SB then
+						Sync_Superblock.Mark_Generated_Primitive_Complete (
+							Obj.Sync_SB_Obj, Prim);
+
+					elsif Tag_Type (Primitive.Tag (Prim)) = Tag_Free_Tree_WB then
+						Free_Tree.Mark_Generated_Primitive_Complete (
+							Obj.Free_Tree_Obj,
+							Primitive.Copy_Valid_Object_Change_Tag (
+								Prim, Tag_Write_Back));
+
+					elsif Tag_Type (Primitive.Tag (Prim)) = Tag_Free_Tree_IO then
+						
+						--
+						-- FIXME we need a proper method for getting the right query
+						--       Data index, for now rely on the knowledge that there
+						--       is only one item
+						--
+						Obj.Free_Tree_Query_Data (0) := Obj.IO_Data (Index);
+						Free_Tree.Mark_Generated_Primitive_Complete (
+							Obj.Free_Tree_Obj,
+							Primitive.Copy_Valid_Object_Change_Tag (
+								Prim, Tag_IO));
+					end if;
+					exit Loop_IO_Completed_Prims when not Mod_Progress;
+
+				end Declare_Index_3;
+				Block_IO.Drop_Completed_Primitive (Obj.IO_Obj, Prim);
+
+			end Declare_Prim_15;
+			Progress := True;
+
+		end loop Loop_IO_Completed_Prims;
 		Obj.Execute_Progress := Progress;
+
 	end Execute;
 
 

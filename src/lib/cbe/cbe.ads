@@ -201,15 +201,19 @@ is
 	--
 	-- Tag meanings
 	--
-	function Tag_Invalid     return Tag_Type is (16#00#);
-	function Tag_IO          return Tag_Type is (16#10#);
-	function Tag_Translation return Tag_Type is (16#60#);
-	function Tag_Write_Back  return Tag_Type is (16#70#);
-	function Tag_Cache       return Tag_Type is (16#20#);
-	function Tag_Crypto      return Tag_Type is (16#30#);
-	function Tag_Decrypt     return Tag_Type is (16#31#);
-	function Tag_Encrypt     return Tag_Type is (16#32#);
-	function Tag_VBD         return Tag_Type is (16#100#);
-	function Tag_Free_Tree   return Tag_Type is (16#200#);
+	function Tag_Invalid      return Tag_Type is (16#00#);
+	function Tag_IO           return Tag_Type is (16#10#);
+	function Tag_Translation  return Tag_Type is (16#60#);
+	function Tag_Write_Back   return Tag_Type is (16#70#);
+	function Tag_Cache        return Tag_Type is (16#20#);
+	function Tag_Cache_Flush  return Tag_Type is (16#21#);
+	function Tag_Crypto       return Tag_Type is (16#30#);
+	function Tag_Decrypt      return Tag_Type is (16#31#);
+	function Tag_Encrypt      return Tag_Type is (16#32#);
+	function Tag_Sync_SB      return Tag_Type is (16#80#);
+	function Tag_VBD          return Tag_Type is (16#100#);
+	function Tag_Free_Tree    return Tag_Type is (16#200#);
+	function Tag_Free_Tree_IO return Tag_Type is (16#210#);
+	function Tag_Free_Tree_WB return Tag_Type is (16#270#);
 
 end CBE;

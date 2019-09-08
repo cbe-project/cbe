@@ -368,8 +368,8 @@ private
 		Splitter_Obj            : Splitter.Object_Type;
 		Crypto_Obj              : Crypto.Object_Type;
 		Crypto_Data             : Block_Data_Type;
-		Io_Obj                  : Block_Io.Object_Type;
-		Io_Data                 : Block_Io.Data_Type;
+		IO_Obj                  : Block_IO.Object_Type;
+		IO_Data                 : Block_IO.Data_Type;
 		Cache_Obj               : Cache.Object_Type;
 		Cache_Data              : Cache.Cache_Data_Type;
 		Cache_Job_Data          : Cache.Cache_Job_Data_Type;
