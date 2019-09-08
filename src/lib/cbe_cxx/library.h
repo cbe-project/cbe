@@ -251,7 +251,7 @@ class Cbe::Library
 		 *
 		 * \return  true if progress was made, false otherwise
 		 */
-		void execute(Time::Timestamp now, bool show_progress, bool show_if_progress);
+		void execute(Time::Timestamp now);
 		bool execute_progress() const { return _execute_progress; };
 
 		/**
@@ -294,7 +294,7 @@ class Cbe::Library
 		 * \return valid request in case the is one pending that
 		 *         needs data, otherwise an invalid one is returned
 		 */
-		Cbe::Request need_data();
+		void need_data(Cbe::Request &request);
 
 		/**
 		 * Take read request for backend block session
@@ -302,7 +302,7 @@ class Cbe::Library
 		 * \param  request  reference to the request from the CBE
 		 * \return  true if the CBE could process the request
 		 */
-		bool take_read_data(Cbe::Request const &request);
+		void take_read_data(Cbe::Request const &request, bool &progress);
 
 		/**
 		 * Acknowledge read request to the backend block session
@@ -315,8 +315,9 @@ class Cbe::Library
 		 *
 		 * \return  true if the CBE acknowledged the request
 		 */
-		bool ack_read_data(Cbe::Request    const &request,
-		                   Cbe::Block_data const &data);
+		void ack_read_data(Cbe::Request    const &request,
+		                   Cbe::Block_data const &data,
+		                   bool &progress);
 
 		/**
 		 * Take write request for the backend block session
@@ -330,8 +331,9 @@ class Cbe::Library
 		 *
 		 * \return  true if the CBE could process the request
 		 */
-		bool take_write_data(Cbe::Request    const &request,
-		                     Cbe::Block_data       &data);
+		void take_write_data(Cbe::Request    const &request,
+		                     Cbe::Block_data       &data,
+		                     bool &progress);
 
 		/**
 		 * Acknowledge write request to backend block session
@@ -340,7 +342,7 @@ class Cbe::Library
 		 *                  by the CBE
 		 * \return  true if the CBE acknowledged the request
 		 */
-		bool ack_write_data(Cbe::Request const &request);
+		void ack_write_data(Cbe::Request const &request, bool &progress);
 
 		/*
 		 * Frontend block I/O
@@ -352,14 +354,14 @@ class Cbe::Library
 		 * \return valid request in case the is one pending that
 		 *         needs data, otherwise an invalid one is returned
 		 */
-		Cbe::Request have_data();
+		void have_data(Cbe::Request &request);
 
 		/**
 		 * Get primitive index
 		 *
 		 * \return 
 		 */
-		uint64_t give_data_index(Cbe::Request const &request);
+		uint64_t give_data_index(Cbe::Request const &request) const;
 
 		/**
 		 * Request access to the Block::Request data for storing data

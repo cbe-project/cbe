@@ -181,7 +181,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 * CBE handling
 				 */
 
-				_cbe->execute(_time.timestamp(), _show_progress, _show_if_progress);
+				_cbe->execute(_time.timestamp());
 				progress |= _cbe->execute_progress();
 				_handle_cbe_timeout_requests();
 
@@ -193,7 +193,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					 * whenever we need to read from the Block::Request_stream in case
 					 * it is a write requests or write to it when it is read request.
 					 */
-					Cbe::Request const cbe_request = _cbe->have_data();
+					Cbe::Request cbe_request;
+					_cbe->have_data(cbe_request);
 					if (!cbe_request.valid()) { return; }
 
 					uint64_t const prim_index = _cbe->give_data_index(cbe_request);
@@ -240,7 +241,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 */
 				while (_block.tx()->ready_to_submit()) {
 
-					Cbe::Request const request = _cbe->need_data();
+					Cbe::Request request;
+					_cbe->need_data(request);
 					if (!request.valid())                { break; }
 					if (_backend_request.valid())        { break; }
 
@@ -255,14 +257,18 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 						if (request.read()) {
 							// XXX release packet in case of return false
-							progress |= _cbe->take_read_data(request);
+							bool local_progress;
+							_cbe->take_read_data(request, local_progress);
+							progress |= local_progress;
 						}
 
 						if (request.write()) {
 							// XXX release packet in case of return false
 							Cbe::Block_data &data =
 								*reinterpret_cast<Cbe::Block_data*>(_block.tx()->packet_content(packet));
-							progress |= _cbe->take_write_data(request, data);
+							bool local_progr;
+							_cbe->take_write_data(request, data, local_progr);
+							progress |= local_progr;
 						}
 
 						_block.tx()->try_submit_packet(packet);
@@ -296,11 +302,15 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					if (read) {
 						Cbe::Block_data &data =
 							*reinterpret_cast<Cbe::Block_data*>(_block.tx()->packet_content(packet));
-						progress |= _cbe->ack_read_data(_backend_request, data);
+						bool local_progr;
+						_cbe->ack_read_data(_backend_request, data, local_progr);
+						progress |= local_progr;
 					} else
 
 					if (write) {
-						progress |= _cbe->ack_write_data(_backend_request);
+						bool local_progr;
+						_cbe->ack_write_data(_backend_request, local_progr);
+						progress |= local_progr;
 					}
 
 					_block.tx()->release_packet(packet);

@@ -325,7 +325,7 @@ Cbe::Virtual_block_address Cbe::Library::max_vba() const
 }
 
 
-void Cbe::Library::execute(Time::Timestamp now, bool show_progress, bool show_if_progress)
+void Cbe::Library::execute(Time::Timestamp now)
 {
 	bool progress = false;
 
@@ -1246,9 +1246,12 @@ void Cbe::Library::drop_completed_request(Cbe::Request const &req)
 }
 
 
-Cbe::Request Cbe::Library::need_data()
+void Cbe::Library::need_data(Cbe::Request &request)
 {
-	if (_backend_req_prim.prim.valid()) { return Cbe::Request { }; }
+	if (_backend_req_prim.prim.valid()) {
+		request =  Cbe::Request { };
+		return;
+	}
 
 	/* I/O module */
 	{
@@ -1262,21 +1265,22 @@ Cbe::Request Cbe::Library::need_data()
 				.tag         = Cbe::Tag::IO_TAG,
 				.in_progress = false,
 			};
-			return req;
+			request = req;
+			return;
 		}
 	}
 
-	return Cbe::Request { };
+	request = Cbe::Request { };
 }
 
 
-bool Cbe::Library::take_read_data(Cbe::Request const &request)
+void Cbe::Library::take_read_data(Cbe::Request const &request, bool &progress)
 {
 	/*
 	 * For now there is only one request pending.
 	 */
 	if (!_backend_req_prim.req.equal(request)
-	    || _backend_req_prim.in_progress) { return false; }
+	    || _backend_req_prim.in_progress) { progress = false; return; }
 
 	Cbe::Primitive prim = _backend_req_prim.prim;
 
@@ -1284,20 +1288,21 @@ bool Cbe::Library::take_read_data(Cbe::Request const &request)
 		_io.drop_generated_primitive(prim);
 
 		_backend_req_prim.in_progress = true;
-		return true;
+		progress = true; return;
 	}
-	return false;
+	progress = false;
 }
 
 
-bool Cbe::Library::ack_read_data(Cbe::Request    const &request,
-                                 Cbe::Block_data const &data)
+void Cbe::Library::ack_read_data(Cbe::Request    const &request,
+                                 Cbe::Block_data const &data,
+                                 bool &progress)
 {
 	/*
 	 * For now there is only one request pending.
 	 */
 	if (!_backend_req_prim.req.equal(request)
-	    || !_backend_req_prim.in_progress) { return false; }
+	    || !_backend_req_prim.in_progress) { progress =  false; return; }
 
 	Cbe::Primitive prim = _backend_req_prim.prim;
 
@@ -1317,21 +1322,22 @@ bool Cbe::Library::ack_read_data(Cbe::Request    const &request,
 		_io.mark_generated_primitive_complete(prim);
 
 		_backend_req_prim = Req_prim { };
-		return true;
+		progress = true; return;
 	}
 
-	return false;
+	progress = false;
 }
 
 
-bool Cbe::Library::take_write_data(Cbe::Request    const &request,
-                                   Cbe::Block_data       &data)
+void Cbe::Library::take_write_data(Cbe::Request    const &request,
+                                   Cbe::Block_data       &data,
+                                   bool &progress)
 {
 	/*
 	 * For now there is only one request pending.
 	 */
 	if (!_backend_req_prim.req.equal(request)
-	    || _backend_req_prim.in_progress) { return false; }
+	    || _backend_req_prim.in_progress) { progress = false; return; }
 
 	Cbe::Primitive const prim = _backend_req_prim.prim;
 
@@ -1344,20 +1350,20 @@ bool Cbe::Library::take_write_data(Cbe::Request    const &request,
 		_io.drop_generated_primitive(prim);
 
 		_backend_req_prim.in_progress = true;
-		return true;
+		progress = true; return;
 	}
 
-	return false;
+	progress = false;
 }
 
 
-bool Cbe::Library::ack_write_data(Cbe::Request const &request)
+void Cbe::Library::ack_write_data(Cbe::Request const &request, bool &progress)
 {
 	/*
 	 * For now there is only one request pending.
 	 */
 	if (!_backend_req_prim.req.equal(request)
-	    || !_backend_req_prim.in_progress) { return false; }
+	    || !_backend_req_prim.in_progress) { progress = false; return;; }
 
 	Cbe::Primitive prim = _backend_req_prim.prim;
 
@@ -1370,17 +1376,17 @@ bool Cbe::Library::ack_write_data(Cbe::Request const &request)
 		_io.mark_generated_primitive_complete(prim);
 
 		_backend_req_prim = Req_prim { };
-		return true;
+		progress = true; return;;
 	}
 
-	return false;
+	progress = false; return;;
 }
 
 
-Cbe::Request Cbe::Library::have_data()
+void Cbe::Library::have_data(Cbe::Request &request)
 {
 	// XXX move req_prim allocation into execute
-	if (_frontend_req_prim.prim.valid()) { return Cbe::Request { }; }
+	if (_frontend_req_prim.prim.valid()) { request = Cbe::Request { }; return; }
 
 	/*
 	 * When it was a read request, we need the location to
@@ -1396,7 +1402,7 @@ Cbe::Request Cbe::Library::have_data()
 				.tag  = Cbe::Tag::CRYPTO_TAG,
 				.in_progress = false,
 			};
-			return req;
+			request = req; return;
 		}
 	}
 
@@ -1416,7 +1422,7 @@ Cbe::Request Cbe::Library::have_data()
 				.tag  = Cbe::Tag::VBD_TAG,
 				.in_progress = false,
 			};
-			return req;
+			request = req; return;
 		}
 	}
 
@@ -1434,15 +1440,15 @@ Cbe::Request Cbe::Library::have_data()
 				.tag  = Cbe::Tag::FREE_TREE_TAG,
 				.in_progress = false,
 			};
-			return req;
+			request = req; return;
 		}
 	}
 
-	return Cbe::Request { };
+	request = Cbe::Request { }; return;
 }
 
 
-Genode::uint64_t Cbe::Library::give_data_index(Cbe::Request const &request)
+Genode::uint64_t Cbe::Library::give_data_index(Cbe::Request const &request) const
 {
 	/*
 	 * For now there is only one request pending.
@@ -1758,9 +1764,9 @@ Cbe::Virtual_block_address Cbe::Public_Library::max_vba() const
 }
 
 
-void Cbe::Public_Library::execute(Time::Timestamp now, bool show_progress, bool show_if_progress)
+void Cbe::Public_Library::execute(Time::Timestamp now)
 {
-	_cbe_library->execute(now, show_progress, show_if_progress);
+	_cbe_library->execute(now);
 }
 
 
@@ -1794,45 +1800,47 @@ void Cbe::Public_Library::drop_completed_request(Cbe::Request const &r)
 }
 
 
-Cbe::Request Cbe::Public_Library::need_data()
+void Cbe::Public_Library::need_data(Cbe::Request &req)
 {
-	return _cbe_library->need_data();
+	_cbe_library->need_data(req);
 }
 
 
-bool Cbe::Public_Library::take_read_data(Cbe::Request const &r)
+void Cbe::Public_Library::take_read_data(Cbe::Request const &r, bool &progress)
 {
-	return _cbe_library->take_read_data(r);
+	_cbe_library->take_read_data(r, progress);
 }
 
 
-bool Cbe::Public_Library::ack_read_data(Cbe::Request    const &r,
-                                        Cbe::Block_data const &d)
+void Cbe::Public_Library::ack_read_data(Cbe::Request    const &r,
+                                        Cbe::Block_data const &d,
+                                        bool &progress)
 {
-	return _cbe_library->ack_read_data(r, d);
+	_cbe_library->ack_read_data(r, d, progress);
 }
 
 
-bool Cbe::Public_Library::take_write_data(Cbe::Request    const &r,
-                                          Cbe::Block_data       &d)
+void Cbe::Public_Library::take_write_data(Cbe::Request    const &r,
+                                          Cbe::Block_data       &d,
+                                          bool &progress)
 {
-	return _cbe_library->take_write_data(r, d);
+	_cbe_library->take_write_data(r, d, progress);
 }
 
 
-bool Cbe::Public_Library::ack_write_data(Cbe::Request const &r)
+void Cbe::Public_Library::ack_write_data(Cbe::Request const &r, bool &progress)
 {
-	return _cbe_library->ack_write_data(r);
+	_cbe_library->ack_write_data(r, progress);
 }
 
 
-Cbe::Request Cbe::Public_Library::have_data()
+void Cbe::Public_Library::have_data(Cbe::Request &req)
 {
-	return _cbe_library->have_data();
+	_cbe_library->have_data(req);
 }
 
 
-Genode::uint64_t Cbe::Public_Library::give_data_index(Cbe::Request const &r)
+Genode::uint64_t Cbe::Public_Library::give_data_index(Cbe::Request const &r) const
 {
 	return _cbe_library->give_data_index(r);
 }

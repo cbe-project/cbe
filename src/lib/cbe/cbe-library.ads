@@ -235,10 +235,10 @@ is
 	-- \param Progress  return true if the CBE acknowledged the request
 	--
 	procedure Ack_Read_Data (
-		Obj     : in out Object_Type;
-		Req     :        Request.Object_Type;
-		Data    :        Block_Data_Type;
-		Progess :    out Boolean);
+		Obj      : in out Object_Type;
+		Req      :        Request.Object_Type;
+		Data     :        Block_Data_Type;
+		Progress :    out Boolean);
 
 	--
 	-- Take write request for the backend block session
@@ -330,6 +330,17 @@ is
 --		Show_Progress    :        Boolean;
 --		Show_If_Progress :        Boolean);
 
+	--
+	-- Get highest virtual-block-address useable by the current active snapshot
+	--
+	-- \return  highest addressable virtual-block-address
+	--
+	function Max_VBA (Obj : Object_Type)
+	return Virtual_Block_Address_Type;
+
+	function Execute_Progress(Obj : Object_Type)
+	return Boolean;
+
 private
 
 	type Free_Tree_Retry_Count_Type is mod 2**32;
@@ -408,13 +419,5 @@ private
 
 	function Timeout_Request_Invalid
 	return Timeout_Request_Type;
-
-	--
-	-- Get highest virtual-block-address useable by the current active snapshot
-	--
-	-- \return  highest addressable virtual-block-address
-	--
-	function Max_VBA (Obj : Object_Type)
-	return Virtual_Block_Address_Type;
 
 end CBE.Library;

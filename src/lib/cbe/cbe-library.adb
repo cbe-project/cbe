@@ -1700,14 +1700,14 @@ is
 
 
 	procedure Ack_Read_Data (
-		Obj     : in out Object_Type;
-		Req     :        Request.Object_Type;
-		Data    :        Block_Data_Type;
-		Progess :    out Boolean)
+		Obj      : in out Object_Type;
+		Req      :        Request.Object_Type;
+		Data     :        Block_Data_Type;
+		Progress :    out Boolean)
 	is
 		Prim : constant Primitive.Object_Type := Obj.Back_End_Req_Prim.Prim;
 	begin
-		Progess := False;
+		Progress := False;
 
 		if Back_End_Busy_With_Other_Request (Obj, Req) then
 			return;
@@ -1724,7 +1724,7 @@ is
 
 		Obj.Back_End_Req_Prim := Request_Primitive_Invalid;
 
-		Progess := True;
+		Progress := True;
 	end Ack_Read_Data;
 
 
@@ -2169,5 +2169,10 @@ is
 		end if;
 		return False;
 	end Give_Write_Data;
+
+
+	function Execute_Progress(Obj : Object_Type)
+	return Boolean
+	is (Obj.Execute_Progress);
 
 end CBE.Library;
