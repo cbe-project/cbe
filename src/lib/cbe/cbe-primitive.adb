@@ -12,6 +12,21 @@ package body CBE.Primitive
 with Spark_Mode
 is
 	--
+	-- Copy_Valid_Object_Change_Tag
+	--
+	function Copy_Valid_Object_Change_Tag (
+		Obj : Object_Type;
+		Tag : Tag_Type)
+	return Object_Type
+	is (
+		Valid        => True,
+		Operation    => Obj.Operation,
+		Success      => Obj.Success,
+		Tag          => Request.Tag_Type (Tag),
+		Block_Number => Obj.Block_Number,
+		Index        => Obj.Index);
+
+	--
 	-- Invalid_Object
 	--
 	function Invalid_Object

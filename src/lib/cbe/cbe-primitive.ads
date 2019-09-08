@@ -24,6 +24,15 @@ is
 	function Invalid_Index return Index_Type is (Index_Type'Last);
 
 	--
+	-- Copy_Object_Change_Tag
+	--
+	function Copy_Valid_Object_Change_Tag (
+		Obj : Object_Type;
+		Tag : Tag_Type)
+	return Object_Type
+	with Pre => (Valid(Obj));
+
+	--
 	-- Invalid_Object
 	--
 	function Invalid_Object
