@@ -1496,10 +1496,10 @@ is
 							Declare_Data:
 							declare
 								Plain_Data : Crypto.Plain_Data_Type with Address =>
-									Obj.IO_Data (Index)'Address;
+									Obj.Crypto_Data'Address;
 
 								Cipher_Data : Crypto.Cipher_Data_Type with Address =>
-									Obj.Crypto_Data'Address;
+									Obj.IO_Data (Index)'Address;
 							begin
 								--
 								-- Having to override the Tag is needed because of the way
