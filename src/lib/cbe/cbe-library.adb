@@ -1644,23 +1644,12 @@ is
 	--
 	-- For now there can be only one Request pending.
 	--
-	function Back_End_Busy_With_Other_Request (
-		Obj : Object_Type;
-		Req : Request.Object_Type)
-	return Boolean
-	is (not Request.Equal(Obj.Back_End_Req_Prim.Req, Req) or
-		Obj.Back_End_Req_Prim.In_Progress or
-		Obj.Back_End_Req_Prim.Tag /= Tag_IO);
-
-
-	--
-	-- For now there can be only one Request pending.
-	--
 	function Front_End_Busy_With_Other_Request (
 		Obj : Object_Type;
 		Req : Request.Object_Type)
 	return Boolean
 	is (not Request.Equal (Obj.Front_End_Req_Prim.Req, Req));
+
 
 	procedure Take_Read_Data (
 		Obj      : in out Object_Type;
@@ -1670,7 +1659,11 @@ is
 	begin
 		Progress := false;
 
-		if Back_End_Busy_With_Other_Request (Obj, Req) then
+		if
+			not Request.Equal(Obj.Back_End_Req_Prim.Req, Req) or
+			Obj.Back_End_Req_Prim.In_Progress or
+			Obj.Back_End_Req_Prim.Tag /= Tag_IO
+		then
 			return;
 		end if;
 
@@ -1709,12 +1702,16 @@ is
 	begin
 		Progress := False;
 
-		if Back_End_Busy_With_Other_Request (Obj, Req) then
+		if
+			not Request.Equal(Obj.Back_End_Req_Prim.Req, Req) or
+			not Obj.Back_End_Req_Prim.In_Progress or
+			Obj.Back_End_Req_Prim.Tag /= Tag_IO
+		then
 			return;
 		end if;
 
 		if Request.Success(Req) then
-			Obj.Io_Data(Block_IO.Peek_Completed_Data_Index(Obj.Io_Obj)) := Data;
+			Obj.Io_Data(Block_IO.Peek_Generated_Data_Index(Obj.Io_Obj, Prim)) := Data;
 		end if;
 
 		Block_IO.Mark_Generated_Primitive_Complete (
@@ -1738,7 +1735,11 @@ is
 	begin
 		Progress := False;
 
-		if Back_End_Busy_With_Other_Request (Obj, Req) then
+		if
+			not Request.Equal(Obj.Back_End_Req_Prim.Req, Req) or
+			Obj.Back_End_Req_Prim.In_Progress or
+			Obj.Back_End_Req_Prim.Tag /= Tag_IO
+		then
 			return;
 		end if;
 
@@ -1746,6 +1747,7 @@ is
 
 		Block_IO.Drop_Generated_Primitive(Obj.Io_Obj, Prim);
 
+		Obj.Back_End_Req_Prim.In_Progress := True;
 		Progress := True;
 	end Take_Write_Data;
 
@@ -1759,7 +1761,11 @@ is
 	begin
 		Progress := False;
 
-		if Back_End_Busy_With_Other_Request (Obj, Req) then
+		if
+			not Request.Equal(Obj.Back_End_Req_Prim.Req, Req) or
+			not Obj.Back_End_Req_Prim.In_Progress or
+			Obj.Back_End_Req_Prim.Tag /= Tag_IO
+		then
 			return;
 		end if;
 
