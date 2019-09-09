@@ -1438,13 +1438,13 @@ is
 					not Primitive.Valid (Prim) or
 					not Block_IO.Primitive_Acceptable (Obj.IO_Obj);
 
-				Cache.Drop_Generated_Primitive (Obj.Cache_Obj, Prim);
-
 				Block_IO.Submit_Primitive (
 					Obj.IO_Obj, Tag_Cache, Prim, Obj.IO_Data,
 					Obj.Cache_Job_Data (
 						Cache.Cache_Job_Index_Type (
 							Cache.Peek_Generated_Data_Index (Obj.Cache_Obj, Prim))));
+
+				Cache.Drop_Generated_Primitive (Obj.Cache_Obj, Prim);
 
 			end Declare_Prim_14;
 			Progress := True;
