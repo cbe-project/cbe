@@ -47,11 +47,11 @@ struct Cbe::Public_Library : Cbe::Spark_object<216648>
 	 *
 	 * \param  current_sb  super-block that should be used initially
 	 */
-	Public_Library(Time::Timestamp  const  now,
-	               Time::Timestamp  const  sync,
-	               Time::Timestamp  const  secure,
-	               Cbe::Super_block        sbs[Cbe::NUM_SUPER_BLOCKS],
-	               Cbe::Super_block_index  current_sb);
+	Public_Library(Time::Timestamp   const  now,
+	               Time::Timestamp   const  sync,
+	               Time::Timestamp   const  secure,
+	               Cbe::Super_blocks const &sbs,
+	               Cbe::Super_block_index   current_sb);
 
 	/**
 	 * Print current active super-block/snapshot information to LOG

@@ -36,7 +36,7 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe14Public_LibraryC2EyyyPNS_11Super_blockENS_17Super_block_indexE";
+		External_Name => "_ZN3Cbe14Public_LibraryC2EyyyRKNS_12Super_blocksENS_17Super_block_indexE";
 
 
 	function Peek_Sync_Timeout_Request (Obj : Library.Object_Type)

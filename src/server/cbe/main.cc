@@ -100,7 +100,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Cbe::Request _backend_request { };
 
 		Cbe::Super_block_index _cur_sb { Cbe::Super_block_index::INVALID };
-		Cbe::Super_block       _super_block[Cbe::NUM_SUPER_BLOCKS] { };
+		Cbe::Super_blocks      _super_blocks { };
 
 		Signal_handler<Main> _request_handler {
 			_env.ep(), *this, &Main::_handle_requests };
@@ -348,7 +348,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		 *  \return  index of the most recent super-block or an INVALID
 		 *           index in case the super-block could not be found
 		 */
-		Cbe::Super_block_index _read_superblocks(Cbe::Super_block sb[Cbe::NUM_SUPER_BLOCKS])
+		Cbe::Super_block_index _read_superblocks(Cbe::Super_blocks &sbs)
 		{
 			Cbe::Generation        last_gen = 0;
 			Cbe::Super_block_index most_recent_sb { Cbe::Super_block_index::INVALID };
@@ -362,7 +362,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			for (uint64_t i = 0; i < Cbe::NUM_SUPER_BLOCKS; i++) {
 				Util::Block_io io(_block, sizeof (Cbe::Super_block), i, 1);
 				void const       *src = io.addr<void*>();
-				Cbe::Super_block &dst = sb[i];
+				Cbe::Super_block &dst = sbs.block[i];
 				Genode::memcpy(&dst, src, sizeof (Cbe::Super_block));
 
 				/*
@@ -432,7 +432,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			 *  SB to start from and whenever it wants to write a new one, it should pass
 			 *  the block on to the outside.)
 			 */
-			Cbe::Super_block_index curr_sb = _read_superblocks(_super_block);
+			Cbe::Super_block_index curr_sb = _read_superblocks(_super_blocks);
 			if (curr_sb.value == Cbe::Super_block_index::INVALID) {
 				Genode::error("no valid super block found");
 				throw -1;
@@ -462,7 +462,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			 * access to the SBs.
 			 *
 			 */
-			_cbe.construct(_time.timestamp(), sync, secure, _super_block, curr_sb);
+			_cbe.construct(_time.timestamp(), sync, secure, _super_blocks, curr_sb);
 			_handle_cbe_timeout_requests();
 
 			/*

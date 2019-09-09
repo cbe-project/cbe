@@ -517,6 +517,12 @@ namespace Cbe {
 		}
 	} __attribute__((packed));
 
+	struct Super_blocks
+	{
+		Super_block block[Cbe::NUM_SUPER_BLOCKS];
+
+	} __attribute__((packed));
+
 	static_assert(sizeof (Super_block) <= sizeof (Block_data),
 	              "Super-block too large");
 
