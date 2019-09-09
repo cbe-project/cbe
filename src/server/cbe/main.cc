@@ -12,6 +12,7 @@
 #include <base/attached_rom_dataspace.h>
 #include <base/component.h>
 #include <base/heap.h>
+#include <base/thread.h>
 #include <block/request_stream.h>
 #include <root/root.h>
 #include <terminal_session/connection.h>
@@ -551,6 +552,8 @@ extern "C" void adainit();
 
 void Component::construct(Genode::Env &env)
 {
+	Genode::Thread::myself()->stack_size(512*1024);
+
 	/* make ada-runtime happy */
 	__genode_env = &env;
 
