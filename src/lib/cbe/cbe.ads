@@ -308,4 +308,10 @@ is
 		Timeout : Timestamp_Type;
 	end record;
 
+	function To_String(N : U64)                         return String;
+	function To_String(B : Boolean)                     return String;
+	function To_String(T : Tag_Type)                    return String;
+	function To_String(A : Physical_Block_Address_Type) return String;
+	function To_String(B : Block_Data_Type)             return String;
+
 end CBE;

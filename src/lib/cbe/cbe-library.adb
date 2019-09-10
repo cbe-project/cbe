@@ -445,6 +445,8 @@ is
 		Progress : Boolean := False;
 	begin
 
+		Print_String(To_String(Obj));
+
 		-------------------
 		-- Time handling --
 		-------------------
@@ -2183,5 +2185,28 @@ is
 	function Execute_Progress(Obj : Object_Type)
 	return Boolean
 	is (Obj.Execute_Progress);
+
+	function To_String (Req_Prim : Request_Primitive_Type)
+	return String
+	is
+	begin
+		return "Req_Prim(Req=" & Request.To_String(Req_Prim.Req) &
+			", Prim="          & Primitive.To_String(Req_Prim.Prim) &
+			", Tag="           & To_String(Req_Prim.Tag) &
+			", In_Progress="   & To_String(Req_Prim.In_Progress) & ")";
+	end To_String;
+
+	function To_String (Obj : Object_Type)
+	return String
+	is
+	begin
+		return "Cbe=(" &
+			", Back_End_Req_Prim="  & To_String(Obj.Back_End_Req_Prim) &
+			", Front_End_Req_Prim=" & To_String(Obj.Front_End_Req_Prim) &
+			", VBD="                & Virtual_Block_Device.To_String(Obj.VBD) &
+			", Superblock_Dirty="   & Cbe.To_String(Obj.Superblock_Dirty) &
+			", Secure_Superblock="  & Cbe.To_String(Obj.Secure_Superblock) &
+			")";
+	end To_String;
 
 end CBE.Library;

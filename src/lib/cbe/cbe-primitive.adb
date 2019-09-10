@@ -91,4 +91,22 @@ is
 	procedure Block_Number(Obj : in out Object_Type; Value : Request.Block_Number_Type) is begin Obj.Block_Number := Value; end Block_Number;
 	procedure Operation   (Obj : in out Object_Type; Value : Request.Operation_Type)    is begin Obj.Operation    := Value; end Operation;
 
+
+	function To_String (Obj : Object_Type)
+	return String
+	is
+	begin
+		if not Obj.Valid then
+			return "Invalid Primitive";
+		end if;
+
+		return "Primitive(Op=" & Obj.Operation'Image &
+			", Tag="           & Cbe.To_String(U64(Obj.Tag)) &
+			", Success="       & Cbe.To_String(Obj.Success) &
+			", Block_Number="  & Cbe.To_String(U64(Obj.Block_Number)) &
+			", Index="         & Cbe.To_String(U64(Obj.Index)) &
+			")";
+
+	end To_String;
+
 end CBE.Primitive;

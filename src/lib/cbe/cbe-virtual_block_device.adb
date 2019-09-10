@@ -282,4 +282,12 @@ is
 
 	function Execute_Progress(Obj : Object_Type) return Boolean is (Obj.Execute_Progress);
 
+	function To_String (Obj : Object_Type) return String
+	is
+	begin
+		return "VBD(Execute_Progress=" & Cbe.To_String(Obj.Execute_Progress) &
+			", Trans=" & Translation.To_String(Obj.Trans) &
+			")";
+	end To_String;
+
 end CBE.Virtual_Block_Device;

@@ -89,6 +89,9 @@ is
 	procedure Block_Number(Obj : in out Object_Type; Value : Request.Block_Number_Type) with Pre => (Valid(Obj));
 	procedure Operation   (Obj : in out Object_Type; Value : Request.Operation_Type)    with Pre => (Valid(Obj));
 
+
+	function To_String(Obj : Object_Type) return String;
+
 private
 
 	--

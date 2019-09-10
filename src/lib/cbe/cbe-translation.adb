@@ -405,4 +405,18 @@ is
 	function Current(Obj : Object_Type) return Primitive.Object_Type is (Obj.Current);
 	function Max_Levels(Obj : Object_Type) return Tree_Level_Type is (6);
 
+
+	function To_String (Obj : Object_Type) return String
+	is
+	begin
+		return "Translation(Current=" & Primitive.To_String(Obj.Current) &
+			", Level="            & Cbe.To_String(U64(Obj.Level)) &
+			", Next_PBA="         & Cbe.To_String(Obj.Next_PBA) &
+			", Data_PBA="         & Cbe.To_String(Obj.Data_PBA) &
+			", Suspended="        & Cbe.To_String(Obj.Suspended) &
+			", Free_Tree="        & Cbe.To_String(Obj.Free_Tree) &
+			", Execute_Progress=" & Cbe.To_String(Obj.Execute_Progress) &
+			")";
+	end To_String;
+
 end CBE.Translation;

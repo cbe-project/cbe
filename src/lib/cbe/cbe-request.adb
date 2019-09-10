@@ -78,4 +78,26 @@ is
 		Obj.Success := Succ;
 	end Success;
 
+	function To_String(B : Block_Number_Type) return String
+	is
+	begin
+		return To_String(U64(B));
+	end To_String;
+
+	function To_String (Obj : Object_Type)
+	return String
+	is
+	begin
+		if not Obj.Valid then
+			return "Invalid Request";
+		end if;
+		return "Request(Op=" & Obj.Operation'Image &
+			" Tag="          & Cbe.To_String(Cbe.Tag_Type(Obj.Tag)) &
+			" Success="      & Cbe.To_String(Obj.Success) &
+			" Block_Number=" & Request.To_String(Obj.Block_Number) &
+			" Offset="       & Cbe.To_String(U64(Obj.Offset)) &
+			" Count="        & Cbe.To_String(U64(Obj.Count)) &
+			")";
+	end To_String;
+
 end CBE.Request;

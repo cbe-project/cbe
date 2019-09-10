@@ -147,6 +147,8 @@ is
 
 	function Execute_Progress(Obj : Object_Type) return Boolean;
 
+	function To_String (Obj : Object_Type) return String;
+
 private
 
 	type Object_Type is record

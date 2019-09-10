@@ -96,6 +96,9 @@ is
 		Succ :        Success_Type)
 	with Pre => (Valid(Obj));
 
+	function To_String (B   : Block_Number_Type) return String;
+	function To_String (Obj : Object_Type)       return String;
+
 private
 
 	--

@@ -255,6 +255,8 @@ is
 	function Execute_Progress(Obj : Object_Type)
 	return Boolean;
 
+	function To_String (Obj : Object_Type) return String;
+
 private
 
 	type Free_Tree_Retry_Count_Type is mod 2**32;
@@ -333,5 +335,7 @@ private
 
 	function Timeout_Request_Invalid
 	return Timeout_Request_Type;
+
+	function To_String (Req_Prim : Request_Primitive_Type) return String;
 
 end CBE.Library;

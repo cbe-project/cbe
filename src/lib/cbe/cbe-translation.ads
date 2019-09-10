@@ -172,6 +172,9 @@ is
 	function Current(Obj : Object_Type) return Primitive.Object_Type;
 	function Max_Levels(Obj : Object_Type) return Tree_Level_Type;
 
+
+	function To_String (Obj : Object_Type) return String;
+
 private
 
 	type Data_Available_Type is mod 2**32;
