@@ -17,4 +17,10 @@ is
 		Snap.ID := Snapshot_ID_Invalid;
 	end Snapshot_Discard;
 
+	procedure Print_String (S : String)
+	is
+	begin
+		Print_Cstring(S, S'Length);
+	end;
+
 end CBE;

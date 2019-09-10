@@ -542,6 +542,11 @@ extern "C" void print_u16(unsigned short const u) { Genode::log(u); }
 extern "C" void print_u8(unsigned char const u) { Genode::log(u); }
 
 
+extern "C" void print_cstring(char const *s, Genode::size_t len)
+{
+	Genode::log(Genode::Cstring(s, len));
+}
+
 
 Genode::Env *__genode_env;
 Terminal::Connection *__genode_terminal;

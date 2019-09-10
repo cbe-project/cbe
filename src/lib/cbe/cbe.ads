@@ -25,6 +25,11 @@ is
 	procedure print_u32 (U : U32) with Import, Convention => C, External_Name => "print_u32";
 	procedure print_u64 (U : U64) with Import, Convention => C, External_Name => "print_u64";
 
+	procedure Print_Cstring (S : String; Length : U64)
+		with Import, Convention => C, External_Name => "print_cstring";
+
+	procedure Print_String (S : String);
+
 	subtype Byte_Type                 is SHA256_4K.Byte;
 	type Block_Data_Type              is array (1..4096) of Byte_Type with Size => 4096 * 8;
 	type Translation_Data_Type        is array (0..0) of Block_Data_Type with Size => 1 * 4096 * 8;
