@@ -23,7 +23,7 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe11object_sizeERKNS_14Public_LibraryE";
+		External_Name => "_ZN3Cbe11object_sizeERKNS_7LibraryE";
 
 
 	procedure Initialize_Object (
@@ -36,7 +36,7 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe14Public_LibraryC2EyyyRKNS_12Super_blocksENS_17Super_block_indexE";
+		External_Name => "_ZN3Cbe7LibraryC2EyyyRKNS_12Super_blocksENS_17Super_block_indexE";
 
 
 	function Peek_Sync_Timeout_Request (Obj : Library.Object_Type)
@@ -44,7 +44,7 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZNK3Cbe14Public_Library25peek_sync_timeout_requestEv";
+		External_Name => "_ZNK3Cbe7Library25peek_sync_timeout_requestEv";
 
 
 	function Peek_Secure_Timeout_Request (Obj : Library.Object_Type)
@@ -52,21 +52,21 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZNK3Cbe14Public_Library27peek_secure_timeout_requestEv";
+		External_Name => "_ZNK3Cbe7Library27peek_secure_timeout_requestEv";
 
 
 	procedure Ack_Sync_Timeout_Request (Obj : in out Library.Object_Type)
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe14Public_Library24ack_sync_timeout_requestEv";
+		External_Name => "_ZN3Cbe7Library24ack_sync_timeout_requestEv";
 
 
 	procedure Ack_Secure_Timeout_Request (Obj : in out Library.Object_Type)
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe14Public_Library26ack_secure_timeout_requestEv";
+		External_Name => "_ZN3Cbe7Library26ack_secure_timeout_requestEv";
 
 
 	function Max_VBA (Obj : Library.Object_Type)
@@ -74,7 +74,7 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZNK3Cbe14Public_Library7max_vbaEv";
+		External_Name => "_ZNK3Cbe7Library7max_vbaEv";
 
 
 	procedure Execute (
@@ -83,7 +83,7 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe14Public_Library7executeEy";
+		External_Name => "_ZN3Cbe7Library7executeEy";
 
 
 	function Request_Acceptable (Obj : Library.Object_Type)
@@ -91,7 +91,7 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZNK3Cbe14Public_Library18request_acceptableEv";
+		External_Name => "_ZNK3Cbe7Library18request_acceptableEv";
 
 
 	procedure Submit_Request (
@@ -100,7 +100,7 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe14Public_Library14submit_requestERKNS_7RequestE";
+		External_Name => "_ZN3Cbe7Library14submit_requestERKNS_7RequestE";
 
 
 	function Peek_Completed_Request (Obj : Library.Object_Type)
@@ -108,7 +108,7 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZNK3Cbe14Public_Library22peek_completed_requestEv";
+		External_Name => "_ZNK3Cbe7Library22peek_completed_requestEv";
 
 
 	procedure Drop_Completed_Request (
@@ -117,7 +117,7 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe14Public_Library22drop_completed_requestERKNS_7RequestE";
+		External_Name => "_ZN3Cbe7Library22drop_completed_requestERKNS_7RequestE";
 
 
 	procedure Need_Data (
@@ -126,7 +126,7 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe14Public_Library9need_dataERNS_7RequestE";
+		External_Name => "_ZN3Cbe7Library10_need_dataERNS_7RequestE";
 
 
 	procedure Take_Read_Data (
@@ -136,7 +136,7 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe14Public_Library14take_read_dataERKNS_7RequestERb";
+		External_Name => "_ZN3Cbe7Library15_take_read_dataERKNS_7RequestERb";
 
 
 	procedure Ack_Read_Data (
@@ -147,7 +147,7 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe14Public_Library13ack_read_dataERKNS_7RequestERKNS_10Block_dataERb";
+		External_Name => "_ZN3Cbe7Library14_ack_read_dataERKNS_7RequestERKNS_10Block_dataERb";
 
 
 	procedure Take_Write_Data (
@@ -158,7 +158,7 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe14Public_Library15take_write_dataERKNS_7RequestERNS_10Block_dataERb";
+		External_Name => "_ZN3Cbe7Library16_take_write_dataERKNS_7RequestERNS_10Block_dataERb";
 
 
 	procedure Ack_Write_Data (
@@ -168,7 +168,7 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe14Public_Library14ack_write_dataERKNS_7RequestERb";
+		External_Name => "_ZN3Cbe7Library15_ack_write_dataERKNS_7RequestERb";
 
 
 	procedure Have_Data (
@@ -177,7 +177,7 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe14Public_Library9have_dataERNS_7RequestE";
+		External_Name => "_ZN3Cbe7Library10_have_dataERNS_7RequestE";
 
 
 	function Give_Data_Index (
@@ -187,7 +187,7 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZNK3Cbe14Public_Library15give_data_indexERKNS_7RequestE";
+		External_Name => "_ZNK3Cbe7Library15give_data_indexERKNS_7RequestE";
 
 
 	procedure Give_Read_Data (
@@ -198,7 +198,7 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe14Public_Library14give_read_dataERKNS_7RequestERNS_10Block_dataERb";
+		External_Name => "_ZN3Cbe7Library15_give_read_dataERKNS_7RequestERNS_10Block_dataERb";
 
 
 	function Give_Write_Data (
@@ -210,7 +210,7 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe14Public_Library15give_write_dataEyRKNS_7RequestERKNS_10Block_dataE";
+		External_Name => "_ZN3Cbe7Library15give_write_dataEyRKNS_7RequestERKNS_10Block_dataE";
 
 
 	function Execute_Progress(Obj : Library.Object_Type)
@@ -218,6 +218,6 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZNK3Cbe14Public_Library16execute_progressEv";
+		External_Name => "_ZNK3Cbe7Library16execute_progressEv";
 
 end CBE.CXX.CXX_Library;

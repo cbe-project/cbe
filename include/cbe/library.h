@@ -23,15 +23,34 @@ namespace Cbe {
 
 	using namespace Genode;
 
-	class Public_Library;
+	class Library;
 
-	Genode::uint32_t object_size(Public_Library const &);
+	Genode::uint32_t object_size(Library const &);
 
 } /* namespace Cbe */
 
 
-struct Cbe::Public_Library : Cbe::Spark_object<216648>
+class Cbe::Library : public Cbe::Spark_object<216648>
 {
+	private:
+
+		/*
+		 * Ada/SPARK compatible bindings
+		 *
+		 * Ada functions cannot have out parameters. Hence we call Ada
+		 * procedures that return the 'progress' result as last out parameter.
+		 */
+
+		void _take_read_data(Request const &, bool &);
+		void _ack_read_data(Request const &, Block_data const &, bool &);
+		void _take_write_data(Request const &, Block_data &, bool &);
+		void _ack_write_data(Request const &request, bool &result);
+		void _give_read_data(Request const &, Block_data &, bool &);
+		void _need_data(Request &);
+		void _have_data(Request &);
+
+	public:
+
 	/**
 	 * Constructor
 	 *
@@ -47,11 +66,11 @@ struct Cbe::Public_Library : Cbe::Spark_object<216648>
 	 *
 	 * \param  current_sb  super-block that should be used initially
 	 */
-	Public_Library(Time::Timestamp   const  now,
-	               Time::Timestamp   const  sync,
-	               Time::Timestamp   const  secure,
-	               Cbe::Super_blocks const &sbs,
-	               Cbe::Super_block_index   current_sb);
+	Library(Time::Timestamp const  now,
+	        Time::Timestamp const  sync,
+	        Time::Timestamp const  secure,
+	        Super_blocks    const &sbs,
+	        Super_block_index      current_sb);
 
 	/**
 	 * Print current active super-block/snapshot information to LOG
@@ -63,7 +82,7 @@ struct Cbe::Public_Library : Cbe::Spark_object<216648>
 	 *
 	 * \return  highest addressable virtual-block-address
 	 */
-	Cbe::Virtual_block_address max_vba() const;
+	Virtual_block_address max_vba() const;
 
 	/**
 	 * Execute one loop of the CBE
@@ -97,7 +116,7 @@ struct Cbe::Public_Library : Cbe::Spark_object<216648>
 	 *
 	 * \param request  block request
 	 */
-	void submit_request(Cbe::Request const &request);
+	void submit_request(Request const &request);
 
 	/**
 	 * Check for any completed request
@@ -105,7 +124,7 @@ struct Cbe::Public_Library : Cbe::Spark_object<216648>
 	 * \return a valid block request will be returned if there is an
 	 *         completed request, otherwise an invalid one
 	 */
-	Cbe::Request peek_completed_request() const;
+	Request peek_completed_request() const;
 
 	/**
 	 * Drops the completed request
@@ -114,7 +133,7 @@ struct Cbe::Public_Library : Cbe::Spark_object<216648>
 	 * 'peek_completed_request' returned a valid request.
 	 *
 	 */
-	void drop_completed_request(Cbe::Request const &req);
+	void drop_completed_request(Request const &req);
 
 	/*
 	 * Backend block I/O
@@ -123,10 +142,15 @@ struct Cbe::Public_Library : Cbe::Spark_object<216648>
 	/**
 	 * Return a request for the backend block session
 	 *
-	 * \return valid request in case the is one pending that
-	 *         needs data, otherwise an invalid one is returned
+	 * \param result  valid request in case the is one pending that
+	 *                needs data, otherwise an invalid one is returned
 	 */
-	void need_data(Cbe::Request &result);
+	Request need_data()
+	{
+		Request result { };
+		_need_data(result);
+		return result;
+	}
 
 	/**
 	 * Take read request for backend block session
@@ -134,7 +158,12 @@ struct Cbe::Public_Library : Cbe::Spark_object<216648>
 	 * \param  request  reference to the request from the CBE
 	 * \return  true if the CBE could process the request
 	 */
-	void take_read_data(Cbe::Request const &request, bool &result);
+	bool take_read_data(Request const &request)
+	{
+		bool result = false;
+		_take_read_data(request, result);
+		return result;
+	}
 
 	/**
 	 * Acknowledge read request to the backend block session
@@ -147,9 +176,13 @@ struct Cbe::Public_Library : Cbe::Spark_object<216648>
 	 *
 	 * \return  true if the CBE acknowledged the request
 	 */
-	void ack_read_data(Cbe::Request    const &request,
-	                   Cbe::Block_data const &data,
-	                   bool                  &result);
+	bool ack_read_data(Request    const &request,
+	                   Block_data const &data)
+	{
+		bool result = false;
+		_ack_read_data(request, data, result);
+		return result;
+	}
 
 	/**
 	 * Take write request for the backend block session
@@ -163,9 +196,13 @@ struct Cbe::Public_Library : Cbe::Spark_object<216648>
 	 *
 	 * \return  true if the CBE could process the request
 	 */
-	void take_write_data(Cbe::Request    const &request,
-	                     Cbe::Block_data       &data,
-	                     bool                  &result);
+	bool take_write_data(Request const &request,
+	                     Block_data    &data)
+	{
+		bool result = false;
+		_take_write_data(request, data, result);
+		return result;
+	}
 
 	/**
 	 * Acknowledge write request to backend block session
@@ -174,8 +211,12 @@ struct Cbe::Public_Library : Cbe::Spark_object<216648>
 	 *                  by the CBE
 	 * \return  true if the CBE acknowledged the request
 	 */
-	void ack_write_data(Cbe::Request const &request,
-	                    bool               &result);
+	bool ack_write_data(Request const &request)
+	{
+		bool result = false;
+		_ack_write_data(request, result);
+		return result;
+	}
 
 	/*
 	 * Frontend block I/O
@@ -184,28 +225,37 @@ struct Cbe::Public_Library : Cbe::Spark_object<216648>
 	/**
 	 * Return a request that provides data to the frontend block data
 	 *
-	 * \return valid request in case the is one pending that
-	 *         needs data, otherwise an invalid one is returned
+	 * \param result  valid request in case the is one pending that
+	 *                needs data, otherwise an invalid one is returned
 	 */
-	void have_data(Cbe::Request &result);
+	Request have_data()
+	{
+		Request result { };
+		_have_data(result);
+		return result;
+	}
 
 	/**
 	 * Return primitive index
 	 */
-	uint64_t give_data_index(Cbe::Request const &request) const;
+	uint64_t give_data_index(Request const &request) const;
 
 	/**
 	 * Request access to the Block::Request data for storing data
 	 *
-	 * \param  request      reference to the Block::Request processed
-	 *                      by the CBE
-	 * \param  data         reference to the data associated with the
-	 *                      Block::Request
-	 * \param  processable  'true' on return if the CBE could process the request
+	 * \param  request  reference to the Block::Request processed
+	 *                  by the CBE
+	 * \param  data     reference to the data associated with the
+	 *                  Block::Request
+	 * \return          'true' on return if the CBE could process the request
 	 */
-	void give_read_data(Cbe::Request const &request,
-	                    Cbe::Block_data    &data,
-	                    bool               &processable);
+	bool give_read_data(Request const &request,
+	                    Block_data    &data)
+	{
+		bool result = false;
+		_give_read_data(request, data, result);
+		return result;
+	}
 
 	/**
 	 * Request access to the Block::Request data for reading data
@@ -218,8 +268,8 @@ struct Cbe::Public_Library : Cbe::Spark_object<216648>
 	 * \return  true if the CBE could process the request
 	 */
 	bool give_write_data(Time::Timestamp const now,
-	                     Cbe::Request    const &request,
-	                     Cbe::Block_data const &data);
+	                     Request         const &request,
+	                     Block_data      const &data);
 
 	/*
 	 * Return a timeout request with the objective of synchronization

@@ -92,7 +92,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 		Cbe::Time _time { _env };
 
-		Constructible<Cbe::Public_Library> _cbe { };
+		Constructible<Cbe::Library> _cbe { };
 
 		/*
  		 * Store current backend request
@@ -194,8 +194,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					 * whenever we need to read from the Block::Request_stream in case
 					 * it is a write requests or write to it when it is read request.
 					 */
-					Cbe::Request cbe_request;
-					_cbe->have_data(cbe_request);
+					Cbe::Request const cbe_request = _cbe->have_data();
 					if (!cbe_request.valid()) { return; }
 
 					uint64_t const prim_index = _cbe->give_data_index(cbe_request);
@@ -220,12 +219,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						Cbe::Block_data &data = *reinterpret_cast<Cbe::Block_data*>(addr);
 
 						if (cbe_request.read()) {
-							bool processable;
-							_cbe->give_read_data(cbe_request, data, processable);
-							progress |= processable;
-						} else
-
-						if (cbe_request.write()) {
+							progress |= _cbe->give_read_data(cbe_request, data);
+						}
+						else if (cbe_request.write()) {
 							progress |= _cbe->give_write_data(_time.timestamp(), cbe_request, data);
 						}
 					});
@@ -242,10 +238,10 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 */
 				while (_block.tx()->ready_to_submit()) {
 
-					Cbe::Request request;
-					_cbe->need_data(request);
-					if (!request.valid())                { break; }
-					if (_backend_request.valid())        { break; }
+					Cbe::Request const request = _cbe->need_data();
+
+					if (!request.valid())         { break; }
+					if (_backend_request.valid()) { break; }
 
 					try {
 						Block::Packet_descriptor packet {
@@ -258,18 +254,14 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 						if (request.read()) {
 							// XXX release packet in case of return false
-							bool local_progress;
-							_cbe->take_read_data(request, local_progress);
-							progress |= local_progress;
+							progress |= _cbe->take_read_data(request);
 						}
 
 						if (request.write()) {
 							// XXX release packet in case of return false
 							Cbe::Block_data &data =
 								*reinterpret_cast<Cbe::Block_data*>(_block.tx()->packet_content(packet));
-							bool local_progr;
-							_cbe->take_write_data(request, data, local_progr);
-							progress |= local_progr;
+							progress |= _cbe->take_write_data(request, data);
 						}
 
 						_block.tx()->try_submit_packet(packet);
@@ -303,15 +295,11 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					if (read) {
 						Cbe::Block_data &data =
 							*reinterpret_cast<Cbe::Block_data*>(_block.tx()->packet_content(packet));
-						bool local_progr;
-						_cbe->ack_read_data(_backend_request, data, local_progr);
-						progress |= local_progr;
+						progress |= _cbe->ack_read_data(_backend_request, data);
 					} else
 
 					if (write) {
-						bool local_progr;
-						_cbe->ack_write_data(_backend_request, local_progr);
-						progress |= local_progr;
+						progress |= _cbe->ack_write_data(_backend_request);
 					}
 
 					_block.tx()->release_packet(packet);
@@ -569,7 +557,7 @@ void Component::construct(Genode::Env &env)
 
 	adainit();
 
-	Cbe::assert_valid_object_size<Cbe::Public_Library>();
+	Cbe::assert_valid_object_size<Cbe::Library>();
 
 	static Cbe::Main inst(env);
 }
