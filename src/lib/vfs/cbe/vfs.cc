@@ -11,6 +11,9 @@
 #include <vfs/single_file_system.h>
 #include <util/xml_generator.h>
 
+/* repo includes */
+#include <util/sha256_4k.h>
+
 /* cbe includes */
 #include <block/request_stream.h> //XXX: library depends on this
 #include <cbe/library.h>
@@ -26,6 +29,11 @@ namespace Vfs_cbe {
 
 extern "C" void print_u8(unsigned char const u) { Genode::log(u); }
 
+extern "C" void print_cstring(char const *s, Genode::size_t len)
+{
+	Genode::log(Genode::Cstring(s, len));
+}
+
 class Vfs_cbe::Block_file_system : public Single_file_system
 {
 	private:
@@ -34,10 +42,12 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 		Vfs::Env          &_env;
 		Single_vfs_handle *_backend { nullptr };
 
-		Constructible<Cbe::Public_Library> _cbe;
+		Constructible<Cbe::Library> _cbe;
 
 		Cbe::Super_block_index _cur_sb { Cbe::Super_block_index::INVALID };
-		Cbe::Super_block       _super_block[Cbe::NUM_SUPER_BLOCKS] { };
+		Cbe::Super_blocks      _super_blocks { };
+
+		Cbe::Time _time { _env.env() };
 
 		/* configuration options */
 		bool                 _show_progress { false };
@@ -61,7 +71,7 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 			_block_device    = config.attribute_value("block", _block_device);
 		}
 
-		Cbe::Super_block_index _read_superblocks(Cbe::Super_block sb[Cbe::NUM_SUPER_BLOCKS])
+		Cbe::Super_block_index _read_superblocks(Cbe::Super_blocks &sbs)
 		{
 			Cbe::Generation        last_gen = 0;
 			Cbe::Super_block_index most_recent_sb { Cbe::Super_block_index::INVALID };
@@ -75,7 +85,8 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 			for (uint64_t i = 0; i < Cbe::NUM_SUPER_BLOCKS; i++) {
 				file_size bytes = 0;
 				_backend->seek(i * Cbe::BLOCK_SIZE);
-				if (_backend->read((char *)&sb[i], Cbe::BLOCK_SIZE, bytes) != File_io_service::READ_OK)
+				Cbe::Super_block &dst = sbs.block[i];
+				if (_backend->read((char *)&dst, Cbe::BLOCK_SIZE, bytes) != File_io_service::READ_OK)
 					return Cbe::Super_block_index();
 
 				/*
@@ -83,11 +94,17 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 				 * is the same and is mostly used for finding the initial SB
 				 * with generation == 0.
 				 */
-				if (sb[i].valid() && sb[i].last_secured_generation >= last_gen) {
+				if (dst.valid() && dst.last_secured_generation >= last_gen) {
 					most_recent_sb.value = i;
-					last_gen = sb[i].last_secured_generation;
+					last_gen = dst.last_secured_generation;
 				}
+
+				Sha256_4k::Hash hash { };
+				Sha256_4k::Data const &data = *reinterpret_cast<Sha256_4k::Data const*>(&dst);
+				Sha256_4k::hash(data, hash);
+				Genode::log("SB[", i, "] hash: ", hash);
 			}
+
 			return most_recent_sb;
 		}
 
@@ -96,7 +113,8 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 		struct Vfs_handle : Single_vfs_handle
 		{
 			Genode::Allocator   &_alloc;
-			Cbe::Public_Library &_cbe;
+			Cbe::Library        &_cbe;
+			Cbe::Time           &_time;
 			Single_vfs_handle   *_backend { };
 			Cbe::Request         _backend_request { };
 
@@ -106,12 +124,14 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 			Vfs_handle(Directory_service &ds,
 			           File_io_service   &fs,
 			           Genode::Allocator &alloc,
-			           Cbe::Public_Library &cbe,
+			           Cbe::Library      &cbe,
+			           Cbe::Time         &time,
 			           Single_vfs_handle *backend,
 			           bool show_progress)
 			: Single_vfs_handle(ds, fs, alloc, 0),
 			  _alloc(alloc),
 			  _cbe(cbe),
+			  _time(time),
 			  _backend(backend),
 			  _show_progress(show_progress)
 			{ }
@@ -127,7 +147,7 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 					.success      = Cbe::Request::Success::FALSE,
 					.block_number = seek() / Cbe::BLOCK_SIZE,
 					.offset       = (uint64_t)data,
-					.count        = count / Cbe::BLOCK_SIZE,
+					.count        = (uint32_t)(count / Cbe::BLOCK_SIZE),
 				};
 			}
 
@@ -223,7 +243,7 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 						progress = true;
 					}
 
-					_cbe.execute(0, _show_progress, _show_if_progress);
+					_cbe.execute(_time.timestamp());
 					progress |= _cbe.execute_progress();
 
 					Cbe::Request cbe_request = _cbe.have_data();
@@ -239,8 +259,8 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 						Cbe::Block_data &data = *reinterpret_cast<Cbe::Block_data*>(cbe_request.offset + (prim_index * Cbe::BLOCK_SIZE));
 
 						if (cbe_request.read()) {
-							bool processable;
-							_cbe.give_read_data(cbe_request, data, processable);
+							/* XXX evaluate 'progress' */
+							_cbe.give_read_data(cbe_request, data);
 						} else
 
 						if (cbe_request.write()) {
@@ -353,19 +373,19 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 					return OPEN_ERR_UNACCESSIBLE;
 				}
 
-				_cur_sb = _read_superblocks(_super_block);
+				_cur_sb = _read_superblocks(_super_blocks);
 
 				if (!_cur_sb.valid()) {
 					error("cbe_fs: No valid super block");
 					return OPEN_ERR_UNACCESSIBLE;
 				}
 
-				_cbe.construct(0, _sync_interval, _secure_interval, _super_block,
-				               _cur_sb);
+				_cbe.construct(_time.timestamp(), _sync_interval, _secure_interval,
+				               _super_blocks, _cur_sb);
 			}
 			log("open: ", path);
-			*out_handle = new (alloc) Vfs_handle(*this, *this, alloc, *_cbe, _backend,
-			                                     _show_progress);
+			*out_handle = new (alloc) Vfs_handle(*this, *this, alloc, *_cbe,
+			                                     _time, _backend, _show_progress);
 
 			return OPEN_OK;
 		}
@@ -424,6 +444,31 @@ class Vfs_cbe::File_system : private Local_factory,
 };
 
 
+/******************************
+ ** Cbe::Time implementation **
+ ******************************/
+
+void Cbe::Time::_handle_sync_timeout(Genode::Duration)
+{
+	warning("Cbe::Time::_handle_sync_timeout not implemented");
+}
+
+
+void Cbe::Time::_handle_secure_timeout(Genode::Duration)
+{
+	warning("Cbe::Time::_handle_secure_timeout not implemented");
+}
+
+
+Cbe::Time::Time(Genode::Env &env) : _timer(env) { }
+
+
+Cbe::Time::Timestamp Cbe::Time::timestamp()
+{
+	return _timer.curr_time().trunc_to_plain_ms().value;
+}
+
+
 /**************************
  ** VFS plugin interface **
  **************************/
@@ -441,6 +486,11 @@ extern "C" Vfs::File_system_factory *vfs_file_system_factory(void)
 			return nullptr;
 		}
 	};
+
+	/* the CBE library requires a stack larger than the default */
+	Genode::Thread::myself()->stack_size(512*1024);
+
+	Cbe::assert_valid_object_size<Cbe::Library>();
 
 	static Factory factory;
 	return &factory;
