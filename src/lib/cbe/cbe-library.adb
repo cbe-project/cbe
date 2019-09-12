@@ -402,8 +402,10 @@ is
 		procedure Create_New_Snapshot (
 			Obj  :        Object_Type;
 			Snap : in out Snapshot_Type;
-			Prim :        Primitive.Object_Type)
+			Prim :        Primitive.Object_Type;
+			ID   :    out Snapshot_ID_Type)
 		is
+			Snap_ID : constant Snapshot_ID_Type := Obj.Last_Snapshot_ID + 1;
 		begin
 			Snap.PBA := Write_Back.Peek_Completed_Root (Obj.Write_Back_Obj, Prim);
 			Write_Back.Peek_Completed_Root_Hash (Obj.Write_Back_Obj, Prim, Snap.Hash);
@@ -416,9 +418,10 @@ is
 				Snap.Height      := Tree_Helper.Height (Tree);
 				Snap.Nr_Of_Leafs := Tree_Helper.Leafs (Tree);
 				Snap.Gen         := Obj.Cur_Gen;
-				Snap.ID          := Obj.Last_Snapshot_ID + 1;
+				Snap.ID          := Snap_ID;
 			end Declare_Tree;
 
+			ID := Snap_ID;
 		end Create_New_Snapshot;
 
 		procedure Update_Snapshot_Hash (
@@ -944,14 +947,13 @@ is
 					--
 					Declare_Next_Snap:
 					declare
-						Next_Snap : Snapshot_ID_Type :=
-							Snapshot_ID_Type (Obj.Cur_SB);
+						Next_Snap : Snapshot_ID_Type := Obj.Cur_Snap;
 					begin
 						For_Snapshots:
 						for Snap_ID in Snapshots_Index_Type loop
 							Next_Snap :=
 								(Next_Snap + 1) mod
-								Snapshot_ID_Type (Snapshots_Index_Type'Last) + 1;
+								Snapshot_ID_Type (Snapshots_Index_Type'Last + 1);
 
 							if not Snapshot_Valid (
 								Obj.Super_Blocks (Curr_SB (Obj)).
@@ -965,7 +967,7 @@ is
 							end if;
 						end loop For_Snapshots;
 
-						if Next_Snap = Snapshot_ID_Type (Obj.Cur_SB) then
+						if Next_Snap = Obj.Cur_Snap then
 							-- Genode::error ("could not find free snapshot slot");
 							-- proper handling pending--
 							raise program_error; -- throw Invalid_Snapshot_Slot;
@@ -980,13 +982,14 @@ is
 							Obj,
 							Obj.Super_Blocks (Curr_SB (Obj)).
 								Snapshots (Snapshots_Index_Type (Next_Snap)),
-							Prim);
+							Prim,
+							Obj.Last_Snapshot_ID);
 
 						-- DBG("new snapshot for generation: ", Obj.Cur_Gen, " Snap: ", Snap);
 					end Declare_Next_Snap;
 
-					Obj.Cur_Gen         := Obj.Cur_Gen + 1;
-					Obj.Cur_SB          := Obj.Cur_SB + 1;
+					Obj.Cur_Gen         := Obj.Cur_Gen  + 1;
+					Obj.Cur_Snap        := Obj.Cur_Snap + 1;
 					Obj.Seal_Generation := False;
 
 					--
