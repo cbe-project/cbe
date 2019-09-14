@@ -47,7 +47,7 @@ is
 		return Primitive.Valid_Object (
 			Op     => Request.Write,
 			Succ   => Request.Success_Type(False),
-			Tg     => Request.Tag_Type(Obj.Entries(0).Tag),
+			Tg     => Obj.Entries (0).Tag,
 			Blk_Nr => Request.Block_Number_Type(Obj.Entries(0).Update_PBA),
 			Idx    => 0);
 	end Peek_Generated_Leaf_Primitive;
@@ -455,7 +455,7 @@ is
 				return Primitive.Valid_Object (
 					Op     => Request.Write,
 					Succ   => Request.Success_Type(False),
-					Tg     => Request.Tag_Type(Obj.Entries(I).Tag),
+					Tg     => Obj.Entries (I).Tag,
 					Blk_Nr => Request.Block_Number_Type(Obj.Entries(I).PBA),
 					Idx    => 0);
 			end if;

@@ -92,7 +92,7 @@ is
 			return "Invalid Request";
 		end if;
 		return "Request(Op=" & Obj.Operation'Image &
-			" Tag="          & Cbe.To_String(Cbe.Tag_Type(Obj.Tag)) &
+			" Tag="          & Cbe.To_String(Obj.Tag) &
 			" Success="      & Cbe.To_String(Obj.Success) &
 			" Block_Number=" & Request.To_String(Obj.Block_Number) &
 			" Offset="       & Cbe.To_String(U64(Obj.Offset)) &

@@ -197,7 +197,6 @@ is
 		Obj  : in out Object_Type;
 		Prim :        Primitive.Object_Type)
 	is
-		use Request;
 		Req : Request.Object_Type;
 	begin
 		for Item_Id in Obj.Items'Range loop
@@ -247,10 +246,9 @@ is
 	--
 	function Request_For_Tag(
 		Obj : Object_Type;
-		Tag : Request.Tag_Type)
+		Tag : Tag_Type)
 	return Request.Object_Type
 	is
-		use Request;
 		Req : Request.Object_Type;
 	begin
 		for Itm of Obj.Items loop

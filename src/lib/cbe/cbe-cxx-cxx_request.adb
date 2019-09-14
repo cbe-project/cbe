@@ -47,7 +47,7 @@ is
 			Block_Number => Block_Number_Type(Request.Block_Number(Obj)),
 			Offset       => Uint64_Type(Request.Offset(Obj)),
 			Count        => Uint32_Type(Request.Count(Obj)),
-			Tag          => Tag_Type(Request.Tag(Obj))),
+			Tag          => CXX_Tag_Type(Request.Tag(Obj))),
 		when False => (
 			Operation    => 0,
 			Success      => 0,
@@ -76,13 +76,13 @@ is
 		Op  : in Request.Operation_Type)
 	return Request.Object_Type
 	is (
-		Request.Valid_Object(
+		Request.Valid_Object (
 			Op,
 			Success_To_Spark(Obj.Success),
 			Request.Block_Number_Type(Obj.Block_Number),
 			Request.Offset_Type(Obj.Offset),
 			Request.Count_Type(Obj.Count),
-			Request.Tag_Type(Obj.Tag)));
+			Tag_Type (Obj.Tag)));
 
 
 	--

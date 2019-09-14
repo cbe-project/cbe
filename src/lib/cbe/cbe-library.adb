@@ -584,7 +584,7 @@ is
 						Free_Tree.Peek_Generated_Data_Index (
 							Obj.Free_Tree_Obj, Prim);
 				begin
-					if Tag_Type (Primitive.Tag (Prim)) = Tag_Write_Back then
+					if Primitive.Tag (Prim) = Tag_Write_Back then
 						--
 						-- FIXME Accessing the Cache in this way could be dangerous because
 						-- the Cache is shared by the VBD as well as the FT. If we would
@@ -599,7 +599,7 @@ is
 							Obj.IO_Obj, Tag_Free_Tree_WB, Prim, Obj.IO_Data,
 							Obj.Cache_Data (Cache.Cache_Index_Type (Index)));
 
-					elsif Tag_Type (Primitive.Tag (Prim)) = Tag_IO then
+					elsif Primitive.Tag (Prim) = Tag_IO then
 						Block_IO.Submit_Primitive (
 							Obj.IO_Obj, Tag_Free_Tree_IO, Prim, Obj.IO_Data,
 							Obj.Free_Tree_Query_Data (Natural (Index)));
@@ -1400,7 +1400,7 @@ is
 					--
 					Mod_Progress : Boolean := True;
 				begin
-					if Tag_Type (Primitive.Tag (Prim)) = Tag_Decrypt then
+					if Primitive.Tag (Prim) = Tag_Decrypt then
 
 						if not Crypto.Primitive_Acceptable (Obj.Crypto_Obj) then
 							Mod_Progress := False;
@@ -1432,7 +1432,7 @@ is
 							end Declare_Data;
 						end if;
 
-					elsif Tag_Type (Primitive.Tag (Prim)) = Tag_Cache then
+					elsif Primitive.Tag (Prim) = Tag_Cache then
 						--
 						-- FIXME we need a proper method for getting the right Cache job
 						--       Data index, for now rely on the knowledge that there is
@@ -1441,25 +1441,25 @@ is
 						Obj.Cache_Job_Data (0) := Obj.IO_Data (Index);
 						Cache.Mark_Completed_Primitive (Obj.Cache_Obj, Prim);
 
-					elsif Tag_Type (Primitive.Tag (Prim)) = Tag_Cache_Flush then
+					elsif Primitive.Tag (Prim) = Tag_Cache_Flush then
 						Cache_Flusher.Mark_Generated_Primitive_Complete (
 							Obj.Cache_Flusher_Obj, Prim);
 
-					elsif Tag_Type (Primitive.Tag (Prim)) = Tag_Write_Back then
+					elsif Primitive.Tag (Prim) = Tag_Write_Back then
 						Write_Back.Mark_Completed_IO_Primitive (
 							Obj.Write_Back_Obj, Prim);
 
-					elsif Tag_Type (Primitive.Tag (Prim)) = Tag_Sync_SB then
+					elsif Primitive.Tag (Prim) = Tag_Sync_SB then
 						Sync_Superblock.Mark_Generated_Primitive_Complete (
 							Obj.Sync_SB_Obj, Prim);
 
-					elsif Tag_Type (Primitive.Tag (Prim)) = Tag_Free_Tree_WB then
+					elsif Primitive.Tag (Prim) = Tag_Free_Tree_WB then
 						Free_Tree.Mark_Generated_Primitive_Complete (
 							Obj.Free_Tree_Obj,
 							Primitive.Copy_Valid_Object_Change_Tag (
 								Prim, Tag_Write_Back));
 
-					elsif Tag_Type (Primitive.Tag (Prim)) = Tag_Free_Tree_IO then
+					elsif Primitive.Tag (Prim) = Tag_Free_Tree_IO then
 						
 						--
 						-- FIXME we need a proper method for getting the right query
@@ -1539,8 +1539,7 @@ is
 						Blk_Nr => Primitive.Block_Number(Prim),
 						Off    => 0,
 						Cnt    => 1,
-						Tg     => Request.Tag_Type(Tag_Invalid)
-					),
+						Tg     => Tag_Invalid),
 					Prim => Prim,
 					Tag  => Tag_IO,
 					In_Progress => False

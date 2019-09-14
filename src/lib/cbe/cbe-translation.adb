@@ -323,7 +323,7 @@ is
 			Primitive.Valid_Object (
 				Op     => Request.Read,
 				Succ   => False,
-				Tg     => Request.Tag_Type (Tag_Translation),
+				Tg     => Tag_Translation,
 				Blk_Nr => Request.Block_Number_Type (Obj.Next_PBA),
 				Idx    => 0)
 		else

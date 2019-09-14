@@ -86,7 +86,7 @@ is
 		Obj.Curr_Query_Prim := Primitive.Valid_Object (
 			Op     => Request.Read,
 			Succ   => Request.Success_Type(False),
-			Tg     => Request.Tag_Type(Tag_Invalid),
+			Tg     => Tag_Invalid,
 			Blk_Nr => Request.Block_Number_Type(0),
 			Idx    => 0);
 
@@ -531,7 +531,7 @@ is
 						Obj.Curr_Query_Prim := Primitive.Valid_Object (
 							Op     => Request.Read,
 							Succ   => False,
-							Tg     => Request.Tag_Type(Tag_Free_Tree),
+							Tg     => Tag_Free_Tree,
 							Blk_Nr => Primitive.Block_Number(Obj.Curr_Query_Prim)
 							        + Block_Number_Type (Tree_Helper.Degree (Obj.Trans_Helper)),
 							Idx    => 0);
@@ -834,7 +834,7 @@ is
 		if Obj.Curr_Type_2.State = Pending then
 			-- MOD_DBG(Prim);
 			return Primitive.Valid_Object (
-				Tg     => Request.Tag_Type (Tag_IO),
+				Tg     => Tag_IO,
 				Op     => Request.Read,
 				Succ   => False,
 				Blk_Nr => Request.Block_Number_Type (Obj.Curr_Type_2.PBA),
@@ -850,7 +850,7 @@ is
 
 					--MOD_DBG(p);
 					return Primitive.Valid_Object (
-						Tg     => Request.Tag_Type (Tag_Write_Back),
+						Tg     => Tag_Write_Back,
 						Op     => Request.Write,
 						Succ   => False,
 						Blk_Nr => Request.Block_Number_Type (Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).PBA),
@@ -872,9 +872,9 @@ is
 		Index : Index_Type := Index_Invalid;
 	begin
 
-		if Tag_Type (Primitive.Tag (Prim)) = Tag_IO then
+		if Primitive.Tag (Prim) = Tag_IO then
 			Index := 0;
-		elsif Tag_Type (Primitive.Tag (Prim)) = Tag_Write_Back then
+		elsif Primitive.Tag (Prim) = Tag_Write_Back then
 			For_WB_IOs:
 			for WB_IO_Index in Tree_Level_Index_Type'Range loop
 				if
@@ -907,9 +907,9 @@ is
 		Prim :        Primitive.Object_Type)
 	is
 	begin
-		if Tag_Type (Primitive.Tag (Prim)) = Tag_IO then
+		if Primitive.Tag (Prim) = Tag_IO then
 			Obj.Curr_Type_2.State := In_Progress;
-		elsif Tag_Type (Primitive.Tag (Prim)) = Tag_Write_Back then
+		elsif Primitive.Tag (Prim) = Tag_Write_Back then
 			For_WB_IOs:
 			for WB_IO_Index in Tree_Level_Index_Type'Range loop
 				if
@@ -936,14 +936,14 @@ is
 		Prim :        Primitive.Object_Type)
 	is
 	begin
-		if Tag_Type (Primitive.Tag (Prim)) = Tag_IO then
+		if Primitive.Tag (Prim) = Tag_IO then
 			if Obj.Curr_Type_2.State = In_Progress then
 				Obj.Curr_Type_2.State := Complete;
 			else
 				null;
 				-- MOD_DBG("ignore invalid I/O primitive: ", prim);
 			end if;
-		elsif Tag_Type (Primitive.Tag (Prim)) = Tag_Write_Back then
+		elsif Primitive.Tag (Prim) = Tag_Write_Back then
 			For_WB_IOs:
 			for WB_IO_Index in Tree_Level_Index_Type'Range loop
 				if Physical_Block_Address_Type (Primitive.Block_Number (prim)) = Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).PBA then

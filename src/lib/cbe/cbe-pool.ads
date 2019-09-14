@@ -87,7 +87,7 @@ is
 	--
 	function Request_For_Tag(
 		Obj : Object_Type;
-		Tag : Request.Tag_Type)
+		Tag : Tag_Type)
 	return Request.Object_Type;
 
 private

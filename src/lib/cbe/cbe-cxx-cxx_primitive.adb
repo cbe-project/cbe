@@ -44,7 +44,7 @@ is
 		Primitive.Valid_Object(
 			Op,
 			CXX_Request.Success_To_Spark(Obj.Success),
-			Request.Tag_Type(Obj.Tag),
+			Tag_Type (Obj.Tag),
 			Request.Block_Number_Type(Obj.Block_Number),
 			Primitive.Index_Type(Obj.Index)));
 

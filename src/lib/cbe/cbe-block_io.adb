@@ -38,7 +38,7 @@ is
 
 	procedure Submit_Primitive(
 		Obj     : in out Object_Type;
-		Tag     :        CBE.Tag_Type;
+		Tag     :        Tag_Type;
 		Prim    :        Primitive.Object_Type;
 		IO_Data : in out Data_Type;
 		Data    : in     Block_Data_Type)
@@ -48,15 +48,15 @@ is
 
 			if (Obj.Entries(I).State = Unused) then
 
-				Obj.Entries(I) :=
-					(Orig_Tag => Tag_Type(Primitive.Tag(Prim)),
-					 Prim     => Primitive.Valid_Object (
-					 	 Op     => Primitive.Operation(Prim),
-					 	 Succ   => Primitive.Success(Prim),
-					 	 Tg     => Request.Tag_Type(Tag),
-					 	 Blk_Nr => Primitive.Block_Number(Prim),
-					 	 Idx    => Primitive.Index(Prim)),
-					 State    => Pending);
+				Obj.Entries(I) := (
+					Orig_Tag => Primitive.Tag(Prim),
+					Prim     => Primitive.Valid_Object (
+						Op     => Primitive.Operation(Prim),
+						Succ   => Primitive.Success(Prim),
+						Tg     => Tag,
+						Blk_Nr => Primitive.Block_Number(Prim),
+						Idx    => Primitive.Index(Prim)),
+					State    => Pending);
 
 				if Request."=" (Primitive.Operation(Prim), Request.Write) then
 					IO_Data(I) := Data;

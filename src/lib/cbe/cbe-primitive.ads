@@ -45,7 +45,7 @@ is
 	function Valid_Object(
 		Op     : Request.Operation_Type;
 		Succ   : Request.Success_Type;
-		Tg     : Request.Tag_Type;
+		Tg     : Tag_Type;
 		Blk_Nr : Request.Block_Number_Type;
 		Idx    : Index_Type)
 	return Object_Type
@@ -56,7 +56,7 @@ is
 				Success     (Valid_Object'Result) = Succ   and
 				Block_Number(Valid_Object'Result) = Blk_Nr and
 				Index       (Valid_Object'Result) = Idx    and
-				Request."="(Tag(Valid_Object'Result), Tg)));
+				Tag         (Valid_Object'Result) = Tg));
 
 	--
 	-- Equal
@@ -76,7 +76,7 @@ is
 	function Valid       (Obj : Object_Type) return Boolean;
 	function Operation   (Obj : Object_Type) return Request.Operation_Type    with Pre => (Valid(Obj));
 	function Success     (Obj : Object_Type) return Request.Success_Type      with Pre => (Valid(Obj));
-	function Tag         (Obj : Object_Type) return Request.Tag_Type          with Pre => (Valid(Obj));
+	function Tag         (Obj : Object_Type) return Tag_Type                  with Pre => (Valid(Obj));
 	function Block_Number(Obj : Object_Type) return Request.Block_Number_Type with Pre => (Valid(Obj));
 	function Index       (Obj : Object_Type) return Index_Type                with Pre => (Valid(Obj));
 
@@ -101,7 +101,7 @@ private
 		Valid        : Boolean;
 		Operation    : Request.Operation_Type;
 		Success      : Request.Success_Type;
-		Tag          : Request.Tag_Type;
+		Tag          : Tag_Type;
 		Block_Number : Request.Block_Number_Type;
 		Index        : Index_Type;
 	end record;

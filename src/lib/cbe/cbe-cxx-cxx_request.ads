@@ -17,7 +17,6 @@ is
 
 	type Operation_Type    is range 0..3 with Size => 32;
 	type Success_Type      is range 0..1 with Size => 32;
-	type Tag_Type          is new Uint32_Type;
 	type Block_Number_Type is new Uint64_Type;
 
 	--
@@ -29,7 +28,7 @@ is
 		Block_Number : Block_Number_Type;
 		Offset       : Uint64_Type;
 		Count        : Uint32_Type;
-		Tag          : Tag_Type;
+		Tag          : CXX_Tag_Type;
 	end record; pragma Pack(Object_Type);
 
 	--
