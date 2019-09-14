@@ -42,20 +42,6 @@ is
 	end Discard_Snapshot;
 
 
-	function Timeout_Request_Valid (Time : Timestamp_Type)
-	return Timeout_Request_Type
-	is (
-		Valid   => True,
-		Timeout => Time);
-
-
-	function Timeout_Request_Invalid
-	return Timeout_Request_Type
-	is (
-		Valid   => False,
-		Timeout => 0);
-
-
 --
 -- Not translated as only for debugging
 --
@@ -85,6 +71,51 @@ is
 --	end Dump_Cur_Sb_Info;
 
 
+	function Cache_Dirty (Obj : Object_Type)
+	return Boolean
+	is
+		Result : Boolean := False;
+	begin
+		For_Cache_Data:
+		for Cache_Index in Cache.Cache_Index_Type loop
+			if Cache.Dirty (Obj.Cache_Obj, Cache_Index) then
+				Result := True;
+				exit For_Cache_Data;
+			end if;
+		end loop For_Cache_Data;
+		return Result;
+	end Cache_Dirty;
+
+
+	function Superblock_Dirty (Obj : Object_Type)
+	return Boolean
+	is (Obj.Superblock_Dirty);
+
+
+	function Is_Securing_Superblock (Obj : Object_Type)
+	return Boolean
+	is (Obj.Secure_Superblock);
+
+
+	procedure Start_Securing_Superblock (Obj : in out Object_Type)
+	is
+	begin
+		Obj.Secure_Superblock := True;
+	end Start_Securing_Superblock;
+
+
+	function Is_Sealing_Generation (Obj : Object_Type)
+	return Boolean
+	is (Obj.Seal_Generation);
+
+
+	procedure Start_Sealing_Generation (Obj : in out Object_Type)
+	is
+	begin
+		Obj.Seal_Generation := True;
+	end Start_Sealing_Generation;
+
+
 	function Super_Block_Snapshot_Slot (SB : Super_Block_Type)
 	return Snapshot_ID_Type
 	is
@@ -106,9 +137,6 @@ is
 
 	procedure Initialize_Object (
 		Obj     : out Object_Type;
-		Now     :     Timestamp_Type;
-		Sync    :     Timestamp_Type;
-		Secure  :     Timestamp_Type;
 		SBs     :     Super_Blocks_Type;
 		Curr_SB :     Super_Blocks_Index_Type)
 	is
@@ -251,18 +279,6 @@ is
 --		if _secure_interval then _secure_timeout_request = { true, _secure_interval }; end if;
 
 		Obj := (
-			Sync_Interval           => Sync,
-			Last_Time               => Now,
-			Secure_Interval         => Secure,
-			Last_Secure_Time        => Now,
-			Sync_Timeout_Request    => (
-				if Sync /= 0 then Timeout_Request_Valid (Sync)
-				else Timeout_Request_Invalid),
-
-			Secure_Timeout_Request  => (
-				if Secure /= 0 then Timeout_Request_Valid (Secure)
-				else Timeout_Request_Invalid),
-
 			Execute_Progress        => False,
 			Request_Pool_Obj        => Pool.Initialized_Object,
 			Splitter_Obj            => Splitter.Initialized_Object,
@@ -325,30 +341,6 @@ is
 --		_Dump_Cur_SB_Info ();
 
 	end Initialize_Object;
-
-
-	function Peek_Sync_Timeout_Request (Obj : Object_Type)
-	return Timeout_Request_Type
-	is (Obj.Sync_Timeout_Request);
-
-
-	function Peek_Secure_Timeout_Request (Obj : Object_Type)
-	return Timeout_Request_Type
-	is (Obj.Secure_Timeout_Request);
-
-
-	procedure Ack_Sync_Timeout_Request (Obj : in out Object_Type)
-	is
-	begin
-		Obj.Sync_Timeout_Request := Timeout_Request_Invalid;
-	end Ack_Sync_Timeout_Request;
-
-
-	procedure Ack_Secure_Timeout_Request (Obj : in out Object_Type)
-	is
-	begin
-		Obj.Secure_Timeout_Request := Timeout_Request_Invalid;
-	end Ack_Secure_Timeout_Request;
 
 
 --
@@ -446,75 +438,6 @@ is
 	begin
 
 		Print_String(To_String(Obj));
-
-		-------------------
-		-- Time handling --
-		-------------------
-
-		--
-		-- Query current time and check if a timeout has triggered
-		--
-
-		--
-		-- Seal the current generation if sealing is not already
-		-- in Progress. In case no write operation was performed just set
-		-- the trigger for the next interval.
-		--
-		--
-		-- (Instead of checking all Cache entries it would be nice if the
-		--  Cache module would provide an interface that would allow us to
-		--  simple check if it contains any dirty entries as it could easily
-		--  track that condition internally itself.)
-		--
-		if
-			Now - Obj.Last_Time >= Obj.Sync_Interval and
-			not Obj.Seal_Generation
-		then
-			Declare_Cache_Dirty_1:
-			declare
-				Cache_Dirty : Boolean := False;
-			begin
-				For_Cache_Data_1:
-				for Cache_Index in Cache.Cache_Index_Type loop
-					if Cache.Dirty (Obj.Cache_Obj, Cache_Index) then
-						Cache_Dirty := True;
-						exit For_Cache_Data_1;
-					end if;
-				end loop For_Cache_Data_1;
-
-				if Cache_Dirty then
-					-- Genode::log ("\033[93;44m", __Func__, " SEAL current generation: ", Obj.Cur_Gen);
-					Obj.Seal_Generation := True;
-				else
-					-- DBG("Cache is not dirty, re-arm trigger");
-					Obj.Last_Time := Now;
-					Obj.Sync_Timeout_Request := Timeout_Request_Valid (Obj.Sync_Interval);
-				end if;
-			end Declare_Cache_Dirty_1;
-		end if;
-
-		--
-		-- Secure the current super-block if securing is not already
-		-- in Progress. In case no write operation was performed, i.E., no
-		-- snapshot was changed, just set the trigger for the next interval.
-		--
-		--
-		-- (Obj.Superblock_Dirty is set whenver the Write_Back module has done its work
-		--  and will be reset when the super-block was secured.)
-		--
-		if
-			Now - Obj.Last_Secure_Time >= Obj.Secure_Interval and
-			not Obj.Secure_Superblock
-		then
-			if Obj.Superblock_Dirty then
-				-- Genode::log ("\033[93;44m", __Func__,
-				--              " SEALCurr super-block: ", Obj.Cur_SB);
-				Obj.Secure_Superblock := True;
-			else
-				-- DBG("no snapshots created, re-arm trigger");
-				Obj.Last_Secure_Time := Now;
-			end if;
-		end if;
 
 		------------------------
 		-- Free-tree handling --
@@ -994,14 +917,6 @@ is
 					Obj.Cur_Snap        := Obj.Cur_Snap + 1;
 					Obj.Seal_Generation := False;
 
-					--
-					-- (As already briefly mentioned in the time handling section,
-					--  it would be more reasonable to only set the timeouts when
-					--  we actually perform write Request.)
-					--
-					Obj.Last_Time            := Now;
-					Obj.Sync_Timeout_Request := Timeout_Request_Valid (Obj.Sync_Interval);
-
 				else
 
 					--
@@ -1275,14 +1190,6 @@ is
 			end Declare_Prim_10;
 			Progress := True;
 
-			--
-			-- (FIXME same was with sealing the generation, it might make
-			--  sense to set the trigger only when a write operation
-			--  was performed.)
-			--
-			Obj.Last_Secure_Time := Now;
-			Obj.Secure_Timeout_Request :=
-				Timeout_Request_Valid (Obj.Secure_Interval);
 		end loop Loop_Sync_SB_Completed_Prims;
 
 		--

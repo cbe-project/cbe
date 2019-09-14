@@ -20,39 +20,46 @@ is
 
 	procedure Initialize_Object (
 		Obj     : out Library.Object_Type;
-		Now     :     Timestamp_Type;
-		Sync    :     Timestamp_Type;
-		Secure  :     Timestamp_Type;
 		SBs     :     Super_Blocks_Type;
 		Curr_SB :     Super_Blocks_Index_Type)
 	is
 	begin
-		Library.Initialize_Object (Obj, Now, Sync, Secure, SBs, Curr_SB);
+		Library.Initialize_Object (Obj, SBs, Curr_SB);
 	end Initialize_Object;
 
 
-	function Peek_Sync_Timeout_Request (Obj : Library.Object_Type)
-	return CXX_Timeout_Request_Type
-	is (CXX_Timeout_Request_From_SPARK (Library.Peek_Sync_Timeout_Request (Obj)));
+	function Cache_Dirty (Obj : Library.Object_Type)
+	return CXX_Bool_Type
+	is (CXX_Bool_From_SPARK (Library.Cache_Dirty (Obj)));
 
 
-	function Peek_Secure_Timeout_Request (Obj : Library.Object_Type)
-	return CXX_Timeout_Request_Type
-	is (CXX_Timeout_Request_From_SPARK (Library.Peek_Secure_Timeout_Request (Obj)));
+	function Superblock_Dirty (Obj : Library.Object_Type)
+	return CXX_Bool_Type
+	is (CXX_Bool_From_SPARK (Library.Superblock_Dirty (Obj)));
 
 
-	procedure Ack_Sync_Timeout_Request (Obj : in out Library.Object_Type)
+	function Is_Securing_Superblock (Obj : Library.Object_Type)
+	return CXX_Bool_Type
+	is (CXX_Bool_From_SPARK (Library.Is_Securing_Superblock (Obj)));
+
+
+	function Is_Sealing_Generation (Obj : Library.Object_Type)
+	return CXX_Bool_Type
+	is (CXX_Bool_From_SPARK (Library.Is_Sealing_Generation (Obj)));
+
+
+	procedure Start_Securing_Superblock (Obj : in out Library.Object_Type)
 	is
 	begin
-		Library.Ack_Sync_Timeout_Request (Obj);
-	end Ack_Sync_Timeout_Request;
+		Library.Start_Securing_Superblock (Obj);
+	end Start_Securing_Superblock;
 
 
-	procedure Ack_Secure_Timeout_Request (Obj : in out Library.Object_Type)
+	procedure Start_Sealing_Generation (Obj : in out Library.Object_Type)
 	is
 	begin
-		Library.Ack_Secure_Timeout_Request (Obj);
-	end Ack_Secure_Timeout_Request;
+		Library.Start_Sealing_Generation (Obj);
+	end Start_Sealing_Generation;
 
 
 	function Max_VBA (Obj : Library.Object_Type)

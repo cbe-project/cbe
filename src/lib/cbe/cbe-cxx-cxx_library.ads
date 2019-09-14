@@ -28,45 +28,58 @@ is
 
 	procedure Initialize_Object (
 		Obj     : out Library.Object_Type;
-		Now     :     Timestamp_Type;
-		Sync    :     Timestamp_Type;
-		Secure  :     Timestamp_Type;
 		SBs     :     Super_Blocks_Type;
 		Curr_SB :     Super_Blocks_Index_Type)
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe7LibraryC2EyyyRKNS_12Super_blocksENS_17Super_block_indexE";
+		External_Name => "_ZN3Cbe7LibraryC2ERKNS_12Super_blocksENS_17Super_block_indexE";
 
 
-	function Peek_Sync_Timeout_Request (Obj : Library.Object_Type)
-	return CXX_Timeout_Request_Type
+	function Cache_Dirty (Obj : Library.Object_Type)
+	return CXX_Bool_Type
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZNK3Cbe7Library25peek_sync_timeout_requestEv";
+		External_Name => "_ZNK3Cbe7Library11cache_dirtyEv";
 
 
-	function Peek_Secure_Timeout_Request (Obj : Library.Object_Type)
-	return CXX_Timeout_Request_Type
+	function Superblock_Dirty (Obj : Library.Object_Type)
+	return CXX_Bool_Type
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZNK3Cbe7Library27peek_secure_timeout_requestEv";
+		External_Name => "_ZNK3Cbe7Library16superblock_dirtyEv";
 
 
-	procedure Ack_Sync_Timeout_Request (Obj : in out Library.Object_Type)
+	function Is_Securing_Superblock (Obj : Library.Object_Type)
+	return CXX_Bool_Type
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe7Library24ack_sync_timeout_requestEv";
+		External_Name => "_ZNK3Cbe7Library22is_securing_superblockEv";
 
 
-	procedure Ack_Secure_Timeout_Request (Obj : in out Library.Object_Type)
+	function Is_Sealing_Generation (Obj : Library.Object_Type)
+	return CXX_Bool_Type
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe7Library26ack_secure_timeout_requestEv";
+		External_Name => "_ZNK3Cbe7Library21is_sealing_generationEv";
+
+
+	procedure Start_Securing_Superblock (Obj : in out Library.Object_Type)
+	with
+		Export,
+		Convention    => C,
+		External_Name => "_ZN3Cbe7Library25start_securing_superblockEv";
+
+
+	procedure Start_Sealing_Generation (Obj : in out Library.Object_Type)
+	with
+		Export,
+		Convention    => C,
+		External_Name => "_ZN3Cbe7Library24start_sealing_generationEv";
 
 
 	function Max_VBA (Obj : Library.Object_Type)

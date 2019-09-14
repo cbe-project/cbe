@@ -107,6 +107,11 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 		uint32_t _loop_count = 0;
 
+		Time::Timestamp _sync_interval;
+		Time::Timestamp _secure_interval;
+		Time::Timestamp _last_sync_time;
+		Time::Timestamp _last_secure_time;
+
 		void _handle_requests()
 		{
 			if (!_block_session.constructed()) { return; }
@@ -178,13 +183,95 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					progress |= true;
 				});
 
+				/******************
+				 ** CBE handling **
+				 ******************/
+
+
 				/*
-				 * CBE handling
+				 * Time handling
 				 */
 
-				_cbe->execute(_time.timestamp());
+				/*
+				 * Query current time and check if a timeout has triggered
+				 */
+
+				/*
+				 * Seal the current generation if sealing is not already
+				 * in Progress. In case no write operation was performed just set
+				 * the trigger for the next interval.
+				 *
+				 *
+				 * (Instead of checking all Cache entries it would be nice if the
+				 *  Cache module would provide an interface that would allow us to
+				 *  simple check if it contains any dirty entries as it could easily
+				 *  track that condition internally itself.)
+				 */
+				Time::Timestamp const now = _time.timestamp();
+				bool is_sealing_generation = _cbe->is_sealing_generation();
+				if (now - _last_sync_time >= _sync_interval &&
+				    !is_sealing_generation)
+				{
+					if (_cbe->cache_dirty()) {
+						// Genode::log ("\033[93;44m", __Func__, " SEAL current generation: ", Obj.Cur_Gen);
+						_cbe->start_sealing_generation();
+						is_sealing_generation = true;
+					} else {
+						// DBG("Cache is not dirty, re-arm trigger");
+						_last_sync_time = now;
+						_time.schedule_sync_timeout(_sync_interval);
+					}
+				}
+
+				/*
+				 * Secure the current super-block if securing is not already
+				 * in Progress. In case no write operation was performed,
+				 * i.E., no snapshot was changed, just set the trigger for the
+				 * next interval.
+				 *
+				 *
+				 * (Obj.Superblock_Dirty is set whenver the Write_Back module
+				 * has done its work
+				 * and will be reset when the super-block was secured.)
+				 */
+				bool is_securing_superblock = _cbe->is_securing_superblock();
+				if (now - _last_secure_time >= _secure_interval &&
+				    !is_securing_superblock)
+				{
+					if (_cbe->superblock_dirty()) {
+						// Genode::log ("\033[93;44m", __Func__,
+						//              " SEALCurr super-block: ", Obj.Cur_SB);
+						_cbe->start_securing_superblock();
+						is_securing_superblock = true;
+					} else {
+						// DBG("no snapshots created, re-arm trigger");
+						_last_secure_time = now;
+					}
+				}
+
+				_cbe->execute(now);
 				progress |= _cbe->execute_progress();
-				_handle_cbe_timeout_requests();
+
+				/* if sealing has finished during 'execute', set new timeout */
+				if (is_sealing_generation && !_cbe->is_sealing_generation()) {
+					/*
+					 * (As already briefly mentioned in the time handling section,
+					 *  it would be more reasonable to only set the timeouts when
+					 *  we actually perform write Request.)
+					 */
+					_last_sync_time = now;
+					_time.schedule_sync_timeout(_sync_interval);
+				}
+				/* if securing has finished during 'execute', set new timeout */
+				if (is_securing_superblock && !_cbe->is_securing_superblock()) {
+					/*
+					 * (FIXME same was with sealing the generation, it might make
+					 *  sense to set the trigger only when a write operation
+					 *  was performed.)
+					 */
+					_last_secure_time = now;
+					_time.schedule_secure_timeout(_secure_interval);
+				}
 
 				using Payload = Block::Request_stream::Payload;
 				block_session.with_payload([&] (Payload const &payload) {
@@ -372,20 +459,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			return most_recent_sb;
 		}
 
-		void _handle_cbe_timeout_requests()
-		{
-			Timeout_request const sync_timeout_req = _cbe->peek_sync_timeout_request();
-			if (sync_timeout_req.valid) {
-				_time.schedule_sync_timeout(sync_timeout_req.timeout);
-				_cbe->ack_sync_timeout_request();
-			}
-			Timeout_request const secure_timeout_req = _cbe->peek_secure_timeout_request();
-			if (secure_timeout_req.valid) {
-				_time.schedule_secure_timeout(secure_timeout_req.timeout);
-				_cbe->ack_secure_timeout_request();
-			}
-		}
-
 	public:
 
 		/*
@@ -393,7 +466,13 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		 *
 		 * \param env   reference to Genode environment
 		 */
-		Main(Env &env) : _env(env)
+		Main(Env &env)
+		:
+			_env              { env },
+			_sync_interval    { 1000 * _config_rom.xml().attribute_value("sync_interval", 5u) },
+			_secure_interval  { 1000 * _config_rom.xml().attribute_value("secure_interval", 30u) },
+			_last_sync_time   { _time.timestamp() },
+			_last_secure_time { _time.timestamp() }
 		{
 			/*
 			 * We first parse the configuration here which is used to control the
@@ -402,11 +481,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			 */
 			_show_progress =
 				_config_rom.xml().attribute_value("show_progress", false);
-
-			Cbe::Time::Timestamp const sync = 1000 *
-				_config_rom.xml().attribute_value("sync_interval", 5u);
-			Cbe::Time::Timestamp const secure = 1000 *
-				_config_rom.xml().attribute_value("secure_interval", 30u);
 
 			/*
 			 * We read all super-block information (at the moment the first 8 blocks
@@ -450,8 +524,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			 * access to the SBs.
 			 *
 			 */
-			_cbe.construct(_time.timestamp(), sync, secure, _super_blocks, curr_sb);
-			_handle_cbe_timeout_requests();
+			_cbe.construct(_super_blocks, curr_sb);
+			_time.schedule_sync_timeout(_sync_interval);
+			_time.schedule_secure_timeout(_secure_interval);
 
 			/*
 			 * Install signal handler for the backend Block connection.
@@ -600,6 +675,9 @@ void Cbe::Time::sync_sigh(Genode::Signal_context_capability cap)
 
 void Cbe::Time::schedule_sync_timeout(uint64_t msec)
 {
+	if (!msec) {
+		return;
+	}
 	_sync_timeout.schedule(Genode::Microseconds { msec * 1000 });
 }
 
@@ -612,5 +690,8 @@ void Cbe::Time::secure_sigh(Genode::Signal_context_capability cap)
 
 void Cbe::Time::schedule_secure_timeout(uint64_t msec)
 {
+	if (!msec) {
+		return;
+	}
 	_secure_timeout.schedule(Genode::Microseconds { msec * 1000 });
 }
