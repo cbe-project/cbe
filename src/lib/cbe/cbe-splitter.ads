@@ -94,7 +94,7 @@ private
 	--
 	type Object_Type is record
 		Curr_Req    : Request.Object_Type;
-		Curr_Blk_Nr : Request.Block_Number_Type;
+		Curr_Blk_Nr : Block_Number_Type;
 		Curr_Idx    : Primitive.Index_Type;
 		Nr_Of_Prims : Number_Of_Primitives_Type;
 	end record;

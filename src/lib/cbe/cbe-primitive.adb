@@ -46,7 +46,7 @@ is
 		Op     : Request.Operation_Type;
 		Succ   : Request.Success_Type;
 		Tg     : Tag_Type;
-		Blk_Nr : Request.Block_Number_Type;
+		Blk_Nr : Block_Number_Type;
 		Idx    : Index_Type)
 	return Object_Type
 	is (
@@ -79,7 +79,7 @@ is
 	function Operation   (Obj : Object_Type) return Request.Operation_Type    is (Obj.Operation);
 	function Success     (Obj : Object_Type) return Request.Success_Type      is (Obj.Success);
 	function Tag         (Obj : Object_Type) return Tag_Type                  is (Obj.Tag);
-	function Block_Number(Obj : Object_Type) return Request.Block_Number_Type is (Obj.Block_Number);
+	function Block_Number(Obj : Object_Type) return Block_Number_Type is (Obj.Block_Number);
 	function Index       (Obj : Object_Type) return Index_Type                is (Obj.Index);
 
 
@@ -88,7 +88,7 @@ is
 	---------------------
 
 	procedure Success     (Obj : in out Object_Type; Value : Request.Success_Type)      is begin Obj.Success      := Value; end Success;
-	procedure Block_Number(Obj : in out Object_Type; Value : Request.Block_Number_Type) is begin Obj.Block_Number := Value; end Block_Number;
+	procedure Block_Number(Obj : in out Object_Type; Value : Block_Number_Type) is begin Obj.Block_Number := Value; end Block_Number;
 	procedure Operation   (Obj : in out Object_Type; Value : Request.Operation_Type)    is begin Obj.Operation    := Value; end Operation;
 
 

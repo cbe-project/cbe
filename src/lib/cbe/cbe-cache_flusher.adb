@@ -142,7 +142,7 @@ is
 					Op     => Request.Write,
 					Succ   => Request.Success_Type(Item.Success(Obj.Items(Item_Id))),
 					Tg     => 16#21#,
-					Blk_Nr => Request.Block_Number_Type(Item.Pba(Obj.Items(Item_Id))),
+					Blk_Nr => Block_Number_Type(Item.Pba(Obj.Items(Item_Id))),
 					Idx    => 0);
 			end if;
 		end loop Peek_Primitive;
@@ -182,7 +182,7 @@ is
 					Op     => Request.Write,
 					Succ   => Request.Success_Type(False),
 					Tg     => 16#21#,
-					Blk_Nr => Request.Block_Number_Type(Item.Pba(Obj.Items(Item_Id))),
+					Blk_Nr => Block_Number_Type(Item.Pba(Obj.Items(Item_Id))),
 					Idx => 0);
 			end if;
 		end loop Peek_Primitive;

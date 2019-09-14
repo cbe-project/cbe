@@ -9,6 +9,7 @@
 pragma Ada_2012;
 
 with SHA256_4K;
+with CBE.Request;
 with Interfaces;
 use  Interfaces;
 
@@ -243,7 +244,7 @@ is
 				Op     => Primitive.Operation (Obj.Current),
 				Succ   => False,
 				Tg     => Primitive.Tag (Obj.Current),
-				Blk_Nr => Request.Block_Number_Type (Obj.Data_PBA),
+				Blk_Nr => Block_Number_Type (Obj.Data_PBA),
 				Idx    => Primitive.Index (Obj.Current))
 		else
 			Primitive.Invalid_Object);
@@ -266,7 +267,7 @@ is
 	-- Get_Virtual_Block_Address
 	--
 	function Get_Virtual_Block_Address (Obj : Object_Type)
-	return Request.Block_Number_Type
+	return Block_Number_Type
 	is (Primitive.Block_Number (Obj.Current));
 
 	--
@@ -324,7 +325,7 @@ is
 				Op     => Request.Read,
 				Succ   => False,
 				Tg     => Tag_Translation,
-				Blk_Nr => Request.Block_Number_Type (Obj.Next_PBA),
+				Blk_Nr => Block_Number_Type (Obj.Next_PBA),
 				Idx    => 0)
 		else
 			Primitive.Invalid_Object);

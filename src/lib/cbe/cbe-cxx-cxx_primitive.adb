@@ -45,7 +45,7 @@ is
 			Op,
 			CXX_Request.Success_To_Spark(Obj.Success),
 			Tag_Type (Obj.Tag),
-			Request.Block_Number_Type(Obj.Block_Number),
+			Block_Number_Type(Obj.Block_Number),
 			Primitive.Index_Type(Obj.Index)));
 
 

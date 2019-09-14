@@ -66,13 +66,12 @@ is
 	function Trans_Get_Virtual_Block_Address (
 		Obj  : Object_Type;
 		Prim : Primitive.Object_Type)
-	return Request.Block_Number_Type
+	return Block_Number_Type
 	is
 	begin
 		if
-			Request."/=" (
-				Primitive.Block_Number (Prim),
-				Request.Block_Number_Type (Translation.Data_PBA (Obj.Trans)))
+			Primitive.Block_Number (Prim) /=
+				Block_Number_Type (Translation.Data_PBA (Obj.Trans))
 		then
 			raise Program_Error;
 		end if;

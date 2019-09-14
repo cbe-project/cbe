@@ -44,7 +44,7 @@ is
 		when True => (
 			Operation    => Op_From_Spark(Request.Operation(Obj)),
 			Success      => Success_From_Spark(Request.Success(Obj)),
-			Block_Number => Block_Number_Type(Request.Block_Number(Obj)),
+			Block_Number => CXX_Block_Number_Type(Request.Block_Number(Obj)),
 			Offset       => Uint64_Type(Request.Offset(Obj)),
 			Count        => Uint32_Type(Request.Count(Obj)),
 			Tag          => CXX_Tag_Type(Request.Tag(Obj))),
@@ -79,7 +79,7 @@ is
 		Request.Valid_Object (
 			Op,
 			Success_To_Spark(Obj.Success),
-			Request.Block_Number_Type(Obj.Block_Number),
+			Block_Number_Type(Obj.Block_Number),
 			Request.Offset_Type(Obj.Offset),
 			Request.Count_Type(Obj.Count),
 			Tag_Type (Obj.Tag)));

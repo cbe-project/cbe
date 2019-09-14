@@ -13,9 +13,6 @@ with CBE.Request;
 package body CBE.Sync_superblock
 with Spark_Mode
 is
-
-	use type Request.Block_Number_Type;
-
 	package body Item
 	with Spark_Mode
 	is
@@ -109,7 +106,7 @@ is
 			Succ   => Request.Success_Type(False),
 			Tg     => 16#80#,
 			-- there is currently a 1:1 mapping between SB slot and pba
-			Blk_Nr => Request.Block_Number_Type(Item.Index(Obj.Current_Item)),
+			Blk_Nr => Block_Number_Type(Item.Index(Obj.Current_Item)),
 			Idx    => 0);
 	end Submit_Request;
 

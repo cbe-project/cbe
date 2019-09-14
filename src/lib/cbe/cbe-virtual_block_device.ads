@@ -8,7 +8,6 @@
 
 pragma Ada_2012;
 
-with CBE.Request;
 with CBE.Primitive;
 with CBE.Tree_Helper;
 with CBE.Cache;
@@ -57,7 +56,7 @@ is
 	function Trans_Get_Virtual_Block_Address (
 		Obj  : Object_Type;
 		Prim : Primitive.Object_Type)
-	return Request.Block_Number_Type;
+	return Block_Number_Type;
 
 	--
 	-- Trans_Can_Get_Type_1_Info

@@ -10,7 +10,6 @@ pragma Ada_2012;
 
 with CBE.Tree_Helper;
 with CBE.Primitive;
-with CBE.Request;
 
 package CBE.Translation
 with Spark_Mode
@@ -111,7 +110,7 @@ is
 	-- Get_Virtual_Block_Address
 	--
 	function Get_Virtual_Block_Address (Obj : Object_Type)
-	return Request.Block_Number_Type;
+	return Block_Number_Type;
 	-- with
 	-- 	Pre => Primitive.Block_Number (Prim) = Obj.Data_PBA;
 

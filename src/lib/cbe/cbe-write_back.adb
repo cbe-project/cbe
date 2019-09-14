@@ -24,8 +24,8 @@ is
 	begin
 		if
 			Obj.State /= Complete or
-			Request."/=" (Primitive.Block_Number(Prim),
-			              Primitive.Block_Number(Obj.Pending_Primitive))
+			Primitive.Block_Number(Prim) /=
+				Primitive.Block_Number(Obj.Pending_Primitive)
 		then
 			raise Program_Error;
 		end if;
@@ -48,7 +48,7 @@ is
 			Op     => Request.Write,
 			Succ   => Request.Success_Type(False),
 			Tg     => Obj.Entries (0).Tag,
-			Blk_Nr => Request.Block_Number_Type(Obj.Entries(0).Update_PBA),
+			Blk_Nr => Block_Number_Type(Obj.Entries(0).Update_PBA),
 			Idx    => 0);
 	end Peek_Generated_Leaf_Primitive;
 
@@ -65,8 +65,8 @@ is
 	is
 	begin
 		if
-			Request."/=" (Primitive.Block_Number(Prim),
-			              Request.Block_Number_Type(Obj.Entries(0).Update_PBA))
+			Primitive.Block_Number(Prim) /=
+				Block_Number_Type(Obj.Entries(0).Update_PBA)
 		then
 			raise Program_Error;
 		end if;
@@ -89,8 +89,8 @@ is
 			-- XXX condition differs from 'Peek_Generated_Leaf_Data'
 			if
 				E.State /= Pending or
-				Request."/=" (Primitive.Block_Number(Prim),
-				              Request.Block_Number_Type(E.Update_PBA))
+				Primitive.Block_Number(Prim) /=
+					Block_Number_Type(E.Update_PBA)
 			then
 				raise Program_Error;
 			end if;
@@ -353,8 +353,8 @@ is
 		end if;
 		if
 			Obj.Entries(0).State /= In_Progress or
-			Request."/=" (Primitive.Block_Number(Prim),
-			              Request.Block_Number_Type(Obj.Entries(0).Update_PBA))
+			Primitive.Block_Number(Prim) /=
+				Block_Number_Type(Obj.Entries(0).Update_PBA)
 		then
 			raise Program_Error;
 		end if;
@@ -424,8 +424,8 @@ is
 
 		if
 			Obj.Entries(0).State /= In_Progress or
-			Request."/=" (Primitive.Block_Number(Prim),
-			              Request.Block_Number_Type(Obj.Entries(0).Update_PBA))
+			Primitive.Block_Number(Prim) /=
+				Block_Number_Type(Obj.Entries(0).Update_PBA)
 		then
 			raise Program_Error;
 		end if;
@@ -456,7 +456,7 @@ is
 					Op     => Request.Write,
 					Succ   => Request.Success_Type(False),
 					Tg     => Obj.Entries (I).Tag,
-					Blk_Nr => Request.Block_Number_Type(Obj.Entries(I).PBA),
+					Blk_Nr => Block_Number_Type(Obj.Entries(I).PBA),
 					Idx    => 0);
 			end if;
 		end loop For_Each_Entry;

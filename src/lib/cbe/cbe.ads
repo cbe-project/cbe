@@ -37,6 +37,7 @@ is
 	type Index_Type                   is mod 2**64;
 	type Generation_Type              is mod 2**64 with Size => 64;
 	type Superblock_Index_Type        is mod 2**64;
+	type Block_Number_Type            is mod 2**64;
 	type Physical_Block_Address_Type  is mod 2**64 with Size => 64;
 	type Virtual_Block_Address_Type   is mod 2**64;
 	type Timestamp_Type               is mod 2**64;

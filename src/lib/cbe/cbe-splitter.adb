@@ -91,7 +91,6 @@ is
 	--
 	Procedure Next_Primitive(Obj : in out Object_Type)
 	is
-		use type Request.Block_Number_Type;
 		use type Primitive.Index_Type;
 	begin
 		Obj.Curr_Blk_Nr := Obj.Curr_Blk_Nr + 1;

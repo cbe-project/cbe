@@ -87,7 +87,7 @@ is
 			Op     => Request.Read,
 			Succ   => Request.Success_Type(False),
 			Tg     => Tag_Invalid,
-			Blk_Nr => Request.Block_Number_Type(0),
+			Blk_Nr => 0,
 			Idx    => 0);
 
 		--
@@ -837,7 +837,7 @@ is
 				Tg     => Tag_IO,
 				Op     => Request.Read,
 				Succ   => False,
-				Blk_Nr => Request.Block_Number_Type (Obj.Curr_Type_2.PBA),
+				Blk_Nr => Block_Number_Type (Obj.Curr_Type_2.PBA),
 				Idx    => 0);
 		end if;
 
@@ -853,7 +853,7 @@ is
 						Tg     => Tag_Write_Back,
 						Op     => Request.Write,
 						Succ   => False,
-						Blk_Nr => Request.Block_Number_Type (Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).PBA),
+						Blk_Nr => Block_Number_Type (Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).PBA),
 						Idx    => 0);
 				end if;
 

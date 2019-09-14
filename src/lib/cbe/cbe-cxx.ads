@@ -26,6 +26,7 @@ is
 	type CXX_Number_Of_Primitives_Type   is new Uint64_Type;
 	type CXX_Generation_Type             is new Uint64_Type;
 	type CXX_Superblock_Index_Type       is new Uint64_Type;
+	type CXX_Block_Number_Type           is new Uint64_Type;
 	type CXX_Physical_Block_Address_Type is new Uint64_Type;
 	type CXX_Virtual_Block_Address_Type  is new Uint64_Type;
 	type CXX_Size_Type                   is new Uint64_Type;
