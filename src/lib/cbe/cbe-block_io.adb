@@ -8,8 +8,6 @@
 
 pragma Ada_2012;
 
-with CBE.Request;
-
 package body CBE.Block_IO
 with Spark_Mode
 is
@@ -58,7 +56,7 @@ is
 						Idx    => Primitive.Index(Prim)),
 					State    => Pending);
 
-				if Request."=" (Primitive.Operation(Prim), Request.Write) then
+				if Primitive.Operation(Prim) = Write then
 					IO_Data(I) := Data;
 				end if;
 

@@ -36,6 +36,7 @@ is
 	type CXX_Tree_Degree_Type            is new Uint32_Type;
 	type CXX_Tree_Child_Index_Type       is new Uint32_Type;
 	type CXX_Tag_Type                    is new Uint32_Type;
+	type CXX_Operation_Type              is range 0..3 with Size => 32;
 
 	type CXX_Timeout_Request_Type is record
 		Valid   : CXX_Bool_Type;

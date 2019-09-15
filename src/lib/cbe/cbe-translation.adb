@@ -9,7 +9,6 @@
 pragma Ada_2012;
 
 with SHA256_4K;
-with CBE.Request;
 with Interfaces;
 use  Interfaces;
 
@@ -322,7 +321,7 @@ is
 	is (
 		if Obj.Next_PBA /= PBA_Invalid then
 			Primitive.Valid_Object (
-				Op     => Request.Read,
+				Op     => Read,
 				Succ   => False,
 				Tg     => Tag_Translation,
 				Blk_Nr => Block_Number_Type (Obj.Next_PBA),

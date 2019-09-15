@@ -84,7 +84,7 @@ is
 		Obj.Nr_Of_Found_Blocks := 0;
 
 		Obj.Curr_Query_Prim := Primitive.Valid_Object (
-			Op     => Request.Read,
+			Op     => Read,
 			Succ   => Request.Success_Type(False),
 			Tg     => Tag_Invalid,
 			Blk_Nr => 0,
@@ -505,7 +505,6 @@ is
 
 			Declare_End_Of_Tree:
 			declare
-				use Request;
 				End_Of_Tree : constant Boolean :=
 					Primitive.Block_Number (Obj.Curr_Query_Prim) +
 					Block_Number_Type (Tree_Helper.Degree (Obj.Trans_Helper)) >=
@@ -529,7 +528,7 @@ is
 
 						-- arm query primitive and check next type 2 node
 						Obj.Curr_Query_Prim := Primitive.Valid_Object (
-							Op     => Request.Read,
+							Op     => Read,
 							Succ   => False,
 							Tg     => Tag_Free_Tree,
 							Blk_Nr => Primitive.Block_Number(Obj.Curr_Query_Prim)
@@ -835,7 +834,7 @@ is
 			-- MOD_DBG(Prim);
 			return Primitive.Valid_Object (
 				Tg     => Tag_IO,
-				Op     => Request.Read,
+				Op     => Read,
 				Succ   => False,
 				Blk_Nr => Block_Number_Type (Obj.Curr_Type_2.PBA),
 				Idx    => 0);
@@ -851,7 +850,7 @@ is
 					--MOD_DBG(p);
 					return Primitive.Valid_Object (
 						Tg     => Tag_Write_Back,
-						Op     => Request.Write,
+						Op     => Write,
 						Succ   => False,
 						Blk_Nr => Block_Number_Type (Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).PBA),
 						Idx    => 0);

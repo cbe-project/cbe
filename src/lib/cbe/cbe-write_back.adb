@@ -45,7 +45,7 @@ is
 			return Primitive.Invalid_Object;
 		end if;
 		return Primitive.Valid_Object (
-			Op     => Request.Write,
+			Op     => Write,
 			Succ   => Request.Success_Type(False),
 			Tg     => Obj.Entries (0).Tag,
 			Blk_Nr => Block_Number_Type(Obj.Entries(0).Update_PBA),
@@ -453,7 +453,7 @@ is
 		For_Each_Entry: for I in 1..Obj.Levels - 1 loop
 			if Obj.Entries(I).State = Pending then
 				return Primitive.Valid_Object (
-					Op     => Request.Write,
+					Op     => Write,
 					Succ   => Request.Success_Type(False),
 					Tg     => Obj.Entries (I).Tag,
 					Blk_Nr => Block_Number_Type(Obj.Entries(I).PBA),

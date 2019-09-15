@@ -15,8 +15,6 @@ with Spark_Mode
 is
 	pragma Pure;
 
-	use type Request.Operation_Type;
-
 	type Index_Type  is mod 2**64;
 	type Object_Type is private;
 
@@ -42,7 +40,7 @@ is
 	-- Valid_Object
 	--
 	function Valid_Object(
-		Op     : Request.Operation_Type;
+		Op     : Operation_Type;
 		Succ   : Request.Success_Type;
 		Tg     : Tag_Type;
 		Blk_Nr : Block_Number_Type;
@@ -73,20 +71,20 @@ is
 	--------------------
 
 	function Valid       (Obj : Object_Type) return Boolean;
-	function Operation   (Obj : Object_Type) return Request.Operation_Type with Pre => (Valid(Obj));
-	function Success     (Obj : Object_Type) return Request.Success_Type   with Pre => (Valid(Obj));
-	function Tag         (Obj : Object_Type) return Tag_Type               with Pre => (Valid(Obj));
-	function Block_Number(Obj : Object_Type) return Block_Number_Type      with Pre => (Valid(Obj));
-	function Index       (Obj : Object_Type) return Index_Type             with Pre => (Valid(Obj));
+	function Operation   (Obj : Object_Type) return Operation_Type       with Pre => (Valid(Obj));
+	function Success     (Obj : Object_Type) return Request.Success_Type with Pre => (Valid(Obj));
+	function Tag         (Obj : Object_Type) return Tag_Type             with Pre => (Valid(Obj));
+	function Block_Number(Obj : Object_Type) return Block_Number_Type    with Pre => (Valid(Obj));
+	function Index       (Obj : Object_Type) return Index_Type           with Pre => (Valid(Obj));
 
 
 	---------------------
 	-- Write Accessors --
 	---------------------
 
-	procedure Success     (Obj : in out Object_Type; Value : Request.Success_Type)   with Pre => (Valid(Obj));
-	procedure Block_Number(Obj : in out Object_Type; Value : Block_Number_Type)      with Pre => (Valid(Obj));
-	procedure Operation   (Obj : in out Object_Type; Value : Request.Operation_Type) with Pre => (Valid(Obj));
+	procedure Success     (Obj : in out Object_Type; Value : Request.Success_Type) with Pre => (Valid(Obj));
+	procedure Block_Number(Obj : in out Object_Type; Value : Block_Number_Type)    with Pre => (Valid(Obj));
+	procedure Operation   (Obj : in out Object_Type; Value : Operation_Type)       with Pre => (Valid(Obj));
 
 
 	function To_String(Obj : Object_Type) return String;
@@ -98,7 +96,7 @@ private
 	--
 	type Object_Type is record
 		Valid        : Boolean;
-		Operation    : Request.Operation_Type;
+		Operation    : Operation_Type;
 		Success      : Request.Success_Type;
 		Tag          : Tag_Type;
 		Block_Number : Block_Number_Type;

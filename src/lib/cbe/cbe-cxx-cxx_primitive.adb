@@ -8,8 +8,6 @@
 
 pragma Ada_2012;
 
-with CBE.Request;
-
 package body CBE.CXX.CXX_Primitive
 with Spark_Mode
 is
@@ -38,7 +36,7 @@ is
 	--
 	function Valid_To_Spark(
 		Obj : in Object_Type;
-		Op  : in Request.Operation_Type)
+		Op  : in Operation_Type)
 	return Primitive.Object_Type
 	is (
 		Primitive.Valid_Object(
@@ -58,8 +56,8 @@ is
 	is (
 		case Obj.Operation is
 		when 0 => Primitive.Invalid_Object,
-		when 1 => Valid_To_Spark(Obj, Request.Read),
-		when 2 => Valid_To_Spark(Obj, Request.Write),
-		when 3 => Valid_To_Spark(Obj, Request.Sync));
+		when 1 => Valid_To_Spark(Obj, Read),
+		when 2 => Valid_To_Spark(Obj, Write),
+		when 3 => Valid_To_Spark(Obj, Sync));
 
 end CBE.CXX.CXX_Primitive;

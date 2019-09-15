@@ -8,8 +8,6 @@
 
 pragma Ada_2012;
 
-with CBE.Request;
-
 package body CBE.Crypto
 with Spark_Mode
 is
@@ -28,7 +26,7 @@ is
 		is
 		begin
 			case Primitive.Operation(Obj.Prim) is
-			when Request.Write =>
+			when Write =>
 
 				Aes_Cbc_4k.Encrypt(
 					Key,
@@ -53,7 +51,6 @@ is
 			Prm :        Primitive.Object_Type;
 			Key :        Key_Type)
 		is
-			use Request;
 		begin
 			if
 				Obj.State /= In_Progress or
@@ -63,7 +60,7 @@ is
 			end if;
 
 			if
-				Primitive.Operation(Obj.Prim) = Request.Read and
+				Primitive.Operation(Obj.Prim) = Read and
 				Primitive.Success(Prm)
 			then
 				Aes_Cbc_4k.Decrypt(
@@ -97,14 +94,13 @@ is
 			Prim       :     Primitive.Object_Type;
 			Plain_Data : out Plain_Data_Type)
 		is
-			use Request;
 		begin
 			if not Item_Complete (Item, Prim) then
 				return;
 			end if;
 
 			if
-				Primitive.Operation(Item.Prim) = Request.Read and
+				Primitive.Operation(Item.Prim) = Read and
 				Primitive.Success(Prim)
 			then
 				Plain_Data := Item.Plain_Data;
@@ -119,14 +115,13 @@ is
 			Prim        :     Primitive.Object_Type;
 			Cipher_Data : out Cipher_Data_Type)
 		is
-			use Request;
 		begin
 			if not Item_Complete (Item, Prim) then
 				return;
 			end if;
 
 			if
-				Primitive.Operation(Item.Prim) = Request.Write and
+				Primitive.Operation(Item.Prim) = Write and
 				Primitive.Success(Prim)
 			then
 				Cipher_Data := Item.Cipher_Data;

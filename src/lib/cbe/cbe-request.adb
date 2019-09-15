@@ -29,7 +29,7 @@ is
 	-- Valid_Object
 	--
 	function Valid_Object(
-		Op     : Request.Operation_Type;
+		Op     : Operation_Type;
 		Succ   : Request.Success_Type;
 		Blk_Nr : Block_Number_Type;
 		Off    : Offset_Type;

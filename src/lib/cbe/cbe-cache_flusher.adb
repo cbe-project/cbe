@@ -139,7 +139,7 @@ is
 			if Item.Complete(Obj.Items(Item_Id))
 			then
 				return Primitive.Valid_Object(
-					Op     => Request.Write,
+					Op     => Write,
 					Succ   => Request.Success_Type(Item.Success(Obj.Items(Item_Id))),
 					Tg     => 16#21#,
 					Blk_Nr => Block_Number_Type(Item.Pba(Obj.Items(Item_Id))),
@@ -179,7 +179,7 @@ is
 			if Item.Pending(Obj.Items(Item_Id))
 			then
 				return Primitive.Valid_Object(
-					Op     => Request.Write,
+					Op     => Write,
 					Succ   => Request.Success_Type(False),
 					Tg     => 16#21#,
 					Blk_Nr => Block_Number_Type(Item.Pba(Obj.Items(Item_Id))),

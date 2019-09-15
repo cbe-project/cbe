@@ -21,7 +21,7 @@ is
 	--
 	type Object_Type is record
 		Tag          : UInt32_Type;
-		Operation    : CXX_Request.Operation_Type;
+		Operation    : CXX_Operation_Type;
 		Success      : CXX_Request.Success_Type;
 		Block_Number : UInt64_Type;
 		Index        : UInt64_Type;

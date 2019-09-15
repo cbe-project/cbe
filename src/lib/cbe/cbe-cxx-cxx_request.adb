@@ -25,13 +25,13 @@ is
 	--
 	-- Op_From_Spark
 	--
-	function Op_From_Spark(Op : in Request.Operation_Type)
-	return Operation_Type
+	function Op_From_Spark(Op : in Operation_Type)
+	return CXX_Operation_Type
 	is (
 		case Op is
-		when Request.Read  => 1,
-		when Request.Write => 2,
-		when Request.Sync  => 3);
+		when Read  => 1,
+		when Write => 2,
+		when Sync  => 3);
 
 
 	--
@@ -73,7 +73,7 @@ is
 	--
 	function Valid_To_Spark(
 		Obj : in Object_Type;
-		Op  : in Request.Operation_Type)
+		Op  : in Operation_Type)
 	return Request.Object_Type
 	is (
 		Request.Valid_Object (
@@ -93,8 +93,8 @@ is
 	is (
 		case Obj.Operation is
 		when 0 => Request.Invalid_Object,
-		when 1 => Valid_To_Spark(Obj, Request.Read),
-		when 2 => Valid_To_Spark(Obj, Request.Write),
-		when 3 => Valid_To_Spark(Obj, Request.Sync));
+		when 1 => Valid_To_Spark(Obj, Read),
+		when 2 => Valid_To_Spark(Obj, Write),
+		when 3 => Valid_To_Spark(Obj, Sync));
 
 end CBE.CXX.CXX_Request;

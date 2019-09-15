@@ -1255,7 +1255,7 @@ is
 			begin
 				exit Loop_Crypto_Completed_Prims when
 					not Primitive.Valid (Prim) or
-					Request."=" (Primitive.Operation (Prim), Request.Read);
+					Primitive.Operation (Prim) = Read;
 
 				if not Primitive.Success (Prim) then
 					-- DBG(Prim);
@@ -1729,7 +1729,7 @@ is
 		begin
 			if
 				Primitive.Valid (Prim) and
-				Request."=" (Primitive.Operation (Prim), Request.Read)
+				Primitive.Operation (Prim) = Read
 			then
 				Assign_Front_End_Req_Prim (Prim, Tag_Crypto);
 				Req := Obj.Front_End_Req_Prim.Req;

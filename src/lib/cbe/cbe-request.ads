@@ -13,7 +13,6 @@ with Spark_Mode
 is
 	pragma Pure;
 
-	type    Operation_Type    is (Read, Write, Sync);
 	subtype Success_Type      is Boolean;
 	type    Offset_Type       is mod 2**64;
 	type    Count_Type        is mod 2**32;

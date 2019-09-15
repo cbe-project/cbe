@@ -15,14 +15,13 @@ with Spark_Mode
 is
 	pragma Pure;
 
-	type Operation_Type    is range 0..3 with Size => 32;
-	type Success_Type      is range 0..1 with Size => 32;
+	type Success_Type is range 0..1 with Size => 32;
 
 	--
 	-- Object_Type
 	--
 	type Object_Type is record
-		Operation    : Operation_Type;
+		Operation    : CXX_Operation_Type;
 		Success      : Success_Type;
 		Block_Number : CXX_Block_Number_Type;
 		Offset       : Uint64_Type;
@@ -39,8 +38,8 @@ is
 	--
 	-- Op_From_Spark
 	--
-	function Op_From_Spark(Op : in Request.Operation_Type)
-	return Operation_Type;
+	function Op_From_Spark(Op : in Operation_Type)
+	return CXX_Operation_Type;
 
 	--
 	-- To_Spark

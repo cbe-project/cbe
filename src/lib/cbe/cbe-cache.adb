@@ -476,7 +476,7 @@ is
 			if Job_Item.Pending(Obj.Job_Items(Job_Item_Id))
 			then
 				return Primitive.Valid_Object(
-					Op     => Request.Read,
+					Op     => Read,
 					Succ   => Request.Success_Type(False),
 					Tg     => 16#20#,
 					Blk_Nr => Block_Number_Type(Job_Item.Pba(Obj.Job_Items(Job_Item_Id))),

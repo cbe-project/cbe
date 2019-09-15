@@ -102,7 +102,7 @@ is
 	begin
 		Item.Pending_Item(Obj.Current_Item, Idx, Gen);
 		Obj.Current_Primitive := Primitive.Valid_Object(
-			Op     => Request.Write,
+			Op     => Write,
 			Succ   => Request.Success_Type(False),
 			Tg     => 16#80#,
 			-- there is currently a 1:1 mapping between SB slot and pba

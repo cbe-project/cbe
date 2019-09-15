@@ -53,6 +53,7 @@ is
 	type Snapshot_ID_Type             is mod 2**32;
 	type Snapshot_Flags_Type          is mod 2**32;
 	type Key_ID_Type                  is mod 2**32 with Size => 32;
+	type Operation_Type               is (Read, Write, Sync);
 
 	-- FIXME should be architecture-dependent
 	type Address_Type is mod 2**64;
