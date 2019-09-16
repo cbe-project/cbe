@@ -140,17 +140,29 @@ is
 			Cipher_Data => (others => 0));
 
 		--
-		-- Submitted_Object
+		-- Submitted_Encryption_Object
 		--
-		function Submitted_Object(
+		function Submitted_Encryption_Object(
 			Prm        : Primitive.Object_Type;
-			Plain_Dat  : Plain_Data_Type;
-			Cipher_Dat : Cipher_Data_Type)
+			Plain_Dat  : Plain_Data_Type)
 		return Item_Type
 		is (
 			State       => Submitted,
 			Prim        => Prm,
 			Plain_Data  => Plain_Dat,
+			Cipher_Data => (others => 0));
+
+		--
+		-- Submitted_Decryption_Object
+		--
+		function Submitted_Decryption_Object(
+			Prm        : Primitive.Object_Type;
+			Cipher_Dat : Cipher_Data_Type)
+		return Item_Type
+		is (
+			State       => Submitted,
+			Prim        => Prm,
+			Plain_Data  => (others => 0),
 			Cipher_Data => Cipher_Dat);
 
 
@@ -204,13 +216,40 @@ is
 	return Boolean
 	is (for some Itm of Obj.Items => Item.Invalid(Itm));
 
+
 	--
-	-- Submit_Primitive
+	-- Submit_Encryption_Primitive
 	--
-	procedure Submit_Primitive(
+	procedure Submit_Encryption_Primitive(
 		Obj         : in out Object_Type;
 		Prim        :        Primitive.Object_Type;
-		Plain_Data  :        Plain_Data_Type;
+		Plain_Data  :        Plain_Data_Type)
+	is
+		Prim_Buf : constant Primitive.Object_Type := Prim;
+	begin
+
+		Items_Loop: for Item_Id in Obj.Items'Range loop
+
+			if Item.Invalid(Obj.Items(Item_Id)) then
+
+				Obj.Items(Item_Id) :=
+					Item.Submitted_Encryption_Object(Prim_Buf, Plain_Data);
+
+				exit Items_Loop;
+
+			end if;
+
+		end loop Items_Loop;
+
+	end Submit_Encryption_Primitive;
+
+
+	--
+	-- Submit_Decryption_Primitive
+	--
+	procedure Submit_Decryption_Primitive(
+		Obj         : in out Object_Type;
+		Prim        :        Primitive.Object_Type;
 		Cipher_Data :        Cipher_Data_Type)
 	is
 		Prim_Buf : constant Primitive.Object_Type := Prim;
@@ -221,7 +260,7 @@ is
 			if Item.Invalid(Obj.Items(Item_Id)) then
 
 				Obj.Items(Item_Id) :=
-					Item.Submitted_Object(Prim_Buf, Plain_Data, Cipher_Data);
+					Item.Submitted_Decryption_Object(Prim_Buf, Cipher_Data);
 
 				exit Items_Loop;
 
@@ -229,7 +268,8 @@ is
 
 		end loop Items_Loop;
 
-	end Submit_Primitive;
+	end Submit_Decryption_Primitive;
+
 
 	--
 	-- Execute

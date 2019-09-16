@@ -47,13 +47,22 @@ is
 	return Boolean;
 
 	--
-	-- Submit_Primitive
+	-- Submit_Decryption_Primitive
 	--
-	procedure Submit_Primitive(
+	procedure Submit_Decryption_Primitive(
 		Obj         : in out Object_Type;
 		Prim        :        Primitive.Object_Type;
-		Plain_Data  :        Plain_Data_Type;
 		Cipher_Data :        Cipher_Data_Type)
+	with
+		Pre => (Primitive_Acceptable(Obj) and Primitive.Valid(Prim));
+
+	--
+	-- Submit_Encryption_Primitive
+	--
+	procedure Submit_Encryption_Primitive(
+		Obj         : in out Object_Type;
+		Prim        :        Primitive.Object_Type;
+		Plain_Data  :        Plain_Data_Type)
 	with
 		Pre => (Primitive_Acceptable(Obj) and Primitive.Valid(Prim));
 
@@ -169,11 +178,18 @@ private
 		return Item_Type;
 
 		--
-		-- Submitted_Object
+		-- Submitted_Encryption_Object
 		--
-		function Submitted_Object(
+		function Submitted_Encryption_Object(
 			Prm        : Primitive.Object_Type;
-			Plain_Dat  : Plain_Data_Type;
+			Plain_Dat  : Plain_Data_Type)
+		return Item_Type;
+
+		--
+		-- Submitted_Decryption_Object
+		--
+		function Submitted_Decryption_Object(
+			Prm        : Primitive.Object_Type;
 			Cipher_Dat : Cipher_Data_Type)
 		return Item_Type;
 

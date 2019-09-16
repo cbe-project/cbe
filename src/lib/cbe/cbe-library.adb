@@ -982,12 +982,9 @@ is
 
 					Plain_Data : Crypto.Plain_Data_Type with Address =>
 						Obj.Write_Back_Data (Plain_Data_Index)'Address;
-
-					Cipher_Data : Crypto.Cipher_Data_Type with Address =>
-						Obj.Crypto_Data'Address;
 				begin
-					Crypto.Submit_Primitive (
-						Obj.Crypto_Obj, Prim, Plain_Data, Cipher_Data);
+					Crypto.Submit_Encryption_Primitive (
+						Obj.Crypto_Obj, Prim, Plain_Data);
 
 				end Declare_Crypto_Data;
 				Write_Back.Drop_Generated_Crypto_Primitive (
@@ -1407,9 +1404,6 @@ is
 						else
 							Declare_Data:
 							declare
-								Plain_Data : Crypto.Plain_Data_Type with Address =>
-									Obj.Crypto_Data'Address;
-
 								Cipher_Data : Crypto.Cipher_Data_Type with Address =>
 									Obj.IO_Data (Index)'Address;
 							begin
@@ -1419,14 +1413,13 @@ is
 								-- Since it is the one that acknowledges the primitive to the
 								-- pool in the read case, we have to use the Tag the pool
 								-- module uses.
-								--;
-								Crypto.Submit_Primitive (
+								--
+								Crypto.Submit_Decryption_Primitive (
 									Obj.Crypto_Obj,
 									Primitive.Copy_Valid_Object_Change_Tag (
 										Prim,
 										Block_IO.Peek_Completed_Tag (
 											Obj.IO_Obj, Prim)),
-									Plain_Data,
 									Cipher_Data);
 
 							end Declare_Data;
