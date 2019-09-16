@@ -33,24 +33,24 @@ is
 	type Translation_Data_Type        is array (0..0) of Block_Data_Type with Size => 1 * 4096 * 8;
 	type Number_Of_Primitives_Type    is mod 2**64;
 	type Index_Type                   is mod 2**64;
-	type Generation_Type              is mod 2**64 with Size => 64;
+	type Generation_Type              is mod 2**64;
 	type Superblock_Index_Type        is mod 2**64;
 	type Block_Number_Type            is mod 2**64;
-	type Physical_Block_Address_Type  is mod 2**64 with Size => 64;
+	type Physical_Block_Address_Type  is mod 2**64;
 	type Virtual_Block_Address_Type   is mod 2**64;
 	type Timestamp_Type               is mod 2**64;
 	type Tree_Level_Index_Type        is range 0..5;
-	type Tree_Number_Of_Leafs_Type    is mod 2**64 with Size => 64;
-	type Tree_Degree_Type             is mod 2**32 with Size => 32;
+	type Tree_Number_Of_Leafs_Type    is mod 2**64;
+	type Tree_Degree_Type             is mod 2**32;
 	type Tree_Degree_Mask_Type        is mod 2**32;
 	type Tree_Degree_Log_2_Type       is mod 2**32;
-	type Tree_Level_Type              is mod 2**32 with Size => 32;
+	type Tree_Level_Type              is mod 2**32;
 	type Tree_Child_Index_Type        is mod 2**32;
 	type Tag_Type                     is mod 2**32;
 	type Number_Of_Blocks_Type        is mod 2**32;
 	type Snapshot_ID_Type             is mod 2**32;
 	type Snapshot_Flags_Type          is mod 2**32;
-	type Key_ID_Type                  is mod 2**32 with Size => 32;
+	type Key_ID_Type                  is mod 2**32;
 	type Operation_Type               is (Read, Write, Sync);
 
 	-- FIXME should be architecture-dependent

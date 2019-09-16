@@ -8,8 +8,6 @@
 
 pragma Ada_2012;
 
-with CBE.Tree_Helper;
-
 package CBE.CXX
 with Spark_Mode
 is
@@ -27,14 +25,9 @@ is
 	type CXX_Generation_Type             is new Uint64_Type;
 	type CXX_Superblock_Index_Type       is new Uint64_Type;
 	type CXX_Block_Number_Type           is new Uint64_Type;
-	type CXX_Physical_Block_Address_Type is new Uint64_Type;
 	type CXX_Virtual_Block_Address_Type  is new Uint64_Type;
 	type CXX_Size_Type                   is new Uint64_Type;
-	type CXX_Tree_Number_Of_Leafs_Type   is new Uint64_Type;
 	type CXX_Timestamp_Type              is new Uint64_Type;
-	type CXX_Tree_Level_Type             is new Uint32_Type;
-	type CXX_Tree_Degree_Type            is new Uint32_Type;
-	type CXX_Tree_Child_Index_Type       is new Uint32_Type;
 	type CXX_Tag_Type                    is new Uint32_Type;
 	type CXX_Operation_Type              is range 0..3 with Size => 32;
 
@@ -43,77 +36,11 @@ is
 		Timeout : Timestamp_Type;
 	end record;
 
-	type CXX_Tree_Helper_Type is record
-		Degree       : CXX_Tree_Degree_Type;
-		Height       : CXX_Tree_Level_Type;
-		Leafs        : CXX_Tree_Number_Of_Leafs_Type;
-		Degree_Log_2 : CXX_Tree_Degree_Type;
-		Degree_Mask  : CXX_Tree_Degree_Type;
-	end record;
-
-	function CXX_Tree_Helper_Object_Size (Obj : CXX_Tree_Helper_Type)
-	return CXX_Object_Size_Type
-	is (Obj'Size / 8)
-	with
-		Export,
-		Convention    => C,
-		External_Name => "_ZN3Cbe11object_sizeERKNS_11Tree_helperE";
-
-	function CXX_Tree_Helper_From_SPARK (Input : Tree_Helper.Object_Type)
-	return CXX_Tree_Helper_Type
-	is (
-		Degree       => CXX_Tree_Degree_Type (Tree_Helper.Degree (Input)),
-		Height       => CXX_Tree_Level_Type (Tree_Helper.Height (Input)),
-		Leafs        => CXX_Tree_Number_Of_Leafs_Type (Tree_Helper.Leafs (Input)),
-		Degree_Log_2 => CXX_Tree_Degree_Type (Tree_Helper.Degree_Log_2 (Input)),
-		Degree_Mask  => CXX_Tree_Degree_Type (Tree_Helper.Degree_Mask (Input)));
-
-	function CXX_Tree_Helper_To_SPARK (Input : CXX_Tree_Helper_Type)
-	return Tree_Helper.Object_Type
-	is (
-		Tree_Helper.Initialized_Object (
-			Tree_Degree_Type (Input.Degree),
-			Tree_Level_Type (Input.Height),
-			Tree_Number_Of_Leafs_Type (Input.Leafs)));
-
-	type CXX_Type_1_Node_Info_Type is record
-		PBA  : CXX_Physical_Block_Address_Type;
-		Gen  : CXX_Generation_Type;
-		Hash : Hash_Type;
-	end record;
-
-	type CXX_Type_1_Node_Infos_Type is
-		array (0..5) of CXX_Type_1_Node_Info_Type;
-
 	--
 	-- Bits_To_Bytes
 	--
 	function Number_Of_Bits_To_Bytes(Bits : Number_Of_Bits_Type)
 	return Number_Of_Bytes_Type;
-
-	--
-	-- CXX_Type_1_Node_Info_From_SPARK
-	--
-	function CXX_Type_1_Node_Info_From_SPARK(Input : Type_1_Node_Info_Type)
-	return CXX_Type_1_Node_Info_Type;
-
-	--
-	-- CXX_Type_1_Node_Info_To_SPARK
-	--
-	function CXX_Type_1_Node_Info_To_SPARK(Input : CXX_Type_1_Node_Info_Type)
-	return Type_1_Node_Info_Type;
-
-	--
-	-- CXX_Type_1_Node_Infos_From_SPARK
-	--
-	function CXX_Type_1_Node_Infos_From_SPARK(Input : Type_1_Node_Infos_Type)
-	return CXX_Type_1_Node_Infos_Type;
-
-	--
-	-- CXX_Type_1_Node_Infos_To_SPARK
-	--
-	function CXX_Type_1_Node_Infos_To_SPARK(Input : CXX_Type_1_Node_Infos_Type)
-	return Type_1_Node_Infos_Type;
 
 	--
 	-- CXX_Bool_From_SPARK
@@ -134,23 +61,10 @@ is
 	return CXX_Index_Type;
 
 	--
-	-- CXX_Physical_Block_Address_From_SPARK
-	--
-	function CXX_Physical_Block_Address_From_SPARK(
-		Value : Physical_Block_Address_Type)
-	return CXX_Physical_Block_Address_Type;
-
-	--
 	-- CXX_Superblock_Index_From_SPARK
 	--
 	function CXX_Superblock_Index_From_SPARK(Value : Superblock_Index_Type)
 	return CXX_Superblock_Index_Type;
-
-	--
-	-- CXX_Generation_From_SPARK
-	--
-	function CXX_Generation_From_SPARK(Value : Generation_Type)
-	return CXX_Generation_Type;
 
 	--
 	-- Correct_Object_Size
