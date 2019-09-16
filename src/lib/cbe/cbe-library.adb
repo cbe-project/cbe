@@ -148,66 +148,10 @@ is
 		Leafs  : constant Tree_Number_Of_Leafs_Type := SBs (Curr_SB).Snapshots (Snapshots_Index_Type (Snap_Slot)).Nr_Of_Leafs;
 	begin
 
---
--- Not translated as object size must be checked only for the Library
--- Module itself from now on.
---
---		--
---		-- We have to make sure we actually execute the code to check
---		-- if we provide enough space for the SPARK objects.
---		--
---		if not _Object_Sizes_Match then
---			-- Genode::error ("object size mismatch");
---			raise program_error; -- throw Spark_Object_Size_Mismatch;
---		end if;
-
---
--- Not translated as it is done already during Obj assignment
---
---		--
---		-- Copy initial state of all super-blocks. During the life-time
---		-- of the CBE library these blocks will only be (over-)written
---		-- and nevert read again.
---		--
---		--
---		-- (The idea is to keep the setup phase seperated from the actual
---		--  CBE work during run-time - not sure if this is necessary.)
---		--
---		for uint32_T i := 0; i < Cbe::NUM_SUPER_BLOCKS; i++ loop
---			Genode::memcpy (&Obj.Super_Blocks (i), &Sbs (i), sizeof (Cbe::Super_Block));
---		end loop;
-
---
--- Not translated as already done in the declarative part of the procedure
---
---		--
---		-- Now we look up the proper snapshot from theCurr super-block
---		-- and fill in our internal meta-data.
---		--
---
---		Obj.Cur_SB =Curr_SB;
---
---		using SB := Cbe::Super_Block;
---		using SS := Cbe::Snapshot;
---
---		SB const &sb := Obj.Super_Blocks (Obj.Cur_SB);
---		uint32_T snap_Slot := sb.Snapshot_Slot ();
-
 		if Snap_Slot = Snapshot_ID_Invalid_Slot then
 			-- Genode::error ("snapshot slot not found");
 			raise program_error; -- throw Invalid_Snapshot_Slot;
 		end if;
-
---
--- Not translated as already done in the declarative part of the procedure
---
---		Obj.Cur_SB := snap_Slot;
---
---		SS const &Snap := sb.Snapshots (Obj.Cur_SB);
---
---		Cbe::Degree           const degree := sb.Degree;
---		Cbe::Height           const height := Snap.Height;
---		Cbe::Number_Of_Leafs const leafs := Snap.Leafs;
 
 		--
 		-- The Current implementation is limited with regard to the
@@ -223,122 +167,60 @@ is
 			raise program_error; -- throw Invalid_Tree;
 		end if;
 
---
--- Not translated as already done during Obj assignment
---
---		--
---		-- The VBD class isCurrly nothing more than a glorified
---		-- Translation meta-module - pass on all information that is
---		-- needed to construct the Tree_Helper.
---		--
---		--
---		-- (Having the VBD is somewhat artificial, using the Translation
---		--  module directly works well. The idea was to later on move
---		--  all module which are needed to deal with a r/o snapshort in
---		--  there and have an extended versions that is also able to
---		--  manage theCurr active working snapshot.)
---		--
---		_VBD.Construct (height, degree, leafs);
---
---		Cbe::Physical_Block_Address const free_Number := sb.Free_Number;
---		Cbe::Generation             const free_Gen    := sb.Free_Gen;
---		Cbe::Hash                   const free_Hash   := sb.Free_Hash;
---		Cbe::Height                 const free_Height := sb.Free_Height;
---		Cbe::Degree                 const free_Degree := sb.Free_Degree;
---		Cbe::Number_Of_Leafs       const free_Leafs  := sb.Free_Leafs;
---
---		--
---		-- The FT encapsulates all modules needed for traversing the
---		-- free-tree and allocating new blocks. For now we do not update
---		-- the FT itself, i.E, only the leaf node entries are changed.
---		--
---		--
---		-- (Later, when the FT itself is updating its inner-nodes in a CoW
---		--  fashion, we will store the root and Hash for a given generation.
---		--  That means every super-block will probably have its own FT.
---		--  After all the FT includes all nodes used by the list of active
---		--  snapshots.)
---		--
---		_Free_Tree.Construct (free_Number, free_Gen, free_Hash, free_Height,
---		                     free_Degree, free_Leafs);
---
---		--
---		-- The Current version always is the last secured version incremented
---		-- by one.
---		--
---		_Last_Secured_Generation := sb.Last_Secured_Generation;
---		_Cur_Gen                 := _Last_Secured_Generation + 1;
---		_Last_Snapshot_ID        := Snap.ID;
---
---		--
---		-- If the timeout intervals were configured set initial timeout.
---		--
---		-- (It stands to reasons if we should initial or rather only set
---		--  them when a write Request was submitted.)
---		if _sync_interval   then _sync_timeout_request = { true, _sync_interval }; end if;
---		if _secure_interval then _secure_timeout_request = { true, _secure_interval }; end if;
+		Obj.Execute_Progress := False;
+		Obj.Request_Pool_Obj        := Pool.Initialized_Object;
+		Obj.Splitter_Obj            := Splitter.Initialized_Object;
+		Obj.Crypto_Obj              := Crypto.Initialized_Object (
+			Key => (
+				65, 108, 108, 32,
+				121, 111, 117, 114,
+				32, 98, 97, 115,
+				101, 32, 97, 114,
+				101, 32, 98, 101,
+				108, 111, 110, 103,
+				32, 116, 111, 32,
+				117, 115, 32, 32)); -- "All your base are belong to us  "
 
-		Obj := (
-			Execute_Progress        => False,
-			Request_Pool_Obj        => Pool.Initialized_Object,
-			Splitter_Obj            => Splitter.Initialized_Object,
-			Crypto_Obj              => Crypto.Initialized_Object (
-				Key => (
-					65, 108, 108, 32,
-					121, 111, 117, 114,
-					32, 98, 97, 115,
-					101, 32, 97, 114,
-					101, 32, 98, 101,
-					108, 111, 110, 103,
-					32, 116, 111, 32,
-					117, 115, 32, 32)), -- "All your base are belong to us  "
+		Obj.Crypto_Data             := (others => 0);
+		Obj.Io_Obj                  := Block_IO.Initialized_Object;
+		Obj.Io_Data                 := (others => (others => 0));
+		Obj.Cache_Obj               := Cache.Initialized_Object;
+		Obj.Cache_Data              := (others => (others => 0));
+		Obj.Cache_Job_Data          := (others => (others => 0));
+		Obj.Cache_Flusher_Obj       := Cache_Flusher.Initialized_Object;
+		Obj.Trans_Data              := (others => (others => 0));
+		Obj.VBD                     :=
+			Virtual_Block_Device.Initialized_Object (
+				Height, Degree, Leafs);
 
-			Crypto_Data             => (others => 0),
-			Io_Obj                  => Block_IO.Initialized_Object,
-			Io_Data                 => (others => (others => 0)),
-			Cache_Obj               => Cache.Initialized_Object,
-			Cache_Data              => (others => (others => 0)),
-			Cache_Job_Data          => (others => (others => 0)),
-			Cache_Flusher_Obj       => Cache_Flusher.Initialized_Object,
-			Trans_Data              => (others => (others => 0)),
-			VBD                     =>
-				Virtual_Block_Device.Initialized_Object (
-					Height, Degree, Leafs),
+		Obj.Write_Back_Obj          := Write_Back.Initialized_Object;
+		Obj.Write_Back_Data         := (others => (others => 0));
+		Obj.Sync_SB_Obj             := Sync_Superblock.Initialized_Object;
+		Obj.Free_Tree_Obj           := Free_Tree.Initialized_Object (
+			SBs (Curr_SB).Free_Number,
+			SBs (Curr_SB).Free_Gen,
+			SBs (Curr_SB).Free_Hash,
+			SBs (Curr_SB).Free_Height,
+			SBs (Curr_SB).Free_Degree,
+			SBs (Curr_SB).Free_Leafs);
 
-			Write_Back_Obj          => Write_Back.Initialized_Object,
-			Write_Back_Data         => (others => (others => 0)),
-			Sync_SB_Obj             => Sync_Superblock.Initialized_Object,
-			Free_Tree_Obj           => Free_Tree.Initialized_Object (
-				SBs (Curr_SB).Free_Number,
-				SBs (Curr_SB).Free_Gen,
-				SBs (Curr_SB).Free_Hash,
-				SBs (Curr_SB).Free_Height,
-				SBs (Curr_SB).Free_Degree,
-				SBs (Curr_SB).Free_Leafs),
+		Obj.Free_Tree_Retry_Count   := 0;
+		Obj.Free_Tree_Trans_Data    := (others => (others => 0));
+		Obj.Free_Tree_Query_Data    := (others => (others => 0));
+		Obj.Super_Blocks            := SBs;
+		Obj.Cur_SB                  := Superblock_Index_Type (Curr_SB);
+		Obj.Cur_Gen                 := SBs (Curr_SB).Last_Secured_Generation + 1;
+		Obj.Last_Secured_Generation := SBs (Curr_SB).Last_Secured_Generation;
+		Obj.Cur_Snap                := Snap_Slot;
+		Obj.Last_Snapshot_ID        :=
+			SBs (Curr_SB).
+				Snapshots (Snapshots_Index_Type (Snap_Slot)).ID;
 
-			Free_Tree_Retry_Count   => 0,
-			Free_Tree_Trans_Data    => (others => (others => 0)),
-			Free_Tree_Query_Data    => (others => (others => 0)),
-			Super_Blocks            => SBs,
-			Cur_SB                  => Superblock_Index_Type (Curr_SB),
-			Cur_Gen                 => SBs (Curr_SB).Last_Secured_Generation + 1,
-			Last_Secured_Generation => SBs (Curr_SB).Last_Secured_Generation,
-			Cur_Snap                => Snap_Slot,
-			Last_Snapshot_ID        =>
-				SBs (Curr_SB).
-					Snapshots (Snapshots_Index_Type (Snap_Slot)).ID,
-
-			Seal_Generation         => False,
-			Secure_Superblock       => False,
-			Superblock_Dirty        => False,
-			Front_End_Req_Prim      => Request_Primitive_Invalid,
-			Back_End_Req_Prim       => Request_Primitive_Invalid);
-
---
--- Not translated as only for debugging
---
---		-- for diagnostic reasons--
---		_Dump_Cur_SB_Info ();
+		Obj.Seal_Generation         := False;
+		Obj.Secure_Superblock       := False;
+		Obj.Superblock_Dirty        := False;
+		Obj.Front_End_Req_Prim      := Request_Primitive_Invalid;
+		Obj.Back_End_Req_Prim       := Request_Primitive_Invalid;
 
 	end Initialize_Object;
 

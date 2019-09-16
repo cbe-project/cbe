@@ -620,8 +620,6 @@ extern "C" void adainit();
 
 void Component::construct(Genode::Env &env)
 {
-	Genode::Thread::myself()->stack_size(512*1024);
-
 	/* make ada-runtime happy */
 	__genode_env = &env;
 
