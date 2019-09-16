@@ -380,8 +380,7 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 					return OPEN_ERR_UNACCESSIBLE;
 				}
 
-				_cbe.construct(_time.timestamp(), _sync_interval, _secure_interval,
-				               _super_blocks, _cur_sb);
+				_cbe.construct(_super_blocks, _cur_sb);
 			}
 			log("open: ", path);
 			*out_handle = new (alloc) Vfs_handle(*this, *this, alloc, *_cbe,
