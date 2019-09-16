@@ -160,14 +160,14 @@ is
 		end if;
 
 		-- check hash
+		Declare_SHA_Args:
 		declare
-			Hash : SHA256_4K.Hash_Type;
+			SHA_Data : SHA256_4K.Data_Type with Address => Trans_Data(0)'Address;
+			SHA_Hash : SHA256_4K.Hash_Type;
+			CBE_Hash : Hash_Type with Address => SHA_Hash'Address;
 		begin
-			SHA256_4K.Hash (SHA256_4K.Data_Type (Trans_Data(0)), Hash);
-			if SHA256_4K."/="(
-				Hash,
-				SHA256_4K.Hash_Type (Obj.Walk (Natural (Obj.Level)).Hash))
-			then
+			SHA256_4K.Hash (SHA_Data, SHA_Hash);
+			if CBE_Hash /= Obj.Walk (Natural (Obj.Level)).Hash then
 				-- Fixme error handling missing
 
 				-- Print_String("Trans.Exe: hash mismatch: level ");
@@ -192,7 +192,7 @@ is
 				-- end loop;
 				raise Program_Error;
 			end if;
-		end;
+		end Declare_SHA_Args;
 
 		--
 		-- We query the next level and should it already be the last,

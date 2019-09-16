@@ -9,6 +9,7 @@
 pragma Ada_2012;
 
 with CBE.Request;
+with SHA256_4K;
 
 package body CBE.Write_Back
 with Spark_Mode
@@ -181,8 +182,13 @@ is
 				end;
 
 				-- calculate hash
-				SHA256_4K.Hash(SHA256_4K.Data_Type(Update_Data),
-				               SHA256_4K.Hash_Type(Obj.Hashes(I)));
+				Declare_SHA_Args:
+				declare
+					SHA_Data : SHA256_4K.Data_Type with Address => Update_Data'Address;
+					SHA_Hash : SHA256_4K.Hash_Type with Address => Obj.Hashes(I)'Address;
+				begin
+					SHA256_4K.Hash(SHA_Data, SHA_Hash);
+				end Declare_SHA_Args;
 
 				Obj.Entries(I).State := Complete;
 
@@ -359,8 +365,13 @@ is
 			raise Program_Error;
 		end if;
 
-		SHA256_4K.Hash(SHA256_4K.Data_Type(Crypto_Data),
-		               SHA256_4K.Hash_Type(Obj.Hashes(0)));
+		Declare_SHA_Args:
+		declare
+			SHA_Data : SHA256_4K.Data_Type with Address => Crypto_Data'Address;
+			SHA_Hash : SHA256_4K.Hash_Type with Address => Obj.Hashes(0)'Address;
+		begin
+			SHA256_4K.Hash(SHA_Data, SHA_Hash);
+		end Declare_SHA_Args;
 
 		if not Primitive.Success (Prim) then
 			Obj.Pending_Failure := True;

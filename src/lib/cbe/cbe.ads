@@ -8,8 +8,6 @@
 
 pragma Ada_2012;
 
-with SHA256_4K;
-
 package CBE
 with Spark_Mode
 is
@@ -30,8 +28,8 @@ is
 
 	procedure Print_String (S : String);
 
-	subtype Byte_Type                 is SHA256_4K.Byte;
-	type Block_Data_Type              is array (1..4096) of Byte_Type with Size => 4096 * 8;
+	type Byte_Type                    is range 0..255 with Size => 8;
+	type Block_Data_Type              is array (0..4095) of Byte_Type with Size => 4096 * 8;
 	type Translation_Data_Type        is array (0..0) of Block_Data_Type with Size => 1 * 4096 * 8;
 	type Number_Of_Primitives_Type    is mod 2**64;
 	type Index_Type                   is mod 2**64;

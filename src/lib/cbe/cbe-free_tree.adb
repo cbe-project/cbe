@@ -712,18 +712,19 @@ is
 
 											Pre_Data_Index : constant Cache.Cache_Index_Type := Cache.Data_Index(Cach, Pre_PBA, Timestamp);
 
-											Hash : SHA256_4K.Hash_Type;
+											SHA_Hash : SHA256_4K.Hash_Type;
+											CBE_Hash : Hash_Type with Address => SHA_Hash'Address;
 
 											Pre_Hash_Data : SHA256_4K.Data_Type with Address => Cach_Data (Pre_Data_Index)'Address;
 											Nodes : Type_I_Node_Block_Type with Address => Cach_Data (Data_Index)'Address;
 										begin
 
-											SHA256_4K.Hash (Pre_Hash_Data, Hash);
+											SHA256_4K.Hash (Pre_Hash_Data, SHA_Hash);
 
 											For_Nodes_2:
 											for Node_Index in 0 .. Tree_Helper.Degree (Obj.Trans_Helper) - 1 loop
 												if Nodes (Natural (Node_Index)).PBA = Pre_PBA then
-													Nodes (Natural (Node_Index)).Hash := Hash_Type (Hash);
+													Nodes (Natural (Node_Index)).Hash := CBE_Hash;
 												end if;
 											end loop For_Nodes_2;
 
@@ -735,8 +736,8 @@ is
 													Hash_Data : SHA256_4K.Data_Type with Address =>
 														Cach_Data (Data_Index)'Address;
 												begin
-													SHA256_4K.Hash (Hash_Data, Hash);
-													Obj.Root_Hash := Hash_Type (Hash);
+													SHA256_4K.Hash (Hash_Data, SHA_Hash);
+													Obj.Root_Hash := CBE_Hash;
 												end Declare_Hash_Data;
 											end if;
 										end Declare_Pre_Data;
