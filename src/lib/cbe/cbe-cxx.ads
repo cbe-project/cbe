@@ -8,87 +8,121 @@
 
 pragma Ada_2012;
 
+with CBE.Request;
+
 package CBE.CXX
 with Spark_Mode
 is
 	pragma Pure;
 
-	type Uint8_Type                      is mod 2**8  with Size => 1 * 8;
-	type Uint32_Type                     is mod 2**32 with Size => 4 * 8;
-	type Uint64_Type                     is mod 2**64 with Size => 8 * 8;
-	type Number_Of_Bytes_Type            is mod 2**64;
-	type Number_Of_Bits_Type             is new Natural;
-	type CXX_Bool_Type                   is range 0..1 with Size => Uint8_Type'Size;
-	type CXX_Object_Size_Type            is new Uint32_Type;
-	type CXX_Index_Type                  is new Uint32_Type;
-	type CXX_Number_Of_Primitives_Type   is new Uint64_Type;
-	type CXX_Generation_Type             is new Uint64_Type;
-	type CXX_Superblock_Index_Type       is new Uint64_Type;
-	type CXX_Block_Number_Type           is new Uint64_Type;
-	type CXX_Virtual_Block_Address_Type  is new Uint64_Type;
-	type CXX_Size_Type                   is new Uint64_Type;
-	type CXX_Timestamp_Type              is new Uint64_Type;
-	type CXX_Tag_Type                    is new Uint32_Type;
-	type CXX_Operation_Type              is range 0..3 with Size => 32;
+	type CXX_UInt8_Type           is range 0 .. 2**8  - 1 with Size => 1 * 8;
+	type CXX_UInt32_Type          is range 0 .. 2**32 - 1 with Size => 4 * 8;
+	type CXX_UInt64_Type          is mod        2**64     with Size => 8 * 8;
+	type CXX_Bool_Type            is range 0 .. 1         with Size => 1 * 8;
+	type CXX_Operation_Type       is range 0 .. 3         with Size => 4 * 8;
+	type CXX_Success_Type         is range 0 .. 1         with Size => 4 * 8;
+	type CXX_Object_Size_Type     is new CXX_UInt32_Type;
+	type CXX_Block_Number_Type    is new CXX_UInt64_Type;
+	type CXX_Timestamp_Type       is new CXX_UInt64_Type;
+	type CXX_Tag_Type             is new CXX_UInt32_Type;
+	type CXX_Block_Offset_Type    is new CXX_UInt64_Type;
+	type CXX_Block_Count_Type     is new CXX_UInt32_Type;
+	type CXX_Primitive_Index_Type is new CXX_UInt64_Type;
 
-	type CXX_Timeout_Request_Type is record
-		Valid   : CXX_Bool_Type;
-		Timeout : Timestamp_Type;
+
+	type CXX_Request_Type is record
+		Operation    : CXX_Operation_Type;
+		Success      : CXX_Success_Type;
+		Block_Number : CXX_Block_Number_Type;
+		Offset       : CXX_Block_Offset_Type;
+		Count        : CXX_Block_Count_Type;
+		Tag          : CXX_Tag_Type;
 	end record;
-
-	--
-	-- Bits_To_Bytes
-	--
-	function Number_Of_Bits_To_Bytes(Bits : Number_Of_Bits_Type)
-	return Number_Of_Bytes_Type;
-
-	--
-	-- CXX_Bool_From_SPARK
-	--
-	function CXX_Bool_From_SPARK(Value : Boolean)
-	return CXX_Bool_Type;
-
-	--
-	-- CXX_Bool_To_SPARK
-	--
-	function CXX_Bool_To_SPARK(Value : CXX_Bool_Type)
-	return Boolean;
-
-	--
-	-- CXX_Index_From_SPARK
-	--
-	function CXX_Index_From_SPARK(Value : Index_Type)
-	return CXX_Index_Type;
-
-	--
-	-- CXX_Superblock_Index_From_SPARK
-	--
-	function CXX_Superblock_Index_From_SPARK(Value : Superblock_Index_Type)
-	return CXX_Superblock_Index_Type;
-
-	--
-	-- Correct_Object_Size
-	--
-	function Correct_Object_Size(
-		Spark_Sz : Number_Of_Bits_Type;
-		CXX_Sz   : CXX_Size_Type)
-	return Boolean
-	is (Number_Of_Bytes_Type(CXX_Sz) = Number_Of_Bits_To_Bytes(Spark_Sz));
-
-	--
-	-- Enough_Storage_Space
-	--
-	function Enough_Storage_Space(
-		Spark_Sz : Number_Of_Bits_Type;
-		CXX_Sz   : CXX_Size_Type)
-	return Boolean
-	is (Number_Of_Bytes_Type(CXX_Sz) >= Number_Of_Bits_To_Bytes(Spark_Sz));
+	pragma Pack (CXX_Request_Type);
 
 
-	function CXX_Timeout_Request_From_SPARK (Obj : Timeout_Request_Type)
-	return CXX_Timeout_Request_Type
+	function CXX_Bool_From_SPARK (Input : Boolean)
+	return CXX_Bool_Type
 	is (
-		Valid => CXX_Bool_From_SPARK (Obj.Valid),
-		Timeout => Obj.Timeout);
+		case Input is
+		when False => 0,
+		when True  => 1);
+
+
+	function CXX_Bool_To_SPARK (Input : CXX_Bool_Type)
+	return Boolean
+	is (
+		case Input is
+		when 0 => False,
+		when 1 => True);
+
+
+	function CXX_Success_From_SPARK (Input : Request.Success_Type)
+	return CXX_Success_Type
+	is (
+		case Input is
+		when False => 0,
+		when True  => 1);
+
+
+	function CXX_Success_To_SPARK (Input : CXX_Success_Type)
+	return Request.Success_Type
+	is (
+		case Input is
+		when 0 => False,
+		when 1 => True);
+
+
+	function CXX_Operation_From_SPARK (Input : Operation_Type)
+	return CXX_Operation_Type
+	is (
+		case Input is
+		when Read  => 1,
+		when Write => 2,
+		when Sync  => 3);
+
+
+	function CXX_Request_Valid_To_SPARK (
+		Req : CXX_Request_Type;
+		Op  : Operation_Type)
+	return Request.Object_Type
+	is (
+		Request.Valid_Object (
+			Op,
+			CXX_Success_To_SPARK (Req.Success),
+			Block_Number_Type    (Req.Block_Number),
+			Request.Offset_Type  (Req.Offset),
+			Request.Count_Type   (Req.Count),
+			Tag_Type             (Req.Tag)));
+
+
+	function CXX_Request_To_SPARK (Input : CXX_Request_Type)
+	return Request.Object_Type
+	is (
+		case Input.Operation is
+		when 0 => Request.Invalid_Object,
+		when 1 => CXX_Request_Valid_To_SPARK (Input, Read),
+		when 2 => CXX_Request_Valid_To_SPARK (Input, Write),
+		when 3 => CXX_Request_Valid_To_SPARK (Input, Sync));
+
+
+	function CXX_Request_From_SPARK (Obj : Request.Object_Type)
+	return CXX_Request_Type
+	is (
+		case Request.Valid (Obj) is
+		when True => (
+			Operation    => CXX_Operation_From_SPARK (Request.Operation    (Obj)),
+			Success      => CXX_Success_From_SPARK   (Request.Success      (Obj)),
+			Block_Number => CXX_Block_Number_Type    (Request.Block_Number (Obj)),
+			Offset       => CXX_Block_Offset_Type    (Request.Offset       (Obj)),
+			Count        => CXX_Block_Count_Type     (Request.Count        (Obj)),
+			Tag          => CXX_Tag_Type             (Request.Tag          (Obj))),
+		when False => (
+			Operation    => 0,
+			Success      => 0,
+			Block_Number => 0,
+			Offset       => 0,
+			Count        => 0,
+			Tag          => 0));
 
 end CBE.CXX;

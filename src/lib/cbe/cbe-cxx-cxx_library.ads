@@ -10,13 +10,13 @@ pragma Ada_2012;
 
 with CBE.Library;
 with CBE.Crypto;
-with CBE.CXX.CXX_Request;
 
 package CBE.CXX.CXX_Library
 with Spark_Mode
 is
 --	FIXME cannot be pure yet because of CBE.Library
 --	pragma Pure;
+
 
 	function Object_Size (Obj : Library.Object_Type)
 	return CXX_Object_Size_Type
@@ -109,7 +109,7 @@ is
 
 	procedure Submit_Request (
 		Obj : in out Library.Object_Type;
-		Req :        CXX_Request.Object_Type)
+		Req :        CXX_Request_Type)
 	with
 		Export,
 		Convention    => C,
@@ -117,7 +117,7 @@ is
 
 
 	function Peek_Completed_Request (Obj : Library.Object_Type)
-	return CXX_Request.Object_Type
+	return CXX_Request_Type
 	with
 		Export,
 		Convention    => C,
@@ -126,7 +126,7 @@ is
 
 	procedure Drop_Completed_Request (
 		Obj : in out Library.Object_Type;
-		Req :        CXX_Request.Object_Type)
+		Req :        CXX_Request_Type)
 	with
 		Export,
 		Convention    => C,
@@ -135,7 +135,7 @@ is
 
 	procedure Need_Data (
 		Obj : in out Library.Object_Type;
-		Req :    out CXX_Request.Object_Type)
+		Req :    out CXX_Request_Type)
 	with
 		Export,
 		Convention    => C,
@@ -144,7 +144,7 @@ is
 
 	procedure Take_Read_Data (
 		Obj      : in out Library.Object_Type;
-		Req      :        CXX_Request.Object_Type;
+		Req      :        CXX_Request_Type;
 		Progress :    out CXX_Bool_Type)
 	with
 		Export,
@@ -154,7 +154,7 @@ is
 
 	procedure Ack_Read_Data (
 		Obj      : in out Library.Object_Type;
-		Req      :        CXX_Request.Object_Type;
+		Req      :        CXX_Request_Type;
 		Data     :        Block_Data_Type;
 		Progress :    out CXX_Bool_Type)
 	with
@@ -165,7 +165,7 @@ is
 
 	procedure Take_Write_Data (
 		Obj      : in out Library.Object_Type;
-		Req      :        CXX_Request.Object_Type;
+		Req      :        CXX_Request_Type;
 		Data     :    out Block_Data_Type;
 		Progress :    out CXX_Bool_Type)
 	with
@@ -176,7 +176,7 @@ is
 
 	procedure Ack_Write_Data (
 		Obj      : in out Library.Object_Type;
-		Req      :        CXX_Request.Object_Type;
+		Req      :        CXX_Request_Type;
 		Progress :    out CXX_Bool_Type)
 	with
 		Export,
@@ -186,7 +186,7 @@ is
 
 	procedure Have_Data (
 		Obj : in out Library.Object_Type;
-		Req :    out CXX_Request.Object_Type)
+		Req :    out CXX_Request_Type)
 	with
 		Export,
 		Convention    => C,
@@ -195,8 +195,8 @@ is
 
 	function Give_Data_Index (
 		Obj : Library.Object_Type;
-		Req : CXX_Request.Object_Type)
-	return UInt64_Type
+		Req : CXX_Request_Type)
+	return CXX_Primitive_Index_Type
 	with
 		Export,
 		Convention    => C,
@@ -205,7 +205,7 @@ is
 
 	procedure Give_Read_Data (
 		Obj      : in out Library.Object_Type;
-		Req      :        CXX_Request.Object_Type;
+		Req      :        CXX_Request_Type;
 		Data     :    out Crypto.Plain_Data_Type;
 		Progress :    out CXX_Bool_Type)
 	with
@@ -217,7 +217,7 @@ is
 	function Give_Write_Data (
 		Obj     : in out Library.Object_Type;
 		Now     :        Timestamp_Type;
-		Req     :        CXX_Request.Object_Type;
+		Req     :        CXX_Request_Type;
 		Data    :        Block_Data_Type)
 	return CXX_Bool_Type
 	with
@@ -226,7 +226,7 @@ is
 		External_Name => "_ZN3Cbe7Library15give_write_dataEyRKNS_7RequestERKNS_10Block_dataE";
 
 
-	function Execute_Progress(Obj : Library.Object_Type)
+	function Execute_Progress (Obj : Library.Object_Type)
 	return CXX_Bool_Type
 	with
 		Export,

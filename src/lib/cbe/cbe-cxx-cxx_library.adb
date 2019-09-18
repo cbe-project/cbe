@@ -71,10 +71,8 @@ is
 
 
 	procedure Execute (
-		Obj              : in out Library.Object_Type;
-		Now              :        Timestamp_Type)
---		Show_Progress    :        CXX_Bool_Type;
---		Show_If_Progress :        CXX_Bool_Type)
+		Obj : in out Library.Object_Type;
+		Now :        Timestamp_Type)
 	is
 	begin
 		Library.Execute (Obj, Now);
@@ -88,118 +86,124 @@ is
 
 	procedure Submit_Request (
 		Obj : in out Library.Object_Type;
-		Req :        CXX_Request.Object_Type)
+		Req :        CXX_Request_Type)
 	is
 	begin
-		Library.Submit_Request (Obj, CXX_Request.To_Spark (Req));
+		Library.Submit_Request (Obj, CXX_Request_To_SPARK (Req));
 	end Submit_Request;
 
 
 	function Peek_Completed_Request (Obj : Library.Object_Type)
-	return CXX_Request.Object_Type
-	is (CXX_Request.From_Spark (Library.Peek_Completed_Request (Obj)));
+	return CXX_Request_Type
+	is (CXX_Request_From_SPARK (Library.Peek_Completed_Request (Obj)));
 
 
 	procedure Drop_Completed_Request (
 		Obj : in out Library.Object_Type;
-		Req :        CXX_Request.Object_Type)
+		Req :        CXX_Request_Type)
 	is
 	begin
-		Library.Drop_Completed_Request (Obj, CXX_Request.To_Spark (Req));
+		Library.Drop_Completed_Request (Obj, CXX_Request_To_SPARK (Req));
 	end Drop_Completed_Request;
 
 
 	procedure Need_Data (
 		Obj : in out Library.Object_Type;
-		Req :    out CXX_Request.Object_Type)
+		Req :    out CXX_Request_Type)
 	is
 		SPARK_Req : Request.Object_Type;
 	begin
 		Library.Need_Data (Obj, SPARK_Req);
-		Req := CXX_Request.From_Spark (SPARK_Req);
+		Req := CXX_Request_From_SPARK (SPARK_Req);
 	end Need_Data;
 
 
 	procedure Take_Read_Data (
 		Obj      : in out Library.Object_Type;
-		Req      :        CXX_Request.Object_Type;
+		Req      :        CXX_Request_Type;
 		Progress :    out CXX_Bool_Type)
 	is
 		SPARK_Progress : Boolean;
 	begin
-		Library.Take_Read_Data (Obj, CXX_Request.To_Spark (Req), SPARK_Progress);
+		Library.Take_Read_Data (
+			Obj, CXX_Request_To_SPARK (Req), SPARK_Progress);
 		Progress := CXX_Bool_From_SPARK (SPARK_Progress);
 	end Take_Read_Data;
 
 
 	procedure Ack_Read_Data (
 		Obj      : in out Library.Object_Type;
-		Req      :        CXX_Request.Object_Type;
+		Req      :        CXX_Request_Type;
 		Data     :        Block_Data_Type;
 		Progress :    out CXX_Bool_Type)
 	is
 		SPARK_Progress : Boolean;
 	begin
-		Library.Ack_Read_Data (Obj, CXX_Request.To_Spark (Req), Data, SPARK_Progress);
+		Library.Ack_Read_Data (
+			Obj, CXX_Request_To_SPARK (Req), Data, SPARK_Progress);
 		Progress := CXX_Bool_From_SPARK (SPARK_Progress);
 	end Ack_Read_Data;
 
 
 	procedure Take_Write_Data (
 		Obj      : in out Library.Object_Type;
-		Req      :        CXX_Request.Object_Type;
+		Req      :        CXX_Request_Type;
 		Data     :    out Block_Data_Type;
 		Progress :    out CXX_Bool_Type)
 	is
 		SPARK_Progress : Boolean;
 	begin
-		Library.Take_Write_Data (Obj, CXX_Request.To_Spark (Req), Data, SPARK_Progress);
+		Library.Take_Write_Data (
+			Obj, CXX_Request_To_SPARK (Req), Data, SPARK_Progress);
 		Progress := CXX_Bool_From_SPARK (SPARK_Progress);
 	end Take_Write_Data;
 
 
 	procedure Ack_Write_Data (
 		Obj      : in out Library.Object_Type;
-		Req      :        CXX_Request.Object_Type;
+		Req      :        CXX_Request_Type;
 		Progress :    out CXX_Bool_Type)
 	is
 		SPARK_Progress : Boolean;
 	begin
-		Library.Ack_Write_Data (Obj, CXX_Request.To_Spark (Req), SPARK_Progress);
+		Library.Ack_Write_Data (
+			Obj, CXX_Request_To_SPARK (Req), SPARK_Progress);
 		Progress := CXX_Bool_From_SPARK (SPARK_Progress);
 	end Ack_Write_Data;
 
 
 	procedure Have_Data (
 		Obj : in out Library.Object_Type;
-		Req :    out CXX_Request.Object_Type)
+		Req :    out CXX_Request_Type)
 	is
 		SPARK_Req : Request.Object_Type;
 	begin
 		Library.Have_Data (Obj, SPARK_Req);
-		Req := CXX_Request.From_Spark (SPARK_Req);
+		Req := CXX_Request_From_SPARK (SPARK_Req);
 	end Have_Data;
 
 
 	function Give_Data_Index (
 		Obj : Library.Object_Type;
-		Req : CXX_Request.Object_Type)
-	return UInt64_Type
+		Req : CXX_Request_Type)
+	return CXX_Primitive_Index_Type
 	is
 	begin
-		return UInt64_Type (Library.Give_Data_Index (Obj, CXX_Request.To_Spark (Req)));
+		return CXX_Primitive_Index_Type (
+			Library.Give_Data_Index (Obj, CXX_Request_To_SPARK (Req)));
 	end Give_Data_Index;
 
 
 	procedure Give_Read_Data (
 		Obj      : in out Library.Object_Type;
-		Req      :        CXX_Request.Object_Type;
+		Req      :        CXX_Request_Type;
 		Data     :    out Crypto.Plain_Data_Type;
 		Progress :    out CXX_Bool_Type)
 	is
 		SPARK_Progress : Boolean;
 	begin
-		Library.Give_Read_Data (Obj, CXX_Request.To_Spark (Req), Data, SPARK_Progress);
+		Library.Give_Read_Data (
+			Obj, CXX_Request_To_SPARK (Req), Data, SPARK_Progress);
 		Progress := CXX_Bool_From_SPARK (SPARK_Progress);
 	end Give_Read_Data;
 
@@ -207,16 +211,18 @@ is
 	function Give_Write_Data (
 		Obj     : in out Library.Object_Type;
 		Now     :        Timestamp_Type;
-		Req     :        CXX_Request.Object_Type;
+		Req     :        CXX_Request_Type;
 		Data    :        Block_Data_Type)
 	return CXX_Bool_Type
 	is
 	begin
-		return CXX_Bool_From_SPARK (Library.Give_Write_Data (Obj, Now, CXX_Request.To_Spark (Req), Data));
+		return CXX_Bool_From_SPARK (
+			Library.Give_Write_Data (
+				Obj, Now, CXX_Request_To_SPARK (Req), Data));
 	end Give_Write_Data;
 
 
-	function Execute_Progress(Obj : Library.Object_Type)
+	function Execute_Progress (Obj : Library.Object_Type)
 	return CXX_Bool_Type
 	is (CXX_Bool_From_Spark (Library.Execute_Progress (Obj)));
 
