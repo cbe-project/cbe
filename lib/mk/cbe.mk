@@ -18,6 +18,5 @@ SRC_ADB += cbe-virtual_block_device.adb
 SRC_ADB += cbe-free_tree.adb
 SRC_ADB += cbe-block_io.adb
 SRC_ADB += cbe-write_back.adb
-SRC_ADB += cbe-cxx-cxx_library.adb
 
 vpath % $(REP_DIR)/src/lib/cbe
