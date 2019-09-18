@@ -611,24 +611,9 @@ extern "C" void print_cstring(char const *s, Genode::size_t len)
 }
 
 
-Genode::Env *__genode_env;
-Terminal::Connection *__genode_terminal;
-
-
-extern "C" void adainit();
-
-
 void Component::construct(Genode::Env &env)
 {
-	/* make ada-runtime happy */
-	__genode_env = &env;
-
-	static Terminal::Connection term { env };
-	__genode_terminal = &term;
-
 	env.exec_static_constructors();
-
-	adainit();
 
 	Cbe::assert_valid_object_size<Cbe::Library>();
 
