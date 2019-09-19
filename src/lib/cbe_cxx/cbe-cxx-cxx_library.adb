@@ -107,31 +107,31 @@ is
 	end Drop_Completed_Request;
 
 
-	procedure Need_Data (
+	procedure Io_Data_Required (
 		Obj : in out Library.Object_Type;
 		Req :    out CXX_Request_Type)
 	is
 		SPARK_Req : Request.Object_Type;
 	begin
-		Library.Need_Data (Obj, SPARK_Req);
+		Library.Io_Data_Required (Obj, SPARK_Req);
 		Req := CXX_Request_From_SPARK (SPARK_Req);
-	end Need_Data;
+	end Io_Data_Required;
 
 
-	procedure Take_Read_Data (
+	procedure Io_Data_Read_In_Progress (
 		Obj      : in out Library.Object_Type;
 		Req      :        CXX_Request_Type;
 		Progress :    out CXX_Bool_Type)
 	is
 		SPARK_Progress : Boolean;
 	begin
-		Library.Take_Read_Data (
+		Library.Io_Data_Read_In_Progress (
 			Obj, CXX_Request_To_SPARK (Req), SPARK_Progress);
 		Progress := CXX_Bool_From_SPARK (SPARK_Progress);
-	end Take_Read_Data;
+	end Io_Data_Read_In_Progress;
 
 
-	procedure Ack_Read_Data (
+	procedure Supply_Io_Data (
 		Obj      : in out Library.Object_Type;
 		Req      :        CXX_Request_Type;
 		Data     :        Block_Data_Type;
@@ -139,13 +139,24 @@ is
 	is
 		SPARK_Progress : Boolean;
 	begin
-		Library.Ack_Read_Data (
+		Library.Supply_Io_Data (
 			Obj, CXX_Request_To_SPARK (Req), Data, SPARK_Progress);
 		Progress := CXX_Bool_From_SPARK (SPARK_Progress);
-	end Ack_Read_Data;
+	end Supply_Io_Data;
 
 
-	procedure Take_Write_Data (
+	procedure Has_Io_Data_To_Write (
+		Obj : in out Library.Object_Type;
+		Req :    out CXX_Request_Type)
+	is
+		SPARK_Req : Request.Object_Type;
+	begin
+		Library.Has_Io_Data_To_Write (Obj, SPARK_Req);
+		Req := CXX_Request_From_SPARK (SPARK_Req);
+	end Has_Io_Data_To_Write;
+
+
+	procedure Obtain_Io_Data (
 		Obj      : in out Library.Object_Type;
 		Req      :        CXX_Request_Type;
 		Data     :    out Block_Data_Type;
@@ -153,34 +164,34 @@ is
 	is
 		SPARK_Progress : Boolean;
 	begin
-		Library.Take_Write_Data (
+		Library.Obtain_Io_Data (
 			Obj, CXX_Request_To_SPARK (Req), Data, SPARK_Progress);
 		Progress := CXX_Bool_From_SPARK (SPARK_Progress);
-	end Take_Write_Data;
+	end Obtain_Io_Data;
 
 
-	procedure Ack_Write_Data (
+	procedure Ack_Io_Data_To_Write (
 		Obj      : in out Library.Object_Type;
 		Req      :        CXX_Request_Type;
 		Progress :    out CXX_Bool_Type)
 	is
 		SPARK_Progress : Boolean;
 	begin
-		Library.Ack_Write_Data (
+		Library.Ack_Io_Data_To_Write (
 			Obj, CXX_Request_To_SPARK (Req), SPARK_Progress);
 		Progress := CXX_Bool_From_SPARK (SPARK_Progress);
-	end Ack_Write_Data;
+	end Ack_Io_Data_To_Write;
 
 
-	procedure Have_Data (
+	procedure Client_Data_Ready (
 		Obj : in out Library.Object_Type;
 		Req :    out CXX_Request_Type)
 	is
 		SPARK_Req : Request.Object_Type;
 	begin
-		Library.Have_Data (Obj, SPARK_Req);
+		Library.Client_Data_Ready (Obj, SPARK_Req);
 		Req := CXX_Request_From_SPARK (SPARK_Req);
-	end Have_Data;
+	end Client_Data_Ready;
 
 
 	function Give_Data_Index (
@@ -194,7 +205,7 @@ is
 	end Give_Data_Index;
 
 
-	procedure Give_Read_Data (
+	procedure Obtain_Client_Data (
 		Obj      : in out Library.Object_Type;
 		Req      :        CXX_Request_Type;
 		Data     :    out Crypto.Plain_Data_Type;
@@ -202,13 +213,25 @@ is
 	is
 		SPARK_Progress : Boolean;
 	begin
-		Library.Give_Read_Data (
+		Library.Obtain_Client_Data (
 			Obj, CXX_Request_To_SPARK (Req), Data, SPARK_Progress);
 		Progress := CXX_Bool_From_SPARK (SPARK_Progress);
-	end Give_Read_Data;
+	end Obtain_Client_Data;
 
 
-	function Give_Write_Data (
+	procedure Client_Data_Required (
+		Obj : in out Library.Object_Type;
+		Req :    out CXX_Request_Type)
+	is
+		SPARK_Req : Request.Object_Type;
+	begin
+		Library.Client_Data_Required (Obj, SPARK_Req);
+		Req := CXX_Request_From_SPARK (SPARK_Req);
+	end Client_Data_Required;
+
+
+
+	function Supply_Client_Data (
 		Obj     : in out Library.Object_Type;
 		Now     :        Timestamp_Type;
 		Req     :        CXX_Request_Type;
@@ -217,9 +240,9 @@ is
 	is
 	begin
 		return CXX_Bool_From_SPARK (
-			Library.Give_Write_Data (
+			Library.Supply_Client_Data (
 				Obj, Now, CXX_Request_To_SPARK (Req), Data));
-	end Give_Write_Data;
+	end Supply_Client_Data;
 
 
 	function Execute_Progress (Obj : Library.Object_Type)

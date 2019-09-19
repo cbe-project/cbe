@@ -1391,7 +1391,7 @@ is
 	end Drop_Completed_Request;
 
 
-	procedure Need_Data (
+	procedure Io_Data_Required (
 		Obj : in out Object_Type;
 		Req :    out Request.Object_Type)
 	is
@@ -1406,7 +1406,7 @@ is
 			Prim : constant Primitive.Object_Type :=
 				Block_IO.Peek_Generated_Primitive(Obj.Io_Obj);
 		begin
-			if Primitive.Valid(Prim) then
+			if Primitive.Valid(Prim) and Primitive.Operation(Prim) = Read then
 				Obj.Back_End_Req_Prim := (
 					Req => Request.Valid_Object (
 						Op     => Primitive.Operation(Prim),
@@ -1424,7 +1424,7 @@ is
 				Req := Request.Invalid_Object;
 			end if;
 		end;
-	end Need_Data;
+	end Io_Data_Required;
 
 
 	--
@@ -1437,7 +1437,7 @@ is
 	is (not Request.Equal (Obj.Front_End_Req_Prim.Req, Req));
 
 
-	procedure Take_Read_Data (
+	procedure Io_Data_Read_In_Progress (
 		Obj      : in out Object_Type;
 		Req      :        Request.Object_Type;
 		Progress :    out Boolean)
@@ -1459,7 +1459,7 @@ is
 
 		Obj.Back_End_Req_Prim.In_Progress := True;
 		Progress := True;
-	end Take_Read_Data;
+	end Io_Data_Read_In_Progress;
 
 
 	--
@@ -1478,7 +1478,7 @@ is
 			Idx    => Primitive.Index        (Prim)));
 
 
-	procedure Ack_Read_Data (
+	procedure Supply_Io_Data (
 		Obj      : in out Object_Type;
 		Req      :        Request.Object_Type;
 		Data     :        Block_Data_Type;
@@ -1508,10 +1508,46 @@ is
 		Obj.Back_End_Req_Prim := Request_Primitive_Invalid;
 
 		Progress := True;
-	end Ack_Read_Data;
+	end Supply_Io_Data;
 
 
-	procedure Take_Write_Data (
+	procedure Has_Io_Data_To_Write (
+		Obj : in out Object_Type;
+		Req :    out Request.Object_Type)
+	is
+	begin
+		if Primitive.Valid(Obj.Back_End_Req_Prim.Prim) then
+			Req := Request.Invalid_Object;
+			return;
+		end if;
+
+		-- I/O module--
+		declare
+			Prim : constant Primitive.Object_Type :=
+				Block_IO.Peek_Generated_Primitive(Obj.Io_Obj);
+		begin
+			if Primitive.Valid(Prim) and Primitive.Operation(Prim) = Write then
+				Obj.Back_End_Req_Prim := (
+					Req => Request.Valid_Object (
+						Op     => Primitive.Operation(Prim),
+						Succ   => False,
+						Blk_Nr => Primitive.Block_Number(Prim),
+						Off    => 0,
+						Cnt    => 1,
+						Tg     => Tag_Invalid),
+					Prim => Prim,
+					Tag  => Tag_IO,
+					In_Progress => False
+				);
+				Req := Obj.Back_End_Req_Prim.Req;
+			else
+				Req := Request.Invalid_Object;
+			end if;
+		end;
+	end Has_Io_Data_To_Write;
+
+
+	procedure Obtain_Io_Data (
 		Obj      : in out Object_Type;
 		Req      :        Request.Object_Type;
 		Data     :    out Block_Data_Type;
@@ -1535,10 +1571,10 @@ is
 
 		Obj.Back_End_Req_Prim.In_Progress := True;
 		Progress := True;
-	end Take_Write_Data;
+	end Obtain_Io_Data;
 
 
-	procedure Ack_Write_Data (
+	procedure Ack_Io_Data_To_Write (
 		Obj      : in out Object_Type;
 		Req      :        Request.Object_Type;
 		Progress :    out Boolean)
@@ -1563,12 +1599,10 @@ is
 		Obj.Back_End_Req_Prim := Request_Primitive_Invalid;
 
 		Progress := True;
-	end Ack_Write_Data;
+	end Ack_Io_Data_To_Write;
 
 
-	-- FIXME move Front_End_Req_Prim allocation into execute,
-	--       turn procedure into function
-	procedure Have_Data (
+	procedure Client_Data_Ready (
 		Obj : in out Object_Type;
 		Req :    out Request.Object_Type)
 	is
@@ -1614,34 +1648,19 @@ is
 
 		--
 		-- When it was a read Request, we need access to the data the Crypto
-		-- module should decrypt and if it was a write Request we need the location
-		-- from where to read the new leaf data.
+		-- module should decrypt. -- XXX this should be handled in I/O backend
 		--
 		declare
 			Prim : constant Primitive.Object_Type :=
 				Virtual_Block_Device.Peek_Completed_Primitive (Obj.VBD);
 		begin
-			if Primitive.Valid (Prim) then
+			if Primitive.Valid (Prim) and Primitive.Operation (Prim) = Read then
 				Assign_Front_End_Req_Prim (Prim, Tag_VBD);
 				Req := Obj.Front_End_Req_Prim.Req;
 				return;
 			end if;
 		end;
-
-		--
-		-- The free-tree needs the data to give to the Write_Back module.
-		--
-		declare
-			Prim : constant Primitive.Object_Type :=
-				Free_Tree.Peek_Completed_Primitive (Obj.Free_Tree_Obj);
-		begin
-			if Primitive.Valid (Prim) and Primitive.Success (Prim) then
-				Assign_Front_End_Req_Prim (Prim, Tag_Free_Tree);
-				Req := Obj.Front_End_Req_Prim.Req;
-				return;
-			end if;
-		end;
-	end Have_Data;
+	end Client_Data_Ready;
 
 
 	function Give_Data_Index (
@@ -1658,7 +1677,7 @@ is
 	end Give_Data_Index;
 
 
-	procedure Give_Read_Data (
+	procedure Obtain_Client_Data (
 		Obj      : in out Object_Type;
 		Req      :        Request.Object_Type;
 		Data     :    out Crypto.Plain_Data_Type;
@@ -1686,7 +1705,7 @@ is
 
 			--
 			-- We have to reset Front_End_Req_Prim before because in case there
-			-- is current I/O pending, we have to make sure 'Have_Data' is
+			-- is current I/O pending, we have to make sure 'Client_Data_Ready' is
 			-- called again.
 			--
 			Obj.Front_End_Req_Prim := Request_Primitive_Invalid;
@@ -1710,10 +1729,69 @@ is
 				Progress := True;
 			end if;
 		end if;
-	end Give_Read_Data;
+	end Obtain_Client_Data;
 
 
-	function Give_Write_Data (
+	-- FIXME move Front_End_Req_Prim allocation into execute,
+	--       turn procedure into function
+	procedure Client_Data_Required (
+		Obj : in out Object_Type;
+		Req :    out Request.Object_Type)
+	is
+
+		procedure Assign_Front_End_Req_Prim (
+			Prim : Primitive.Object_Type;
+			Tag  : Tag_Type)
+		is
+		begin
+			Obj.Front_End_Req_Prim := (
+				Req         => Pool.Request_For_Tag (Obj.Request_Pool_Obj,
+				                                     Primitive.Tag(Prim)),
+				Prim        => Prim,
+				Tag         => Tag,
+				In_Progress => False
+			);
+		end Assign_Front_End_Req_Prim;
+
+	begin
+		Req := Request.Invalid_Object;
+
+		if Primitive.Valid(Obj.Front_End_Req_Prim.Prim) then
+			return;
+		end if;
+
+		--
+		-- A write Request, we need the location from where to read the new
+		-- leaf data.
+		--
+		declare
+			Prim : constant Primitive.Object_Type :=
+				Virtual_Block_Device.Peek_Completed_Primitive (Obj.VBD);
+		begin
+			if Primitive.Valid (Prim) and Primitive.Operation (Prim) = Write then
+				Assign_Front_End_Req_Prim (Prim, Tag_VBD);
+				Req := Obj.Front_End_Req_Prim.Req;
+				return;
+			end if;
+		end;
+
+		--
+		-- The free-tree needs the data to give to the Write_Back module.
+		--
+		declare
+			Prim : constant Primitive.Object_Type :=
+				Free_Tree.Peek_Completed_Primitive (Obj.Free_Tree_Obj);
+		begin
+			if Primitive.Valid (Prim) and Primitive.Success (Prim) then
+				Assign_Front_End_Req_Prim (Prim, Tag_Free_Tree);
+				Req := Obj.Front_End_Req_Prim.Req;
+				return;
+			end if;
+		end;
+	end Client_Data_Required;
+
+
+	function Supply_Client_Data (
 		Obj     : in out Object_Type;
 		Now     :        Timestamp_Type;
 		Req     :        Request.Object_Type;
@@ -1960,7 +2038,7 @@ is
 			end Declare_Old_PBAs;
 		end if;
 		return False;
-	end Give_Write_Data;
+	end Supply_Client_Data;
 
 
 	function Execute_Progress(Obj : Object_Type)

@@ -147,15 +147,15 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						return Block_session_component::Response::REJECTED;
 					}
 
-					if (!_cbe->request_acceptable()) {
+					if (!_cbe->client_request_acceptable()) {
 						return Block_session_component::Response::RETRY;
 					}
 
 					Cbe::Request req = convert_to(request);
-					_cbe->submit_request(req);
+					_cbe->submit_client_request(req);
 
 					if (_show_progress || _show_if_progress) {
-						log("NEW request: ", req);
+						log("\033[35m", "> NEW request: ", req);
 					}
 
 					progress |= true;
@@ -168,16 +168,16 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 				block_session.try_acknowledge([&] (Block_session_component::Ack &ack) {
 
-					Cbe::Request const &req = _cbe->peek_completed_request();
+					Cbe::Request const &req = _cbe->peek_completed_client_request();
 					if (!req.valid()) { return; }
 
-					_cbe->drop_completed_request(req);
+					_cbe->drop_completed_client_request(req);
 
 					Block::Request request = convert_from(req);
 					ack.submit(request);
 
 					if (_show_progress || _show_if_progress) {
-						Genode::log("ACK request: ", req);
+						Genode::log("\033[35m", "< ACK request: ", req);
 					}
 
 					progress |= true;
@@ -274,44 +274,63 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				}
 
 				using Payload = Block::Request_stream::Payload;
+
+				/*
+				 * Poll the CBE for pending data requests. This always happens
+				 * whenever we need to read from the Block::Request_stream in case
+				 * it is a write requests or write to it when it is read request.
+				 */
 				block_session.with_payload([&] (Payload const &payload) {
 
-					/*
-					 * Poll the CBE for pending data requests. This always happens
-					 * whenever we need to read from the Block::Request_stream in case
-					 * it is a write requests or write to it when it is read request.
-					 */
-					Cbe::Request const cbe_request = _cbe->have_data();
-					if (!cbe_request.valid()) { return; }
+					/* read */
+					{
+						Cbe::Request const cbe_request = _cbe->client_data_ready();
+						log("\033[36m INF ", "client_data_ready: ", cbe_request);
+						if (!cbe_request.valid()) { return; }
 
-					uint64_t const prim_index = _cbe->give_data_index(cbe_request);
-					if (prim_index == ~0ull) {
-						Genode::error("prim_index invalid: ", cbe_request);
-						return;
+						uint64_t const prim_index = _cbe->give_data_index(cbe_request);
+						if (prim_index == ~0ull) {
+							Genode::error("prim_index invalid: ", cbe_request);
+							return;
+						}
+
+						Block::Request request { };
+						request.offset = cbe_request.offset + (prim_index * BLOCK_SIZE);
+						request.operation.count = 1;
+
+						payload.with_content(request, [&] (void *addr, Genode::size_t) {
+
+							Cbe::Block_data &data = *reinterpret_cast<Cbe::Block_data*>(addr);
+							progress |= _cbe->obtain_client_data(cbe_request, data);
+							log("\033[36m INF ", "obtain_client_data: ", cbe_request);
+						});
 					}
+				});
 
-					/*
-					 * Create the Block request used to calculate the proper location
-					 * within the shared memory.
-					 *
-					 * (AFAICT the primitive index should always be 0 as it does not
-					 *  get used anymore and it stands to reason if it should be removed.)
-					 */
-					Block::Request request { };
-					request.offset = cbe_request.offset + (prim_index * BLOCK_SIZE);
-					request.operation.count = 1;
+				block_session.with_payload([&] (Payload const &payload) {
+					/* write */
+					{
+						Cbe::Request const cbe_request = _cbe->client_data_required();
+						log("\033[36m INF ", "client_data_required: ", cbe_request);
+						if (!cbe_request.valid()) { return; }
 
-					payload.with_content(request, [&] (void *addr, Genode::size_t) {
-
-						Cbe::Block_data &data = *reinterpret_cast<Cbe::Block_data*>(addr);
-
-						if (cbe_request.read()) {
-							progress |= _cbe->give_read_data(cbe_request, data);
+						uint64_t const prim_index = _cbe->give_data_index(cbe_request);
+						if (prim_index == ~0ull) {
+							Genode::error("prim_index invalid: ", cbe_request);
+							return;
 						}
-						else if (cbe_request.write()) {
-							progress |= _cbe->give_write_data(_time.timestamp(), cbe_request, data);
-						}
-					});
+
+						Block::Request request { };
+						request.offset = cbe_request.offset + (prim_index * BLOCK_SIZE);
+						request.operation.count = 1;
+
+						payload.with_content(request, [&] (void *addr, Genode::size_t) {
+
+							Cbe::Block_data &data = *reinterpret_cast<Cbe::Block_data*>(addr);
+							progress |= _cbe->supply_client_data(_time.timestamp(), cbe_request, data);
+							log("\033[36m INF ", "supply_client_data: ", cbe_request);
+						});
+					}
 				});
 
 				/*
@@ -325,7 +344,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 */
 				while (_block.tx()->ready_to_submit()) {
 
-					Cbe::Request const request = _cbe->need_data();
+					Cbe::Request const request = _cbe->io_data_required();
+					log("\033[36m INF ", "io_data_required: ", request);
 
 					if (!request.valid())         { break; }
 					if (_backend_request.valid()) { break; }
@@ -339,17 +359,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 							request.count,
 						};
 
-						if (request.read()) {
-							// XXX release packet in case of return false
-							progress |= _cbe->take_read_data(request);
-						}
-
-						if (request.write()) {
-							// XXX release packet in case of return false
-							Cbe::Block_data &data =
-								*reinterpret_cast<Cbe::Block_data*>(_block.tx()->packet_content(packet));
-							progress |= _cbe->take_write_data(request, data);
-						}
+						progress |= _cbe->io_data_read_in_progress(request);
+						log("\033[36m INF ", "io_data_read_in_progress: ", request);
 
 						_block.tx()->try_submit_packet(packet);
 
@@ -359,9 +370,37 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					catch (Block::Session::Tx::Source::Packet_alloc_failed) { break; }
 				}
 
-				/*
-				 * Handle backend I/O results
-				 */
+				while (_block.tx()->ready_to_submit()) {
+
+					Cbe::Request const request = _cbe->has_io_data_to_write();
+					log("\033[36m INF ", "has_io_data_to_write: ", request);
+
+					if (!request.valid())         { break; }
+					if (_backend_request.valid()) { break; }
+
+					try {
+						Block::Packet_descriptor packet {
+							_block.alloc_packet(Cbe::BLOCK_SIZE),
+							request.read() ? Block::Packet_descriptor::READ
+							               : Block::Packet_descriptor::WRITE,
+							request.block_number,
+							request.count,
+						};
+
+						// XXX release packet in case of return false
+						Cbe::Block_data &data =
+							*reinterpret_cast<Cbe::Block_data*>(_block.tx()->packet_content(packet));
+						progress |= _cbe->obtain_io_data(request, data);
+						log("\033[36m INF ", "obtain_io_data: ", request);
+
+						_block.tx()->try_submit_packet(packet);
+
+						_backend_request = request;
+						io_progress |= true;
+					}
+					catch (Block::Session::Tx::Source::Packet_alloc_failed) { break; }
+				}
+
 				while (_block.tx()->ack_avail()) {
 					Block::Packet_descriptor packet = _block.tx()->try_get_acked_packet();
 
@@ -382,11 +421,13 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					if (read) {
 						Cbe::Block_data &data =
 							*reinterpret_cast<Cbe::Block_data*>(_block.tx()->packet_content(packet));
-						progress |= _cbe->ack_read_data(_backend_request, data);
+						progress |= _cbe->supply_io_data(_backend_request, data);
+						log("\033[36m INF ", "supply_io_data: ", _backend_request);
 					} else
 
 					if (write) {
-						progress |= _cbe->ack_write_data(_backend_request);
+						progress |= _cbe->ack_io_data_to_write(_backend_request);
+						log("\033[36m INF ", "ack_io_data_to_write: ", _backend_request);
 					}
 
 					_block.tx()->release_packet(packet);

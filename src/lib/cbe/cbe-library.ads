@@ -104,28 +104,28 @@ is
 		Req :        Request.Object_Type);
 
 	--
-	-- Return a request for the backend block session
+	-- Return a read request for the backend block session
 	--
 	-- \param Req  return valid request in case the is one pending that
 	--             needs data, otherwise an invalid one is returned
 	--
-	procedure Need_Data (
+	procedure Io_Data_Required (
 		Obj : in out Object_Type;
 		Req :    out Request.Object_Type);
 
 	--
-	-- Take read request for backend block session
+	-- Mark read request for backend block session
 	--
 	-- \param Req       reference to the request from the CBE
 	-- \param Progress  return true if the CBE could process the request
 	--
-	procedure Take_Read_Data (
+	procedure Io_Data_Read_In_Progress (
 		Obj      : in out Object_Type;
 		Req      :        Request.Object_Type;
 		Progress :    out Boolean);
 
 	--
-	-- Acknowledge read request to the backend block session
+	-- Submit read request data from the backend block session to the CBE
 	--
 	-- The given data will be transfered to the CBE.
 	--
@@ -133,14 +133,24 @@ is
 	-- \param Data      reference to the data associated with the request
 	-- \param Progress  return true if the CBE acknowledged the request
 	--
-	procedure Ack_Read_Data (
+	procedure Supply_Io_Data (
 		Obj      : in out Object_Type;
 		Req      :        Request.Object_Type;
 		Data     :        Block_Data_Type;
 		Progress :    out Boolean);
 
 	--
-	-- Take write request for the backend block session
+	-- Return write request for the backend block session
+	--
+	-- \param Req  return valid request in case the is one pending that
+	--             needs data, otherwise an invalid one is returned
+	--
+	procedure Has_Io_Data_To_Write (
+		Obj : in out Object_Type;
+		Req :    out Request.Object_Type);
+
+	--
+	-- Obtain data for write request for the backend block session
 	--
 	-- The CBE will transfer the payload to the given data.
 	--
@@ -148,30 +158,24 @@ is
 	-- \param Data      reference to the data associated with the request
 	-- \param Progress  return true if the CBE could process the request
 	--
-	procedure Take_Write_Data (
+	procedure Obtain_Io_Data (
 		Obj      : in out Object_Type;
 		Req      :        Request.Object_Type;
 		Data     :    out Block_Data_Type;
 		Progress :    out Boolean);
 
-	--
-	-- Acknowledge write request to backend block session
-	--
-	-- \param Req       reference to the request processed by the CBE
-	-- \param Progress  return true if the CBE acknowledged the request
-	--
-	procedure Ack_Write_Data (
+	procedure Ack_Io_Data_To_Write (
 		Obj      : in out Object_Type;
 		Req      :        Request.Object_Type;
 		Progress :    out Boolean);
 
 	--
-	-- Return a request that provides data to the frontend block data
+	-- Return a client request that provides data to the frontend block data
 	--
 	-- \param Req  return valid request in case the is one pending that
 	--             needs data, otherwise an invalid one is returned
 	--
-	procedure Have_Data (
+	procedure Client_Data_Ready (
 		Obj : in out Object_Type;
 		Req :    out Request.Object_Type);
 
@@ -184,17 +188,27 @@ is
 	return Primitive.Index_Type;
 
 	--
-	-- Request access to the Block::Request data for storing data
+	-- Return data for the given client read request
 	--
 	-- \param Req       reference to the request processed by the CBE
 	-- \param Data      data associated with the request
 	-- \param Progress  return 'True' if the CBE could process the request
 	--
-	procedure Give_Read_Data (
+	procedure Obtain_Client_Data (
 		Obj      : in out Object_Type;
 		Req      :        Request.Object_Type;
 		Data     :    out Crypto.Plain_Data_Type;
 		Progress :    out Boolean);
+
+	--
+	-- Return a client request that provides data to the frontend block data
+	--
+	-- \param Req  return valid request in case the is one pending that
+	--             needs data, otherwise an invalid one is returned
+	--
+	procedure Client_Data_Required (
+		Obj : in out Object_Type;
+		Req :    out Request.Object_Type);
 
 	--
 	-- Request access to the Block::Request data for reading data
@@ -206,7 +220,7 @@ is
 	--
 	-- \return  true if the CBE could process the request
 	--
-	function Give_Write_Data (
+	function Supply_Client_Data (
 		Obj  : in out Object_Type;
 		Now  :        Timestamp_Type;
 		Req  :        Request.Object_Type;
