@@ -156,7 +156,7 @@ private
 
 	end Item;
 
-	type Items_Type is array (1..16) of Item.Item_Type;
+	type Items_Type is array (1..1) of Item.Item_Type;
 
 	--
 	-- Object_Type
