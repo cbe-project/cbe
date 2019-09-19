@@ -159,7 +159,7 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 
 				_backend_request = request;
 
-				_cbe.take_read_data(request);
+				_cbe.io_data_read_in_progress(request);
 
 				_backend->seek(request.block_number * Cbe::BLOCK_SIZE);
 
@@ -178,7 +178,7 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 
 				Cbe::Block_data &data = *reinterpret_cast<Cbe::Block_data *>(buf);
 				request.success = Cbe::Request::Success::TRUE;
-				_cbe.ack_read_data(request, data);
+				_cbe.supply_io_data(request, data);
 				_alloc.free(buf, count);
 
 				_backend_request = Cbe::Request { };
@@ -195,7 +195,7 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 				char *buf;
 				_alloc.alloc(count, &buf);
 				Cbe::Block_data &data = *reinterpret_cast<Cbe::Block_data *>(buf);
-				_cbe.take_write_data(request, data);
+				_cbe.obtain_io_data(request, data);
 
 				_backend->seek(request.block_number * Cbe::BLOCK_SIZE);
 
@@ -211,7 +211,7 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 				log("backend write: ", out);
 
 				request.success = Cbe::Request::Success::TRUE;
-				_cbe.ack_write_data(request);
+				_cbe.ack_io_data_to_write(request);
 				_alloc.free(buf, count);
 				_backend_request = Cbe::Request { };
 			}
@@ -228,8 +228,8 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 					return;
 				}
 
-				if (_cbe.request_acceptable() && _state != PENDING) {
-					_cbe.submit_request(request);
+				if (_cbe.client_request_acceptable() && _state != PENDING) {
+					_cbe.submit_client_request(request);
 					progress = true;
 				}
 
@@ -237,17 +237,18 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 
 				while (true) {
 
-					for(Cbe::Request cbe_request = _cbe.peek_completed_request();
-					    cbe_request.valid(); cbe_request = _cbe.peek_completed_request()) {
-						_cbe.drop_completed_request(cbe_request);
+					for(Cbe::Request cbe_request = _cbe.peek_completed_client_request();
+					    cbe_request.valid(); cbe_request = _cbe.peek_completed_client_request()) {
+						_cbe.drop_completed_client_request(cbe_request);
 						progress = true;
 					}
 
 					_cbe.execute(_time.timestamp());
 					progress |= _cbe.execute_progress();
 
-					Cbe::Request cbe_request = _cbe.have_data();
-					if (cbe_request.valid()) {
+					/* read */
+					Cbe::Request cbe_request = _cbe.client_data_ready();
+					if (cbe_request.valid() && cbe_request.read()) {
 
 						uint64_t const prim_index = _cbe.give_data_index(cbe_request);
 						if (prim_index == ~0ull) {
@@ -257,26 +258,43 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 						}
 
 						Cbe::Block_data &data = *reinterpret_cast<Cbe::Block_data*>(cbe_request.offset + (prim_index * Cbe::BLOCK_SIZE));
+						_cbe.obtain_client_data(cbe_request, data);
 
-						if (cbe_request.read()) {
-							/* XXX evaluate 'progress' */
-							_cbe.give_read_data(cbe_request, data);
-						} else
-
-						if (cbe_request.write()) {
-							_cbe.give_write_data(0, cbe_request, data);
-						}
 						char *DATA = (char *)(cbe_request.offset + (prim_index * Cbe::BLOCK_SIZE));
 						uint64_t b = cbe_request.block_number;
 						uint32_t c = cbe_request.count;
-						log("data: ", cbe_request.read() ? "read" :  "write", ": block: ", b,  " count: ", c, " idx: ", prim_index);
+						log("data: ", "read", ": block: ", b,  " count: ", c, " idx: ", prim_index);
 						DATA[1] = 0;
 						log("DATA[0]: ", Hex(DATA[0]));
 						progress = true;
 					}
 
-					cbe_request = _backend_request.valid() ? _backend_request : _cbe.need_data();
-					if (cbe_request.valid()) {
+					/* write */
+					cbe_request = _cbe.client_data_required();
+					if (cbe_request.valid() && cbe_request.write()) {
+
+						uint64_t const prim_index = _cbe.give_data_index(cbe_request);
+						if (prim_index == ~0ull) {
+							Genode::error("prim_index invalid: ", cbe_request);
+							_state = ERROR;
+							return;
+						}
+
+						Cbe::Block_data &data = *reinterpret_cast<Cbe::Block_data*>(cbe_request.offset + (prim_index * Cbe::BLOCK_SIZE));
+						progress = _cbe.supply_client_data(_time.timestamp(), cbe_request, data);
+
+						char *DATA = (char *)(cbe_request.offset + (prim_index * Cbe::BLOCK_SIZE));
+						uint64_t b = cbe_request.block_number;
+						uint32_t c = cbe_request.count;
+						log("data: ", "write", ": block: ", b,  " count: ", c, " idx: ", prim_index);
+						DATA[1] = 0;
+						log("DATA[0]: ", Hex(DATA[0]));
+						progress = true;
+					}
+
+					if (_backend_request.valid()) {
+						cbe_request = _backend_request;
+
 						if (cbe_request.read())
 							backend_read(cbe_request);
 
@@ -285,6 +303,20 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 
 						if (_state == PENDING) return;
 
+						progress = true;
+					}
+
+					cbe_request = _cbe.io_data_required();
+					if (cbe_request.valid()) {
+						backend_read(cbe_request);
+						if (_state == PENDING) return;
+						progress = true;
+					}
+
+					cbe_request = _cbe.has_io_data_to_write();
+					if (cbe_request.valid()) {
+						backend_write(cbe_request);
+						if (_state == PENDING) return;
 						progress = true;
 					}
 
@@ -487,7 +519,7 @@ extern "C" Vfs::File_system_factory *vfs_file_system_factory(void)
 	};
 
 	/* the CBE library requires a stack larger than the default */
-	Genode::Thread::myself()->stack_size(512*1024);
+	Genode::Thread::myself()->stack_size(64*1024);
 
 	Cbe::assert_valid_object_size<Cbe::Library>();
 
