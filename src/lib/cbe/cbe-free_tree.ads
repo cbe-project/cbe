@@ -368,4 +368,26 @@ private
 		Node             : Type_II_Node_Type)
 	return Boolean;
 
+	procedure Execute_Translation (
+		Obj              : in out Object_Type;
+		Trans_Data       : in out Translation_Data_Type;
+		Cach             : in out Cache.Object_Type;
+		Cach_Data        : in     Cache.Cache_Data_Type;
+		Timestamp        :        Timestamp_Type);
+
+	procedure Execute_Query (
+		Obj              : in out Object_Type;
+		Active_Snaps     :        Snapshots_Type;
+		Last_Secured_Gen :        Generation_Type;
+		Query_Data       :        Query_Data_Type);
+
+	procedure Execute_Update (
+		Obj              : in out Object_Type;
+		Cach             : in out Cache.Object_Type;
+		Cach_Data        : in out Cache.Cache_Data_Type;
+		Timestamp        :        Timestamp_Type);
+
+	procedure Execute_Writeback (
+		Obj              : in out Object_Type);
+
 end CBE.Free_Tree;
