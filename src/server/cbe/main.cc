@@ -30,12 +30,77 @@
 
 namespace Cbe {
 
+	struct Crypto_Data;
+	struct Crypto;
+
 	struct Block_session_component;
 	struct Main;
 
 	Genode::uint32_t object_size(Tree_helper const &);
 
 } /* namespace Cbe */
+
+
+struct Cbe::Crypto_Data
+{
+	Cbe::Block_data items[1];
+};
+
+
+struct Cbe::Crypto
+{
+	Crypto() { }
+
+	bool encryption_request_acceptable() const
+	{
+		return false;
+	}
+
+	void submit_encryption_request(Cbe::Request    const &request,
+	                               Cbe::Block_data const &data)
+	{
+		(void)request;
+		(void)data;
+	}
+
+	Cbe::Request peek_completed_encryption_request() const
+	{
+		return Cbe::Request { };
+	}
+
+	bool supply_cipher_data(Cbe::Request const &request,
+	                        Cbe::Block_data    &data)
+	{
+		(void)request;
+		(void)data;
+		return false;
+	}
+
+	bool decryption_request_acceptable() const
+	{
+		return false;
+	}
+
+	void submit_decryption_request(Cbe::Request    const &request,
+	                               Cbe::Block_data const &data)
+	{
+		(void)request;
+		(void)data;
+	}
+
+	Cbe::Request peek_completed_decryption_request() const
+	{
+		return Cbe::Request { };
+	}
+
+	bool supply_plain_data(Cbe::Request const &request,
+	                       Cbe::Block_data    &data)
+	{
+		(void)request;
+		(void)data;
+		return false;
+	}
+};
 
 
 struct Cbe::Block_session_component : Rpc_object<Block::Session>,
@@ -93,6 +158,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Cbe::Time _time { _env };
 
 		Constructible<Cbe::Library> _cbe { };
+
+		Crypto      _crypto      { };
+		Crypto_Data _crypto_data { };
 
 		/*
  		 * Store current backend request
@@ -307,6 +375,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					}
 				});
 
+
 				block_session.with_payload([&] (Payload const &payload) {
 					/* write */
 					{
@@ -437,6 +506,54 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				}
 
 				progress |= io_progress;
+
+				/*********************
+				 ** Crypto handling **
+				 *********************/
+
+				/* encrypt */
+				do {
+					Cbe::Request const request = _cbe->encryption_required();
+					if (!request.valid()) { break; }
+					if (!_crypto.encryption_request_acceptable()) { break; }
+
+					if (!_cbe->obtain_plain_data(request, _crypto_data.items[0])) { break; }
+
+					_crypto.submit_encryption_request(request, _crypto_data.items[0]);
+					progress |= true;
+				} while (0);
+
+				while (true) {
+					Cbe::Request const request = _crypto.peek_completed_encryption_request();
+					if (!request.valid()) { break; }
+
+					if (!_crypto.supply_cipher_data(request, _crypto_data.items[0])) { break; }
+
+					_cbe->supply_cipher_data(request, _crypto_data.items[0]);
+					progress |= true;
+				}
+
+				/* decrypt */
+				do {
+					Cbe::Request const request = _cbe->decryption_required();
+					if (!request.valid()) { break; }
+					if (!_crypto.decryption_request_acceptable()) { break; }
+
+					if (!_cbe->obtain_cipher_data(request, _crypto_data.items[0])) { break; }
+
+					_crypto.submit_decryption_request(request, _crypto_data.items[0]);
+					progress |= true;
+				} while (0);
+
+				while (true) {
+					Cbe::Request const request = _crypto.peek_completed_decryption_request();
+					if (!request.valid()) { break; }
+
+					if (!_crypto.supply_plain_data(request, _crypto_data.items[0])) { break; }
+
+					_cbe->supply_plain_data(request, _crypto_data.items[0]);
+					progress |= true;
+				}
 
 				if (!progress)
 					break;

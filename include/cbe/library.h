@@ -53,6 +53,14 @@ class Cbe::Library : public Cbe::Spark_object<216648>
 		void _client_data_required(Request &);
 		void _supply_client_data(Time::Timestamp const, Request const &, Block_data const &, bool &);
 
+		void _encryption_required(Request &request);
+		void _supply_plain_data(Request const &, Block_data const &, bool &);
+		void _obtain_cipher_data(Request const &, Block_data &, bool &);
+
+		void _decryption_required(Request &);
+		void _supply_cipher_data(Request const &, Block_data const &, bool &);
+		void _obtain_plain_data(Request const &, Block_data &, bool &);
+
 	public:
 
 	/**
@@ -308,6 +316,111 @@ class Cbe::Library : public Cbe::Spark_object<216648>
 
 	bool cache_dirty() const;
 	bool superblock_dirty() const;
+
+
+	/**
+	 * CBE requests encrytion
+	 *
+	 * \param result  valid request in case the is one pending that
+	 *                needs encrytion, otherwise an invalid one is
+	 *                returned
+	 */
+	Request encryption_required()
+	{
+		Request result { };
+		_encryption_required(result);
+		return result;
+	}
+
+	/**
+	 *  Return plain data for given encryption request
+	 *
+	 * \param  request  reference to the Block::Request processed
+	 *                  by the CBE
+	 * \param  data     reference to the data associated with the
+	 *                  Block::Request
+	 *
+	 * \return  true if the CBE could supply the request's data,
+	 *          otherwise false
+	 */
+	bool obtain_plain_data(Request const &request,
+	                       Block_data    &data)
+	{
+		bool result = false;
+		_obtain_plain_data(request, data, result);
+		return result;
+	}
+
+	/**
+	 *  Collect cipher data for given completed encryption request
+	 *
+	 * \param  request  reference to the Block::Request processed
+	 *                  by the CBE
+	 * \param  data     reference to the data associated with the
+	 *                  Block::Request
+	 *
+	 * \return  true if the CBE could obtain the encrypted data,
+	 *          otherwise false
+	 */
+	bool supply_cipher_data(Request    const &request,
+	                        Block_data const &data)
+	{
+		bool result = false;
+		_supply_cipher_data(request, data, result);
+		return result;
+	}
+
+	/**
+	 * CBE requests decryption
+	 *
+	 * \param result  valid request in case the is one pending that
+	 *                needs decrytion, otherwise an invalid one is
+	 *                returned
+	 */
+	Request decryption_required()
+	{
+		Request result { };
+		_decryption_required(result);
+		return result;
+	}
+
+	/**
+	 *  Return cipher data for given decryption request
+	 *
+	 * \param  request  reference to the Block::Request processed
+	 *                  by the CBE
+	 * \param  data     reference to the data associated with the
+	 *                  Block::Request
+	 *
+	 * \return  true if the CBE could supply the ciphr data,
+	 *          otherwise false
+	 */
+	bool obtain_cipher_data(Request    const &request,
+	                        Block_data       &data)
+	{
+		bool result = false;
+		_obtain_cipher_data(request, data, result);
+		return result;
+	}
+
+	/**
+	 *  Collect plain data for given completed decryption request
+	 *
+	 * \param  request  reference to the Block::Request processed
+	 *                  by the CBE
+	 * \param  data     reference to the data associated with the
+	 *                  Block::Request
+	 *
+	 * \return  true if the CBE could obtain the decrypted data,
+	 *          otherwise false
+	 */
+	bool supply_plain_data(Request    const &request,
+	                       Block_data const &data)
+	{
+		bool result = false;
+		_supply_plain_data(request, data, result);
+		return result;
+	}
 };
 
 #endif /* _CBE_LIBRARY_H_ */

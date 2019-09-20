@@ -227,6 +227,92 @@ is
       Data :        Block_Data_Type)
    return Boolean;
 
+	--
+	-- Request encryption of data
+	--
+	-- \param Req  return valid request in case the is one pending that
+	--             needs data, otherwise an invalid one is returned
+	--
+	procedure Encryption_Required (
+		Obj : in out Object_Type;
+		Req :    out Request.Object_Type);
+
+	--
+	-- Return plain data for given encryption request
+	--
+	-- \param Request  reference to the Block::Request processed
+	--                 by the CBE
+	-- \param Data     reference to the data associated with the
+	--                 Block::Request
+	--
+	-- \return  true if the CBE could supply the plain data
+	--
+	procedure Obtain_Plain_Data (
+		Obj      : in out Library.Object_Type;
+		Req      :        Request.Object_Type;
+		Data     :    out Crypto.Plain_Data_Type;
+		Progress :    out Boolean);
+
+	--
+	-- Collect cipher data for given completed decryption request
+	--
+	-- \param Request  reference to the Block::Request processed
+	--                 by the CBE
+	-- \param Data     reference to the data associated with the
+	--                 Block::Request
+	--
+	-- \return  true if the CBE could obtain the encrypted cipher data
+	--
+	procedure Supply_Cipher_Data (
+		Obj      : in out Library.Object_Type;
+		Req      :        Request.Object_Type;
+		Data     :        Crypto.Cipher_Data_Type;
+		Progress :    out Boolean);
+
+	--
+	-- Request decryption of data
+	--
+	-- \param Req  return valid request in case the is one pending that
+	--             needs data, otherwise an invalid one is returned
+	--
+	procedure Decryption_Required (
+		Obj : in out Object_Type;
+		Req :    out Request.Object_Type);
+
+	--
+	-- Return cipher data for given decryption request
+	--
+	-- \param Request  reference to the Block::Request processed
+	--                 by the CBE
+	-- \param Data     reference to the data associated with the
+	--                 Block::Request
+	--
+	-- \return  true if the CBE could supply the cipher data
+	--
+	procedure Obtain_Cipher_Data (
+		Obj      : in out Library.Object_Type;
+		Req      :        Request.Object_Type;
+		Data     :    out Crypto.Cipher_Data_Type;
+		Progress :    out Boolean);
+
+	--
+	-- Collect cipher data for given completed decryption request
+	--
+	-- \param Request  reference to the Block::Request processed
+	--                 by the CBE
+	-- \param Data     reference to the data associated with the
+	--                 Block::Request
+	--
+	-- \return  true if the CBE could obtain the decrypted plain data
+	--
+	procedure Supply_Plain_Data (
+		Obj      : in out Library.Object_Type;
+		Req      :        Request.Object_Type;
+		Data     :        Crypto.Plain_Data_Type;
+		Progress :    out Boolean);
+
+	--
+
    --
    --  Execute one loop of the CBE
    --

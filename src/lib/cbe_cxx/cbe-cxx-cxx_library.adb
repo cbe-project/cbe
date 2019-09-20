@@ -223,4 +223,82 @@ is
    return CXX_Bool_Type
    is (CXX_Bool_From_SPARK (Library.Execute_Progress (Obj)));
 
+
+	procedure Encryption_Required (
+		Obj : in out Library.Object_Type;
+		Req :    out CXX_Request_Type)
+	is
+		SPARK_Req : Request.Object_Type;
+	begin
+		Library.Encryption_Required (Obj, SPARK_Req);
+		Req := CXX_Request_From_SPARK (SPARK_Req);
+	end Encryption_Required;
+
+
+	procedure Obtain_Plain_Data (
+		Obj      : in out Library.Object_Type;
+		Req      :        CXX_Request_Type;
+		Data     :    out Crypto.Plain_Data_Type;
+		Progress :    out CXX_Bool_Type)
+	is
+		SPARK_Progress : Boolean;
+	begin
+		Library.Obtain_Plain_Data (
+			Obj, CXX_Request_To_SPARK (Req), Data, SPARK_Progress);
+		Progress := CXX_Bool_From_SPARK (SPARK_Progress);
+	end Obtain_Plain_Data;
+
+
+	procedure Supply_Cipher_Data (
+		Obj      : in out Library.Object_Type;
+		Req      :        CXX_Request_Type;
+		Data     :        Crypto.Cipher_Data_Type;
+		Progress :    out CXX_Bool_Type)
+	is
+		SPARK_Progress : Boolean;
+	begin
+		Library.Supply_Cipher_Data (
+			Obj, CXX_Request_To_SPARK (Req), Data, SPARK_Progress);
+		Progress := CXX_Bool_From_SPARK (SPARK_Progress);
+	end Supply_Cipher_Data;
+
+
+	procedure Decryption_Required (
+		Obj : in out Library.Object_Type;
+		Req :    out CXX_Request_Type)
+	is
+		SPARK_Req : Request.Object_Type;
+	begin
+		Library.Decryption_Required (Obj, SPARK_Req);
+		Req := CXX_Request_From_SPARK (SPARK_Req);
+	end Decryption_Required;
+
+
+	procedure Obtain_Cipher_Data (
+		Obj      : in out Library.Object_Type;
+		Req      :        CXX_Request_Type;
+		Data     :    out Crypto.Cipher_Data_Type;
+		Progress :    out CXX_Bool_Type)
+	is
+		SPARK_Progress : Boolean;
+	begin
+		Library.Obtain_Cipher_Data (
+			Obj, CXX_Request_To_SPARK (Req), Data, SPARK_Progress);
+		Progress := CXX_Bool_From_SPARK (SPARK_Progress);
+	end Obtain_Cipher_Data;
+
+
+	procedure Supply_Plain_Data (
+		Obj      : in out Library.Object_Type;
+		Req      :        CXX_Request_Type;
+		Data     :        Crypto.Plain_Data_Type;
+		Progress :    out CXX_Bool_Type)
+	is
+		SPARK_Progress : Boolean;
+	begin
+		Library.Supply_Plain_Data (
+			Obj, CXX_Request_To_SPARK (Req), Data, SPARK_Progress);
+		Progress := CXX_Bool_From_SPARK (SPARK_Progress);
+	end Supply_Plain_Data;
+
 end CBE.CXX.CXX_Library;

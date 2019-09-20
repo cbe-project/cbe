@@ -2041,6 +2041,67 @@ is
       return False;
    end Supply_Client_Data;
 
+	procedure Encryption_Required (
+		Obj : in out Object_Type;
+		Req :    out Request.Object_Type)
+	is
+	begin
+		Req := Request.Invalid_Object;
+	end Encryption_Required;
+
+
+	procedure Obtain_Plain_Data (
+		Obj      : in out Library.Object_Type;
+		Req      :        Request.Object_Type;
+		Data     :    out Crypto.Plain_Data_Type;
+		Progress :    out Boolean)
+	is
+	begin
+		null;
+	end Obtain_Plain_Data;
+
+
+	procedure Supply_Cipher_Data (
+		Obj      : in out Library.Object_Type;
+		Req      :        Request.Object_Type;
+		Data     :        Crypto.Cipher_Data_Type;
+		Progress :    out Boolean)
+	is
+	begin
+		null;
+	end Supply_Cipher_Data;
+
+
+	procedure Decryption_Required (
+		Obj : in out Object_Type;
+		Req :    out Request.Object_Type)
+	is
+	begin
+		Req := Request.Invalid_Object;
+	end Decryption_Required;
+
+
+	procedure Obtain_Cipher_Data (
+		Obj      : in out Library.Object_Type;
+		Req      :        Request.Object_Type;
+		Data     :    out Crypto.Cipher_Data_Type;
+		Progress :    out Boolean)
+	is
+	begin
+		null;
+	end Obtain_Cipher_Data;
+
+
+	procedure Supply_Plain_Data (
+		Obj      : in out Library.Object_Type;
+		Req      :        Request.Object_Type;
+		Data     :        Crypto.Plain_Data_Type;
+		Progress :    out Boolean)
+	is
+	begin
+		null;
+	end Supply_Plain_Data;
+
    function Execute_Progress (Obj : Object_Type)
    return Boolean
    is (Obj.Execute_Progress);
