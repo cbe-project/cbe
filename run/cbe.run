@@ -4,7 +4,22 @@ exec rm -rf var/libcache/cbe_cxx
 exec rm -rf var/libcache/external_crypto
 exec rm -rf var/libcache/external_crypto_cxx
 
-build {
+#
+# To enable writing the initial phys block-dev state to a linux file,
+# switch the first return value to 1 and build with 'KERNEL=linux BOARD=linux'.
+# The result can be found in <BUILD_DIR>/var/run/cbe/genode/lx_block.img .
+#
+proc write_init_state_to_lx_file { } {
+	if {[have_spec linux]} {
+		return 0;
+	} else {
+		return 0;
+	}
+}
+
+proc cbe_block_size_mb { } { return 512 }
+
+append build_components {
 	core init timer
 	server/ram_block
 	server/cbe
@@ -14,9 +29,15 @@ build {
 	server/report_rom
 }
 
+if {[write_init_state_to_lx_file]} {
+	append build_components { server/lx_block }
+}
+
+build $build_components
+
 create_boot_directory
 
-install_config {
+append config {
 <config verbose="yes">
 	<parent-provides>
 		<service name="ROM"/>
@@ -54,12 +75,26 @@ install_config {
 	<start name="cbe_block">
 		<resource name="RAM" quantum="1G"/>
 		<provides><service name="Block"/></provides>
-		<config report="no" verbose="no" backing_size="512M"
-		        vbd_size="2M" vbd_outer_degree="64"
-		        ft_size="1M"   ft_outer_degree="64"
-		        initialize="yes">
-		</config>
+		<config
+			report="no"
+			verbose="no"
+			backing_size="} [cbe_block_size_mb] {M"
+			vbd_size="2M"
+			vbd_outer_degree="64"
+			ft_size="1M"
+			ft_outer_degree="64"
+			initialize="yes"
+			write_init_state_to_block="}
+
+if {[write_init_state_to_lx_file]} {
+	append config {yes}
+} else {
+	append config {no}
+}
+append config {"/>
+
 		<route>
+			<service name="Block"> <child name="lx_block"/> </service>
 			<service name="Report"> <child name="report_rom"/> </service>
 			<any-service> <parent/> </any-service>
 		</route>
@@ -75,7 +110,19 @@ install_config {
 			<service name="Timer"> <child name="timer"/> </service>
 			<any-service> <parent/> </any-service>
 		</route>
-	</start>
+	</start>}
+
+if {[write_init_state_to_lx_file]} {
+append config {
+
+	<start name="lx_block" ld="no">
+		<resource name="RAM" quantum="2M"/>
+		<provides> <service name="Block"/> </provides>
+		<config file="lx_block.img" block_size="4K" writeable="yes"/>
+	</start>}
+}
+
+append config {
 
 	<start name="block_tester" caps="200">
 		<resource name="RAM" quantum="80M"/>
@@ -292,13 +339,24 @@ install_config {
 
 </config>}
 
+install_config $config
 
-build_boot_image {
+append boot_modules {
 	core init timer ram_block block_tester cbe_block cbe
 	ld.lib.so spark.lib.so libsparkcrypto.lib.so
 	log_terminal report_rom
 }
 
+if {[write_init_state_to_lx_file]} {
+	append boot_modules { lx_block }
+}
+
+build_boot_image $boot_modules
+
+exec rm -rf [run_dir]/genode/lx_block.img
+if {[write_init_state_to_lx_file]} {
+	exec truncate -s [cbe_block_size_mb]M [run_dir]/genode/lx_block.img
+}
 
 append qemu_args " -nographic -m 1280 "
 

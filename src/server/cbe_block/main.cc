@@ -21,6 +21,7 @@
 #include <root/root.h>
 #include <util/misc_math.h>
 #include <os/reporter.h>
+#include <block_session/connection.h>
 
 /* repo includes */
 #include <util/sha256_4k.h>
@@ -28,8 +29,7 @@
 /* cbe */
 #include <cbe/types.h>
 
-using uint32_t = Genode::uint32_t;
-using uint64_t = Genode::uint64_t;
+using namespace Genode;
 
 namespace Cbe {
 
@@ -1045,6 +1045,109 @@ class Cbe::Mmu
 };
 
 
+class Write_state_to_block
+{
+	private:
+
+		struct Job;
+		typedef Block::Connection<Job> Block_connection;
+
+		struct Job : Block_connection::Job
+		{
+			unsigned const id;
+
+			Job(Block_connection &connection, Block::Operation operation, unsigned id)
+			:
+				Block_connection::Job(connection, operation), id(id)
+			{ }
+		};
+
+		Env                                  &_env;
+		addr_t                                _base;
+		size_t                                _size;
+		Signal_transmitter                    _done;
+		Heap                                  _heap          { _env.ram(), _env.rm() };
+		Allocator_avl                         _block_alloc   { &_heap };
+		Block_connection                      _block         { _env, &_block_alloc, Number_of_bytes(4 * 1024 * 1024) };
+		Block::Session::Info                  _info          { _block.info() };
+		Signal_handler<Write_state_to_block>  _block_io_sigh { _env.ep(), *this, &Write_state_to_block::_handle_block_io };
+		unsigned                              _job_cnt       { 0 };
+
+		void _handle_block_io()
+		{
+			_block.update_jobs(*this);
+		}
+
+	public:
+
+		/**
+		 * Block::Connection::Update_jobs_policy
+		 */
+		void produce_write_content(Job &, off_t offset, char *dst, size_t length)
+		{
+			struct Bad_write_offset : Exception { };
+			if ((size_t)offset >= _size) {
+				throw Bad_write_offset();
+			}
+			size_t copy_length = length;
+			if (offset + length > _size) {
+
+				copy_length = _size - offset;
+				void *zero_dst = (void*)((addr_t)dst + offset + copy_length);
+				memset(zero_dst, 0, length - copy_length);
+			}
+			addr_t const src =
+				_base + offset;
+
+			memcpy(dst, (void *)src, copy_length);
+		}
+
+		/**
+		 * Block::Connection::Update_jobs_policy
+		 */
+		void consume_read_result(Job &, off_t, char const *, size_t) { }
+
+		/**
+		 * Block_connection::Update_jobs_policy
+		 */
+		void completed(Job &, bool success)
+		{
+			struct Writing_state_to_block_failed : Exception { };
+			if (!success) {
+				throw Writing_state_to_block_failed();
+			}
+			log("Initial VBD state written to block connection");
+			_done.submit();
+		}
+
+		/**
+		 * Constructor
+		 */
+		Write_state_to_block(Env                       &env,
+		                     addr_t                     base,
+		                     size_t                     size,
+		                     Signal_context_capability  done)
+		:
+			_env    { env },
+			_base   { base },
+			_size   { size },
+			_done   { done }
+		{
+			log("Writing initial VBD state to block connection...");
+			size_t count = _size / _info.block_size;
+			if (_size - count * _info.block_size) {
+				count++;
+			}
+			Block::Operation const operation {
+				Block::Operation::Type::WRITE, 0, count};
+
+			new (_heap) Job(_block, operation, _job_cnt++);
+			_block.sigh(_block_io_sigh);
+			_handle_block_io();
+		}
+};
+
+
 class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 {
 	private:
@@ -1055,17 +1158,21 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		bool             const  _verbose         { _config.attribute_value("verbose",  false) };
 		bool             const  _report          { _config.attribute_value("report",   false) };
 		bool             const  _dump_all        { _config.attribute_value("dump_all", false) };
+		bool             const  _write_init_state_to_block { _config.attribute_value("write_init_state_to_block", false) };
 		Signal_handler<Main>    _request_handler { _env.ep(), *this, &Main::_handle_requests };
 		Block::Request          _current_request { };
 
-		Constructible<Attached_ram_dataspace>  _backing_store   { };
-		Constructible<Attached_ram_dataspace>  _block_ds        { };
-		Constructible<Block_session_component> _block_session   { };
-		Constructible<Cbe::Block_allocator>    _block_allocator { };
-		Constructible<Cbe::Tree>               _tree            { };
-		Constructible<Cbe::Tree>               _free_tree       { };
-		Constructible<Cbe::Vbd>                _vbd             { };
-		Constructible<Cbe::Mmu>                _mmu             { };
+		Constructible<Attached_ram_dataspace>  _backing_store        { };
+		Constructible<Attached_ram_dataspace>  _block_ds             { };
+		Constructible<Block_session_component> _block_session        { };
+		Constructible<Block_allocator>         _block_allocator      { };
+		Constructible<Tree>                    _tree                 { };
+		Constructible<Tree>                    _free_tree            { };
+		Constructible<Vbd>                     _vbd                  { };
+		Constructible<Mmu>                     _mmu                  { };
+		Constructible<Write_state_to_block>    _write_state_to_block { };
+		Signal_handler<Main>                   _write_state_done     {
+			_env.ep(), *this, &Main::_handle_write_state_done};
 
 		void _handle_requests()
 		{
@@ -1122,6 +1229,12 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			block_session.wakeup_client_if_needed();
 		}
 
+		void _handle_write_state_done()
+		{
+			_write_state_to_block.destruct();
+			_env.parent().announce(_env.ep().manage(*this));
+		}
+
 	public:
 
 		/*
@@ -1131,8 +1244,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		 */
 		Main(Env &env) : _env(env)
 		{
-			_env.parent().announce(_env.ep().manage(*this));
-
 			struct Invalid_config { };
 			if (!_config_rom.valid()) { throw Invalid_config();}
 			_config_rom.update();
@@ -1294,7 +1405,16 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			if (_report) {
 				_vbd->report();
 			}
+
+			if (_write_init_state_to_block) {
+				_write_state_to_block.construct(
+					_env, (addr_t)_backing_store->local_addr<void*>(),
+					_backing_store->size(), _write_state_done);
+			} else {
+				_handle_write_state_done();
+			}
 		}
+
 
 		/********************
 		 ** Root interface **
