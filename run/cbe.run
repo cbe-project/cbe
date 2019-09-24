@@ -1,6 +1,8 @@
 
 exec rm -rf var/libcache/cbe
 exec rm -rf var/libcache/cbe_cxx
+exec rm -rf var/libcache/external_crypto
+exec rm -rf var/libcache/external_crypto_cxx
 
 build {
 	core init timer
