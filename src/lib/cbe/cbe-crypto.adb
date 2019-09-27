@@ -17,64 +17,27 @@ is
    package body Item
    with SPARK_Mode
    is
-      --
-      --  Execute
-      --
-      procedure Execute (
-         Obj : in out Item_Type;
-         Key :        Key_Type)
-      is
-      begin
-         case Primitive.Operation (Obj.Prim) is
-         when Write =>
+		--
+		-- Mark_Completed_Primitive
+		--
+		procedure Mark_Completed_Primitive(
+			Obj : in out Item_Type;
+			Prm :        Primitive.Object_Type)
+		is
+		begin
 
-            Aes_Cbc_4k.Encrypt (
-               Key,
-               Aes_Cbc_4k.Block_Number_Type (
-                  Primitive.Block_Number (Obj.Prim)),
-               Obj.Plain_Data, Obj.Cipher_Data);
+			if
+				Obj.State /= In_Progress or else
+				Primitive.Block_Number (Obj.Prim) /= Primitive.Block_Number (Prm) or else
+				Primitive.Operation (Obj.Prim) /= Primitive.Operation (Prm)
+			then
+				return;
+			end if;
 
-            Primitive.Success (Obj.Prim, True);
-            Obj.State := Complete;
+			Obj.State := Item.Complete;
+			Primitive.Success(Obj.Prim, Primitive.Success(Prm));
 
-         when others =>
-
-            Obj.State := Pending;
-
-         end case;
-      end Execute;
-
-      --
-      --  Mark_Completed_Primitive
-      --
-      procedure Mark_Completed_Primitive (
-         Obj : in out Item_Type;
-         Prm :        Primitive.Object_Type;
-         Key :        Key_Type)
-      is
-      begin
-         if
-            Obj.State /= In_Progress or else
-            not Primitive.Equal (Obj.Prim, Prm)
-         then
-            return;
-         end if;
-
-         if
-            Primitive.Operation (Obj.Prim) = Read and then
-            Primitive.Success (Prm)
-         then
-            Aes_Cbc_4k.Decrypt (
-               Key,
-               Aes_Cbc_4k.Block_Number_Type (
-                  Primitive.Block_Number (Obj.Prim)),
-               Obj.Cipher_Data, Obj.Plain_Data);
-         end if;
-
-         Obj.State := Item.Complete;
-         Primitive.Success (Obj.Prim, Primitive.Success (Prm));
-
-      end Mark_Completed_Primitive;
+		end Mark_Completed_Primitive;
 
       --
       --  Return true if crypto item belongs to primitive and the result
@@ -147,7 +110,7 @@ is
          Plain_Dat  : Plain_Data_Type)
       return Item_Type
       is (
-         State       => Submitted,
+         State       => Pending,
          Prim        => Prm,
          Plain_Data  => Plain_Dat,
          Cipher_Data => (others => 0));
@@ -160,7 +123,7 @@ is
          Cipher_Dat : Cipher_Data_Type)
       return Item_Type
       is (
-         State       => Submitted,
+         State       => Pending,
          Prim        => Prm,
          Plain_Data  => (others => 0),
          Cipher_Data => Cipher_Dat);
@@ -175,9 +138,6 @@ is
       function Pending (Obj : Item_Type) return Boolean
       is (Obj.State = Pending);
 
-      function Submitted (Obj : Item_Type) return Boolean
-      is (Obj.State = Submitted);
-
       function In_Progress (Obj : Item_Type) return Boolean
       is (Obj.State = In_Progress);
 
@@ -187,12 +147,6 @@ is
       function Prim (Obj : Item_Type) return Primitive.Object_Type
       is (Obj.Prim);
 
-      function Plain_Data (Obj : Item_Type) return Plain_Data_Type
-      is (Obj.Plain_Data);
-
-      function Cipher_Data (Obj : Item_Type) return Cipher_Data_Type
-      is (Obj.Cipher_Data);
-
       -----------------------
       --  Write Accessors  --
       -----------------------
@@ -200,26 +154,72 @@ is
       procedure State (Obj : in out Item_Type; Sta : State_Type)
       is begin Obj.State := Sta; end State;
 
-   end Item;
+		--
+		-- XXX remove later
+		--
 
-   --
-   --  Initialize_Object
-   --
-   procedure Initialize_Object (
-      Obj : out Object_Type;
-      Key :     Key_Type)
-   is
-   begin
-      Obj := Initialized_Object (Key);
-   end Initialize_Object;
+		procedure Obtain_Plain_Data (
+			Item        :     Item_Type;
+			Prim        :     Primitive.Object_Type;
+			Plain_Data : out Plain_Data_Type)
+		is
+		begin
+			if not Primitive.Valid (Prim) then
+				return;
+			end if;
+
+			Plain_Data := Item.Plain_Data;
+		end Obtain_Plain_Data;
+
+
+		procedure Obtain_Cipher_Data (
+			Item        :     Item_Type;
+			Prim        :     Primitive.Object_Type;
+			Cipher_Data : out Cipher_Data_Type)
+		is
+		begin
+			if not Primitive.Valid (Prim) then
+				return;
+			end if;
+
+			Cipher_Data := Item.Cipher_Data;
+		end Obtain_Cipher_Data;
+
+
+		procedure Supply_Plain_Data (
+			Item        : out Item_Type;
+			Prim        :     Primitive.Object_Type;
+			Plain_Data :      Plain_Data_Type)
+		is
+		begin
+			if not Primitive.Valid (Prim) then
+				return;
+			end if;
+
+			Item.Plain_Data := Plain_Data;
+		end Supply_Plain_Data;
+
+
+		procedure Supply_Cipher_Data (
+			Item        : out Item_Type;
+			Prim        :     Primitive.Object_Type;
+			Cipher_Data :     Cipher_Data_Type)
+		is
+		begin
+			if not Primitive.Valid (Prim) then
+				return;
+			end if;
+
+			Item.Cipher_Data := Cipher_Data;
+		end Supply_Cipher_Data;
+   end Item;
 
    --
    --  Initialized_Object
    --
-   function Initialized_Object (Key : Key_Type)
+   function Initialized_Object
    return Object_Type
    is (
-      Key              => Key,
       Items            => (others => Item.Invalid_Object),
       Execute_Progress => False);
 
@@ -281,21 +281,6 @@ is
       end loop Items_Loop;
 
    end Submit_Decryption_Primitive;
-
-   --
-   --  Execute
-   --
-   procedure Execute (Obj : in out Object_Type)
-   is
-   begin
-      Obj.Execute_Progress := False;
-      Items_Loop : for Item_Id in Obj.Items'Range loop
-         if Item.Submitted (Obj.Items (Item_Id)) then
-            Item.Execute (Obj.Items (Item_Id), Obj.Key);
-            Obj.Execute_Progress := True;
-         end if;
-      end loop Items_Loop;
-   end Execute;
 
    --
    --  Peek_Generated_Primitive
@@ -368,7 +353,7 @@ is
    is
    begin
       for Item_Id in Obj.Items'Range loop
-         Item.Mark_Completed_Primitive (Obj.Items (Item_Id), Prim, Obj.Key);
+         Item.Mark_Completed_Primitive (Obj.Items (Item_Id), Prim);
       end loop;
    end Mark_Completed_Primitive;
 
@@ -400,5 +385,55 @@ is
 
    function Execute_Progress (Obj : Object_Type) return Boolean
    is (Obj.Execute_Progress);
+
+	--
+	-- XXX remove later
+	--
+	procedure Obtain_Plain_Data(
+		Obj        :     Crypto.Object_Type;
+		Prim       :     Primitive.Object_Type;
+		Plain_Data : out Crypto.Plain_Data_Type)
+	is
+	begin
+		for Item_Id in Obj.Items'Range loop
+			Item.Obtain_Plain_Data(Obj.Items(Item_Id), Prim, Plain_Data);
+		end loop;
+	end Obtain_Plain_Data;
+
+
+	procedure Supply_Cipher_Data(
+		Obj         : out Crypto.Object_Type;
+		Prim        :     Primitive.Object_Type;
+		Cipher_Data :     Cipher_Data_Type)
+	is
+	begin
+		for Item_Id in Obj.Items'Range loop
+			Item.Supply_Cipher_Data(Obj.Items(Item_Id), Prim, Cipher_Data);
+		end loop;
+	end Supply_Cipher_Data;
+
+
+	procedure Obtain_Cipher_Data(
+		Obj         :     Crypto.Object_Type;
+		Prim        :     Primitive.Object_Type;
+		Cipher_Data : out Cipher_Data_Type)
+	is
+	begin
+		for Item_Id in Obj.Items'Range loop
+			Item.Obtain_Cipher_Data(Obj.Items(Item_Id), Prim, Cipher_Data);
+		end loop;
+	end Obtain_Cipher_Data;
+
+
+	procedure Supply_Plain_Data(
+		Obj         : out Crypto.Object_Type;
+		Prim        :     Primitive.Object_Type;
+		Plain_Data :     Plain_Data_Type)
+	is
+	begin
+		for Item_Id in Obj.Items'Range loop
+			Item.Supply_Plain_Data(Obj.Items(Item_Id), Prim, Plain_Data);
+		end loop;
+	end Supply_Plain_Data;
 
 end CBE.Crypto;

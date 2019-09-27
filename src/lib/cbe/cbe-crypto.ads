@@ -9,7 +9,6 @@
 pragma Ada_2012;
 
 with CBE.Primitive;
-with Aes_Cbc_4k;
 
 package CBE.Crypto
 with SPARK_Mode
@@ -17,27 +16,15 @@ is
    --  Disable for now because of libsparkcrypto
    --  pragma Pure;
 
-   subtype Key_Type         is Aes_Cbc_4k.Key_Type;
-   subtype Plain_Data_Type  is Aes_Cbc_4k.Plaintext_Type;
-   subtype Cipher_Data_Type is Aes_Cbc_4k.Ciphertext_Type;
+	subtype Plain_Data_Type  is CBE.Block_Data_Type;
+	subtype Cipher_Data_Type is CBE.Block_Data_Type;
 
    type Object_Type is private;
 
    --
-   --  Initialize_Object
-   --
-   --  FIXME will not be used anymore when the library module is in spark
-   --
-   procedure Initialize_Object (
-      Obj : out Object_Type;
-      Key :     Key_Type)
-   with
-      Post => (Primitive_Acceptable (Obj));
-
-   --
    --  Initialized_Object
    --
-   function Initialized_Object (Key : Key_Type)
+   function Initialized_Object
    return Object_Type;
 
    --
@@ -65,11 +52,6 @@ is
       Plain_Data  :        Plain_Data_Type)
    with
       Pre => (Primitive_Acceptable (Obj) and then Primitive.Valid (Prim));
-
-   --
-   --  Execute
-   --
-   procedure Execute (Obj : in out Object_Type);
 
    --
    --  Peek_Generated_Primitive
@@ -130,6 +112,26 @@ is
 
    function Execute_Progress (Obj : Object_Type) return Boolean;
 
+	procedure Obtain_Plain_Data(
+		Obj        :     Crypto.Object_Type;
+		Prim       :     Primitive.Object_Type;
+		Plain_Data : out Crypto.Plain_Data_Type);
+
+	procedure Supply_Cipher_Data(
+		Obj         : out Crypto.Object_Type;
+		Prim        :     Primitive.Object_Type;
+		Cipher_Data :     Cipher_Data_Type);
+
+	procedure Obtain_Cipher_Data(
+		Obj         :     Crypto.Object_Type;
+		Prim        :     Primitive.Object_Type;
+		Cipher_Data : out Cipher_Data_Type);
+
+	procedure Supply_Plain_Data(
+		Obj         : out Crypto.Object_Type;
+		Prim        :     Primitive.Object_Type;
+		Plain_Data :     Plain_Data_Type);
+
 private
 
    --
@@ -138,22 +140,15 @@ private
    package Item
    with SPARK_Mode
    is
-      type State_Type is (Invalid, Submitted, Pending, In_Progress, Complete);
+      type State_Type is (Invalid, Pending, In_Progress, Complete);
       type Item_Type  is private;
-      --
-      --  Execute
-      --
-      procedure Execute (
-         Obj : in out Item_Type;
-         Key :        Key_Type);
 
       --
       --  Mark_Completed_Primitive
       --
       procedure Mark_Completed_Primitive (
          Obj : in out Item_Type;
-         Prm :        Primitive.Object_Type;
-         Key :        Key_Type);
+         Prm :        Primitive.Object_Type);
 
       --
       --  Copy_Decrypted_Data
@@ -199,12 +194,9 @@ private
 
       function Invalid     (Obj : Item_Type) return Boolean;
       function Pending     (Obj : Item_Type) return Boolean;
-      function Submitted   (Obj : Item_Type) return Boolean;
       function In_Progress (Obj : Item_Type) return Boolean;
       function Complete    (Obj : Item_Type) return Boolean;
       function Prim        (Obj : Item_Type) return Primitive.Object_Type;
-      function Plain_Data  (Obj : Item_Type) return Plain_Data_Type;
-      function Cipher_Data (Obj : Item_Type) return Cipher_Data_Type;
 
       -----------------------
       --  Write Accessors  --
@@ -212,6 +204,30 @@ private
 
       procedure State (Obj : in out Item_Type; Sta : State_Type)
       with Pre => not Invalid (Obj);
+
+		--
+		-- XXX remove later
+		--
+
+		procedure Obtain_Plain_Data (
+			Item        :     Item_Type;
+			Prim        :     Primitive.Object_Type;
+			Plain_Data : out Plain_Data_Type);
+
+		procedure Supply_Cipher_Data (
+			Item        : out Item_Type;
+			Prim        :     Primitive.Object_Type;
+			Cipher_Data :     Cipher_Data_Type);
+
+		procedure Obtain_Cipher_Data (
+			Item        :     Item_Type;
+			Prim        :     Primitive.Object_Type;
+			Cipher_Data : out Cipher_Data_Type);
+
+		procedure Supply_Plain_Data (
+			Item        : out Item_Type;
+			Prim        :     Primitive.Object_Type;
+			Plain_Data :      Plain_Data_Type);
 
    private
 
@@ -233,7 +249,6 @@ private
    --  Object_Type
    --
    type Object_Type is record
-      Key              : Key_Type;
       Items            : Items_Type;
       Execute_Progress : Boolean;
    end record;
