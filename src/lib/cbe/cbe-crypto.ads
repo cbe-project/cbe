@@ -1,9 +1,9 @@
 --
--- Copyright (C) 2019 Genode Labs GmbH, Componolit GmbH, secunet AG
+--  Copyright (C) 2019 Genode Labs GmbH, Componolit GmbH, secunet AG
 --
--- This file is part of the Consistent Block Encrypter project, which is
--- distributed under the terms of the GNU Affero General Public License
--- version 3.
+--  This file is part of the Consistent Block Encrypter project, which is
+--  distributed under the terms of the GNU Affero General Public License
+--  version 3.
 --
 
 pragma Ada_2012;
@@ -12,231 +12,230 @@ with CBE.Primitive;
 with Aes_Cbc_4k;
 
 package CBE.Crypto
-with Spark_Mode
+with SPARK_Mode
 is
-	--  Disable for now because of libsparkcrypto
-	--  pragma Pure;
+   --  Disable for now because of libsparkcrypto
+   --  pragma Pure;
 
-	subtype Key_Type         is Aes_Cbc_4k.Key_Type;
-	subtype Plain_Data_Type  is Aes_Cbc_4k.Plaintext_Type;
-	subtype Cipher_Data_Type is Aes_Cbc_4k.Ciphertext_Type;
+   subtype Key_Type         is Aes_Cbc_4k.Key_Type;
+   subtype Plain_Data_Type  is Aes_Cbc_4k.Plaintext_Type;
+   subtype Cipher_Data_Type is Aes_Cbc_4k.Ciphertext_Type;
 
-	type Object_Type is private;
+   type Object_Type is private;
 
-	--
-	-- Initialize_Object
-	--
-	-- FIXME will not be used anymore when the library module is in spark
-	--
-	procedure Initialize_Object(
-		Obj : out Object_Type;
-		Key :     Key_Type)
-	with
-		Post => (Primitive_Acceptable(Obj));
+   --
+   --  Initialize_Object
+   --
+   --  FIXME will not be used anymore when the library module is in spark
+   --
+   procedure Initialize_Object (
+      Obj : out Object_Type;
+      Key :     Key_Type)
+   with
+      Post => (Primitive_Acceptable (Obj));
 
-	--
-	-- Initialized_Object
-	--
-	function Initialized_Object (Key : Key_Type)
-	return Object_Type;
+   --
+   --  Initialized_Object
+   --
+   function Initialized_Object (Key : Key_Type)
+   return Object_Type;
 
-	--
-	-- Primitive_Acceptable
-	--
-	function Primitive_Acceptable(Obj : Object_Type)
-	return Boolean;
+   --
+   --  Primitive_Acceptable
+   --
+   function Primitive_Acceptable (Obj : Object_Type)
+   return Boolean;
 
-	--
-	-- Submit_Decryption_Primitive
-	--
-	procedure Submit_Decryption_Primitive(
-		Obj         : in out Object_Type;
-		Prim        :        Primitive.Object_Type;
-		Cipher_Data :        Cipher_Data_Type)
-	with
-		Pre => (Primitive_Acceptable(Obj) and Primitive.Valid(Prim));
+   --
+   --  Submit_Decryption_Primitive
+   --
+   procedure Submit_Decryption_Primitive (
+      Obj         : in out Object_Type;
+      Prim        :        Primitive.Object_Type;
+      Cipher_Data :        Cipher_Data_Type)
+   with
+      Pre => (Primitive_Acceptable (Obj) and then Primitive.Valid (Prim));
 
-	--
-	-- Submit_Encryption_Primitive
-	--
-	procedure Submit_Encryption_Primitive(
-		Obj         : in out Object_Type;
-		Prim        :        Primitive.Object_Type;
-		Plain_Data  :        Plain_Data_Type)
-	with
-		Pre => (Primitive_Acceptable(Obj) and Primitive.Valid(Prim));
+   --
+   --  Submit_Encryption_Primitive
+   --
+   procedure Submit_Encryption_Primitive (
+      Obj         : in out Object_Type;
+      Prim        :        Primitive.Object_Type;
+      Plain_Data  :        Plain_Data_Type)
+   with
+      Pre => (Primitive_Acceptable (Obj) and then Primitive.Valid (Prim));
 
-	--
-	-- Execute
-	--
-	procedure Execute(Obj : in out Object_Type);
+   --
+   --  Execute
+   --
+   procedure Execute (Obj : in out Object_Type);
 
-	--
-	-- Peek_Generated_Primitive
-	--
-	function Peek_Generated_Primitive(Obj : Object_Type)
-	return Primitive.Object_Type;
+   --
+   --  Peek_Generated_Primitive
+   --
+   function Peek_Generated_Primitive (Obj : Object_Type)
+   return Primitive.Object_Type;
 
-	--
-	-- Drop_Generated_Primitive
-	--
-	procedure Drop_Generated_Primitive(
-		Obj  : in out Object_Type;
-		Prim :        Primitive.Object_Type)
-	with
-		Pre => (Primitive.Valid(Prim));
+   --
+   --  Drop_Generated_Primitive
+   --
+   procedure Drop_Generated_Primitive (
+      Obj  : in out Object_Type;
+      Prim :        Primitive.Object_Type)
+   with
+      Pre => (Primitive.Valid (Prim));
 
-	--
-	-- Peek_Completed_Primitive
-	--
-	function Peek_Completed_Primitive(Obj : Object_Type)
-	return Primitive.Object_Type;
+   --
+   --  Peek_Completed_Primitive
+   --
+   function Peek_Completed_Primitive (Obj : Object_Type)
+   return Primitive.Object_Type;
 
-	--
-	-- Drop_Completed_Primitive
-	--
-	procedure Drop_Completed_Primitive(
-		Obj  : in out Object_Type;
-		Prim :        Primitive.Object_Type)
-	with
-		Pre => (Primitive.Valid(Prim));
+   --
+   --  Drop_Completed_Primitive
+   --
+   procedure Drop_Completed_Primitive (
+      Obj  : in out Object_Type;
+      Prim :        Primitive.Object_Type)
+   with
+      Pre => (Primitive.Valid (Prim));
 
-	--
-	-- Mark_Completed_Primitive
-	--
-	procedure Mark_Completed_Primitive(
-		Obj  : in out Object_Type;
-		Prim :        Primitive.Object_Type);
+   --
+   --  Mark_Completed_Primitive
+   --
+   procedure Mark_Completed_Primitive (
+      Obj  : in out Object_Type;
+      Prim :        Primitive.Object_Type);
 
-	--
-	-- Copy_Decrypted_Data
-	--
-	procedure Copy_Decrypted_Data (
-		Obj        :     Object_Type;
-		Prim       :     Primitive.Object_Type;
-		Plain_Data : out Plain_Data_Type);
+   --
+   --  Copy_Decrypted_Data
+   --
+   procedure Copy_Decrypted_Data (
+      Obj        :     Object_Type;
+      Prim       :     Primitive.Object_Type;
+      Plain_Data : out Plain_Data_Type);
 
-	--
-	-- Copy_Encrypted_Data
-	--
-	procedure Copy_Encrypted_Data (
-		Obj         :     Object_Type;
-		Prim        :     Primitive.Object_Type;
-		Cipher_Data : out Cipher_Data_Type);
+   --
+   --  Copy_Encrypted_Data
+   --
+   procedure Copy_Encrypted_Data (
+      Obj         :     Object_Type;
+      Prim        :     Primitive.Object_Type;
+      Cipher_Data : out Cipher_Data_Type);
 
-	---------------
-	-- Accessors --
-	---------------
+   -----------------
+   --  Accessors  --
+   -----------------
 
-	function Execute_Progress(Obj : Object_Type) return Boolean;
+   function Execute_Progress (Obj : Object_Type) return Boolean;
 
 private
 
-	--
-	-- Item
-	--
-	package Item
-	with Spark_Mode
-	is
-		type State_Type is (Invalid, Submitted, Pending, In_Progress, Complete);
-		type Item_Type  is private;
-		--
-		-- Execute
-		--
-		procedure Execute(
-			Obj : in out Item_Type;
-			Key :        Key_Type);
+   --
+   --  Item
+   --
+   package Item
+   with SPARK_Mode
+   is
+      type State_Type is (Invalid, Submitted, Pending, In_Progress, Complete);
+      type Item_Type  is private;
+      --
+      --  Execute
+      --
+      procedure Execute (
+         Obj : in out Item_Type;
+         Key :        Key_Type);
 
-		--
-		-- Mark_Completed_Primitive
-		--
-		procedure Mark_Completed_Primitive(
-			Obj : in out Item_Type;
-			Prm :        Primitive.Object_Type;
-			Key :        Key_Type);
+      --
+      --  Mark_Completed_Primitive
+      --
+      procedure Mark_Completed_Primitive (
+         Obj : in out Item_Type;
+         Prm :        Primitive.Object_Type;
+         Key :        Key_Type);
 
-		--
-		-- Copy_Decrypted_Data
-		--
-		procedure Copy_Decrypted_Data (
-			Item       :     Item_Type;
-			Prim       :     Primitive.Object_Type;
-			Plain_Data : out Crypto.Plain_Data_Type);
+      --
+      --  Copy_Decrypted_Data
+      --
+      procedure Copy_Decrypted_Data (
+         Item       :     Item_Type;
+         Prim       :     Primitive.Object_Type;
+         Plain_Data : out Crypto.Plain_Data_Type);
 
-		--
-		-- Copy_Encrypted_Data
-		--
-		procedure Copy_Encrypted_Data (
-			Item        :     Item_Type;
-			Prim        :     Primitive.Object_Type;
-			Cipher_Data : out Crypto.Cipher_Data_Type);
+      --
+      --  Copy_Encrypted_Data
+      --
+      procedure Copy_Encrypted_Data (
+         Item        :     Item_Type;
+         Prim        :     Primitive.Object_Type;
+         Cipher_Data : out Crypto.Cipher_Data_Type);
 
-		--
-		-- Invalid_Object
-		--
-		function Invalid_Object
-		return Item_Type;
+      --
+      --  Invalid_Object
+      --
+      function Invalid_Object
+      return Item_Type;
 
-		--
-		-- Submitted_Encryption_Object
-		--
-		function Submitted_Encryption_Object(
-			Prm        : Primitive.Object_Type;
-			Plain_Dat  : Plain_Data_Type)
-		return Item_Type;
+      --
+      --  Submitted_Encryption_Object
+      --
+      function Submitted_Encryption_Object (
+         Prm        : Primitive.Object_Type;
+         Plain_Dat  : Plain_Data_Type)
+      return Item_Type;
 
-		--
-		-- Submitted_Decryption_Object
-		--
-		function Submitted_Decryption_Object(
-			Prm        : Primitive.Object_Type;
-			Cipher_Dat : Cipher_Data_Type)
-		return Item_Type;
+      --
+      --  Submitted_Decryption_Object
+      --
+      function Submitted_Decryption_Object (
+         Prm        : Primitive.Object_Type;
+         Cipher_Dat : Cipher_Data_Type)
+      return Item_Type;
 
+      ----------------------
+      --  Read Accessors  --
+      ----------------------
 
-		--------------------
-		-- Read Accessors --
-		--------------------
+      function Invalid     (Obj : Item_Type) return Boolean;
+      function Pending     (Obj : Item_Type) return Boolean;
+      function Submitted   (Obj : Item_Type) return Boolean;
+      function In_Progress (Obj : Item_Type) return Boolean;
+      function Complete    (Obj : Item_Type) return Boolean;
+      function Prim        (Obj : Item_Type) return Primitive.Object_Type;
+      function Plain_Data  (Obj : Item_Type) return Plain_Data_Type;
+      function Cipher_Data (Obj : Item_Type) return Cipher_Data_Type;
 
-		function Invalid     (Obj : Item_Type) return Boolean;
-		function Pending     (Obj : Item_Type) return Boolean;
-		function Submitted   (Obj : Item_Type) return Boolean;
-		function In_Progress (Obj : Item_Type) return Boolean;
-		function Complete    (Obj : Item_Type) return Boolean;
-		function Prim        (Obj : Item_Type) return Primitive.Object_Type;
-		function Plain_Data  (Obj : Item_Type) return Plain_Data_Type;
-		function Cipher_Data (Obj : Item_Type) return Cipher_Data_Type;
+      -----------------------
+      --  Write Accessors  --
+      -----------------------
 
+      procedure State (Obj : in out Item_Type; Sta : State_Type)
+      with Pre => not Invalid (Obj);
 
-		---------------------
-		-- Write Accessors --
-		---------------------
+   private
 
-		procedure State(Obj : in out Item_Type; Sta : State_Type) with Pre => not Invalid(Obj);
+      --
+      --  Item_Type
+      --
+      type Item_Type is record
+         State       : State_Type;
+         Prim        : Primitive.Object_Type;
+         Plain_Data  : Plain_Data_Type;
+         Cipher_Data : Cipher_Data_Type;
+      end record;
 
-	private
+   end Item;
 
-		--
-		-- Item_Type
-		--
-		type Item_Type is record
-			State       : State_Type;
-			Prim        : Primitive.Object_Type;
-			Plain_Data  : Plain_Data_Type;
-			Cipher_Data : Cipher_Data_Type;
-		end record;
+   type Items_Type is array (1 .. 1) of Item.Item_Type;
 
-	end Item;
-
-	type Items_Type is array (1..1) of Item.Item_Type;
-
-	--
-	-- Object_Type
-	--
-	type Object_Type is record
-		Key              : Key_Type;
-		Items            : Items_Type;
-		Execute_Progress : Boolean;
-	end record;
+   --
+   --  Object_Type
+   --
+   type Object_Type is record
+      Key              : Key_Type;
+      Items            : Items_Type;
+      Execute_Progress : Boolean;
+   end record;
 
 end CBE.Crypto;
