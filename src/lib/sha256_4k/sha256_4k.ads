@@ -1,8 +1,9 @@
 --
--- Copyright (C) 2019 Genode Labs GmbH, Componolit GmbH, secunet AG
+--  Copyright (C) 2019 Genode Labs GmbH, Componolit GmbH, secunet AG
 --
--- This file is part of the Consistent Block Encrypter project, which is
--- distributed under the terms of the GNU Affero Gener-- version 3.
+--  This file is part of the Consistent Block Encrypter project, which is
+--  distributed under the terms of the GNU Affero General Public License
+--  version 3.
 --
 
 package SHA256_4K with SPARK_Mode
@@ -18,8 +19,8 @@ is
    subtype Data_Index_Type is Natural range 1 .. 4096;
    subtype Data_Type is Data_Base_Type (Data_Index_Type);
 
-   procedure Hash (Data  :     Data_Type;
-                   Hash        : out Hash_type)
+   procedure Hash (Data :     Data_Type;
+                   Hash : out Hash_Type)
    with Export,
       Convention    => C,
       External_Name => "_ZN9Sha256_4k4hashERKNS_4DataERNS_4HashE";
