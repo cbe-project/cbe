@@ -44,8 +44,8 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 
 		Constructible<Cbe::Library> _cbe;
 
-		Cbe::Super_block_index _cur_sb { Cbe::Super_block_index::INVALID };
-		Cbe::Super_blocks      _super_blocks { };
+		Cbe::Superblock_index _cur_sb { Cbe::Superblock_index::INVALID };
+		Cbe::Superblocks      _super_blocks { };
 
 		Cbe::Time _time { _env.env() };
 
@@ -71,12 +71,12 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 			_block_device    = config.attribute_value("block", _block_device);
 		}
 
-		Cbe::Super_block_index _read_superblocks(Cbe::Super_blocks &sbs)
+		Cbe::Superblock_index _read_superblocks(Cbe::Superblocks &sbs)
 		{
 			Cbe::Generation        last_gen = 0;
-			Cbe::Super_block_index most_recent_sb { Cbe::Super_block_index::INVALID };
+			Cbe::Superblock_index most_recent_sb { Cbe::Superblock_index::INVALID };
 
-			static_assert(sizeof (Cbe::Super_block) == Cbe::BLOCK_SIZE,
+			static_assert(sizeof (Cbe::Superblock) == Cbe::BLOCK_SIZE,
 			              "Super-block size mistmatch");
 
 			/*
@@ -85,9 +85,9 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 			for (uint64_t i = 0; i < Cbe::NUM_SUPER_BLOCKS; i++) {
 				file_size bytes = 0;
 				_backend->seek(i * Cbe::BLOCK_SIZE);
-				Cbe::Super_block &dst = sbs.block[i];
+				Cbe::Superblock &dst = sbs.block[i];
 				if (_backend->read((char *)&dst, Cbe::BLOCK_SIZE, bytes) != File_io_service::READ_OK)
-					return Cbe::Super_block_index();
+					return Cbe::Superblock_index();
 
 				/*
 				 * For now this always selects the last SB if the generation

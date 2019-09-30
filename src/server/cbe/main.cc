@@ -99,8 +99,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		 */
 		Cbe::Request _backend_request { };
 
-		Cbe::Super_block_index _cur_sb { Cbe::Super_block_index::INVALID };
-		Cbe::Super_blocks      _super_blocks { };
+		Cbe::Superblock_index _cur_sb { Cbe::Superblock_index::INVALID };
+		Cbe::Superblocks      _super_blocks { };
 
 		Signal_handler<Main> _request_handler {
 			_env.ep(), *this, &Main::_handle_requests };
@@ -464,19 +464,19 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		 *  \return  index of the most recent super-block or an INVALID
 		 *           index in case the super-block could not be found
 		 */
-		Cbe::Super_block_index _read_superblocks(Cbe::Super_blocks &sbs)
+		Cbe::Superblock_index _read_superblocks(Cbe::Superblocks &sbs)
 		{
 			Cbe::Generation        last_gen = 0;
-			Cbe::Super_block_index most_recent_sb { Cbe::Super_block_index::INVALID };
+			Cbe::Superblock_index most_recent_sb { Cbe::Superblock_index::INVALID };
 
 			/*
 			 * Read all super block slots and use the most recent one.
 			 */
 			for (uint64_t i = 0; i < Cbe::NUM_SUPER_BLOCKS; i++) {
-				Util::Block_io io(_block, sizeof (Cbe::Super_block), i, 1);
+				Util::Block_io io(_block, sizeof (Cbe::Superblock), i, 1);
 				void const       *src = io.addr<void*>();
-				Cbe::Super_block &dst = sbs.block[i];
-				Genode::memcpy(&dst, src, sizeof (Cbe::Super_block));
+				Cbe::Superblock &dst = sbs.block[i];
+				Genode::memcpy(&dst, src, sizeof (Cbe::Superblock));
 
 				/*
 				 * For now this always selects the last SB if the generation
@@ -532,8 +532,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			 *  SB to start from and whenever it wants to write a new one, it should pass
 			 *  the block on to the outside.)
 			 */
-			Cbe::Super_block_index curr_sb = _read_superblocks(_super_blocks);
-			if (curr_sb.value == Cbe::Super_block_index::INVALID) {
+			Cbe::Superblock_index curr_sb = _read_superblocks(_super_blocks);
+			if (curr_sb.value == Cbe::Superblock_index::INVALID) {
 				Genode::error("no valid super block found");
 				throw -1;
 			}

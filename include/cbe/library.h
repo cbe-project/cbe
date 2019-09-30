@@ -64,8 +64,8 @@ class Cbe::Library : public Cbe::Spark_object<216648>
 	 *
 	 * \param  current_sb  super-block that should be used initially
 	 */
-	Library(Super_blocks const &sbs,
-	        Super_block_index   current_sb);
+	Library(Superblocks const &sbs,
+	        Superblock_index   current_sb);
 
 	/**
 	 * Print current active super-block/snapshot information to LOG

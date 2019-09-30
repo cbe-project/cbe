@@ -43,8 +43,8 @@ namespace Cbe {
 	using Number_of_blocks       = uint64_t;
 	using Degree                 = uint32_t;
 	using Timestamp              = uint64_t;
-	using Superblock_index       = uint64_t;
 	using Snapshot_index         = uint32_t;
+	using Number_of_superblocks  = uint64_t;
 
 	struct Index {
 		enum { INVALID = 18446744073709551615ULL, };
@@ -93,7 +93,7 @@ namespace Cbe {
 
 
 	/*
-	 * The Cbe::Request is a loose reimagination of the Block::Request
+	 * The Request is a loose reimagination of the Block::Request
 	 * type and is used to seperate the C++ and SPARK even more, e.g.,
 	 * it is packed whereas the Block::Request is not.
 	 *
@@ -123,7 +123,7 @@ namespace Cbe {
 			    || operation == Operation::SYNC;
 		}
 
-		bool equal(Cbe::Request const &rhs) const
+		bool equal(Request const &rhs) const
 		{
 			return tag          == rhs.tag
 			    && block_number == rhs.block_number
@@ -160,7 +160,7 @@ namespace Cbe {
 
 
 	/*
-	 * The Cbe::Primitive is the primary data structure within the CBE
+	 * The Primitive is the primary data structure within the CBE
 	 * and encapsulates a CBE operation.
 	 */
 	struct Primitive
@@ -190,7 +190,7 @@ namespace Cbe {
 			    || operation == Operation::SYNC;
 		}
 
-		bool equal(Cbe::Primitive const &rhs) const
+		bool equal(Primitive const &rhs) const
 		{
 			return tag          == rhs.tag
 			    && block_number == rhs.block_number
@@ -251,7 +251,7 @@ namespace Cbe {
 	} __attribute__((packed));
 
 	/*
-	 * The Cbe::Tree_helper makes the information about used
+	 * The Tree_helper makes the information about used
 	 * tree available.
 	 */
 	enum {
@@ -276,32 +276,32 @@ namespace Cbe {
 
 		static constexpr Genode::uint32_t bytes() { return sizeof(Tree_helper); }
 
-		Cbe::Degree const _degree;
-		Cbe::Height const _height;
-		Cbe::Number_of_leaves const _leafs;
+		Degree const _degree;
+		Height const _height;
+		Number_of_leaves const _leafs;
 
-		Cbe::Degree const _degree_log2 { _log2(_degree) };
-		Cbe::Degree const _degree_mask { (1u << _degree_log2) - 1 };
+		Degree const _degree_log2 { _log2(_degree) };
+		Degree const _degree_mask { (1u << _degree_log2) - 1 };
 
-		Tree_helper(Cbe::Degree           const degree,
-		            Cbe::Height           const height,
-		            Cbe::Number_of_leaves const leafs)
+		Tree_helper(Degree           const degree,
+		            Height           const height,
+		            Number_of_leaves const leafs)
 		: _degree(degree), _height(height), _leafs(leafs) { }
 
-		uint32_t index(Cbe::Virtual_block_address const vba,
+		uint32_t index(Virtual_block_address const vba,
 		               uint32_t                   const level) const
 		{
 			return (vba >> (_degree_log2 * (level - 1)) & _degree_mask);
 		}
 
-		Cbe::Height height()          const { return _height; }
-		Cbe::Degree degree()          const { return _degree; }
-		Cbe::Number_of_leaves leafs() const { return _leafs; }
+		Height height()          const { return _height; }
+		Degree degree()          const { return _degree; }
+		Number_of_leaves leafs() const { return _leafs; }
 	};
 
 
 	/*
-	 * The Cbe::Block_data encapsulates the data of a complete on
+	 * The Block_data encapsulates the data of a complete on
 	 * disk sector.
 	 */
 	struct Block_data
@@ -321,7 +321,7 @@ namespace Cbe {
 
 
 	/*
-	 * The Cbe::Hash contains the hash of a node.
+	 * The Hash contains the hash of a node.
 	 */
 	struct Hash
 	{
@@ -355,7 +355,7 @@ namespace Cbe {
 
 
 	/*
-	 * The Cbe::Key contains the key-material that is used to
+	 * The Key contains the key-material that is used to
 	 * process cipher-blocks.
 	 *
 	 * (For now it is not used but the ID field is already referenced
@@ -385,7 +385,7 @@ namespace Cbe {
 
 
 	/*
-	 * The Cbe::Snapshot stores the information about given tree within
+	 * The Snapshot stores the information about given tree within
 	 * the CBE.
 	 */
 	struct Snapshot
@@ -426,14 +426,19 @@ namespace Cbe {
 
 
 	/*
-	 * The Cbe::Super_block_index
+	 * The Superblock_index
 	 *
 	 * (It stands to reason if the type is needed.)
 	 */
-	struct Super_block_index
+	struct Superblock_index
 	{
 		enum { INVALID  = 255, };
-		uint64_t value { INVALID };
+
+		uint64_t value;
+
+		Superblock_index(uint64_t val) : value(val) { }
+
+		Superblock_index() : value(INVALID) { }
 
 		void print(Genode::Output &out) const
 		{
@@ -445,7 +450,7 @@ namespace Cbe {
 
 
 	/*
-	 * The Cbe::Super_block contains all information of a CBE
+	 * The Superblock contains all information of a CBE
 	 * instance including the list of active snapshots. For now
 	 * the super-blocks are stored consecutively at the beginning
 	 * of the block device, i.e., there is a 1:1 mapping between
@@ -457,10 +462,10 @@ namespace Cbe {
 	 * automatically. If a snapshot is flagged as KEEP, it will never
 	 * be overriden.
 	 */
-	enum : Snapshot_index { NUM_SNAPSHOTS = 48 };
-	enum : Superblock_index { NUM_SUPER_BLOCKS = 8 };
+	enum : Snapshot_index        { NUM_SNAPSHOTS = 48 };
+	enum : Number_of_superblocks { NUM_SUPER_BLOCKS = 8 };
 
-	struct Super_block
+	struct Superblock
 	{
 		enum { NUM_KEYS = 2u };
 		enum { INVALID_SNAPSHOT_SLOT = NUM_SNAPSHOTS, };
@@ -499,7 +504,7 @@ namespace Cbe {
 		Snapshot_index snapshot_slot() const
 		{
 			Snapshot_index snap_slot = INVALID_SNAPSHOT_SLOT;
-			for (Snapshot_index i = 0; i < Cbe::NUM_SNAPSHOTS; i++) {
+			for (Snapshot_index i = 0; i < NUM_SNAPSHOTS; i++) {
 				Snapshot const &snap = snapshots[i];
 				if (!snap.valid()) { continue; }
 
@@ -513,23 +518,22 @@ namespace Cbe {
 
 		bool valid() const
 		{
-			return last_secured_generation != Cbe::INVALID_GEN;
+			return last_secured_generation != INVALID_GEN;
 		}
 
 	} __attribute__((packed));
 
-	static_assert(sizeof(Cbe::Super_block) == Cbe::BLOCK_SIZE);
+	static_assert(sizeof(Superblock) == BLOCK_SIZE);
 
 
-	struct Super_blocks
+	struct Superblocks
 	{
-		Super_block block[Cbe::NUM_SUPER_BLOCKS];
+		Superblock block[NUM_SUPER_BLOCKS];
 
 	} __attribute__((packed));
 
 	static_assert(
-		sizeof(Cbe::Super_blocks) ==
-		Cbe::NUM_SUPER_BLOCKS * Cbe::BLOCK_SIZE);
+		sizeof(Superblocks) == NUM_SUPER_BLOCKS * BLOCK_SIZE);
 
 	/*
 	 * (Strictly speaking the following node types are not the
@@ -539,7 +543,7 @@ namespace Cbe {
 	 */
 
 	/*
-	 * The Cbe::Type_i_node contains the on-disk type 1 inner node
+	 * The Type_i_node contains the on-disk type 1 inner node
 	 * information. This node is the primary tree node and as such
 	 * used by the virtual-block-device as well as the free-tree.
 	 *
@@ -550,9 +554,9 @@ namespace Cbe {
 	{
 		enum { MAX_NODE_SIZE = 64u, };
 
-		Cbe::Physical_block_address pba;
-		Cbe::Generation             gen;
-		Cbe::Hash                   hash;
+		Physical_block_address pba;
+		Generation             gen;
+		Hash                   hash;
 		char                        padding[16];
 
 	} __attribute__((packed));
@@ -563,19 +567,19 @@ namespace Cbe {
 
 
 	/*
-	 * The Cbe::Type_1_node_info contains the in-memory type 1 node
+	 * The Type_1_node_info contains the in-memory type 1 node
 	 * information.
 	 */
 	struct Type_1_node_info
 	{
-		Cbe::Physical_block_address pba;
-		Cbe::Generation             gen;
-		Cbe::Hash                   hash;
+		Physical_block_address pba;
+		Generation             gen;
+		Hash                   hash;
 	};
 
 
 	/*
-	 * The Cbe::Type_i_node contains the on-disk type 2 inner node
+	 * The Type_i_node contains the on-disk type 2 inner node
 	 * information. This node is only used in the free-tree at the
 	 * level directly above the leaf nodes.
 	 */
@@ -583,13 +587,13 @@ namespace Cbe {
 	{
 		enum { MAX_NODE_SIZE = 64u, };
 
-		Cbe::Physical_block_address pba;
-		Cbe::Virtual_block_address  last_vba;
-		Cbe::Generation             alloc_gen;
-		Cbe::Generation             free_gen;
-		Cbe::Key::Id                last_key_id;
-		bool                        reserved;
-		char                        padding[27];
+		Physical_block_address pba;
+		Virtual_block_address  last_vba;
+		Generation             alloc_gen;
+		Generation             free_gen;
+		Key::Id                last_key_id;
+		bool                   reserved;
+		char                   padding[27];
 
 	} __attribute__((packed));
 

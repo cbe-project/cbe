@@ -409,8 +409,8 @@ class Cbe::Vbd
 		                         Block_allocator       &blk_alloc)
 		{
 			/* get reference to super-block */
-			Cbe::Super_block const &sb {
-				*reinterpret_cast<Cbe::Super_block const*>(blk_alloc.data(sb_id)) };
+			Cbe::Superblock const &sb {
+				*reinterpret_cast<Cbe::Superblock const*>(blk_alloc.data(sb_id)) };
 
 			/* add super-block tag */
 			xml.node("super-block", [&] () {
@@ -474,8 +474,8 @@ class Cbe::Vbd
 			uint64_t curr_sb_id { ~0ull };
 			for (uint64_t sb_id = 0; sb_id < Cbe::NUM_SUPER_BLOCKS; sb_id++) {
 
-				Cbe::Super_block const &sb {
-					*reinterpret_cast<Cbe::Super_block const*>(ba.data(sb_id)) };
+				Cbe::Superblock const &sb {
+					*reinterpret_cast<Cbe::Superblock const*>(ba.data(sb_id)) };
 				Cbe::Generation  const gen { sb.last_secured_generation };
 
 				if (sb.valid() && gen >= most_recent_gen) {
@@ -561,7 +561,7 @@ class Cbe::Vbd
 		                        Cbe::Block_allocator  &blk_alloc)
 		{
 			/* read super-block information from config to buffer */
-			Cbe::Super_block sb;
+			Cbe::Superblock sb;
 			xml.attribute("generation" ).value(&sb.generation);
 			xml.attribute("leafs"      ).value(&sb.leaves);
 			xml.attribute("degree"     ).value(&sb.degree);
@@ -588,7 +588,7 @@ class Cbe::Vbd
 				Genode::memcpy(sb.root_hash.values, hash.values, sizeof(hash));
 			}
 			/* write buffer content to block device */
-			*reinterpret_cast<Cbe::Super_block*>(
+			*reinterpret_cast<Cbe::Superblock*>(
 				blk_alloc.data(xml.attribute_value(
 					"id", (Cbe::Physical_block_address)0))) = sb;
 		}
@@ -879,7 +879,7 @@ class Cbe::Vbd
 			Cbe::Generation most_recent_gen = 0;
 			uint64_t idx = ~0ull;
 			for (uint64_t i = 0; i < Cbe::NUM_SUPER_BLOCKS; i++) {
-				Cbe::Super_block &sb = *reinterpret_cast<Cbe::Super_block*>(ba.data(i));
+				Cbe::Superblock &sb = *reinterpret_cast<Cbe::Superblock*>(ba.data(i));
 				Cbe::Generation const gen  = sb.last_secured_generation;
 				if (sb.valid() && gen >= most_recent_gen) {
 					most_recent_gen = gen;
@@ -892,7 +892,7 @@ class Cbe::Vbd
 
 				if (!all && i != idx) { continue; }
 
-				Cbe::Super_block &sb = *reinterpret_cast<Cbe::Super_block*>(ba.data(i));
+				Cbe::Superblock &sb = *reinterpret_cast<Cbe::Superblock*>(ba.data(i));
 
 				if (!sb.valid()) {
 					Genode::log("          SB[", i, "] invalid");
@@ -1231,7 +1231,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				Genode::log("Use parameters to initalize VBD");
 
 				/* initialise first super block slot */
-				Cbe::Super_block &sb = *reinterpret_cast<Cbe::Super_block*>(_block_allocator->data(0));
+				Cbe::Superblock &sb = *reinterpret_cast<Cbe::Superblock*>(_block_allocator->data(0));
 				sb.degree                  = info.outer_degree;
 				sb.last_secured_generation = 0;
 				sb.snapshot_id             = 0;
@@ -1272,7 +1272,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				/* clear other super block slots */
 				for (uint64_t i = 1; i < Cbe::NUM_SUPER_BLOCKS; i++) {
 
-					Cbe::Super_block &sbX = *reinterpret_cast<Cbe::Super_block*>(_block_allocator->data(i));
+					Cbe::Superblock &sbX = *reinterpret_cast<Cbe::Superblock*>(_block_allocator->data(i));
 					Genode::memset(&sbX, 0, sizeof(sbX));
 
 					sbX.last_secured_generation = Cbe::INVALID_GEN;

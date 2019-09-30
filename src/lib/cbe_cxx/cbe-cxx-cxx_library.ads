@@ -26,13 +26,13 @@ is
 
    procedure Initialize_Object (
       Obj     : out Library.Object_Type;
-      SBs     :     Super_Blocks_Type;
-      Curr_SB :     Super_Blocks_Index_Type)
+      SBs     :     Superblocks_Type;
+      Curr_SB :     Superblocks_Index_Type)
    with
       Export,
       Convention    => C,
       External_Name =>
-         "_ZN3Cbe7LibraryC2ERKNS_12Super_blocksENS_17Super_block_indexE";
+         "_ZN3Cbe7LibraryC2ERKNS_11SuperblocksENS_16Superblock_indexE";
 
    function Cache_Dirty (Obj : Library.Object_Type)
    return CXX_Bool_Type

@@ -45,8 +45,8 @@ is
    --
    procedure Initialize_Object (
       Obj     : out Object_Type;
-      SBs     :     Super_Blocks_Type;
-      Curr_SB :     Super_Blocks_Index_Type);
+      SBs     :     Superblocks_Type;
+      Curr_SB :     Superblocks_Index_Type);
 
    function Cache_Dirty (Obj : Object_Type)
    return Boolean;
@@ -302,7 +302,7 @@ private
       Free_Tree_Retry_Count   : Free_Tree_Retry_Count_Type;
       Free_Tree_Trans_Data    : Translation_Data_Type;
       Free_Tree_Query_Data    : Query_Data_Type;
-      Super_Blocks            : Super_Blocks_Type;
+      Superblocks             : Superblocks_Type;
       Cur_SB                  : Superblock_Index_Type;
       Cur_Gen                 : Generation_Type;
       Last_Secured_Generation : Generation_Type;
@@ -315,7 +315,7 @@ private
       Back_End_Req_Prim       : Request_Primitive_Type;
    end record;
 
-   function Super_Block_Snapshot_Slot (SB : Super_Block_Type)
+   function Superblock_Snapshot_Slot (SB : Superblock_Type)
    return Snapshot_ID_Type;
 
    function Discard_Snapshot (Active_Snaps : in out Snapshots_Type;
@@ -325,7 +325,7 @@ private
    function To_String (Req_Prim : Request_Primitive_Type) return String;
 
    function Curr_SB (Obj : Object_Type)
-   return Super_Blocks_Index_Type;
+   return Superblocks_Index_Type;
 
    function Curr_Snap (Obj : Object_Type)
    return Snapshots_Index_Type;

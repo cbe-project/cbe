@@ -262,10 +262,10 @@ is
 
    type Keys_Index_Type is range 0 .. 1;
    type Keys_Type is array (Keys_Index_Type) of Key_Type;
-   type Super_Block_Padding_Type is array (0 .. 423) of Byte_Type;
+   type Superblock_Padding_Type is array (0 .. 423) of Byte_Type;
 
    --
-   --  The CBE::Super_block contains all information of a CBE
+   --  The CBE::Superblock contains all information of a CBE
    --  instance including the list of active snapshots. For now
    --  the super-blocks are stored consecutively at the beginning
    --  of the block device, i.e., there is a 1:1 mapping between
@@ -277,7 +277,7 @@ is
    --  automatically. If a snapshot is flagged as KEEP, it will never
    --  be overriden.
    --
-   type Super_Block_Type is record
+   type Superblock_Type is record
       --
       --  FIXME w/o snapshots about 265 bytes,
       --       snapshots about 68 bytes each, all in all 3529 bytes
@@ -304,7 +304,7 @@ is
       Free_Height             : Tree_Level_Type;
       Free_Degree             : Tree_Degree_Type;
       Free_Leafs              : Tree_Number_Of_Leafs_Type;
-      Padding                 : Super_Block_Padding_Type;
+      Padding                 : Superblock_Padding_Type;
    end record with Size =>
        2 * 68 * 8 + --  Keys
       48 * 72 * 8 + --  Snapshots
@@ -319,11 +319,11 @@ is
             8 * 8 + --  Free_Leafs
           424 * 8;  --  Padding
 
-   pragma Assert (Super_Block_Type'Size = Block_Data_Type'Size);
+   pragma Assert (Superblock_Type'Size = Block_Data_Type'Size);
 
-   type Super_Blocks_Index_Type is range 0 .. 7;
-   type Super_Blocks_Type
-   is array (Super_Blocks_Index_Type) of Super_Block_Type
+   type Superblocks_Index_Type is range 0 .. 7;
+   type Superblocks_Type
+   is array (Superblocks_Index_Type) of Superblock_Type
    with Size => 8 * 4096 * 8;
 
    type Timeout_Request_Type is record
