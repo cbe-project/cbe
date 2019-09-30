@@ -53,13 +53,13 @@ class Cbe::Library : public Cbe::Spark_object<216648>
 		void _client_data_required(Request &);
 		void _supply_client_data(Time::Timestamp const, Request const &, Block_data const &, bool &);
 
-		void _encryption_required(Request &request);
-		void _supply_plain_data(Request const &, Block_data const &, bool &);
-		void _obtain_cipher_data(Request const &, Block_data &, bool &);
+		void _crypto_data_required(Request &request);
+		void _supply_crypto_plain_data(Request const &, Block_data const &, bool &);
+		void _obtain_crypto_cipher_data(Request const &, Block_data &, bool &);
 
-		void _decryption_required(Request &);
-		void _supply_cipher_data(Request const &, Block_data const &, bool &);
-		void _obtain_plain_data(Request const &, Block_data &, bool &);
+		void _has_crypto_data_to_decrypt(Request &);
+		void _supply_crypto_cipher_data(Request const &, Block_data const &, bool &);
+		void _obtain_crypto_plain_data(Request const &, Block_data &, bool &);
 
 	public:
 
@@ -325,10 +325,10 @@ class Cbe::Library : public Cbe::Spark_object<216648>
 	 *                needs encrytion, otherwise an invalid one is
 	 *                returned
 	 */
-	Request encryption_required()
+	Request crypto_data_required()
 	{
 		Request result { };
-		_encryption_required(result);
+		_crypto_data_required(result);
 		return result;
 	}
 
@@ -343,11 +343,11 @@ class Cbe::Library : public Cbe::Spark_object<216648>
 	 * \return  true if the CBE could supply the request's data,
 	 *          otherwise false
 	 */
-	bool obtain_plain_data(Request const &request,
-	                       Block_data    &data)
+	bool obtain_crypto_plain_data(Request const &request,
+	                              Block_data    &data)
 	{
 		bool result = false;
-		_obtain_plain_data(request, data, result);
+		_obtain_crypto_plain_data(request, data, result);
 		return result;
 	}
 
@@ -362,11 +362,11 @@ class Cbe::Library : public Cbe::Spark_object<216648>
 	 * \return  true if the CBE could obtain the encrypted data,
 	 *          otherwise false
 	 */
-	bool supply_cipher_data(Request    const &request,
-	                        Block_data const &data)
+	bool supply_crypto_cipher_data(Request    const &request,
+	                               Block_data const &data)
 	{
 		bool result = false;
-		_supply_cipher_data(request, data, result);
+		_supply_crypto_cipher_data(request, data, result);
 		return result;
 	}
 
@@ -377,10 +377,10 @@ class Cbe::Library : public Cbe::Spark_object<216648>
 	 *                needs decrytion, otherwise an invalid one is
 	 *                returned
 	 */
-	Request decryption_required()
+	Request has_crypto_data_to_decrypt()
 	{
 		Request result { };
-		_decryption_required(result);
+		_has_crypto_data_to_decrypt(result);
 		return result;
 	}
 
@@ -395,11 +395,11 @@ class Cbe::Library : public Cbe::Spark_object<216648>
 	 * \return  true if the CBE could supply the ciphr data,
 	 *          otherwise false
 	 */
-	bool obtain_cipher_data(Request    const &request,
-	                        Block_data       &data)
+	bool obtain_crypto_cipher_data(Request    const &request,
+	                               Block_data       &data)
 	{
 		bool result = false;
-		_obtain_cipher_data(request, data, result);
+		_obtain_crypto_cipher_data(request, data, result);
 		return result;
 	}
 
@@ -414,11 +414,11 @@ class Cbe::Library : public Cbe::Spark_object<216648>
 	 * \return  true if the CBE could obtain the decrypted data,
 	 *          otherwise false
 	 */
-	bool supply_plain_data(Request    const &request,
-	                       Block_data const &data)
+	bool supply_crypto_plain_data(Request    const &request,
+	                              Block_data const &data)
 	{
 		bool result = false;
-		_supply_plain_data(request, data, result);
+		_supply_crypto_plain_data(request, data, result);
 		return result;
 	}
 };

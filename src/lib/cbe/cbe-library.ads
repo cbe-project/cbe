@@ -233,7 +233,7 @@ is
 	-- \param Req  return valid request in case the is one pending that
 	--             needs data, otherwise an invalid one is returned
 	--
-	procedure Encryption_Required (
+	procedure Crypto_Data_Required (
 		Obj : in out Object_Type;
 		Req :    out Request.Object_Type);
 
@@ -247,7 +247,7 @@ is
 	--
 	-- \return  true if the CBE could supply the plain data
 	--
-	procedure Obtain_Plain_Data (
+	procedure Obtain_Crypto_Plain_Data (
 		Obj      : in out Library.Object_Type;
 		Req      :        Request.Object_Type;
 		Data     :    out Crypto.Plain_Data_Type;
@@ -263,7 +263,7 @@ is
 	--
 	-- \return  true if the CBE could obtain the encrypted cipher data
 	--
-	procedure Supply_Cipher_Data (
+	procedure Supply_Crypto_Cipher_Data (
 		Obj      : in out Library.Object_Type;
 		Req      :        Request.Object_Type;
 		Data     :        Crypto.Cipher_Data_Type;
@@ -275,7 +275,7 @@ is
 	-- \param Req  return valid request in case the is one pending that
 	--             needs data, otherwise an invalid one is returned
 	--
-	procedure Decryption_Required (
+	procedure Has_Crypto_Data_To_Decrypt (
 		Obj : in out Object_Type;
 		Req :    out Request.Object_Type);
 
@@ -289,7 +289,7 @@ is
 	--
 	-- \return  true if the CBE could supply the cipher data
 	--
-	procedure Obtain_Cipher_Data (
+	procedure Obtain_Crypto_Cipher_Data (
 		Obj      : in out Library.Object_Type;
 		Req      :        Request.Object_Type;
 		Data     :    out Crypto.Cipher_Data_Type;
@@ -305,7 +305,7 @@ is
 	--
 	-- \return  true if the CBE could obtain the decrypted plain data
 	--
-	procedure Supply_Plain_Data (
+	procedure Supply_Crypto_Plain_Data (
 		Obj      : in out Library.Object_Type;
 		Req      :        Request.Object_Type;
 		Data     :        Crypto.Plain_Data_Type;

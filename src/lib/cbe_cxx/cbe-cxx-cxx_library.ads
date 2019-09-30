@@ -235,15 +235,15 @@ is
       Convention    => C,
       External_Name => "_ZNK3Cbe7Library16execute_progressEv";
 
-	procedure Encryption_Required (
+	procedure Crypto_Data_Required (
 		Obj : in out Library.Object_Type;
 		Req :    out CXX_Request_Type)
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe7Library20_encryption_requiredERNS_7RequestE";
+		External_Name => "_ZN3Cbe7Library21_crypto_data_requiredERNS_7RequestE";
 
-	procedure Obtain_Plain_Data (
+	procedure Obtain_Crypto_Plain_Data (
 		Obj      : in out Library.Object_Type;
 		Req      :        CXX_Request_Type;
 		Data     :    out Crypto.Plain_Data_Type;
@@ -251,9 +251,9 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe7Library18_obtain_plain_dataERKNS_7RequestERNS_10Block_dataERb";
+		External_Name => "_ZN3Cbe7Library25_obtain_crypto_plain_dataERKNS_7RequestERNS_10Block_dataERb";
 
-	procedure Supply_Cipher_Data (
+	procedure Supply_Crypto_Cipher_Data (
 		Obj      : in out Library.Object_Type;
 		Req      :        CXX_Request_Type;
 		Data     :        Crypto.Cipher_Data_Type;
@@ -261,17 +261,17 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe7Library19_supply_cipher_dataERKNS_7RequestERKNS_10Block_dataERb";
+		External_Name => "_ZN3Cbe7Library26_supply_crypto_cipher_dataERKNS_7RequestERKNS_10Block_dataERb";
 
-	procedure Decryption_Required (
+	procedure Has_Crypto_Data_To_Decrypt (
 		Obj : in out Library.Object_Type;
 		Req :    out CXX_Request_Type)
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe7Library20_decryption_requiredERNS_7RequestE";
+		External_Name => "_ZN3Cbe7Library27_has_crypto_data_to_decryptERNS_7RequestE";
 
-	procedure Obtain_Cipher_Data (
+	procedure Obtain_Crypto_Cipher_Data (
 		Obj      : in out Library.Object_Type;
 		Req      :        CXX_Request_Type;
 		Data     :    out Crypto.Cipher_Data_Type;
@@ -279,9 +279,9 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe7Library19_obtain_cipher_dataERKNS_7RequestERNS_10Block_dataERb";
+		External_Name => "_ZN3Cbe7Library26_obtain_crypto_cipher_dataERKNS_7RequestERNS_10Block_dataERb";
 
-	procedure Supply_Plain_Data (
+	procedure Supply_Crypto_Plain_Data (
 		Obj      : in out Library.Object_Type;
 		Req      :        CXX_Request_Type;
 		Data     :        Crypto.Plain_Data_Type;
@@ -289,7 +289,6 @@ is
 	with
 		Export,
 		Convention    => C,
-		External_Name => "_ZN3Cbe7Library18_supply_plain_dataERKNS_7RequestERKNS_10Block_dataERb";
-
+		External_Name => "_ZN3Cbe7Library25_supply_crypto_plain_dataERKNS_7RequestERKNS_10Block_dataERb";
 
 end CBE.CXX.CXX_Library;

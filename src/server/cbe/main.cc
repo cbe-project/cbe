@@ -20,6 +20,7 @@
 
 /* cbe includes */
 #include <cbe/library.h>
+#include <cbe/external_crypto.h>
 
 /* repo includes */
 #include <util/sha256_4k.h>
@@ -31,12 +32,9 @@
 namespace Cbe {
 
 	struct Crypto_Data;
-	struct Crypto;
 
 	struct Block_session_component;
 	struct Main;
-
-	Genode::uint32_t object_size(Tree_helper const &);
 
 } /* namespace Cbe */
 
@@ -44,62 +42,6 @@ namespace Cbe {
 struct Cbe::Crypto_Data
 {
 	Cbe::Block_data items[1];
-};
-
-
-struct Cbe::Crypto
-{
-	Crypto() { }
-
-	bool encryption_request_acceptable() const
-	{
-		return false;
-	}
-
-	void submit_encryption_request(Cbe::Request    const &request,
-	                               Cbe::Block_data const &data)
-	{
-		(void)request;
-		(void)data;
-	}
-
-	Cbe::Request peek_completed_encryption_request() const
-	{
-		return Cbe::Request { };
-	}
-
-	bool supply_cipher_data(Cbe::Request const &request,
-	                        Cbe::Block_data    &data)
-	{
-		(void)request;
-		(void)data;
-		return false;
-	}
-
-	bool decryption_request_acceptable() const
-	{
-		return false;
-	}
-
-	void submit_decryption_request(Cbe::Request    const &request,
-	                               Cbe::Block_data const &data)
-	{
-		(void)request;
-		(void)data;
-	}
-
-	Cbe::Request peek_completed_decryption_request() const
-	{
-		return Cbe::Request { };
-	}
-
-	bool supply_plain_data(Cbe::Request const &request,
-	                       Cbe::Block_data    &data)
-	{
-		(void)request;
-		(void)data;
-		return false;
-	}
 };
 
 
@@ -159,7 +101,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 		Constructible<Cbe::Library> _cbe { };
 
-		Crypto      _crypto      { };
+		External::Crypto      _crypto      { };
 		Crypto_Data _crypto_data { };
 
 		/*
@@ -511,15 +453,17 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 ** Crypto handling **
 				 *********************/
 
+				progress |= _crypto.execute();
+
 				/* encrypt */
 				do {
-					Cbe::Request const request = _cbe->encryption_required();
+					Cbe::Request const request = _cbe->crypto_data_required();
 					if (!request.valid()) { break; }
 					if (!_crypto.encryption_request_acceptable()) { break; }
 
-					if (!_cbe->obtain_plain_data(request, _crypto_data.items[0])) { break; }
+					if (!_cbe->obtain_crypto_plain_data(request, _crypto_data.items[0])) { break; }
 
-					_crypto.submit_encryption_request(request, _crypto_data.items[0]);
+					_crypto.submit_encryption_request(request, _crypto_data.items[0], 0);
 					progress |= true;
 				} while (0);
 
@@ -529,19 +473,19 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					if (!_crypto.supply_cipher_data(request, _crypto_data.items[0])) { break; }
 
-					_cbe->supply_cipher_data(request, _crypto_data.items[0]);
+					_cbe->supply_crypto_cipher_data(request, _crypto_data.items[0]);
 					progress |= true;
 				}
 
 				/* decrypt */
 				do {
-					Cbe::Request const request = _cbe->decryption_required();
+					Cbe::Request const request = _cbe->has_crypto_data_to_decrypt();
 					if (!request.valid()) { break; }
 					if (!_crypto.decryption_request_acceptable()) { break; }
 
-					if (!_cbe->obtain_cipher_data(request, _crypto_data.items[0])) { break; }
+					if (!_cbe->obtain_crypto_cipher_data(request, _crypto_data.items[0])) { break; }
 
-					_crypto.submit_decryption_request(request, _crypto_data.items[0]);
+					_crypto.submit_decryption_request(request, _crypto_data.items[0], 0);
 					progress |= true;
 				} while (0);
 
@@ -551,7 +495,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					if (!_crypto.supply_plain_data(request, _crypto_data.items[0])) { break; }
 
-					_cbe->supply_plain_data(request, _crypto_data.items[0]);
+					_cbe->supply_crypto_plain_data(request, _crypto_data.items[0]);
 					progress |= true;
 				}
 
@@ -636,6 +580,13 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			 */
 			_show_progress =
 				_config_rom.xml().attribute_value("show_progress", false);
+
+			/*
+			 * Set initial encryption key
+			 */
+			External::Crypto::Key_data key { };
+			Genode::memcpy(key.value, "All your base are belong to us  ", 32);
+			_crypto.set_key(0, 0, key);
 
 			/*
 			 * We read all super-block information (at the moment the first 8 blocks
@@ -778,6 +729,7 @@ void Component::construct(Genode::Env &env)
 	adainit();
 
 	Cbe::assert_valid_object_size<Cbe::Library>();
+	Cbe::assert_valid_object_size<External::Crypto>();
 
 	static Cbe::Main inst(env);
 }
