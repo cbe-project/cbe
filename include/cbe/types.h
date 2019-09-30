@@ -39,8 +39,12 @@ namespace Cbe {
 	using Generation             = uint64_t;
 	using Height                 = uint32_t;
 	using Number_of_leaves       = uint64_t;
+	using Number_of_leafs        = uint64_t;
+	using Number_of_blocks       = uint64_t;
 	using Degree                 = uint32_t;
 	using Timestamp              = uint64_t;
+	using Superblock_index       = uint64_t;
+	using Snapshot_index         = uint32_t;
 
 	struct Index {
 		enum { INVALID = 18446744073709551615ULL, };
@@ -365,6 +369,8 @@ namespace Cbe {
 		struct Id { uint32_t value; };
 		Id id;
 
+		using String = Genode::String<sizeof(value) * 2 + 3>;
+
 		/* debug */
 		void print(Genode::Output &out) const
 		{
@@ -427,9 +433,8 @@ namespace Cbe {
 	struct Super_block_index
 	{
 		enum { INVALID  = 255, };
-		uint8_t value { INVALID };
+		uint64_t value { INVALID };
 
-		/* debug */
 		void print(Genode::Output &out) const
 		{
 			Genode::print(out, value);
@@ -452,10 +457,9 @@ namespace Cbe {
 	 * automatically. If a snapshot is flagged as KEEP, it will never
 	 * be overriden.
 	 */
-	enum {
-		NUM_SUPER_BLOCKS = 8, 
-		NUM_SNAPSHOTS    = 48,
-	};
+	enum : Snapshot_index { NUM_SNAPSHOTS = 48 };
+	enum : Superblock_index { NUM_SUPER_BLOCKS = 8 };
+
 	struct Super_block
 	{
 		enum { NUM_KEYS = 2u };
@@ -478,9 +482,9 @@ namespace Cbe {
 				 */
 				Snapshot snapshots[NUM_SNAPSHOTS];
 
-				Generation last_secured_generation;
-				uint32_t   snapshot_id;
-				Degree     degree;
+				Generation     last_secured_generation;
+				Snapshot_index snapshot_id;
+				Degree         degree;
 
 				Generation             free_gen;
 				Physical_block_address free_number;
@@ -498,10 +502,10 @@ namespace Cbe {
 		 * \return  if found the slot number is returned, otherwise
 		 *          a invalid number
 		 */
-		uint32_t snapshot_slot() const
+		Snapshot_index snapshot_slot() const
 		{
-			uint32_t snap_slot = INVALID_SNAPSHOT_SLOT;
-			for (uint32_t i = 0; i < Cbe::NUM_SNAPSHOTS; i++) {
+			Snapshot_index snap_slot = INVALID_SNAPSHOT_SLOT;
+			for (Snapshot_index i = 0; i < Cbe::NUM_SNAPSHOTS; i++) {
 				Snapshot const &snap = snapshots[i];
 				if (!snap.valid()) { continue; }
 
