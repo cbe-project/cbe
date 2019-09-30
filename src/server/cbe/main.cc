@@ -469,9 +469,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			Cbe::Generation        last_gen = 0;
 			Cbe::Super_block_index most_recent_sb { Cbe::Super_block_index::INVALID };
 
-			static_assert(sizeof (Cbe::Super_block) == Cbe::BLOCK_SIZE,
-			              "Super-block size mistmatch");
-
 			/*
 			 * Read all super block slots and use the most recent one.
 			 */

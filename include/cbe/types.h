@@ -465,36 +465,30 @@ namespace Cbe {
 		enum { NUM_KEYS = 2u };
 		enum { INVALID_SNAPSHOT_SLOT = NUM_SNAPSHOTS, };
 
-		union {
-			// XXX w/o snapshots about 265 bytes,
-			//     snapshots about 68 bytes each, all in all 3529 bytes
-			struct {
-				Key key[NUM_KEYS];
+		// XXX w/o snapshots about 265 bytes,
+		//     snapshots about 68 bytes each, all in all 3529 bytes
+		Key key[NUM_KEYS];
 
-				/*
-				 * (At the moment we just check the active snapshots of
-				 *  the active super-block but should it not make sense
-				 *  to iterate overall super-blocks when trying to determine
-				 *  if a block may be safely freed? Because if the most
-				 *  recent SB is corrupted and we try to use an older one,
-				 *  chances are that the snapshot in the corrupt SB has
-				 *  reused blocks reference by a snapshot in the older SB.)
-				 */
-				Snapshot snapshots[NUM_SNAPSHOTS];
-
-				Generation     last_secured_generation;
-				Snapshot_index snapshot_id;
-				Degree         degree;
-
-				Generation             free_gen;
-				Physical_block_address free_number;
-				Hash                   free_hash;
-				Height                 free_height;
-				Degree                 free_degree;
-				Number_of_leaves       free_leaves;
-			};
-			char data[BLOCK_SIZE];
-		};
+		/*
+		 * (At the moment we just check the active snapshots of
+		 *  the active super-block but should it not make sense
+		 *  to iterate overall super-blocks when trying to determine
+		 *  if a block may be safely freed? Because if the most
+		 *  recent SB is corrupted and we try to use an older one,
+		 *  chances are that the snapshot in the corrupt SB has
+		 *  reused blocks reference by a snapshot in the older SB.)
+		 */
+		Snapshot               snapshots[NUM_SNAPSHOTS];
+		Generation             last_secured_generation;
+		Snapshot_index         snapshot_id;
+		Degree                 degree;
+		Generation             free_gen;
+		Physical_block_address free_number;
+		Hash                   free_hash;
+		Height                 free_height;
+		Degree                 free_degree;
+		Number_of_leaves       free_leaves;
+		char                   padding[424];
 
 		/**
 		 * Get index into snapshot array for the last snapshot
@@ -521,7 +515,11 @@ namespace Cbe {
 		{
 			return last_secured_generation != Cbe::INVALID_GEN;
 		}
+
 	} __attribute__((packed));
+
+	static_assert(sizeof(Cbe::Super_block) == Cbe::BLOCK_SIZE);
+
 
 	struct Super_blocks
 	{
@@ -529,8 +527,9 @@ namespace Cbe {
 
 	} __attribute__((packed));
 
-	static_assert(sizeof (Super_block) <= sizeof (Block_data),
-	              "Super-block too large");
+	static_assert(
+		sizeof(Cbe::Super_blocks) ==
+		Cbe::NUM_SUPER_BLOCKS * Cbe::BLOCK_SIZE);
 
 	/*
 	 * (Strictly speaking the following node types are not the
@@ -550,19 +549,15 @@ namespace Cbe {
 	struct Type_i_node
 	{
 		enum { MAX_NODE_SIZE = 64u, };
-		union {
-			struct {
-				Cbe::Physical_block_address pba;
-				Cbe::Generation             gen;
-				Cbe::Hash                   hash;
-			};
 
-			char data[MAX_NODE_SIZE];
-		};
+		Cbe::Physical_block_address pba;
+		Cbe::Generation             gen;
+		Cbe::Hash                   hash;
+		char                        padding[16];
+
 	} __attribute__((packed));
 
-	static_assert(sizeof (Type_i_node) <= Type_i_node::MAX_NODE_SIZE,
-	              "Type 1 node too large");
+	static_assert(sizeof(Type_i_node) == Type_i_node::MAX_NODE_SIZE);
 
 	constexpr size_t TYPE_1_PER_BLOCK = BLOCK_SIZE / sizeof (Type_i_node);
 
@@ -587,22 +582,18 @@ namespace Cbe {
 	struct Type_ii_node
 	{
 		enum { MAX_NODE_SIZE = 64u, };
-		union {
-			struct {
-				Cbe::Physical_block_address pba;
-				Cbe::Virtual_block_address  last_vba;
-				Cbe::Generation             alloc_gen;
-				Cbe::Generation             free_gen;
-				Cbe::Key::Id                last_key_id;
-				bool reserved;
-			};
 
-			char data[MAX_NODE_SIZE];
-		};
+		Cbe::Physical_block_address pba;
+		Cbe::Virtual_block_address  last_vba;
+		Cbe::Generation             alloc_gen;
+		Cbe::Generation             free_gen;
+		Cbe::Key::Id                last_key_id;
+		bool                        reserved;
+		char                        padding[27];
+
 	} __attribute__((packed));
 
-	static_assert(sizeof (Type_ii_node) <= Type_ii_node::MAX_NODE_SIZE,
-	              "Type 2 node too large");
+	static_assert(sizeof (Type_ii_node) == Type_ii_node::MAX_NODE_SIZE);
 
 	constexpr size_t TYPE_2_PER_BLOCK = BLOCK_SIZE / sizeof (Type_ii_node);
 
