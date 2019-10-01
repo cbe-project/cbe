@@ -1,23 +1,28 @@
+with Ada.Unchecked_Conversion;
 with Componolit.Gneiss.Log;
 with Componolit.Gneiss.Log.Client;
 --  with Componolit.Gneiss.Strings;
 with Componolit.Gneiss.Strings_Generic;
 with CBE.Library;
+with CBE.Request;
+with CBE.Crypto;
+with Conversion;
 
 package body Component is
 
    use type Block.Size;
+   use type CBE.Timestamp_Type;
 
-   subtype Block_Buffer is Buffer (1 .. 4096);
+   subtype Block_Buffer is Component.Buffer (1 .. 4096);
    type Superblock_Request_Cache is
       array (Request_Id range 0 .. 7) of Block_Client.Request;
    type Superblocks_Initialized is
       array (CBE.Super_Blocks_Index_Type) of Boolean;
 
    type Cache_Entry is record
-      C : Block_Client.Request;
       S : Block_Server.Request;
-      Cbe_State : Block.Request_Status := Block.Raw;
+      V : Boolean := False;
+      P : Boolean := False;
    end record;
 
    type Request_Cache is
@@ -25,6 +30,11 @@ package body Component is
 
    Cbe_Block_Size      : constant Block.Size := 4096;
    Virtual_Block_Count : Block.Count         := 0;
+
+   function Time_To_Ns is new Ada.Unchecked_Conversion (Gns.Timer.Time, CBE.Timestamp_Type);
+   function Convert_Time (T : Gns.Timer.Time) return CBE.Timestamp_Type is
+      (Time_To_Ns (T) / 1000);
+   procedure Convert_Block is new Conversion.Convert (Block_Buffer, CBE.Super_Block_Type);
 
    function Image is new Gns.Strings_Generic.Image_Ranged (Block.Size);
    --  function Image is new Gns.Strings_Generic.Image_Modular (Block.Id);
@@ -34,6 +44,7 @@ package body Component is
    Client      : Block.Client_Session;
    Server      : Block.Server_Session;
    Log         : Gns.Log.Client_Session;
+   Timer       : Gns.Timer.Client_Session;
    Capability  : Gns.Types.Capability;
    Ready       : Boolean  := False;
    Sb_Alloc    : Block.Id := 0;
@@ -44,15 +55,12 @@ package body Component is
       Pre => Block.Initialized (Client)
       and then Gns.Log.Initialized (Log);
 
-   procedure Handle_Cbe (Progress : out Boolean) with
+   procedure Handle_Server_Requests (Progress : out Boolean) with
       Pre => Block.Initialized (Client)
              and then Gns.Log.Initialized (Log);
 
-   --  procedure Read_Cbe with
-   --     Pre => Block.Initialized (Client);
-
-   --  procedure Write_Cbe (R : Request_Id) with
-   --     Pre => Block.Initialized (Client);
+   procedure Cbe_Server_Read;
+   --  procedure Cbe_Server_Write;
 
    Sbsr : Superblock_Request_Cache;
    --  This should be a variable inside Read_Superblock. But since the Request type
@@ -159,55 +167,57 @@ package body Component is
       end if;
    end Read_Superblock;
 
-   procedure Handle_Cbe (Progress : out Boolean) is
+   procedure Handle_Server_Requests (Progress : out Boolean) is
       use type Block.Request_Status;
       use type Block.Id;
-      Result : Block.Result;
+      use type Block.Count;
+      Start   : Block.Id;
+      Length  : Block.Count;
+      Request : CBE.Request.Object_Type;
+      Op      : CBE.Operation_Type := CBE.Read;
    begin
       Progress := False;
       for I in Cache'Range loop
          if Block_Server.Status (Cache (I).S) = Block.Raw then
             Block_Server.Process (Server, Cache (I).S);
             if Block_Server.Status (Cache (I).S) = Block.Pending then
-               if Block.Id'Last - Block_Server.Length (Cache (I).S) >
-                     Block_Server.Start (Cache (I).S) and then
-                  Block_Server.Start (Cache (I).S) + Block_Server.Length (Cache (I).S) <=
-                     Block.Id (CBE.Library.Max_VBA (Cbe_Session))
-               then
-                  Cache (I).Cbe_State := Block.Error;
-               end if;
                Progress := Progress or True;
+               Start  := Block_Server.Start (Cache (I).S);
+               Length := Block_Server.Length (Cache (I).S);
+               Cache (I).V :=
+                  Length <= Block.Count (CBE.Request.Count_Type'Last) and then
+                  Block.Id'Last - Length > Start and then
+                  Start + Length - 1 <= Block.Count (CBE.Library.Max_VBA (Cbe_Session)) and then
+                  Block_Server.Kind (Cache (I).S) in Block.Read | Block.Write | Block.Sync;
             end if;
-         elsif Block_Server.Status (Cache (I).S) = Block.Pending then
-            case Cache (I).Cbe_State is
-               when Block.Raw =>
-                  Block_Client.Allocate_Request (Client, Cache (I).C,
-                                                 Block_Server.Kind (Cache (I).S),
-                                                 Block_Server.Start (Cache (I).S),
-                                                 Block_Server.Length (Cache (I).S),
-                                                 I, Result);
-                  case Result is
-                     when Block.Success =>
-                        Progress := Progress or True;
-                        Cache (I).Cbe_State := Block.Allocated;
-                     when Block.Unsupported =>
-                        Gns.Log.Client.Error (Log, "Cannot enqueue request");
+         end if;
+         if Block_Server.Status (Cache (I).S) = Block.Pending then
+            if Cache (I).V then
+               if CBE.Library.Request_Acceptable (Cbe_Session) then
+                  case Block_Server.Kind (Cache (I).S) is
+                     when Block.Read => Op := CBE.Read;
+                     when Block.Write => Op := CBE.Write;
+                     when Block.Sync => Op := CBE.Sync;
                      when others => null;
                   end case;
-               when Block.Ok | Block.Error =>
-                  Block_Server.Acknowledge (Server, Cache (I).S, Block.Error);
-                  if Block_Server.Status (Cache (I).S) = Block.Raw then
-                     Cache (I).Cbe_State := Block.Raw;
-                     Block_Client.Release (Client, Cache (I).C);
-                  end if;
-               when others =>
-                  null;
-            end case;
-         else
-            Gns.Log.Client.Warning (Log, "Invalid server request");
+                  Start   := Block_Server.Start (Cache (I).S);
+                  Length  := Block_Server.Length (Cache (I).S);
+                  Request := CBE.Request.Valid_Object
+                              (Op, True,
+                               CBE.Block_Number_Type (Start),
+                               0,
+                               CBE.Request.Count_Type (Length),
+                               CBE.Tag_Type (I));
+                  Cache (I).P := True;
+                  CBE.Library.Submit_Request (Cbe_Session, Request);
+               end if;
+            else
+               Block_Server.Acknowledge (Server, Cache (I).S, Block.Error);
+               Progress := Progress or else Block_Server.Status (Cache (I).S) = Block.Raw;
+            end if;
          end if;
       end loop;
-   end Handle_Cbe;
+   end Handle_Server_Requests;
 
    procedure Construct (Cap : Gns.Types.Capability) is
    begin
@@ -231,6 +241,14 @@ package body Component is
          end if;
          if not Block.Initialized (Client) then
             Gns.Log.Client.Error (Log, "Client initialization failed.");
+            Main.Vacate (Cap, Main.Failure);
+            return;
+         end if;
+         if not Gns.Timer.Initialized (Timer) then
+            Timer_Client.Initialize (Timer, Cap);
+         end if;
+         if not Gns.Timer.Initialized (Timer) then
+            Gns.Log.Client.Error (Log, "Timer initialization failed");
             Main.Vacate (Cap, Main.Failure);
             return;
          end if;
@@ -274,6 +292,7 @@ package body Component is
    is
       pragma Unreferenced (C);
       use type Block.Request_Status;
+      S : CBE.Super_Blocks_Index_Type;
    begin
       if Ready then
          null;
@@ -282,26 +301,25 @@ package body Component is
             and then Block_Client.Status (Sbsr (I)) = Block.Ok
             and then Block_Client.Start (Sbsr (I)) in 0 .. 7
          then
-            declare
-               S : constant CBE.Super_Blocks_Index_Type :=
-                  CBE.Super_Blocks_Index_Type
-                     (Block_Client.Start (Sbsr (I)));
-               B : Block_Buffer with
-                  Address => Superblocks (S)'Address;
-            begin
-               B                    := D;
-               Superblocks_Init (S) := True;
-            end;
+            S := CBE.Super_Blocks_Index_Type
+                  (Block_Client.Start (Sbsr (I)));
+            Convert_Block (D, Superblocks (S));
+            Superblocks_Init (S) := True;
          end if;
       end if;
    end Read;
 
    procedure Event is
       Progress : Boolean := True;
+      Now      : Gns.Timer.Time;
    begin
       if Ready then
          while Progress loop
-            Handle_Cbe (Progress);
+            Handle_Server_Requests (Progress);
+            Now := Timer_Client.Clock (Timer);
+            CBE.Library.Execute (Cbe_Session, Convert_Time (Now));
+            Progress := Progress or else CBE.Library.Execute_Progress (Cbe_Session);
+            Cbe_Server_Read;
          end loop;
       else
          Read_Superblock;
@@ -325,6 +343,35 @@ package body Component is
       end if;
       Block_Dispatcher.Session_Cleanup (I, C, Server);
    end Dispatch;
+
+   Server_Plain_Buffer : CBE.Crypto.Plain_Data_Type;
+
+   procedure Cbe_Server_Read is
+      Req : CBE.Request.Object_Type;
+      Tag : Request_Id;
+      P : Boolean;
+   begin
+      CBE.Library.Client_Data_Ready (Cbe_Session, Req);
+      if CBE.Request.Valid (Req) then
+         Tag := Request_Id (CBE.Request.Tag (Req));
+         if Tag in Cache'Range then
+            declare
+               procedure Rd (B : Block_Buffer);
+               procedure Rd (B : Block_Buffer) is
+               begin
+                  Block_Server.Read (Server, Cache (Tag).S, B);
+               end Rd;
+               procedure Crd is new Conversion.Pass_In
+                  (CBE.Crypto.Plain_Data_Type,
+                   Block_Buffer, Rd);
+            begin
+               CBE.Library.Obtain_Client_Data
+                  (Cbe_Session, Req, Server_Plain_Buffer, P);
+               Crd (Server_Plain_Buffer);
+            end;
+         end if;
+      end if;
+   end Cbe_Server_Read;
 
    procedure Initialize_Server
       (S : in out Block.Server_Session;
