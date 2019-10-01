@@ -17,7 +17,7 @@ package body Component is
    type Superblock_Request_Cache is
       array (Request_Id range 0 .. 7) of Block_Client.Request;
    type Superblocks_Initialized is
-      array (CBE.Super_Blocks_Index_Type) of Boolean;
+      array (CBE.Superblocks_Index_Type) of Boolean;
 
    type Cache_Entry is record
       S : Block_Server.Request;
@@ -44,11 +44,13 @@ package body Component is
       (T : Gns.Timer.Time)
       return CBE.Timestamp_Type is (Time_To_Ns (T) / 1000);
    procedure Convert_Block is new Conversion.Convert (Block_Buffer,
-       CBE.Super_Block_Type);
+       CBE.Superblock_Type);
 
    function Image is new Gns.Strings_Generic.Image_Ranged (Block.Size);
-   --  function Image is new Gns.Strings_Generic.Image_Modular (Block.Id);
-   --  function Image is new Gns.Strings_Generic.Image_Ranged (CBE.Super_Blocks_Index_Type);
+   --  function Image is new Gns.Strings_Generic.Image_Modular
+   --    (Block.Id);
+   --  function Image is new Gns.Strings_Generic.Image_Ranged
+   --    (CBE.Superblocks_Index_Type);
 
    Dispatcher  : Block.Dispatcher_Session;
    Client      : Block.Client_Session;
@@ -76,9 +78,10 @@ package body Component is
    procedure Handle_Client_Requests;
 
    Sbsr : Superblock_Request_Cache;
-   --  This should be a variable inside Read_Superblock. But since the Request type
-   --  on contains the block itself and we have limited stack space there it resides in the package.
-   Superblocks      : CBE.Super_Blocks_Type;
+   --  This should be a variable inside Read_Superblock.
+   --  But since the Request type on contains the block
+   --  itself and we have limited stack space there it resides in the package.
+   Superblocks      : CBE.Superblocks_Type;
    Superblocks_Init : Superblocks_Initialized :=
       (others => False);
    Cache    : Request_Cache;
@@ -92,7 +95,7 @@ package body Component is
       Result   : Block.Result;
       Max_Vba  : CBE.Virtual_Block_Address_Type;
       Progress : Boolean                     := True;
-      Current  : CBE.Super_Blocks_Index_Type := 0;
+      Current  : CBE.Superblocks_Index_Type := 0;
       Last_Gen : CBE.Generation_Type         := 0;
       Valid    : Boolean                     := False;
    begin
@@ -156,7 +159,7 @@ package body Component is
          end loop;
          if Valid then
             CBE.Library.Initialize_Object (Cbe_Session, Superblocks, Current);
-            Max_Vba := CBE.Library.Max_Vba (Cbe_Session);
+            Max_Vba := CBE.Library.Max_VBA (Cbe_Session);
             if Max_Vba < CBE.Virtual_Block_Address_Type'Last
                and then Max_Vba <
                   CBE.Virtual_Block_Address_Type (Block.Count'Last)
@@ -199,7 +202,7 @@ package body Component is
                   Length <= Block.Count (CBE.Request.Count_Type'Last)
                   and then Block.Id'Last - Length > Start
                   and then Start + Length - 1 <=
-                     Block.Count (CBE.Library.Max_Vba (Cbe_Session))
+                     Block.Count (CBE.Library.Max_VBA (Cbe_Session))
                   and then Block_Server.Kind (Cache (I).S) in Block.Read |
                         Block.Write | Block.Sync;
             end if;
@@ -308,7 +311,7 @@ package body Component is
    is
       pragma Unreferenced (C);
       use type Block.Request_Status;
-      S : CBE.Super_Blocks_Index_Type;
+      S : CBE.Superblocks_Index_Type;
    begin
       if Ready then
          null;
@@ -316,7 +319,7 @@ package body Component is
          if D'Length = 4096 and then Block_Client.Status (Sbsr (I)) = Block.Ok
             and then Block_Client.Start (Sbsr (I)) in 0 .. 7
          then
-            S := CBE.Super_Blocks_Index_Type (Block_Client.Start (Sbsr (I)));
+            S := CBE.Superblocks_Index_Type (Block_Client.Start (Sbsr (I)));
             Convert_Block (D, Superblocks (S));
             Superblocks_Init (S) := True;
          end if;
@@ -436,9 +439,9 @@ package body Component is
       Req : CBE.Request.Object_Type;
    begin
       for I in Io_Cache'Range loop
-         CBE.Library.Io_Data_Required (Cbe_Session, Req);
+         CBE.Library.IO_Data_Required (Cbe_Session, Req);
          if not CBE.Request.Valid (Req) then
-            CBE.Library.Has_Io_Data_To_Write (Cbe_Session, Req);
+            CBE.Library.Has_IO_Data_To_Write (Cbe_Session, Req);
          end if;
          if CBE.Request.Valid (Req) then
             if Block_Client.Status (Io_Cache (I).C) = Block.Raw
@@ -491,12 +494,12 @@ package body Component is
                      if Block_Client.Status (Io_Cache (I).C) = Block.Ok then
                         Block_Client.Read (Client, Io_Cache (I).C);
                      else
-                        CBE.Library.Supply_Io_Data
+                        CBE.Library.Supply_IO_Data
                            (Cbe_Session, Io_Cache (I).R, Empty_Block,
                             Progress);
                      end if;
                   when Block.Write =>
-                     CBE.Library.Ack_Io_Data_To_Write
+                     CBE.Library.Ack_IO_Data_To_Write
                         (Cbe_Session, Io_Cache (I).R, Progress);
                   when others =>
                      null;
