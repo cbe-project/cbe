@@ -55,7 +55,9 @@ is
       --
       procedure Copy_Decrypted_Data (
          Item       :     Item_Type;
+         Item_Idx   :     Item_Index_Type;
          Prim       :     Primitive.Object_Type;
+         Plain_Buf  :     Plain_Buffer_Type;
          Plain_Data : out Plain_Data_Type)
       is
       begin
@@ -67,7 +69,7 @@ is
             Primitive.Operation (Item.Prim) = Read and then
             Primitive.Success (Prim)
          then
-            Plain_Data := Item.Plain_Data;
+            Plain_Data := Plain_Buf (Item_Idx);
          end if;
       end Copy_Decrypted_Data;
 
@@ -76,7 +78,9 @@ is
       --
       procedure Copy_Encrypted_Data (
          Item        :     Item_Type;
+         Item_Idx    :     Item_Index_Type;
          Prim        :     Primitive.Object_Type;
+         Cipher_Buf  :     Cipher_Buffer_Type;
          Cipher_Data : out Cipher_Data_Type)
       is
       begin
@@ -88,7 +92,7 @@ is
             Primitive.Operation (Item.Prim) = Write and then
             Primitive.Success (Prim)
          then
-            Cipher_Data := Item.Cipher_Data;
+            Cipher_Data := Cipher_Buf (Item_Idx);
          end if;
       end Copy_Encrypted_Data;
 
@@ -98,36 +102,26 @@ is
       function Invalid_Object
       return Item_Type
       is (
-         State       => Invalid,
-         Prim        => Primitive.Invalid_Object,
-         Plain_Data  => (others => 0),
-         Cipher_Data => (others => 0));
+         State => Invalid,
+         Prim  => Primitive.Invalid_Object);
 
       --
       --  Submitted_Encryption_Object
       --
-      function Submitted_Encryption_Object (
-         Prm        : Primitive.Object_Type;
-         Plain_Dat  : Plain_Data_Type)
+      function Submitted_Encryption_Object (Prm : Primitive.Object_Type)
       return Item_Type
       is (
-         State       => Pending,
-         Prim        => Prm,
-         Plain_Data  => Plain_Dat,
-         Cipher_Data => (others => 0));
+         State => Pending,
+         Prim  => Prm);
 
       --
       --  Submitted_Decryption_Object
       --
-      function Submitted_Decryption_Object (
-         Prm        : Primitive.Object_Type;
-         Cipher_Dat : Cipher_Data_Type)
+      function Submitted_Decryption_Object (Prm : Primitive.Object_Type)
       return Item_Type
       is (
-         State       => Pending,
-         Prim        => Prm,
-         Plain_Data  => (others => 0),
-         Cipher_Data => Cipher_Dat);
+         State => Pending,
+         Prim  => Prm);
 
       ----------------------
       --  Read Accessors  --
@@ -160,8 +154,9 @@ is
       --
 
       procedure Obtain_Plain_Data (
-         Item        :     Item_Type;
-         Prim        :     Primitive.Object_Type;
+         Item_Idx   :     Item_Index_Type;
+         Prim       :     Primitive.Object_Type;
+         Plain_Buf  :     Plain_Buffer_Type;
          Plain_Data : out Plain_Data_Type)
       is
       begin
@@ -169,12 +164,13 @@ is
             return;
          end if;
 
-         Plain_Data := Item.Plain_Data;
+         Plain_Data := Plain_Buf (Item_Idx);
       end Obtain_Plain_Data;
 
       procedure Obtain_Cipher_Data (
-         Item        :     Item_Type;
+         Item_Idx    :     Item_Index_Type;
          Prim        :     Primitive.Object_Type;
+         Cipher_Buf  :     Cipher_Buffer_Type;
          Cipher_Data : out Cipher_Data_Type)
       is
       begin
@@ -182,33 +178,35 @@ is
             return;
          end if;
 
-         Cipher_Data := Item.Cipher_Data;
+         Cipher_Data := Cipher_Buf (Item_Idx);
       end Obtain_Cipher_Data;
 
       procedure Supply_Plain_Data (
-         Item        : out Item_Type;
-         Prim        :     Primitive.Object_Type;
-         Plain_Data :      Plain_Data_Type)
+         Item_Idx   :        Item_Index_Type;
+         Prim       :        Primitive.Object_Type;
+         Plain_Buf  : in out Plain_Buffer_Type;
+         Plain_Data :        Plain_Data_Type)
       is
       begin
          if not Primitive.Valid (Prim) then
             return;
          end if;
 
-         Item.Plain_Data := Plain_Data;
+         Plain_Buf (Item_Idx) := Plain_Data;
       end Supply_Plain_Data;
 
       procedure Supply_Cipher_Data (
-         Item        : out Item_Type;
-         Prim        :     Primitive.Object_Type;
-         Cipher_Data :     Cipher_Data_Type)
+         Item_Idx    :        Item_Index_Type;
+         Prim        :        Primitive.Object_Type;
+         Cipher_Buf  : in out Cipher_Buffer_Type;
+         Cipher_Data :        Cipher_Data_Type)
       is
       begin
          if not Primitive.Valid (Prim) then
             return;
          end if;
 
-         Item.Cipher_Data := Cipher_Data;
+         Cipher_Buf (Item_Idx) := Cipher_Data;
       end Supply_Cipher_Data;
 
    end Item;
@@ -235,6 +233,7 @@ is
    procedure Submit_Encryption_Primitive (
       Obj         : in out Object_Type;
       Prim        :        Primitive.Object_Type;
+      Plain_Buf   : in out Plain_Buffer_Type;
       Plain_Data  :        Plain_Data_Type)
    is
       Prim_Buf : constant Primitive.Object_Type := Prim;
@@ -244,9 +243,8 @@ is
 
          if Item.Invalid (Obj.Items (Item_Id)) then
 
-            Obj.Items (Item_Id) :=
-               Item.Submitted_Encryption_Object (Prim_Buf, Plain_Data);
-
+            Plain_Buf (Item_Id) := Plain_Data;
+            Obj.Items (Item_Id) := Item.Submitted_Encryption_Object (Prim_Buf);
             exit Items_Loop;
 
          end if;
@@ -261,6 +259,7 @@ is
    procedure Submit_Decryption_Primitive (
       Obj         : in out Object_Type;
       Prim        :        Primitive.Object_Type;
+      Cipher_Buf  : in out Cipher_Buffer_Type;
       Cipher_Data :        Cipher_Data_Type)
    is
       Prim_Buf : constant Primitive.Object_Type := Prim;
@@ -270,9 +269,8 @@ is
 
          if Item.Invalid (Obj.Items (Item_Id)) then
 
-            Obj.Items (Item_Id) :=
-               Item.Submitted_Decryption_Object (Prim_Buf, Cipher_Data);
-
+            Cipher_Buf (Item_Id) := Cipher_Data;
+            Obj.Items (Item_Id) := Item.Submitted_Decryption_Object (Prim_Buf);
             exit Items_Loop;
 
          end if;
@@ -359,22 +357,26 @@ is
    procedure Copy_Decrypted_Data (
       Obj        :     Crypto.Object_Type;
       Prim       :     Primitive.Object_Type;
+      Plain_Buf  :     Plain_Buffer_Type;
       Plain_Data : out Crypto.Plain_Data_Type)
    is
    begin
       for Item_Id in Obj.Items'Range loop
-         Item.Copy_Decrypted_Data (Obj.Items (Item_Id), Prim, Plain_Data);
+         Item.Copy_Decrypted_Data (
+            Obj.Items (Item_Id), Item_Id, Prim, Plain_Buf, Plain_Data);
       end loop;
    end Copy_Decrypted_Data;
 
    procedure Copy_Encrypted_Data (
       Obj         :     Crypto.Object_Type;
       Prim        :     Primitive.Object_Type;
+      Cipher_Buf  :     Cipher_Buffer_Type;
       Cipher_Data : out Cipher_Data_Type)
    is
    begin
       for Item_Id in Obj.Items'Range loop
-         Item.Copy_Encrypted_Data (Obj.Items (Item_Id), Prim, Cipher_Data);
+         Item.Copy_Encrypted_Data (
+            Obj.Items (Item_Id), Item_Id, Prim, Cipher_Buf, Cipher_Data);
       end loop;
    end Copy_Encrypted_Data;
 
@@ -391,45 +393,65 @@ is
    procedure Obtain_Plain_Data (
       Obj        :     Crypto.Object_Type;
       Prim       :     Primitive.Object_Type;
+      Plain_Buf  :     Plain_Buffer_Type;
       Plain_Data : out Crypto.Plain_Data_Type)
    is
    begin
       for Item_Id in Obj.Items'Range loop
-         Item.Obtain_Plain_Data (Obj.Items (Item_Id), Prim, Plain_Data);
+         Item.Obtain_Plain_Data (Item_Id, Prim, Plain_Buf, Plain_Data);
       end loop;
    end Obtain_Plain_Data;
 
    procedure Supply_Cipher_Data (
-      Obj         : out Crypto.Object_Type;
-      Prim        :     Primitive.Object_Type;
-      Cipher_Data :     Cipher_Data_Type)
+      Obj         :        Crypto.Object_Type;
+      Prim        :        Primitive.Object_Type;
+      Cipher_Buf  : in out Cipher_Buffer_Type;
+      Cipher_Data :        Cipher_Data_Type)
    is
    begin
       for Item_Id in Obj.Items'Range loop
-         Item.Supply_Cipher_Data (Obj.Items (Item_Id), Prim, Cipher_Data);
+         Item.Supply_Cipher_Data (Item_Id, Prim, Cipher_Buf, Cipher_Data);
       end loop;
    end Supply_Cipher_Data;
 
    procedure Obtain_Cipher_Data (
       Obj         :     Crypto.Object_Type;
       Prim        :     Primitive.Object_Type;
+      Cipher_Buf  :     Cipher_Buffer_Type;
       Cipher_Data : out Cipher_Data_Type)
    is
    begin
       for Item_Id in Obj.Items'Range loop
-         Item.Obtain_Cipher_Data (Obj.Items (Item_Id), Prim, Cipher_Data);
+         Item.Obtain_Cipher_Data (Item_Id, Prim, Cipher_Buf, Cipher_Data);
       end loop;
    end Obtain_Cipher_Data;
 
    procedure Supply_Plain_Data (
-      Obj         : out Crypto.Object_Type;
-      Prim        :     Primitive.Object_Type;
-      Plain_Data :     Plain_Data_Type)
+      Obj        :        Crypto.Object_Type;
+      Prim       :        Primitive.Object_Type;
+      Plain_Buf  : in out Plain_Buffer_Type;
+      Plain_Data :        Plain_Data_Type)
    is
    begin
       for Item_Id in Obj.Items'Range loop
-         Item.Supply_Plain_Data (Obj.Items (Item_Id), Prim, Plain_Data);
+         Item.Supply_Plain_Data (Item_Id, Prim, Plain_Buf, Plain_Data);
       end loop;
    end Supply_Plain_Data;
+
+   procedure Initialize_Plain_Buffer (Buf : out Plain_Buffer_Type)
+   is
+   begin
+      For_Items : for Item_Idx in Buf'Range loop
+         Buf (Item_Idx) := (others => 0);
+      end loop For_Items;
+   end Initialize_Plain_Buffer;
+
+   procedure Initialize_Cipher_Buffer (Buf : out Cipher_Buffer_Type)
+   is
+   begin
+      For_Items : for Item_Idx in Buf'Range loop
+         Buf (Item_Idx) := (others => 0);
+      end loop For_Items;
+   end Initialize_Cipher_Buffer;
 
 end CBE.Crypto;

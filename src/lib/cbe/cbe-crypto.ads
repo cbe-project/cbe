@@ -19,6 +19,9 @@ is
    subtype Plain_Data_Type  is CBE.Block_Data_Type;
    subtype Cipher_Data_Type is CBE.Block_Data_Type;
 
+   type Plain_Buffer_Type  is private;
+   type Cipher_Buffer_Type is private;
+
    type Object_Type is private;
 
    --
@@ -26,6 +29,16 @@ is
    --
    function Initialized_Object
    return Object_Type;
+
+   --
+   --  Initialize_Plain_Buffer
+   --
+   procedure Initialize_Plain_Buffer (Buf : out Plain_Buffer_Type);
+
+   --
+   --  Initialize_Cipher_Buffer
+   --
+   procedure Initialize_Cipher_Buffer (Buf : out Cipher_Buffer_Type);
 
    --
    --  Primitive_Acceptable
@@ -39,6 +52,7 @@ is
    procedure Submit_Decryption_Primitive (
       Obj         : in out Object_Type;
       Prim        :        Primitive.Object_Type;
+      Cipher_Buf  : in out Cipher_Buffer_Type;
       Cipher_Data :        Cipher_Data_Type)
    with
       Pre => (Primitive_Acceptable (Obj) and then Primitive.Valid (Prim));
@@ -49,6 +63,7 @@ is
    procedure Submit_Encryption_Primitive (
       Obj         : in out Object_Type;
       Prim        :        Primitive.Object_Type;
+      Plain_Buf   : in out Plain_Buffer_Type;
       Plain_Data  :        Plain_Data_Type)
    with
       Pre => (Primitive_Acceptable (Obj) and then Primitive.Valid (Prim));
@@ -96,6 +111,7 @@ is
    procedure Copy_Decrypted_Data (
       Obj        :     Object_Type;
       Prim       :     Primitive.Object_Type;
+      Plain_Buf  :     Plain_Buffer_Type;
       Plain_Data : out Plain_Data_Type);
 
    --
@@ -104,6 +120,7 @@ is
    procedure Copy_Encrypted_Data (
       Obj         :     Object_Type;
       Prim        :     Primitive.Object_Type;
+      Cipher_Buf  :     Cipher_Buffer_Type;
       Cipher_Data : out Cipher_Data_Type);
 
    -----------------
@@ -115,24 +132,30 @@ is
    procedure Obtain_Plain_Data (
       Obj        :     Crypto.Object_Type;
       Prim       :     Primitive.Object_Type;
+      Plain_Buf  :     Plain_Buffer_Type;
       Plain_Data : out Crypto.Plain_Data_Type);
 
    procedure Supply_Cipher_Data (
-      Obj         : out Crypto.Object_Type;
-      Prim        :     Primitive.Object_Type;
-      Cipher_Data :     Cipher_Data_Type);
+      Obj         :        Crypto.Object_Type;
+      Prim        :        Primitive.Object_Type;
+      Cipher_Buf  : in out Cipher_Buffer_Type;
+      Cipher_Data :        Cipher_Data_Type);
 
    procedure Obtain_Cipher_Data (
       Obj         :     Crypto.Object_Type;
       Prim        :     Primitive.Object_Type;
+      Cipher_Buf  :     Cipher_Buffer_Type;
       Cipher_Data : out Cipher_Data_Type);
 
    procedure Supply_Plain_Data (
-      Obj         : out Crypto.Object_Type;
-      Prim        :     Primitive.Object_Type;
-      Plain_Data :     Plain_Data_Type);
+      Obj        :        Crypto.Object_Type;
+      Prim       :        Primitive.Object_Type;
+      Plain_Buf  : in out Plain_Buffer_Type;
+      Plain_Data :        Plain_Data_Type);
 
 private
+
+   type Item_Index_Type is range 1 .. 1;
 
    --
    --  Item
@@ -155,16 +178,20 @@ private
       --
       procedure Copy_Decrypted_Data (
          Item       :     Item_Type;
+         Item_Idx   :     Item_Index_Type;
          Prim       :     Primitive.Object_Type;
-         Plain_Data : out Crypto.Plain_Data_Type);
+         Plain_Buf  :     Plain_Buffer_Type;
+         Plain_Data : out Plain_Data_Type);
 
       --
       --  Copy_Encrypted_Data
       --
       procedure Copy_Encrypted_Data (
          Item        :     Item_Type;
+         Item_Idx    :     Item_Index_Type;
          Prim        :     Primitive.Object_Type;
-         Cipher_Data : out Crypto.Cipher_Data_Type);
+         Cipher_Buf  :     Cipher_Buffer_Type;
+         Cipher_Data : out Cipher_Data_Type);
 
       --
       --  Invalid_Object
@@ -175,17 +202,13 @@ private
       --
       --  Submitted_Encryption_Object
       --
-      function Submitted_Encryption_Object (
-         Prm        : Primitive.Object_Type;
-         Plain_Dat  : Plain_Data_Type)
+      function Submitted_Encryption_Object (Prm : Primitive.Object_Type)
       return Item_Type;
 
       --
       --  Submitted_Decryption_Object
       --
-      function Submitted_Decryption_Object (
-         Prm        : Primitive.Object_Type;
-         Cipher_Dat : Cipher_Data_Type)
+      function Submitted_Decryption_Object (Prm : Primitive.Object_Type)
       return Item_Type;
 
       ----------------------
@@ -210,24 +233,28 @@ private
       --
 
       procedure Obtain_Plain_Data (
-         Item        :     Item_Type;
-         Prim        :     Primitive.Object_Type;
+         Item_Idx   :     Item_Index_Type;
+         Prim       :     Primitive.Object_Type;
+         Plain_Buf  :     Plain_Buffer_Type;
          Plain_Data : out Plain_Data_Type);
 
       procedure Supply_Cipher_Data (
-         Item        : out Item_Type;
-         Prim        :     Primitive.Object_Type;
-         Cipher_Data :     Cipher_Data_Type);
+         Item_Idx    :        Item_Index_Type;
+         Prim        :        Primitive.Object_Type;
+         Cipher_Buf  : in out Cipher_Buffer_Type;
+         Cipher_Data :        Cipher_Data_Type);
 
       procedure Obtain_Cipher_Data (
-         Item        :     Item_Type;
+         Item_Idx    :     Item_Index_Type;
          Prim        :     Primitive.Object_Type;
+         Cipher_Buf  :     Cipher_Buffer_Type;
          Cipher_Data : out Cipher_Data_Type);
 
       procedure Supply_Plain_Data (
-         Item        : out Item_Type;
-         Prim        :     Primitive.Object_Type;
-         Plain_Data :      Plain_Data_Type);
+         Item_Idx   :        Item_Index_Type;
+         Prim       :        Primitive.Object_Type;
+         Plain_Buf  : in out Plain_Buffer_Type;
+         Plain_Data :        Plain_Data_Type);
 
    private
 
@@ -235,15 +262,17 @@ private
       --  Item_Type
       --
       type Item_Type is record
-         State       : State_Type;
-         Prim        : Primitive.Object_Type;
-         Plain_Data  : Plain_Data_Type;
-         Cipher_Data : Cipher_Data_Type;
+         State : State_Type;
+         Prim  : Primitive.Object_Type;
       end record;
 
    end Item;
 
-   type Items_Type is array (1 .. 1) of Item.Item_Type;
+   type Items_Type is array (Item_Index_Type) of Item.Item_Type;
+
+   type Plain_Buffer_Type is array (Item_Index_Type) of Plain_Data_Type;
+
+   type Cipher_Buffer_Type is array (Item_Index_Type) of Cipher_Data_Type;
 
    --
    --  Object_Type

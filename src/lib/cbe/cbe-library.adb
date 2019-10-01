@@ -166,7 +166,10 @@ is
       Obj.Request_Pool_Obj        := Pool.Initialized_Object;
       Obj.Splitter_Obj            := Splitter.Initialized_Object;
       Obj.Crypto_Obj              := Crypto.Initialized_Object;
-      Obj.Crypto_Data             := (others => 0);
+
+      Crypto.Initialize_Plain_Buffer  (Obj.Crypto_Plain_Buf);
+      Crypto.Initialize_Cipher_Buffer (Obj.Crypto_Cipher_Buf);
+
       Obj.IO_Obj                  := Block_IO.Initialized_Object;
       Obj.IO_Data                 := (others => (others => 0));
       Obj.Cache_Obj               := Cache.Initialized_Object;
@@ -864,7 +867,7 @@ is
                   Obj.Write_Back_Data (Plain_Data_Index)'Address;
             begin
                Crypto.Submit_Encryption_Primitive (
-                  Obj.Crypto_Obj, Prim, Plain_Data);
+                  Obj.Crypto_Obj, Prim, Obj.Crypto_Plain_Buf, Plain_Data);
 
             end Declare_Crypto_Data;
             Write_Back.Drop_Generated_Crypto_Primitive (
@@ -1154,7 +1157,7 @@ is
                --        processing in case the operation failed
                --
                Crypto.Copy_Encrypted_Data (
-                  Obj.Crypto_Obj, Prim, Cipher_Data);
+                  Obj.Crypto_Obj, Prim, Obj.Crypto_Cipher_Buf, Cipher_Data);
 
                Write_Back.Mark_Completed_Crypto_Primitive (
                   Obj.Write_Back_Obj, Prim, Obj.Write_Back_Data (Index));
@@ -1280,6 +1283,7 @@ is
                               Prim,
                               Block_IO.Peek_Completed_Tag (
                                  Obj.IO_Obj, Prim)),
+                           Obj.Crypto_Cipher_Buf,
                            Cipher_Data);
 
                      end Declare_Data;
@@ -1647,7 +1651,9 @@ is
 
       if Tag = Tag_Crypto then
 
-         Crypto.Copy_Decrypted_Data (Obj.Crypto_Obj, Prim, Data);
+         Crypto.Copy_Decrypted_Data (
+            Obj.Crypto_Obj, Prim, Obj.Crypto_Plain_Buf, Data);
+
          Crypto.Drop_Completed_Primitive (Obj.Crypto_Obj, Prim);
          Pool.Mark_Completed_Primitive (Obj.Request_Pool_Obj, Prim);
 
@@ -2065,7 +2071,8 @@ is
                not Request_Equals_Primitive (Req, Prim);
 
             --  XXX remove later
-            Crypto.Obtain_Plain_Data (Obj.Crypto_Obj, Prim, Data);
+            Crypto.Obtain_Plain_Data (
+               Obj.Crypto_Obj, Prim, Obj.Crypto_Plain_Buf, Data);
 
             Crypto.Drop_Generated_Primitive (Obj.Crypto_Obj, Prim);
 
@@ -2097,7 +2104,9 @@ is
                Idx    => 0);
       begin
 
-         Crypto.Supply_Cipher_Data (Obj.Crypto_Obj, Prim, Data);
+         Crypto.Supply_Cipher_Data (
+            Obj.Crypto_Obj, Prim, Obj.Crypto_Cipher_Buf, Data);
+
          Crypto.Mark_Completed_Primitive (Obj.Crypto_Obj, Prim);
 
       end Declare_Cipher_Data_Primitive;
@@ -2168,7 +2177,8 @@ is
                not Request_Equals_Primitive (Req, Prim);
 
             --  XXX remove later
-            Crypto.Obtain_Cipher_Data (Obj.Crypto_Obj, Prim, Data);
+            Crypto.Obtain_Cipher_Data (
+               Obj.Crypto_Obj, Prim, Obj.Crypto_Cipher_Buf, Data);
 
             Crypto.Drop_Generated_Primitive (Obj.Crypto_Obj, Prim);
 
@@ -2200,7 +2210,9 @@ is
                Idx    => 0);
       begin
 
-         Crypto.Supply_Plain_Data (Obj.Crypto_Obj, Prim, Data);
+         Crypto.Supply_Plain_Data (
+            Obj.Crypto_Obj, Prim, Obj.Crypto_Plain_Buf, Data);
+
          Crypto.Mark_Completed_Primitive (Obj.Crypto_Obj, Prim);
 
       end Declare_Plain_Data_Primitive;

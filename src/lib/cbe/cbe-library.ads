@@ -372,7 +372,8 @@ private
       Request_Pool_Obj        : Pool.Object_Type;
       Splitter_Obj            : Splitter.Object_Type;
       Crypto_Obj              : Crypto.Object_Type;
-      Crypto_Data             : Block_Data_Type;
+      Crypto_Plain_Buf        : Crypto.Plain_Buffer_Type;
+      Crypto_Cipher_Buf       : Crypto.Cipher_Buffer_Type;
       IO_Obj                  : Block_IO.Object_Type;
       IO_Data                 : Block_IO.Data_Type;
       Cache_Obj               : Cache.Object_Type;
