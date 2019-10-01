@@ -2,7 +2,7 @@ with Componolit.Gneiss.Log;
 with Componolit.Gneiss.Log.Client;
 --  with Componolit.Gneiss.Strings;
 with Componolit.Gneiss.Strings_Generic;
-with Cbe.Library;
+with CBE.Library;
 
 package body Component is
 
@@ -12,14 +12,23 @@ package body Component is
    type Superblock_Request_Cache is
       array (Request_Id range 0 .. 7) of Block_Client.Request;
    type Superblocks_Initialized is
-      array (Cbe.Super_Blocks_Index_Type) of Boolean;
+      array (CBE.Super_Blocks_Index_Type) of Boolean;
+
+   type Cache_Entry is record
+      C : Block_Client.Request;
+      S : Block_Server.Request;
+      Cbe_State : Block.Request_Status := Block.Raw;
+   end record;
+
+   type Request_Cache is
+      array (Request_Id range 1 .. 32) of Cache_Entry;
 
    Cbe_Block_Size      : constant Block.Size := 4096;
    Virtual_Block_Count : Block.Count         := 0;
 
    function Image is new Gns.Strings_Generic.Image_Ranged (Block.Size);
    --  function Image is new Gns.Strings_Generic.Image_Modular (Block.Id);
-   --  function Image is new Gns.Strings_Generic.Image_Ranged (Cbe.Super_Blocks_Index_Type);
+   --  function Image is new Gns.Strings_Generic.Image_Ranged (CBE.Super_Blocks_Index_Type);
 
    Dispatcher  : Block.Dispatcher_Session;
    Client      : Block.Client_Session;
@@ -28,30 +37,41 @@ package body Component is
    Capability  : Gns.Types.Capability;
    Ready       : Boolean  := False;
    Sb_Alloc    : Block.Id := 0;
-   Cbe_Session : Cbe.Library.Object_Type;
+   Cbe_Session : CBE.Library.Object_Type;
    Client_Act  : Boolean  := False;
 
    procedure Read_Superblock with
       Pre => Block.Initialized (Client)
       and then Gns.Log.Initialized (Log);
 
+   procedure Handle_Cbe (Progress : out Boolean) with
+      Pre => Block.Initialized (Client)
+             and then Gns.Log.Initialized (Log);
+
+   --  procedure Read_Cbe with
+   --     Pre => Block.Initialized (Client);
+
+   --  procedure Write_Cbe (R : Request_Id) with
+   --     Pre => Block.Initialized (Client);
+
    Sbsr : Superblock_Request_Cache;
    --  This should be a variable inside Read_Superblock. But since the Request type
    --  on contains the block itself and we have limited stack space there it resides in the package.
-   Superblocks      : Cbe.Super_Blocks_Type;
+   Superblocks      : CBE.Super_Blocks_Type;
    Superblocks_Init : Superblocks_Initialized :=
       (others => False);
+   Cache            : Request_Cache;
 
    procedure Read_Superblock is
       use type Block.Id;
       use type Block.Request_Status;
-      use type Cbe.Generation_Type;
-      use type Cbe.Virtual_Block_Address_Type;
+      use type CBE.Generation_Type;
+      use type CBE.Virtual_Block_Address_Type;
       Result   : Block.Result;
-      Max_Vba  : Cbe.Virtual_Block_Address_Type;
+      Max_Vba  : CBE.Virtual_Block_Address_Type;
       Progress : Boolean                     := True;
-      Current  : Cbe.Super_Blocks_Index_Type := 0;
-      Last_Gen : Cbe.Generation_Type         := 0;
+      Current  : CBE.Super_Blocks_Index_Type := 0;
+      Last_Gen : CBE.Generation_Type         := 0;
       Valid    : Boolean                     := False;
    begin
       if Block.Block_Size (Client) = Cbe_Block_Size then
@@ -91,7 +111,7 @@ package body Component is
                      return;
                end case;
             end loop;
-            exit when not Progress or
+            exit when not Progress or else
                (Sb_Alloc = 8
                 and then
                 (for all R of Sbsr =>
@@ -106,7 +126,7 @@ package body Component is
       if Sb_Alloc = 8 and then (for all T of Superblocks_Init => T) then
          for I in Superblocks'Range loop
             if Superblocks (I).Last_Secured_Generation /=
-               Cbe.Generation_Type'Last
+               CBE.Generation_Type'Last
                and then Superblocks (I).Last_Secured_Generation >=
                   Last_Gen
             then
@@ -116,12 +136,12 @@ package body Component is
             end if;
          end loop;
          if Valid then
-            Cbe.Library.Initialize_Object
+            CBE.Library.Initialize_Object
                (Cbe_Session, Superblocks, Current);
-            Max_Vba := Cbe.Library.Max_Vba (Cbe_Session);
-            if Max_Vba < Cbe.Virtual_Block_Address_Type'Last
+            Max_Vba := CBE.Library.Max_VBA (Cbe_Session);
+            if Max_Vba < CBE.Virtual_Block_Address_Type'Last
                and then Max_Vba <
-                  Cbe.Virtual_Block_Address_Type (Block.Count'Last)
+                  CBE.Virtual_Block_Address_Type (Block.Count'Last)
             then
                Virtual_Block_Count := Block.Count (Max_Vba + 1);
                Ready               := True;
@@ -138,6 +158,56 @@ package body Component is
          end if;
       end if;
    end Read_Superblock;
+
+   procedure Handle_Cbe (Progress : out Boolean) is
+      use type Block.Request_Status;
+      use type Block.Id;
+      Result : Block.Result;
+   begin
+      Progress := False;
+      for I in Cache'Range loop
+         if Block_Server.Status (Cache (I).S) = Block.Raw then
+            Block_Server.Process (Server, Cache (I).S);
+            if Block_Server.Status (Cache (I).S) = Block.Pending then
+               if Block.Id'Last - Block_Server.Length (Cache (I).S) >
+                     Block_Server.Start (Cache (I).S) and then
+                  Block_Server.Start (Cache (I).S) + Block_Server.Length (Cache (I).S) <=
+                     Block.Id (CBE.Library.Max_VBA (Cbe_Session))
+               then
+                  Cache (I).Cbe_State := Block.Error;
+               end if;
+               Progress := Progress or True;
+            end if;
+         elsif Block_Server.Status (Cache (I).S) = Block.Pending then
+            case Cache (I).Cbe_State is
+               when Block.Raw =>
+                  Block_Client.Allocate_Request (Client, Cache (I).C,
+                                                 Block_Server.Kind (Cache (I).S),
+                                                 Block_Server.Start (Cache (I).S),
+                                                 Block_Server.Length (Cache (I).S),
+                                                 I, Result);
+                  case Result is
+                     when Block.Success =>
+                        Progress := Progress or True;
+                        Cache (I).Cbe_State := Block.Allocated;
+                     when Block.Unsupported =>
+                        Gns.Log.Client.Error (Log, "Cannot enqueue request");
+                     when others => null;
+                  end case;
+               when Block.Ok | Block.Error =>
+                  Block_Server.Acknowledge (Server, Cache (I).S, Block.Error);
+                  if Block_Server.Status (Cache (I).S) = Block.Raw then
+                     Cache (I).Cbe_State := Block.Raw;
+                     Block_Client.Release (Client, Cache (I).C);
+                  end if;
+               when others =>
+                  null;
+            end case;
+         else
+            Gns.Log.Client.Warning (Log, "Invalid server request");
+         end if;
+      end loop;
+   end Handle_Cbe;
 
    procedure Construct (Cap : Gns.Types.Capability) is
    begin
@@ -213,8 +283,8 @@ package body Component is
             and then Block_Client.Start (Sbsr (I)) in 0 .. 7
          then
             declare
-               S : constant Cbe.Super_Blocks_Index_Type :=
-                  Cbe.Super_Blocks_Index_Type
+               S : constant CBE.Super_Blocks_Index_Type :=
+                  CBE.Super_Blocks_Index_Type
                      (Block_Client.Start (Sbsr (I)));
                B : Block_Buffer with
                   Address => Superblocks (S)'Address;
@@ -229,15 +299,13 @@ package body Component is
    procedure Event is
       Progress : Boolean := True;
    begin
-      Gns.Log.Client.Info (Log, "Event");
-      while Progress loop
-         if Ready then
-            Progress := False;
-         else
-            Read_Superblock;
-            Progress := Ready;
-         end if;
-      end loop;
+      if Ready then
+         while Progress loop
+            Handle_Cbe (Progress);
+         end loop;
+      else
+         Read_Superblock;
+      end if;
    end Event;
 
    procedure Dispatch
