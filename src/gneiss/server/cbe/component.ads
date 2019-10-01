@@ -4,7 +4,7 @@ with Componolit.Gneiss.Block;
 with Componolit.Gneiss.Block.Client;
 with Componolit.Gneiss.Block.Dispatcher;
 with Componolit.Gneiss.Block.Server;
-with Cbe;
+with CBE;
 
 package Component is
 
@@ -17,11 +17,11 @@ package Component is
 
    type Unsigned_Long is new Long_Integer range 0 .. Long_Integer'Last;
 
-   type Buffer is array (Unsigned_Long range <>) of Cbe.Byte_Type;
+   type Buffer is array (Unsigned_Long range <>) of CBE.Byte_Type;
 
-   type Request_Id is new Integer;
+   type Request_Id is new Long_Integer range 0 .. 2 ** 32 - 1;
 
-   package Block is new Gns.Block (Cbe.Byte_Type, Unsigned_Long, Buffer,
+   package Block is new Gns.Block (CBE.Byte_Type, Unsigned_Long, Buffer,
        Integer, Request_Id);
 
    procedure Event;
