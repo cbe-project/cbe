@@ -1,10 +1,11 @@
-
 package body Conversion with
-   SPARK_Mode
+   Spark_Mode
 is
 
-   procedure Convert (V1 :     T1;
-                      V2 : out T2) is
+   procedure Convert
+      (V1 :     T1;
+       V2 : out T2)
+   is
       --  pragma Compile_Time_Error (T1'Size = T2'Size, "Cannot convert between differently sized types");
       V_Temp : T2 with
          Address => V1'Address;

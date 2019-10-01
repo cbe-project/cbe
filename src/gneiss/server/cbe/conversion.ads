@@ -1,13 +1,13 @@
-
 package Conversion with
-   SPARK_Mode
+   Spark_Mode
 is
 
    generic
       type T1 is private;
       type T2 is private;
-   procedure Convert (V1 :     T1;
-                      V2 : out T2);
+   procedure Convert
+      (V1 :     T1;
+       V2 : out T2);
 
    generic
       type T1 is private;

@@ -21,7 +21,7 @@ package Component is
 
    type Buffer is array (Unsigned_Long range <>) of CBE.Byte_Type;
 
-   type Request_Id is new Long_Integer range 0 .. 2 ** 32 - 1;
+   type Request_Id is new Long_Integer range 0 .. 2**32 - 1;
 
    package Block is new Gns.Block (CBE.Byte_Type, Unsigned_Long, Buffer,
        Integer, Request_Id);
@@ -70,10 +70,8 @@ package Component is
       return Boolean with
       Pre => Initialized (S);
 
-   package Block_Server is new Block.Server (Event, Block_Count,
-       Block_Size, Writable, Initialized, Initialize_Server,
-       Finalize_Server);
-   package Block_Dispatcher is new Block.Dispatcher (Block_Server,
-       Dispatch);
+   package Block_Server is new Block.Server (Event, Block_Count, Block_Size,
+       Writable, Initialized, Initialize_Server, Finalize_Server);
+   package Block_Dispatcher is new Block.Dispatcher (Block_Server, Dispatch);
 
 end Component;
