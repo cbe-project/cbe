@@ -235,60 +235,69 @@ is
       Convention    => C,
       External_Name => "_ZNK3Cbe7Library16execute_progressEv";
 
-	procedure Crypto_Data_Required (
-		Obj : in out Library.Object_Type;
-		Req :    out CXX_Request_Type)
-	with
-		Export,
-		Convention    => C,
-		External_Name => "_ZN3Cbe7Library21_crypto_data_requiredERNS_7RequestE";
+   procedure Crypto_Data_Required (
+      Obj : in out Library.Object_Type;
+      Req :    out CXX_Request_Type)
+   with
+      Export,
+      Convention    => C,
+      External_Name => "_ZN3Cbe7Library21_crypto_data_requiredERNS_7RequestE";
 
-	procedure Obtain_Crypto_Plain_Data (
-		Obj      : in out Library.Object_Type;
-		Req      :        CXX_Request_Type;
-		Data     :    out Crypto.Plain_Data_Type;
-		Progress :    out CXX_Bool_Type)
-	with
-		Export,
-		Convention    => C,
-		External_Name => "_ZN3Cbe7Library25_obtain_crypto_plain_dataERKNS_7RequestERNS_10Block_dataERb";
+   procedure Obtain_Crypto_Plain_Data (
+      Obj      : in out Library.Object_Type;
+      Req      :        CXX_Request_Type;
+      Data     :    out Crypto.Plain_Data_Type;
+      Progress :    out CXX_Bool_Type)
+   with
+      Export,
+      Convention    => C,
+      External_Name =>
+         "_ZN3Cbe7Library25_obtain_crypto_plain_dataERKNS_7RequestERNS_" &
+         "10Block_dataERb";
 
-	procedure Supply_Crypto_Cipher_Data (
-		Obj      : in out Library.Object_Type;
-		Req      :        CXX_Request_Type;
-		Data     :        Crypto.Cipher_Data_Type;
-		Progress :    out CXX_Bool_Type)
-	with
-		Export,
-		Convention    => C,
-		External_Name => "_ZN3Cbe7Library26_supply_crypto_cipher_dataERKNS_7RequestERKNS_10Block_dataERb";
+   procedure Supply_Crypto_Cipher_Data (
+      Obj      : in out Library.Object_Type;
+      Req      :        CXX_Request_Type;
+      Data     :        Crypto.Cipher_Data_Type;
+      Progress :    out CXX_Bool_Type)
+   with
+      Export,
+      Convention    => C,
+      External_Name =>
+         "_ZN3Cbe7Library26_supply_crypto_cipher_dataERKNS_7RequestERKNS_" &
+         "10Block_dataERb";
 
-	procedure Has_Crypto_Data_To_Decrypt (
-		Obj : in out Library.Object_Type;
-		Req :    out CXX_Request_Type)
-	with
-		Export,
-		Convention    => C,
-		External_Name => "_ZN3Cbe7Library27_has_crypto_data_to_decryptERNS_7RequestE";
+   procedure Has_Crypto_Data_To_Decrypt (
+      Obj : in out Library.Object_Type;
+      Req :    out CXX_Request_Type)
+   with
+      Export,
+      Convention    => C,
+      External_Name =>
+         "_ZN3Cbe7Library27_has_crypto_data_to_decryptERNS_7RequestE";
 
-	procedure Obtain_Crypto_Cipher_Data (
-		Obj      : in out Library.Object_Type;
-		Req      :        CXX_Request_Type;
-		Data     :    out Crypto.Cipher_Data_Type;
-		Progress :    out CXX_Bool_Type)
-	with
-		Export,
-		Convention    => C,
-		External_Name => "_ZN3Cbe7Library26_obtain_crypto_cipher_dataERKNS_7RequestERNS_10Block_dataERb";
+   procedure Obtain_Crypto_Cipher_Data (
+      Obj      : in out Library.Object_Type;
+      Req      :        CXX_Request_Type;
+      Data     :    out Crypto.Cipher_Data_Type;
+      Progress :    out CXX_Bool_Type)
+   with
+      Export,
+      Convention    => C,
+      External_Name =>
+         "_ZN3Cbe7Library26_obtain_crypto_cipher_dataERKNS_7RequestERNS_" &
+         "10Block_dataERb";
 
-	procedure Supply_Crypto_Plain_Data (
-		Obj      : in out Library.Object_Type;
-		Req      :        CXX_Request_Type;
-		Data     :        Crypto.Plain_Data_Type;
-		Progress :    out CXX_Bool_Type)
-	with
-		Export,
-		Convention    => C,
-		External_Name => "_ZN3Cbe7Library25_supply_crypto_plain_dataERKNS_7RequestERKNS_10Block_dataERb";
+   procedure Supply_Crypto_Plain_Data (
+      Obj      : in out Library.Object_Type;
+      Req      :        CXX_Request_Type;
+      Data     :        Crypto.Plain_Data_Type;
+      Progress :    out CXX_Bool_Type)
+   with
+      Export,
+      Convention    => C,
+      External_Name =>
+         "_ZN3Cbe7Library25_supply_crypto_plain_dataERKNS_7RequestERKNS_" &
+         "10Block_dataERb";
 
 end CBE.CXX.CXX_Library;

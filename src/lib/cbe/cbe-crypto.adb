@@ -17,27 +17,28 @@ is
    package body Item
    with SPARK_Mode
    is
-		--
-		-- Mark_Completed_Primitive
-		--
-		procedure Mark_Completed_Primitive(
-			Obj : in out Item_Type;
-			Prm :        Primitive.Object_Type)
-		is
-		begin
+      --
+      --  Mark_Completed_Primitive
+      --
+      procedure Mark_Completed_Primitive (
+         Obj : in out Item_Type;
+         Prm :        Primitive.Object_Type)
+      is
+      begin
 
-			if
-				Obj.State /= In_Progress or else
-				Primitive.Block_Number (Obj.Prim) /= Primitive.Block_Number (Prm) or else
-				Primitive.Operation (Obj.Prim) /= Primitive.Operation (Prm)
-			then
-				return;
-			end if;
+         if
+            Obj.State /= In_Progress or else
+            Primitive.Block_Number (Obj.Prim) /=
+               Primitive.Block_Number (Prm) or else
+            Primitive.Operation (Obj.Prim) /= Primitive.Operation (Prm)
+         then
+            return;
+         end if;
 
-			Obj.State := Item.Complete;
-			Primitive.Success(Obj.Prim, Primitive.Success(Prm));
+         Obj.State := Item.Complete;
+         Primitive.Success (Obj.Prim, Primitive.Success (Prm));
 
-		end Mark_Completed_Primitive;
+      end Mark_Completed_Primitive;
 
       --
       --  Return true if crypto item belongs to primitive and the result
@@ -154,64 +155,62 @@ is
       procedure State (Obj : in out Item_Type; Sta : State_Type)
       is begin Obj.State := Sta; end State;
 
-		--
-		-- XXX remove later
-		--
+      --
+      --  XXX remove later
+      --
 
-		procedure Obtain_Plain_Data (
-			Item        :     Item_Type;
-			Prim        :     Primitive.Object_Type;
-			Plain_Data : out Plain_Data_Type)
-		is
-		begin
-			if not Primitive.Valid (Prim) then
-				return;
-			end if;
+      procedure Obtain_Plain_Data (
+         Item        :     Item_Type;
+         Prim        :     Primitive.Object_Type;
+         Plain_Data : out Plain_Data_Type)
+      is
+      begin
+         if not Primitive.Valid (Prim) then
+            return;
+         end if;
 
-			Plain_Data := Item.Plain_Data;
-		end Obtain_Plain_Data;
+         Plain_Data := Item.Plain_Data;
+      end Obtain_Plain_Data;
 
+      procedure Obtain_Cipher_Data (
+         Item        :     Item_Type;
+         Prim        :     Primitive.Object_Type;
+         Cipher_Data : out Cipher_Data_Type)
+      is
+      begin
+         if not Primitive.Valid (Prim) then
+            return;
+         end if;
 
-		procedure Obtain_Cipher_Data (
-			Item        :     Item_Type;
-			Prim        :     Primitive.Object_Type;
-			Cipher_Data : out Cipher_Data_Type)
-		is
-		begin
-			if not Primitive.Valid (Prim) then
-				return;
-			end if;
+         Cipher_Data := Item.Cipher_Data;
+      end Obtain_Cipher_Data;
 
-			Cipher_Data := Item.Cipher_Data;
-		end Obtain_Cipher_Data;
+      procedure Supply_Plain_Data (
+         Item        : out Item_Type;
+         Prim        :     Primitive.Object_Type;
+         Plain_Data :      Plain_Data_Type)
+      is
+      begin
+         if not Primitive.Valid (Prim) then
+            return;
+         end if;
 
+         Item.Plain_Data := Plain_Data;
+      end Supply_Plain_Data;
 
-		procedure Supply_Plain_Data (
-			Item        : out Item_Type;
-			Prim        :     Primitive.Object_Type;
-			Plain_Data :      Plain_Data_Type)
-		is
-		begin
-			if not Primitive.Valid (Prim) then
-				return;
-			end if;
+      procedure Supply_Cipher_Data (
+         Item        : out Item_Type;
+         Prim        :     Primitive.Object_Type;
+         Cipher_Data :     Cipher_Data_Type)
+      is
+      begin
+         if not Primitive.Valid (Prim) then
+            return;
+         end if;
 
-			Item.Plain_Data := Plain_Data;
-		end Supply_Plain_Data;
+         Item.Cipher_Data := Cipher_Data;
+      end Supply_Cipher_Data;
 
-
-		procedure Supply_Cipher_Data (
-			Item        : out Item_Type;
-			Prim        :     Primitive.Object_Type;
-			Cipher_Data :     Cipher_Data_Type)
-		is
-		begin
-			if not Primitive.Valid (Prim) then
-				return;
-			end if;
-
-			Item.Cipher_Data := Cipher_Data;
-		end Supply_Cipher_Data;
    end Item;
 
    --
@@ -386,54 +385,51 @@ is
    function Execute_Progress (Obj : Object_Type) return Boolean
    is (Obj.Execute_Progress);
 
-	--
-	-- XXX remove later
-	--
-	procedure Obtain_Plain_Data(
-		Obj        :     Crypto.Object_Type;
-		Prim       :     Primitive.Object_Type;
-		Plain_Data : out Crypto.Plain_Data_Type)
-	is
-	begin
-		for Item_Id in Obj.Items'Range loop
-			Item.Obtain_Plain_Data(Obj.Items(Item_Id), Prim, Plain_Data);
-		end loop;
-	end Obtain_Plain_Data;
+   --
+   --  XXX remove later
+   --
+   procedure Obtain_Plain_Data (
+      Obj        :     Crypto.Object_Type;
+      Prim       :     Primitive.Object_Type;
+      Plain_Data : out Crypto.Plain_Data_Type)
+   is
+   begin
+      for Item_Id in Obj.Items'Range loop
+         Item.Obtain_Plain_Data (Obj.Items (Item_Id), Prim, Plain_Data);
+      end loop;
+   end Obtain_Plain_Data;
 
+   procedure Supply_Cipher_Data (
+      Obj         : out Crypto.Object_Type;
+      Prim        :     Primitive.Object_Type;
+      Cipher_Data :     Cipher_Data_Type)
+   is
+   begin
+      for Item_Id in Obj.Items'Range loop
+         Item.Supply_Cipher_Data (Obj.Items (Item_Id), Prim, Cipher_Data);
+      end loop;
+   end Supply_Cipher_Data;
 
-	procedure Supply_Cipher_Data(
-		Obj         : out Crypto.Object_Type;
-		Prim        :     Primitive.Object_Type;
-		Cipher_Data :     Cipher_Data_Type)
-	is
-	begin
-		for Item_Id in Obj.Items'Range loop
-			Item.Supply_Cipher_Data(Obj.Items(Item_Id), Prim, Cipher_Data);
-		end loop;
-	end Supply_Cipher_Data;
+   procedure Obtain_Cipher_Data (
+      Obj         :     Crypto.Object_Type;
+      Prim        :     Primitive.Object_Type;
+      Cipher_Data : out Cipher_Data_Type)
+   is
+   begin
+      for Item_Id in Obj.Items'Range loop
+         Item.Obtain_Cipher_Data (Obj.Items (Item_Id), Prim, Cipher_Data);
+      end loop;
+   end Obtain_Cipher_Data;
 
-
-	procedure Obtain_Cipher_Data(
-		Obj         :     Crypto.Object_Type;
-		Prim        :     Primitive.Object_Type;
-		Cipher_Data : out Cipher_Data_Type)
-	is
-	begin
-		for Item_Id in Obj.Items'Range loop
-			Item.Obtain_Cipher_Data(Obj.Items(Item_Id), Prim, Cipher_Data);
-		end loop;
-	end Obtain_Cipher_Data;
-
-
-	procedure Supply_Plain_Data(
-		Obj         : out Crypto.Object_Type;
-		Prim        :     Primitive.Object_Type;
-		Plain_Data :     Plain_Data_Type)
-	is
-	begin
-		for Item_Id in Obj.Items'Range loop
-			Item.Supply_Plain_Data(Obj.Items(Item_Id), Prim, Plain_Data);
-		end loop;
-	end Supply_Plain_Data;
+   procedure Supply_Plain_Data (
+      Obj         : out Crypto.Object_Type;
+      Prim        :     Primitive.Object_Type;
+      Plain_Data :     Plain_Data_Type)
+   is
+   begin
+      for Item_Id in Obj.Items'Range loop
+         Item.Supply_Plain_Data (Obj.Items (Item_Id), Prim, Plain_Data);
+      end loop;
+   end Supply_Plain_Data;
 
 end CBE.Crypto;

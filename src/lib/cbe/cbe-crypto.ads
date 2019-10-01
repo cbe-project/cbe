@@ -16,8 +16,8 @@ is
    --  Disable for now because of libsparkcrypto
    --  pragma Pure;
 
-	subtype Plain_Data_Type  is CBE.Block_Data_Type;
-	subtype Cipher_Data_Type is CBE.Block_Data_Type;
+   subtype Plain_Data_Type  is CBE.Block_Data_Type;
+   subtype Cipher_Data_Type is CBE.Block_Data_Type;
 
    type Object_Type is private;
 
@@ -112,25 +112,25 @@ is
 
    function Execute_Progress (Obj : Object_Type) return Boolean;
 
-	procedure Obtain_Plain_Data(
-		Obj        :     Crypto.Object_Type;
-		Prim       :     Primitive.Object_Type;
-		Plain_Data : out Crypto.Plain_Data_Type);
+   procedure Obtain_Plain_Data (
+      Obj        :     Crypto.Object_Type;
+      Prim       :     Primitive.Object_Type;
+      Plain_Data : out Crypto.Plain_Data_Type);
 
-	procedure Supply_Cipher_Data(
-		Obj         : out Crypto.Object_Type;
-		Prim        :     Primitive.Object_Type;
-		Cipher_Data :     Cipher_Data_Type);
+   procedure Supply_Cipher_Data (
+      Obj         : out Crypto.Object_Type;
+      Prim        :     Primitive.Object_Type;
+      Cipher_Data :     Cipher_Data_Type);
 
-	procedure Obtain_Cipher_Data(
-		Obj         :     Crypto.Object_Type;
-		Prim        :     Primitive.Object_Type;
-		Cipher_Data : out Cipher_Data_Type);
+   procedure Obtain_Cipher_Data (
+      Obj         :     Crypto.Object_Type;
+      Prim        :     Primitive.Object_Type;
+      Cipher_Data : out Cipher_Data_Type);
 
-	procedure Supply_Plain_Data(
-		Obj         : out Crypto.Object_Type;
-		Prim        :     Primitive.Object_Type;
-		Plain_Data :     Plain_Data_Type);
+   procedure Supply_Plain_Data (
+      Obj         : out Crypto.Object_Type;
+      Prim        :     Primitive.Object_Type;
+      Plain_Data :     Plain_Data_Type);
 
 private
 
@@ -205,29 +205,29 @@ private
       procedure State (Obj : in out Item_Type; Sta : State_Type)
       with Pre => not Invalid (Obj);
 
-		--
-		-- XXX remove later
-		--
+      --
+      --  XXX remove later
+      --
 
-		procedure Obtain_Plain_Data (
-			Item        :     Item_Type;
-			Prim        :     Primitive.Object_Type;
-			Plain_Data : out Plain_Data_Type);
+      procedure Obtain_Plain_Data (
+         Item        :     Item_Type;
+         Prim        :     Primitive.Object_Type;
+         Plain_Data : out Plain_Data_Type);
 
-		procedure Supply_Cipher_Data (
-			Item        : out Item_Type;
-			Prim        :     Primitive.Object_Type;
-			Cipher_Data :     Cipher_Data_Type);
+      procedure Supply_Cipher_Data (
+         Item        : out Item_Type;
+         Prim        :     Primitive.Object_Type;
+         Cipher_Data :     Cipher_Data_Type);
 
-		procedure Obtain_Cipher_Data (
-			Item        :     Item_Type;
-			Prim        :     Primitive.Object_Type;
-			Cipher_Data : out Cipher_Data_Type);
+      procedure Obtain_Cipher_Data (
+         Item        :     Item_Type;
+         Prim        :     Primitive.Object_Type;
+         Cipher_Data : out Cipher_Data_Type);
 
-		procedure Supply_Plain_Data (
-			Item        : out Item_Type;
-			Prim        :     Primitive.Object_Type;
-			Plain_Data :      Plain_Data_Type);
+      procedure Supply_Plain_Data (
+         Item        : out Item_Type;
+         Prim        :     Primitive.Object_Type;
+         Plain_Data :      Plain_Data_Type);
 
    private
 

@@ -2003,207 +2003,208 @@ is
       return False;
    end Supply_Client_Data;
 
-	procedure Crypto_Data_Required (
-		Obj : in out Object_Type;
-		Req :    out Request.Object_Type)
-	is
-	begin
-		Declare_Generated_Encryption_Prim:
-		declare
-				Prim : constant Primitive.Object_Type :=
-					Crypto.Peek_Generated_Primitive (Obj.Crypto_Obj);
-		begin
-			if not Primitive.Valid (Prim) or Primitive.Operation (Prim) = Read then
-				Req := Request.Invalid_Object;
-			else
+   procedure Crypto_Data_Required (
+      Obj : in out Object_Type;
+      Req :    out Request.Object_Type)
+   is
+   begin
+      Declare_Generated_Encryption_Prim :
+      declare
+            Prim : constant Primitive.Object_Type :=
+               Crypto.Peek_Generated_Primitive (Obj.Crypto_Obj);
+      begin
+         if not Primitive.Valid (Prim) or else
+            Primitive.Operation (Prim) = Read
+         then
+            Req := Request.Invalid_Object;
+         else
 
-				Req := Request.Valid_Object (
-					Op     => CBE.Write,
-					Succ   => False,
-					Blk_nr => Primitive.Block_Number (Prim),
-					Off    => 0,
-					Cnt    => 1,
-					Tg     => Primitive.Tag (Prim));
-			end if;
-		end Declare_Generated_Encryption_Prim;
+            Req := Request.Valid_Object (
+               Op     => CBE.Write,
+               Succ   => False,
+               Blk_Nr => Primitive.Block_Number (Prim),
+               Off    => 0,
+               Cnt    => 1,
+               Tg     => Primitive.Tag (Prim));
+         end if;
+      end Declare_Generated_Encryption_Prim;
 
-	end Crypto_Data_Required;
+   end Crypto_Data_Required;
 
+   procedure Obtain_Crypto_Plain_Data (
+      Obj      : in out Library.Object_Type;
+      Req      :        Request.Object_Type;
+      Data     :    out Crypto.Plain_Data_Type;
+      Progress :    out Boolean)
+   is
+      function Request_Equals_Primitive (
+         Req  : Request.Object_Type;
+         Prim : Primitive.Object_Type)
+      return Boolean
+      is
+         (Request.Block_Number (Req) = Primitive.Block_Number (Prim) and then
+          Request.Operation (Req) = Primitive.Operation (Prim) and then
+          Request.Tag (Req) = Primitive.Tag (Prim));
+   begin
+      if not Request.Valid (Req) then
+         Progress := False;
+      end if;
 
-	procedure Obtain_Crypto_Plain_Data (
-		Obj      : in out Library.Object_Type;
-		Req      :        Request.Object_Type;
-		Data     :    out Crypto.Plain_Data_Type;
-		Progress :    out Boolean)
-	is
-		function Request_Equals_Primitive (
-			Req  : Request.Object_Type;
-			Prim : Primitive.Object_Type)
-		return Boolean
-		is
-			(Request.Block_Number (Req) = Primitive.Block_Number (Prim) and
-			 Request.Operation (Req) = Primitive.Operation (Prim) and
-			 Request.Tag (Req) = Primitive.Tag (Prim));
-	begin
-		if not Request.Valid (Req) then
-			Progress := False;
-		end if;
+      --  Print_String ("Obtain_Crypto_Plain_Data " & Request.To_String (Req));
 
-		--Print_String ("Obtain_Crypto_Plain_Data " & Request.To_String (Req));
+      Loop_Crypto_Plain_Data :
+      loop
+         Declare_Crypto_Plain_Prim :
+         declare
+            Prim : constant Primitive.Object_Type :=
+               Crypto.Peek_Generated_Primitive (Obj.Crypto_Obj);
+         begin
+            exit Loop_Crypto_Plain_Data when
+               not Primitive.Valid (Prim) or else
+               not Request_Equals_Primitive (Req, Prim);
 
-		Loop_Crypto_Plain_Data:
-		loop
-			Declare_Crypto_Plain_Prim:
-			declare
-				Prim : constant Primitive.Object_Type :=
-					Crypto.Peek_Generated_Primitive (Obj.Crypto_Obj);
-			begin
-				exit Loop_Crypto_Plain_Data when
-					not Primitive.Valid (Prim) or
-					not Request_Equals_Primitive (Req, Prim);
+            --  XXX remove later
+            Crypto.Obtain_Plain_Data (Obj.Crypto_Obj, Prim, Data);
 
-				Crypto.Obtain_Plain_Data (Obj.Crypto_Obj, Prim, Data); -- XXX remove later
+            Crypto.Drop_Generated_Primitive (Obj.Crypto_Obj, Prim);
 
-				Crypto.Drop_Generated_Primitive (Obj.Crypto_Obj, Prim);
+         end Declare_Crypto_Plain_Prim;
+         Progress := True;
 
-			end Declare_Crypto_Plain_Prim;
-			Progress := True;
+      end loop Loop_Crypto_Plain_Data;
+   end Obtain_Crypto_Plain_Data;
 
-		end loop Loop_Crypto_Plain_Data;
-	end Obtain_Crypto_Plain_Data;
+   procedure Supply_Crypto_Cipher_Data (
+      Obj      : in out Library.Object_Type;
+      Req      :        Request.Object_Type;
+      Data     :        Crypto.Cipher_Data_Type;
+      Progress :    out Boolean)
+   is
+   begin
+      --  XXX extend check
+      if not Request.Valid (Req) then
+         Progress := False;
+      end if;
 
+      Declare_Cipher_Data_Primitive :
+      declare
+            Prim : constant Primitive.Object_Type := Primitive.Valid_Object (
+               Op     => Request.Operation (Req),
+               Succ   => Request.Success (Req),
+               Tg     => Request.Tag (Req),
+               Blk_Nr => Request.Block_Number (Req),
+               Idx    => 0);
+      begin
 
-	procedure Supply_Crypto_Cipher_Data (
-		Obj      : in out Library.Object_Type;
-		Req      :        Request.Object_Type;
-		Data     :        Crypto.Cipher_Data_Type;
-		Progress :    out Boolean)
-	is
-	begin
-		-- XXX extend check
-		if not Request.Valid (Req) then
-			Progress := False;
-		end if;
+         Crypto.Supply_Cipher_Data (Obj.Crypto_Obj, Prim, Data);
+         Crypto.Mark_Completed_Primitive (Obj.Crypto_Obj, Prim);
 
-		Declare_Cipher_Data_Primitive:
-		declare
-				Prim : constant Primitive.Object_Type := Primitive.Valid_Object (
-					Op     => Request.Operation (Req),
-					Succ   => Request.Success (Req),
-					Tg     => Request.Tag (Req),
-					Blk_Nr => Request.Block_Number (Req),
-					Idx    => 0);
-		begin
+      end Declare_Cipher_Data_Primitive;
+      Progress := True;
+   end Supply_Crypto_Cipher_Data;
 
-			Crypto.Supply_Cipher_Data (Obj.Crypto_Obj, Prim, Data);
-			Crypto.Mark_Completed_Primitive (Obj.Crypto_Obj, Prim);
+   procedure Has_Crypto_Data_To_Decrypt (
+      Obj : in out Object_Type;
+      Req :    out Request.Object_Type)
+   is
+   begin
+      Declare_Generated_Decryption_Prim :
+      declare
+            Prim : constant Primitive.Object_Type :=
+               Crypto.Peek_Generated_Primitive (Obj.Crypto_Obj);
+      begin
+         if not Primitive.Valid (Prim) or else
+            Primitive.Operation (Prim) = Write
+         then
+            Req := Request.Invalid_Object;
+         else
+            Req := Request.Valid_Object (
+               Op     => CBE.Read,
+               Succ   => False,
+               Blk_Nr => Primitive.Block_Number (Prim),
+               Off    => 0,
+               Cnt    => 1,
+               Tg     => Primitive.Tag (Prim));
+         end if;
+      end Declare_Generated_Decryption_Prim;
+   end Has_Crypto_Data_To_Decrypt;
 
-		end Declare_Cipher_Data_Primitive;
-		Progress := True;
-	end Supply_Crypto_Cipher_Data;
+   procedure Obtain_Crypto_Cipher_Data (
+      Obj      : in out Library.Object_Type;
+      Req      :        Request.Object_Type;
+      Data     :    out Crypto.Cipher_Data_Type;
+      Progress :    out Boolean)
+   is
+      function Request_Equals_Primitive (
+         Req  : Request.Object_Type;
+         Prim : Primitive.Object_Type)
+      return Boolean
+      is
+         (Request.Block_Number (Req) = Primitive.Block_Number (Prim) and then
+          Request.Operation (Req) = Primitive.Operation (Prim) and then
+          Request.Tag (Req) = Primitive.Tag (Prim));
 
+   begin
+      if not Request.Valid (Req) then
+         Progress := False;
+      end if;
 
-	procedure Has_Crypto_Data_To_Decrypt (
-		Obj : in out Object_Type;
-		Req :    out Request.Object_Type)
-	is
-	begin
-		Declare_Generated_Decryption_Prim:
-		declare
-				Prim : constant Primitive.Object_Type :=
-					Crypto.Peek_Generated_Primitive (Obj.Crypto_Obj);
-		begin
-			if not Primitive.Valid (Prim) or Primitive.Operation (Prim) = Write then
-				Req := Request.Invalid_Object;
-			else
-				Req := Request.Valid_Object (
-					Op     => CBE.Read,
-					Succ   => False,
-					Blk_Nr => Primitive.Block_Number (Prim),
-					Off    => 0,
-					Cnt    => 1,
-					Tg     => Primitive.Tag (Prim));
-			end if;
-		end Declare_Generated_Decryption_Prim;
-	end Has_Crypto_Data_To_Decrypt;
+      Loop_Crypto_Cipher_Data :
+      loop
+         Declare_Crypto_Cipher_Prim :
+         declare
+            Prim : constant Primitive.Object_Type :=
+               Crypto.Peek_Generated_Primitive (Obj.Crypto_Obj);
+         begin
+            Print_String (Primitive.To_String (Prim));
 
+            exit Loop_Crypto_Cipher_Data when
+               not Primitive.Valid (Prim);
 
-	procedure Obtain_Crypto_Cipher_Data (
-		Obj      : in out Library.Object_Type;
-		Req      :        Request.Object_Type;
-		Data     :    out Crypto.Cipher_Data_Type;
-		Progress :    out Boolean)
-	is
-		function Request_Equals_Primitive (
-			Req  : Request.Object_Type;
-			Prim : Primitive.Object_Type)
-		return Boolean
-		is
-			(Request.Block_Number (Req) = Primitive.Block_Number (Prim) and
-			 Request.Operation (Req) = Primitive.Operation (Prim) and
-			 Request.Tag (Req) = Primitive.Tag (Prim));
+            Print_String (Request.To_String (Req));
 
-	begin
-		if not Request.Valid (Req) then
-			Progress := False;
-		end if;
+            exit Loop_Crypto_Cipher_Data when
+               not Request_Equals_Primitive (Req, Prim);
 
-		Loop_Crypto_Cipher_Data:
-		loop
-			Declare_Crypto_Cipher_Prim:
-			declare
-				Prim : constant Primitive.Object_Type :=
-					Crypto.Peek_Generated_Primitive (Obj.Crypto_Obj);
-			begin
-				Print_String (Primitive.To_String (Prim));
+            --  XXX remove later
+            Crypto.Obtain_Cipher_Data (Obj.Crypto_Obj, Prim, Data);
 
-				exit Loop_Crypto_Cipher_Data when
-					not Primitive.Valid (Prim);
+            Crypto.Drop_Generated_Primitive (Obj.Crypto_Obj, Prim);
 
-				Print_String (Request.To_String (Req));
+         end Declare_Crypto_Cipher_Prim;
+         Progress := True;
 
-				exit Loop_Crypto_Cipher_Data when
-					not Request_Equals_Primitive (Req, Prim);
+      end loop Loop_Crypto_Cipher_Data;
+   end Obtain_Crypto_Cipher_Data;
 
-				Crypto.Obtain_Cipher_Data (Obj.Crypto_Obj, Prim, Data); -- XXX remove later
+   procedure Supply_Crypto_Plain_Data (
+      Obj      : in out Library.Object_Type;
+      Req      :        Request.Object_Type;
+      Data     :        Crypto.Plain_Data_Type;
+      Progress :    out Boolean)
+   is
+   begin
+      --  XXX extend check
+      if not Request.Valid (Req) then
+         Progress := False;
+      end if;
 
-				Crypto.Drop_Generated_Primitive (Obj.Crypto_Obj, Prim);
+      Declare_Plain_Data_Primitive :
+      declare
+            Prim : constant Primitive.Object_Type := Primitive.Valid_Object (
+               Op     => Request.Operation (Req),
+               Succ   => Request.Success (Req),
+               Tg     => Request.Tag (Req),
+               Blk_Nr => Request.Block_Number (Req),
+               Idx    => 0);
+      begin
 
-			end Declare_Crypto_Cipher_Prim;
-			Progress := True;
+         Crypto.Supply_Plain_Data (Obj.Crypto_Obj, Prim, Data);
+         Crypto.Mark_Completed_Primitive (Obj.Crypto_Obj, Prim);
 
-		end loop Loop_Crypto_Cipher_Data;
-	end Obtain_Crypto_Cipher_Data;
-
-
-	procedure Supply_Crypto_Plain_Data (
-		Obj      : in out Library.Object_Type;
-		Req      :        Request.Object_Type;
-		Data     :        Crypto.Plain_Data_Type;
-		Progress :    out Boolean)
-	is
-	begin
-		-- XXX extend check
-		if not Request.Valid (Req) then
-			Progress := False;
-		end if;
-
-		Declare_Plain_Data_Primitive:
-		declare
-				Prim : constant Primitive.Object_Type := Primitive.Valid_Object (
-					Op     => Request.Operation (Req),
-					Succ   => Request.Success (Req),
-					Tg     => Request.Tag (Req),
-					Blk_Nr => Request.Block_Number (Req),
-					Idx    => 0);
-		begin
-
-			Crypto.Supply_Plain_Data (Obj.Crypto_Obj, Prim, Data);
-			Crypto.Mark_Completed_Primitive (Obj.Crypto_Obj, Prim);
-
-		end Declare_Plain_Data_Primitive;
-		Progress := True;
-	end Supply_Crypto_Plain_Data;
+      end Declare_Plain_Data_Primitive;
+      Progress := True;
+   end Supply_Crypto_Plain_Data;
 
    function Execute_Progress (Obj : Object_Type)
    return Boolean
