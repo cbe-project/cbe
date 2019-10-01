@@ -1051,7 +1051,7 @@ is
             declare
                Next_SB : constant Superblock_Index_Type :=
                   Obj.Cur_SB + 1 mod
-                     Superblock_Index_Type (Superblocks_Index_Type'Last) + 1;
+                     (Superblock_Index_Type (Superblocks_Index_Type'Last) + 1);
             begin
                Obj.Superblocks (Superblocks_Index_Type (Next_SB)) :=
                   Obj.Superblocks (Curr_SB (Obj));
