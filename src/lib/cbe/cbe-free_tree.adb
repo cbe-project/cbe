@@ -413,6 +413,7 @@ is
       declare
          Nodes : Type_II_Node_Block_Type
          with Address => Query_Data (0)'Address;
+         Found_New_Free_Blocks : Boolean := False;
       begin
 
          For_Type_2_Nodes :
@@ -467,6 +468,8 @@ is
                            Obj.Nr_Of_Found_Blocks :=
                               Obj.Nr_Of_Found_Blocks + 1;
 
+                           Found_New_Free_Blocks := True;
+
                            --  MOD_DBG ("found free PBA: ", PBA);
                         end Declare_Free_Blocks;
                      end if;
@@ -480,16 +483,17 @@ is
 
          end loop For_Type_2_Nodes;
 
+         --
+         --  (Rather than always increasing the current query branch,
+         --  only do that when we actually found free blocks.
+         --  Somehow or other, querying only 8 branches is not enough
+         --  for large trees and we have to change the implementation
+         --  later.)
+         --
+         if Found_New_Free_Blocks then
+            Obj.Curr_Query_Branch := Obj.Curr_Query_Branch + 1;
+         end if;
       end Declare_Nodes_1;
-
-      --
-      --  (Rather than always increasing the current query branch,
-      --  only do that when we actually found free blocks.
-      --  Somehow or other, querying only 8 branches is not enough
-      --  for large trees and we have to change the implementation
-      --  later.)
-      --
-      Obj.Curr_Query_Branch := Obj.Curr_Query_Branch + 1;
 
       --
       --  Reset I/O helper to disarm complete check above.
