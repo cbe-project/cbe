@@ -20,4 +20,12 @@ is
       Collect (V_Temp);
    end Pass_In;
 
+   procedure Pass_Out (V1 : out T1) is
+      --  pragma Compile_Time_Error (T1'Size = T2'Size, "Cannot convert between differently sized types");
+      V_Temp : T2 with
+         Address => V1'Address;
+   begin
+      Collect (V_Temp);
+   end Pass_Out;
+
 end Conversion;

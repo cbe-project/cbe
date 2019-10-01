@@ -60,7 +60,7 @@ package body Component is
              and then Gns.Log.Initialized (Log);
 
    procedure Cbe_Server_Read;
-   --  procedure Cbe_Server_Write;
+   procedure Cbe_Server_Write;
 
    Sbsr : Superblock_Request_Cache;
    --  This should be a variable inside Read_Superblock. But since the Request type
@@ -320,6 +320,7 @@ package body Component is
             CBE.Library.Execute (Cbe_Session, Convert_Time (Now));
             Progress := Progress or else CBE.Library.Execute_Progress (Cbe_Session);
             Cbe_Server_Read;
+            Cbe_Server_Write;
          end loop;
       else
          Read_Superblock;
@@ -372,6 +373,38 @@ package body Component is
          end if;
       end if;
    end Cbe_Server_Read;
+
+   Server_Block_Buffer : CBE.Block_Data_Type;
+
+   procedure Cbe_Server_Write is
+      Req : CBE.Request.Object_Type;
+      Tag : Request_Id;
+      Now : Gns.Timer.Time;
+      P_DUMMY : Boolean;
+   begin
+      Now := Timer_Client.Clock (Timer);
+      CBE.Library.Client_Data_Required (Cbe_Session, Req);
+      if CBE.Request.Valid (Req) then
+         Gns.Log.Client.Info (Log, "Write valid");
+         Tag := Request_Id (CBE.Request.Tag (Req));
+         if Tag in Cache'Range then
+            declare
+               procedure Wrt (B : out Block_Buffer);
+               procedure Wrt (B : out Block_Buffer) is
+               begin
+                  Block_Server.Write (Server, Cache (Tag).S, B);
+               end Wrt;
+               procedure Cwrt is new Conversion.Pass_Out
+                  (CBE.Block_Data_Type,
+                   Block_Buffer, Wrt);
+            begin
+               Cwrt (Server_Block_Buffer);
+               P_DUMMY := CBE.Library.Supply_Client_Data
+                  (Cbe_Session, Convert_Time (Now), Req, Server_Block_Buffer);
+            end;
+         end if;
+      end if;
+   end Cbe_Server_Write;
 
    procedure Initialize_Server
       (S : in out Block.Server_Session;
