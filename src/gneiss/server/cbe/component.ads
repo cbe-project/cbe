@@ -4,6 +4,8 @@ with Componolit.Gneiss.Block;
 with Componolit.Gneiss.Block.Client;
 with Componolit.Gneiss.Block.Dispatcher;
 with Componolit.Gneiss.Block.Server;
+with Componolit.Gneiss.Timer;
+with Componolit.Gneiss.Timer.Client;
 with CBE;
 
 package Component is
@@ -38,6 +40,7 @@ package Component is
        D :        Buffer) with
       Pre => Block.Initialized (C);
 
+   package Timer_Client is new Gns.Timer.Client (Event);
    package Block_Client is new Block.Client (Event, Read, Write);
 
    procedure Dispatch
