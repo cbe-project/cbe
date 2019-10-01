@@ -320,6 +320,18 @@ namespace Cbe {
 	} __attribute__((packed));
 
 
+	struct Crypto_plain_buffer
+	{
+		Block_data items[1];
+	} __attribute__((packed));
+
+
+	struct Crypto_cipher_buffer
+	{
+		Block_data items[1];
+	} __attribute__((packed));
+
+
 	/*
 	 * The Hash contains the hash of a node.
 	 */

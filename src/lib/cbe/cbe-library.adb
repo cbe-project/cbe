@@ -127,9 +127,11 @@ is
    end Superblock_Snapshot_Slot;
 
    procedure Initialize_Object (
-      Obj     : out Object_Type;
-      SBs     :     Superblocks_Type;
-      Curr_SB :     Superblocks_Index_Type)
+      Obj               : out Object_Type;
+      SBs               :     Superblocks_Type;
+      Curr_SB           :     Superblocks_Index_Type;
+      Crypto_Plain_Buf  : out Crypto.Plain_Buffer_Type;
+      Crypto_Cipher_Buf : out Crypto.Cipher_Buffer_Type)
    is
       Snap_Slot : constant Snapshot_ID_Type :=
          Superblock_Snapshot_Slot (SBs (Curr_SB));
@@ -162,13 +164,13 @@ is
          raise Program_Error; --  throw Invalid_Tree;
       end if;
 
+      Crypto.Initialize_Plain_Buffer  (Crypto_Plain_Buf);
+      Crypto.Initialize_Cipher_Buffer (Crypto_Cipher_Buf);
+
       Obj.Execute_Progress := False;
       Obj.Request_Pool_Obj        := Pool.Initialized_Object;
       Obj.Splitter_Obj            := Splitter.Initialized_Object;
       Obj.Crypto_Obj              := Crypto.Initialized_Object;
-
-      Crypto.Initialize_Plain_Buffer  (Obj.Crypto_Plain_Buf);
-      Crypto.Initialize_Cipher_Buffer (Obj.Crypto_Cipher_Buf);
 
       Obj.IO_Obj                  := Block_IO.Initialized_Object;
       Obj.IO_Data                 := (others => (others => 0));
@@ -295,8 +297,10 @@ is
    end Update_Snapshot_Hash;
 
    procedure Execute (
-      Obj : in out Object_Type;
-      Now :        Timestamp_Type)
+      Obj               : in out Object_Type;
+      Crypto_Plain_Buf  : in out Crypto.Plain_Buffer_Type;
+      Crypto_Cipher_Buf : in out Crypto.Cipher_Buffer_Type;
+      Now               :        Timestamp_Type)
    is
       Progress : Boolean := False;
    begin
@@ -867,7 +871,7 @@ is
                   Obj.Write_Back_Data (Plain_Data_Index)'Address;
             begin
                Crypto.Submit_Encryption_Primitive (
-                  Obj.Crypto_Obj, Prim, Obj.Crypto_Plain_Buf, Plain_Data);
+                  Obj.Crypto_Obj, Prim, Crypto_Plain_Buf, Plain_Data);
 
             end Declare_Crypto_Data;
             Write_Back.Drop_Generated_Crypto_Primitive (
@@ -1157,7 +1161,7 @@ is
                --        processing in case the operation failed
                --
                Crypto.Copy_Encrypted_Data (
-                  Obj.Crypto_Obj, Prim, Obj.Crypto_Cipher_Buf, Cipher_Data);
+                  Obj.Crypto_Obj, Prim, Crypto_Cipher_Buf, Cipher_Data);
 
                Write_Back.Mark_Completed_Crypto_Primitive (
                   Obj.Write_Back_Obj, Prim, Obj.Write_Back_Data (Index));
@@ -1283,7 +1287,7 @@ is
                               Prim,
                               Block_IO.Peek_Completed_Tag (
                                  Obj.IO_Obj, Prim)),
-                           Obj.Crypto_Cipher_Buf,
+                           Crypto_Cipher_Buf,
                            Cipher_Data);
 
                      end Declare_Data;
@@ -1635,10 +1639,11 @@ is
    end Give_Data_Index;
 
    procedure Obtain_Client_Data (
-      Obj      : in out Object_Type;
-      Req      :        Request.Object_Type;
-      Data     :    out Crypto.Plain_Data_Type;
-      Progress :    out Boolean)
+      Obj              : in out Object_Type;
+      Req              :        Request.Object_Type;
+      Crypto_Plain_Buf :        Crypto.Plain_Buffer_Type;
+      Data             :    out Crypto.Plain_Data_Type;
+      Progress         :    out Boolean)
    is
       Prim : constant Primitive.Object_Type := Obj.Front_End_Req_Prim.Prim;
       Tag  : constant Tag_Type              := Obj.Front_End_Req_Prim.Tag;
@@ -1652,7 +1657,7 @@ is
       if Tag = Tag_Crypto then
 
          Crypto.Copy_Decrypted_Data (
-            Obj.Crypto_Obj, Prim, Obj.Crypto_Plain_Buf, Data);
+            Obj.Crypto_Obj, Prim, Crypto_Plain_Buf, Data);
 
          Crypto.Drop_Completed_Primitive (Obj.Crypto_Obj, Prim);
          Pool.Mark_Completed_Primitive (Obj.Request_Pool_Obj, Prim);
@@ -2039,10 +2044,11 @@ is
    end Crypto_Data_Required;
 
    procedure Obtain_Crypto_Plain_Data (
-      Obj      : in out Library.Object_Type;
-      Req      :        Request.Object_Type;
-      Data     :    out Crypto.Plain_Data_Type;
-      Progress :    out Boolean)
+      Obj              : in out Library.Object_Type;
+      Req              :        Request.Object_Type;
+      Crypto_Plain_Buf :        Crypto.Plain_Buffer_Type;
+      Data             :    out Crypto.Plain_Data_Type;
+      Progress         :    out Boolean)
    is
       function Request_Equals_Primitive (
          Req  : Request.Object_Type;
@@ -2072,7 +2078,7 @@ is
 
             --  XXX remove later
             Crypto.Obtain_Plain_Data (
-               Obj.Crypto_Obj, Prim, Obj.Crypto_Plain_Buf, Data);
+               Obj.Crypto_Obj, Prim, Crypto_Plain_Buf, Data);
 
             Crypto.Drop_Generated_Primitive (Obj.Crypto_Obj, Prim);
 
@@ -2083,10 +2089,11 @@ is
    end Obtain_Crypto_Plain_Data;
 
    procedure Supply_Crypto_Cipher_Data (
-      Obj      : in out Library.Object_Type;
-      Req      :        Request.Object_Type;
-      Data     :        Crypto.Cipher_Data_Type;
-      Progress :    out Boolean)
+      Obj               : in out Library.Object_Type;
+      Req               :        Request.Object_Type;
+      Crypto_Cipher_Buf : in out Crypto.Cipher_Buffer_Type;
+      Data              :        Crypto.Cipher_Data_Type;
+      Progress          :    out Boolean)
    is
    begin
       --  XXX extend check
@@ -2105,7 +2112,7 @@ is
       begin
 
          Crypto.Supply_Cipher_Data (
-            Obj.Crypto_Obj, Prim, Obj.Crypto_Cipher_Buf, Data);
+            Obj.Crypto_Obj, Prim, Crypto_Cipher_Buf, Data);
 
          Crypto.Mark_Completed_Primitive (Obj.Crypto_Obj, Prim);
 
@@ -2140,10 +2147,11 @@ is
    end Has_Crypto_Data_To_Decrypt;
 
    procedure Obtain_Crypto_Cipher_Data (
-      Obj      : in out Library.Object_Type;
-      Req      :        Request.Object_Type;
-      Data     :    out Crypto.Cipher_Data_Type;
-      Progress :    out Boolean)
+      Obj               : in out Library.Object_Type;
+      Req               :        Request.Object_Type;
+      Crypto_Cipher_Buf :        Crypto.Cipher_Buffer_Type;
+      Data              :    out Crypto.Cipher_Data_Type;
+      Progress          :    out Boolean)
    is
       function Request_Equals_Primitive (
          Req  : Request.Object_Type;
@@ -2178,7 +2186,7 @@ is
 
             --  XXX remove later
             Crypto.Obtain_Cipher_Data (
-               Obj.Crypto_Obj, Prim, Obj.Crypto_Cipher_Buf, Data);
+               Obj.Crypto_Obj, Prim, Crypto_Cipher_Buf, Data);
 
             Crypto.Drop_Generated_Primitive (Obj.Crypto_Obj, Prim);
 
@@ -2189,10 +2197,11 @@ is
    end Obtain_Crypto_Cipher_Data;
 
    procedure Supply_Crypto_Plain_Data (
-      Obj      : in out Library.Object_Type;
-      Req      :        Request.Object_Type;
-      Data     :        Crypto.Plain_Data_Type;
-      Progress :    out Boolean)
+      Obj              : in out Library.Object_Type;
+      Req              :        Request.Object_Type;
+      Crypto_Plain_Buf : in out Crypto.Plain_Buffer_Type;
+      Data             :        Crypto.Plain_Data_Type;
+      Progress         :    out Boolean)
    is
    begin
       --  XXX extend check
@@ -2211,7 +2220,7 @@ is
       begin
 
          Crypto.Supply_Plain_Data (
-            Obj.Crypto_Obj, Prim, Obj.Crypto_Plain_Buf, Data);
+            Obj.Crypto_Obj, Prim, Crypto_Plain_Buf, Data);
 
          Crypto.Mark_Completed_Primitive (Obj.Crypto_Obj, Prim);
 

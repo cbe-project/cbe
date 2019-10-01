@@ -44,9 +44,11 @@ is
    --  \param  current_sb  super-block that should be used initially
    --
    procedure Initialize_Object (
-      Obj     : out Object_Type;
-      SBs     :     Superblocks_Type;
-      Curr_SB :     Superblocks_Index_Type);
+      Obj               : out Object_Type;
+      SBs               :     Superblocks_Type;
+      Curr_SB           :     Superblocks_Index_Type;
+      Crypto_Plain_Buf  : out Crypto.Plain_Buffer_Type;
+      Crypto_Cipher_Buf : out Crypto.Cipher_Buffer_Type);
 
    function Cache_Dirty (Obj : Object_Type)
    return Boolean;
@@ -195,10 +197,11 @@ is
    --  \param Progress  return 'True' if the CBE could process the request
    --
    procedure Obtain_Client_Data (
-      Obj      : in out Object_Type;
-      Req      :        Request.Object_Type;
-      Data     :    out Crypto.Plain_Data_Type;
-      Progress :    out Boolean);
+      Obj              : in out Object_Type;
+      Req              :        Request.Object_Type;
+      Crypto_Plain_Buf :        Crypto.Plain_Buffer_Type;
+      Data             :    out Crypto.Plain_Data_Type;
+      Progress         :    out Boolean);
 
    --
    --  Return a client request that provides data to the frontend block data
@@ -248,10 +251,11 @@ is
    --  \return  true if the CBE could supply the plain data
    --
    procedure Obtain_Crypto_Plain_Data (
-      Obj      : in out Library.Object_Type;
-      Req      :        Request.Object_Type;
-      Data     :    out Crypto.Plain_Data_Type;
-      Progress :    out Boolean);
+      Obj              : in out Library.Object_Type;
+      Req              :        Request.Object_Type;
+      Crypto_Plain_Buf :        Crypto.Plain_Buffer_Type;
+      Data             :    out Crypto.Plain_Data_Type;
+      Progress         :    out Boolean);
 
    --
    --  Collect cipher data for given completed decryption request
@@ -264,10 +268,11 @@ is
    --  \return  true if the CBE could obtain the encrypted cipher data
    --
    procedure Supply_Crypto_Cipher_Data (
-      Obj      : in out Library.Object_Type;
-      Req      :        Request.Object_Type;
-      Data     :        Crypto.Cipher_Data_Type;
-      Progress :    out Boolean);
+      Obj               : in out Library.Object_Type;
+      Req               :        Request.Object_Type;
+      Crypto_Cipher_Buf : in out Crypto.Cipher_Buffer_Type;
+      Data              :        Crypto.Cipher_Data_Type;
+      Progress          :    out Boolean);
 
    --
    --  Request decryption of data
@@ -290,10 +295,11 @@ is
    --  \return  true if the CBE could supply the cipher data
    --
    procedure Obtain_Crypto_Cipher_Data (
-      Obj      : in out Library.Object_Type;
-      Req      :        Request.Object_Type;
-      Data     :    out Crypto.Cipher_Data_Type;
-      Progress :    out Boolean);
+      Obj               : in out Library.Object_Type;
+      Req               :        Request.Object_Type;
+      Crypto_Cipher_Buf :        Crypto.Cipher_Buffer_Type;
+      Data              :    out Crypto.Cipher_Data_Type;
+      Progress          :    out Boolean);
 
    --
    --  Collect cipher data for given completed decryption request
@@ -306,12 +312,11 @@ is
    --  \return  true if the CBE could obtain the decrypted plain data
    --
    procedure Supply_Crypto_Plain_Data (
-      Obj      : in out Library.Object_Type;
-      Req      :        Request.Object_Type;
-      Data     :        Crypto.Plain_Data_Type;
-      Progress :    out Boolean);
-
-   --
+      Obj              : in out Library.Object_Type;
+      Req              :        Request.Object_Type;
+      Crypto_Plain_Buf : in out Crypto.Plain_Buffer_Type;
+      Data             :        Crypto.Plain_Data_Type;
+      Progress         :    out Boolean);
 
    --
    --  Execute one loop of the CBE
@@ -325,8 +330,10 @@ is
    --                            acutally made
    --
    procedure Execute (
-      Obj : in out Object_Type;
-      Now :        Timestamp_Type);
+      Obj               : in out Object_Type;
+      Crypto_Plain_Buf  : in out Crypto.Plain_Buffer_Type;
+      Crypto_Cipher_Buf : in out Crypto.Cipher_Buffer_Type;
+      Now               :        Timestamp_Type);
 
    --
    --  Get highest virtual-block-address useable by the current active snapshot
@@ -372,8 +379,6 @@ private
       Request_Pool_Obj        : Pool.Object_Type;
       Splitter_Obj            : Splitter.Object_Type;
       Crypto_Obj              : Crypto.Object_Type;
-      Crypto_Plain_Buf        : Crypto.Plain_Buffer_Type;
-      Crypto_Cipher_Buf       : Crypto.Cipher_Buffer_Type;
       IO_Obj                  : Block_IO.Object_Type;
       IO_Data                 : Block_IO.Data_Type;
       Cache_Obj               : Cache.Object_Type;

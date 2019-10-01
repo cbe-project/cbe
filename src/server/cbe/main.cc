@@ -194,7 +194,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 		Cbe::Time _time { _env };
 
-		Constructible<Cbe::Library> _cbe { };
+		Constructible<Cbe::Library> _cbe               { };
+		Crypto_plain_buffer         _crypto_plain_buf  { };
+		Crypto_cipher_buffer        _crypto_cipher_buf { };
 
 		External::Crypto      _crypto      { };
 		Crypto_Data _crypto_data { };
@@ -354,7 +356,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					}
 				}
 
-				_cbe->execute(now);
+				_cbe->execute(_crypto_plain_buf, _crypto_cipher_buf, now);
 				progress |= _cbe->execute_progress();
 
 				/* if sealing has finished during 'execute', set new timeout */
@@ -406,7 +408,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						payload.with_content(request, [&] (void *addr, Genode::size_t) {
 
 							Cbe::Block_data &data = *reinterpret_cast<Cbe::Block_data*>(addr);
-							progress |= _cbe->obtain_client_data(cbe_request, data);
+							progress |= _cbe->obtain_client_data(cbe_request, _crypto_plain_buf, data);
 							log("\033[36m INF ", "obtain_client_data: ", cbe_request);
 						});
 					}
@@ -556,7 +558,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					if (!request.valid()) { break; }
 					if (!_crypto.encryption_request_acceptable()) { break; }
 
-					if (!_cbe->obtain_crypto_plain_data(request, _crypto_data.items[0])) { break; }
+					if (!_cbe->obtain_crypto_plain_data(request, _crypto_plain_buf, _crypto_data.items[0])) { break; }
 
 					_crypto.submit_encryption_request(request, _crypto_data.items[0], 0);
 					progress |= true;
@@ -568,7 +570,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					if (!_crypto.supply_cipher_data(request, _crypto_data.items[0])) { break; }
 
-					_cbe->supply_crypto_cipher_data(request, _crypto_data.items[0]);
+					_cbe->supply_crypto_cipher_data(request, _crypto_cipher_buf, _crypto_data.items[0]);
 					progress |= true;
 				}
 
@@ -578,7 +580,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					if (!request.valid()) { break; }
 					if (!_crypto.decryption_request_acceptable()) { break; }
 
-					if (!_cbe->obtain_crypto_cipher_data(request, _crypto_data.items[0])) { break; }
+					if (!_cbe->obtain_crypto_cipher_data(request, _crypto_cipher_buf, _crypto_data.items[0])) { break; }
 
 					_crypto.submit_decryption_request(request, _crypto_data.items[0], 0);
 					progress |= true;
@@ -590,7 +592,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					if (!_crypto.supply_plain_data(request, _crypto_data.items[0])) { break; }
 
-					_cbe->supply_crypto_plain_data(request, _crypto_data.items[0]);
+					_cbe->supply_crypto_plain_data(request, _crypto_plain_buf, _crypto_data.items[0]);
 					progress |= true;
 				}
 
@@ -725,7 +727,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			 * access to the SBs.
 			 *
 			 */
-			_cbe.construct(_super_blocks, curr_sb);
+			_cbe.construct(_super_blocks, curr_sb, _crypto_plain_buf, _crypto_cipher_buf);
 			_time.schedule_sync_timeout(_sync_interval);
 			_time.schedule_secure_timeout(_secure_interval);
 
