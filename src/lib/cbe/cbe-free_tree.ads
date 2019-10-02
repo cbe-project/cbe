@@ -302,6 +302,7 @@ private
       Root_Hash          : Hash_Type;
       Root_Gen           : Generation_Type;
       Curr_Query_Prim    : Primitive.Object_Type;
+      Curr_Query_VBA     : Block_Number_Type;
 
       --
       --  There is always only one type 2 node query pending, branch

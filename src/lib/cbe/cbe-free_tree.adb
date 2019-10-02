@@ -60,7 +60,8 @@ is
          Curr_Query_Prim    => Primitive.Invalid_Object,
          Curr_Type_2        => IO_Entry_Invalid,
          WB_IOs             => (others => IO_Entry_Invalid),
-         WB_Data            => Write_Back_Data_Invalid);
+         WB_Data            => Write_Back_Data_Invalid,
+         Curr_Query_VBA     => 0);
    end Initialized_Object;
 
    procedure Retry_Allocation (Obj : in out Object_Type)
@@ -88,6 +89,8 @@ is
          Tg     => Tag_Invalid,
          Blk_Nr => 0,
          Idx    => 0);
+
+      Obj.Curr_Query_VBA := 0;
 
       --
       --  Reset query branches
@@ -528,14 +531,15 @@ is
 
             else
 
+               Obj.Curr_Query_VBA := Obj.Curr_Query_VBA +
+                  Block_Number_Type (Tree_Helper.Degree (Obj.Trans_Helper));
+
                --  arm query primitive and check next type 2 node
                Obj.Curr_Query_Prim := Primitive.Valid_Object (
                   Op     => Read,
                   Succ   => False,
                   Tg     => Tag_Free_Tree,
-                  Blk_Nr =>
-                     Primitive.Block_Number (Obj.Curr_Query_Prim) +
-                     Block_Number_Type (Tree_Helper.Degree (Obj.Trans_Helper)),
+                  Blk_Nr => Obj.Curr_Query_VBA,
                   Idx    => 0);
             end if;
          elsif Obj.Nr_Of_Blocks = Obj.Nr_Of_Found_Blocks then
