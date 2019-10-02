@@ -9,6 +9,7 @@
 pragma Ada_2012;
 
 with CBE.Primitive;
+with CBE.Request;
 
 package CBE.Crypto
 with SPARK_Mode
@@ -19,8 +20,11 @@ is
    subtype Plain_Data_Type  is CBE.Block_Data_Type;
    subtype Cipher_Data_Type is CBE.Block_Data_Type;
 
-   type Plain_Buffer_Type  is private;
-   type Cipher_Buffer_Type is private;
+   type Item_Index_Type is range 1 .. 1;
+
+   type Plain_Buffer_Type is array (Item_Index_Type) of Plain_Data_Type;
+
+   type Cipher_Buffer_Type is array (Item_Index_Type) of Cipher_Data_Type;
 
    type Object_Type is private;
 
@@ -47,24 +51,12 @@ is
    return Boolean;
 
    --
-   --  Submit_Decryption_Primitive
+   --  Submit_Primitive
    --
-   procedure Submit_Decryption_Primitive (
-      Obj         : in out Object_Type;
-      Prim        :        Primitive.Object_Type;
-      Cipher_Buf  : in out Cipher_Buffer_Type;
-      Cipher_Data :        Cipher_Data_Type)
-   with
-      Pre => (Primitive_Acceptable (Obj) and then Primitive.Valid (Prim));
-
-   --
-   --  Submit_Encryption_Primitive
-   --
-   procedure Submit_Encryption_Primitive (
-      Obj         : in out Object_Type;
-      Prim        :        Primitive.Object_Type;
-      Plain_Buf   : in out Plain_Buffer_Type;
-      Plain_Data  :        Plain_Data_Type)
+   procedure Submit_Primitive (
+      Obj      : in out Object_Type;
+      Prim     :        Primitive.Object_Type;
+      Data_Idx :    out Item_Index_Type)
    with
       Pre => (Primitive_Acceptable (Obj) and then Primitive.Valid (Prim));
 
@@ -106,22 +98,23 @@ is
       Prim :        Primitive.Object_Type);
 
    --
-   --  Copy_Decrypted_Data
+   --  Data_Index
    --
-   procedure Copy_Decrypted_Data (
-      Obj        :     Object_Type;
-      Prim       :     Primitive.Object_Type;
-      Plain_Buf  :     Plain_Buffer_Type;
-      Plain_Data : out Plain_Data_Type);
+   function Data_Index (
+      Obj  : Crypto.Object_Type;
+      Prim : Primitive.Object_Type)
+   return Item_Index_Type;
 
    --
-   --  Copy_Encrypted_Data
+   --  FIXME This function shouldn't be necessary in the future as we should
+   --        always remember a definite correlation from request to primitive.
+   --        This is currently not the case at least when creating a request
+   --        for the CBE crypto back-end from a primitive of the crypto module.
    --
-   procedure Copy_Encrypted_Data (
-      Obj         :     Object_Type;
-      Prim        :     Primitive.Object_Type;
-      Cipher_Buf  :     Cipher_Buffer_Type;
-      Cipher_Data : out Cipher_Data_Type);
+   function Data_Index_By_Request (
+      Obj : Crypto.Object_Type;
+      Req : Request.Object_Type)
+   return Item_Index_Type;
 
    -----------------
    --  Accessors  --
@@ -129,33 +122,7 @@ is
 
    function Execute_Progress (Obj : Object_Type) return Boolean;
 
-   procedure Obtain_Plain_Data (
-      Obj        :     Crypto.Object_Type;
-      Prim       :     Primitive.Object_Type;
-      Plain_Buf  :     Plain_Buffer_Type;
-      Plain_Data : out Crypto.Plain_Data_Type);
-
-   procedure Supply_Cipher_Data (
-      Obj         :        Crypto.Object_Type;
-      Prim        :        Primitive.Object_Type;
-      Cipher_Buf  : in out Cipher_Buffer_Type;
-      Cipher_Data :        Cipher_Data_Type);
-
-   procedure Obtain_Cipher_Data (
-      Obj         :     Crypto.Object_Type;
-      Prim        :     Primitive.Object_Type;
-      Cipher_Buf  :     Cipher_Buffer_Type;
-      Cipher_Data : out Cipher_Data_Type);
-
-   procedure Supply_Plain_Data (
-      Obj        :        Crypto.Object_Type;
-      Prim       :        Primitive.Object_Type;
-      Plain_Buf  : in out Plain_Buffer_Type;
-      Plain_Data :        Plain_Data_Type);
-
 private
-
-   type Item_Index_Type is range 1 .. 1;
 
    --
    --  Item
@@ -172,26 +139,6 @@ private
       procedure Mark_Completed_Primitive (
          Obj : in out Item_Type;
          Prm :        Primitive.Object_Type);
-
-      --
-      --  Copy_Decrypted_Data
-      --
-      procedure Copy_Decrypted_Data (
-         Item       :     Item_Type;
-         Item_Idx   :     Item_Index_Type;
-         Prim       :     Primitive.Object_Type;
-         Plain_Buf  :     Plain_Buffer_Type;
-         Plain_Data : out Plain_Data_Type);
-
-      --
-      --  Copy_Encrypted_Data
-      --
-      procedure Copy_Encrypted_Data (
-         Item        :     Item_Type;
-         Item_Idx    :     Item_Index_Type;
-         Prim        :     Primitive.Object_Type;
-         Cipher_Buf  :     Cipher_Buffer_Type;
-         Cipher_Data : out Cipher_Data_Type);
 
       --
       --  Invalid_Object
@@ -228,34 +175,6 @@ private
       procedure State (Obj : in out Item_Type; Sta : State_Type)
       with Pre => not Invalid (Obj);
 
-      --
-      --  XXX remove later
-      --
-
-      procedure Obtain_Plain_Data (
-         Item_Idx   :     Item_Index_Type;
-         Prim       :     Primitive.Object_Type;
-         Plain_Buf  :     Plain_Buffer_Type;
-         Plain_Data : out Plain_Data_Type);
-
-      procedure Supply_Cipher_Data (
-         Item_Idx    :        Item_Index_Type;
-         Prim        :        Primitive.Object_Type;
-         Cipher_Buf  : in out Cipher_Buffer_Type;
-         Cipher_Data :        Cipher_Data_Type);
-
-      procedure Obtain_Cipher_Data (
-         Item_Idx    :     Item_Index_Type;
-         Prim        :     Primitive.Object_Type;
-         Cipher_Buf  :     Cipher_Buffer_Type;
-         Cipher_Data : out Cipher_Data_Type);
-
-      procedure Supply_Plain_Data (
-         Item_Idx   :        Item_Index_Type;
-         Prim       :        Primitive.Object_Type;
-         Plain_Buf  : in out Plain_Buffer_Type;
-         Plain_Data :        Plain_Data_Type);
-
    private
 
       --
@@ -269,10 +188,6 @@ private
    end Item;
 
    type Items_Type is array (Item_Index_Type) of Item.Item_Type;
-
-   type Plain_Buffer_Type is array (Item_Index_Type) of Plain_Data_Type;
-
-   type Cipher_Buffer_Type is array (Item_Index_Type) of Cipher_Data_Type;
 
    --
    --  Object_Type

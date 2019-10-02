@@ -41,62 +41,6 @@ is
       end Mark_Completed_Primitive;
 
       --
-      --  Return true if crypto item belongs to primitive and the result
-      --  is ready to be consumed.
-      --
-      function Item_Complete (
-         Item : Item_Type;
-         Prim : Primitive.Object_Type)
-      return Boolean
-      is (Item.State = Complete and then Primitive.Equal (Item.Prim, Prim));
-
-      --
-      --  Copy_Decrypted_Data
-      --
-      procedure Copy_Decrypted_Data (
-         Item       :     Item_Type;
-         Item_Idx   :     Item_Index_Type;
-         Prim       :     Primitive.Object_Type;
-         Plain_Buf  :     Plain_Buffer_Type;
-         Plain_Data : out Plain_Data_Type)
-      is
-      begin
-         if not Item_Complete (Item, Prim) then
-            return;
-         end if;
-
-         if
-            Primitive.Operation (Item.Prim) = Read and then
-            Primitive.Success (Prim)
-         then
-            Plain_Data := Plain_Buf (Item_Idx);
-         end if;
-      end Copy_Decrypted_Data;
-
-      --
-      --  Copy_Encrypted_Data
-      --
-      procedure Copy_Encrypted_Data (
-         Item        :     Item_Type;
-         Item_Idx    :     Item_Index_Type;
-         Prim        :     Primitive.Object_Type;
-         Cipher_Buf  :     Cipher_Buffer_Type;
-         Cipher_Data : out Cipher_Data_Type)
-      is
-      begin
-         if not Item_Complete (Item, Prim) then
-            return;
-         end if;
-
-         if
-            Primitive.Operation (Item.Prim) = Write and then
-            Primitive.Success (Prim)
-         then
-            Cipher_Data := Cipher_Buf (Item_Idx);
-         end if;
-      end Copy_Encrypted_Data;
-
-      --
       --  Invalid_Object
       --
       function Invalid_Object
@@ -149,66 +93,6 @@ is
       procedure State (Obj : in out Item_Type; Sta : State_Type)
       is begin Obj.State := Sta; end State;
 
-      --
-      --  XXX remove later
-      --
-
-      procedure Obtain_Plain_Data (
-         Item_Idx   :     Item_Index_Type;
-         Prim       :     Primitive.Object_Type;
-         Plain_Buf  :     Plain_Buffer_Type;
-         Plain_Data : out Plain_Data_Type)
-      is
-      begin
-         if not Primitive.Valid (Prim) then
-            return;
-         end if;
-
-         Plain_Data := Plain_Buf (Item_Idx);
-      end Obtain_Plain_Data;
-
-      procedure Obtain_Cipher_Data (
-         Item_Idx    :     Item_Index_Type;
-         Prim        :     Primitive.Object_Type;
-         Cipher_Buf  :     Cipher_Buffer_Type;
-         Cipher_Data : out Cipher_Data_Type)
-      is
-      begin
-         if not Primitive.Valid (Prim) then
-            return;
-         end if;
-
-         Cipher_Data := Cipher_Buf (Item_Idx);
-      end Obtain_Cipher_Data;
-
-      procedure Supply_Plain_Data (
-         Item_Idx   :        Item_Index_Type;
-         Prim       :        Primitive.Object_Type;
-         Plain_Buf  : in out Plain_Buffer_Type;
-         Plain_Data :        Plain_Data_Type)
-      is
-      begin
-         if not Primitive.Valid (Prim) then
-            return;
-         end if;
-
-         Plain_Buf (Item_Idx) := Plain_Data;
-      end Supply_Plain_Data;
-
-      procedure Supply_Cipher_Data (
-         Item_Idx    :        Item_Index_Type;
-         Prim        :        Primitive.Object_Type;
-         Cipher_Buf  : in out Cipher_Buffer_Type;
-         Cipher_Data :        Cipher_Data_Type)
-      is
-      begin
-         if not Primitive.Valid (Prim) then
-            return;
-         end if;
-
-         Cipher_Buf (Item_Idx) := Cipher_Data;
-      end Supply_Cipher_Data;
-
    end Item;
 
    --
@@ -228,56 +112,23 @@ is
    is (for some Itm of Obj.Items => Item.Invalid (Itm));
 
    --
-   --  Submit_Encryption_Primitive
+   --  Submit_Primitive
    --
-   procedure Submit_Encryption_Primitive (
-      Obj         : in out Object_Type;
-      Prim        :        Primitive.Object_Type;
-      Plain_Buf   : in out Plain_Buffer_Type;
-      Plain_Data  :        Plain_Data_Type)
+   procedure Submit_Primitive (
+      Obj      : in out Object_Type;
+      Prim     :        Primitive.Object_Type;
+      Data_Idx :    out Item_Index_Type)
    is
-      Prim_Buf : constant Primitive.Object_Type := Prim;
    begin
-
-      Items_Loop : for Item_Id in Obj.Items'Range loop
-
-         if Item.Invalid (Obj.Items (Item_Id)) then
-
-            Plain_Buf (Item_Id) := Plain_Data;
-            Obj.Items (Item_Id) := Item.Submitted_Encryption_Object (Prim_Buf);
-            exit Items_Loop;
-
+      For_Items : for Item_Idx in Obj.Items'Range loop
+         if Item.Invalid (Obj.Items (Item_Idx)) then
+            Obj.Items (Item_Idx) := Item.Submitted_Encryption_Object (Prim);
+            Data_Idx := Item_Idx;
+            return;
          end if;
-
-      end loop Items_Loop;
-
-   end Submit_Encryption_Primitive;
-
-   --
-   --  Submit_Decryption_Primitive
-   --
-   procedure Submit_Decryption_Primitive (
-      Obj         : in out Object_Type;
-      Prim        :        Primitive.Object_Type;
-      Cipher_Buf  : in out Cipher_Buffer_Type;
-      Cipher_Data :        Cipher_Data_Type)
-   is
-      Prim_Buf : constant Primitive.Object_Type := Prim;
-   begin
-
-      Items_Loop : for Item_Id in Obj.Items'Range loop
-
-         if Item.Invalid (Obj.Items (Item_Id)) then
-
-            Cipher_Buf (Item_Id) := Cipher_Data;
-            Obj.Items (Item_Id) := Item.Submitted_Decryption_Object (Prim_Buf);
-            exit Items_Loop;
-
-         end if;
-
-      end loop Items_Loop;
-
-   end Submit_Decryption_Primitive;
+      end loop For_Items;
+      raise Program_Error;
+   end Submit_Primitive;
 
    --
    --  Peek_Generated_Primitive
@@ -354,31 +205,60 @@ is
       end loop;
    end Mark_Completed_Primitive;
 
-   procedure Copy_Decrypted_Data (
-      Obj        :     Crypto.Object_Type;
-      Prim       :     Primitive.Object_Type;
-      Plain_Buf  :     Plain_Buffer_Type;
-      Plain_Data : out Crypto.Plain_Data_Type)
+   function Data_Index (
+      Obj  : Crypto.Object_Type;
+      Prim : Primitive.Object_Type)
+   return Item_Index_Type
    is
    begin
-      for Item_Id in Obj.Items'Range loop
-         Item.Copy_Decrypted_Data (
-            Obj.Items (Item_Id), Item_Id, Prim, Plain_Buf, Plain_Data);
-      end loop;
-   end Copy_Decrypted_Data;
+      For_Items :
+      for Item_Idx in Obj.Items'Range loop
+         if Primitive.Equal (Item.Prim (Obj.Items (Item_Idx)), Prim) then
+            return Item_Idx;
+         end if;
+      end loop For_Items;
+      raise Program_Error;
+   end Data_Index;
 
-   procedure Copy_Encrypted_Data (
-      Obj         :     Crypto.Object_Type;
-      Prim        :     Primitive.Object_Type;
-      Cipher_Buf  :     Cipher_Buffer_Type;
-      Cipher_Data : out Cipher_Data_Type)
+   function Data_Index_By_Request (
+      Obj  : Crypto.Object_Type;
+      Req  : Request.Object_Type)
+   return Item_Index_Type
    is
+      function Request_Equals_Primitive (
+         Req  : Request.Object_Type;
+         Prim : Primitive.Object_Type)
+      return Boolean
+      is
+         (Request.Block_Number (Req) = Primitive.Block_Number (Prim) and then
+          Request.Operation (Req) = Primitive.Operation (Prim) and then
+          Request.Tag (Req) = Primitive.Tag (Prim));
+
+      Result       : Item_Index_Type := 1;
+      Result_Valid : Boolean         := False;
    begin
-      for Item_Id in Obj.Items'Range loop
-         Item.Copy_Encrypted_Data (
-            Obj.Items (Item_Id), Item_Id, Prim, Cipher_Buf, Cipher_Data);
-      end loop;
-   end Copy_Encrypted_Data;
+      For_Items :
+      for Item_Idx in Obj.Items'Range loop
+         if Request_Equals_Primitive (
+               Req, Item.Prim (Obj.Items (Item_Idx)))
+         then
+            --
+            --  We have to check whether the result is unambiguous as from
+            --  a request we cannot determine the index of the primitive.
+            --
+            if Result_Valid then
+               raise Program_Error;
+            else
+               Result := Item_Idx;
+               Result_Valid := True;
+            end if;
+         end if;
+      end loop For_Items;
+      if not Result_Valid then
+         raise Program_Error;
+      end if;
+      return Result;
+   end Data_Index_By_Request;
 
    -----------------
    --  Accessors  --
@@ -386,57 +266,6 @@ is
 
    function Execute_Progress (Obj : Object_Type) return Boolean
    is (Obj.Execute_Progress);
-
-   --
-   --  XXX remove later
-   --
-   procedure Obtain_Plain_Data (
-      Obj        :     Crypto.Object_Type;
-      Prim       :     Primitive.Object_Type;
-      Plain_Buf  :     Plain_Buffer_Type;
-      Plain_Data : out Crypto.Plain_Data_Type)
-   is
-   begin
-      for Item_Id in Obj.Items'Range loop
-         Item.Obtain_Plain_Data (Item_Id, Prim, Plain_Buf, Plain_Data);
-      end loop;
-   end Obtain_Plain_Data;
-
-   procedure Supply_Cipher_Data (
-      Obj         :        Crypto.Object_Type;
-      Prim        :        Primitive.Object_Type;
-      Cipher_Buf  : in out Cipher_Buffer_Type;
-      Cipher_Data :        Cipher_Data_Type)
-   is
-   begin
-      for Item_Id in Obj.Items'Range loop
-         Item.Supply_Cipher_Data (Item_Id, Prim, Cipher_Buf, Cipher_Data);
-      end loop;
-   end Supply_Cipher_Data;
-
-   procedure Obtain_Cipher_Data (
-      Obj         :     Crypto.Object_Type;
-      Prim        :     Primitive.Object_Type;
-      Cipher_Buf  :     Cipher_Buffer_Type;
-      Cipher_Data : out Cipher_Data_Type)
-   is
-   begin
-      for Item_Id in Obj.Items'Range loop
-         Item.Obtain_Cipher_Data (Item_Id, Prim, Cipher_Buf, Cipher_Data);
-      end loop;
-   end Obtain_Cipher_Data;
-
-   procedure Supply_Plain_Data (
-      Obj        :        Crypto.Object_Type;
-      Prim       :        Primitive.Object_Type;
-      Plain_Buf  : in out Plain_Buffer_Type;
-      Plain_Data :        Plain_Data_Type)
-   is
-   begin
-      for Item_Id in Obj.Items'Range loop
-         Item.Supply_Plain_Data (Item_Id, Prim, Plain_Buf, Plain_Data);
-      end loop;
-   end Supply_Plain_Data;
 
    procedure Initialize_Plain_Buffer (Buf : out Plain_Buffer_Type)
    is

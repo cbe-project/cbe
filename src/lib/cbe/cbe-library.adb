@@ -869,9 +869,11 @@ is
 
                Plain_Data : Crypto.Plain_Data_Type with Address =>
                   Obj.Write_Back_Data (Plain_Data_Index)'Address;
+
+               Data_Idx : Crypto.Item_Index_Type;
             begin
-               Crypto.Submit_Encryption_Primitive (
-                  Obj.Crypto_Obj, Prim, Crypto_Plain_Buf, Plain_Data);
+               Crypto.Submit_Primitive (Obj.Crypto_Obj, Prim, Data_Idx);
+               Crypto_Plain_Buf (Data_Idx) := Plain_Data;
 
             end Declare_Crypto_Data;
             Write_Back.Drop_Generated_Crypto_Primitive (
@@ -1160,8 +1162,8 @@ is
                --        module for the resulting Hash and omit further
                --        processing in case the operation failed
                --
-               Crypto.Copy_Encrypted_Data (
-                  Obj.Crypto_Obj, Prim, Crypto_Cipher_Buf, Cipher_Data);
+               Cipher_Data := Crypto_Cipher_Buf (
+                  Crypto.Data_Index (Obj.Crypto_Obj, Prim));
 
                Write_Back.Mark_Completed_Crypto_Primitive (
                   Obj.Write_Back_Obj, Prim, Obj.Write_Back_Data (Index));
@@ -1273,6 +1275,8 @@ is
                      declare
                         Cipher_Data : Crypto.Cipher_Data_Type with Address =>
                            Obj.IO_Data (Index)'Address;
+
+                        Data_Idx : Crypto.Item_Index_Type;
                      begin
                         --
                         --  Having to override the Tag is needed because of
@@ -1281,14 +1285,15 @@ is
                         --  acknowledges the primitive to the pool in the read
                         --  case, we have to use the Tag the pool module uses.
                         --
-                        Crypto.Submit_Decryption_Primitive (
+                        Crypto.Submit_Primitive (
                            Obj.Crypto_Obj,
                            Primitive.Copy_Valid_Object_Change_Tag (
                               Prim,
                               Block_IO.Peek_Completed_Tag (
                                  Obj.IO_Obj, Prim)),
-                           Crypto_Cipher_Buf,
-                           Cipher_Data);
+                              Data_Idx);
+
+                        Crypto_Cipher_Buf (Data_Idx) := Cipher_Data;
 
                      end Declare_Data;
                   end if;
@@ -1656,9 +1661,7 @@ is
 
       if Tag = Tag_Crypto then
 
-         Crypto.Copy_Decrypted_Data (
-            Obj.Crypto_Obj, Prim, Crypto_Plain_Buf, Data);
-
+         Data := Crypto_Plain_Buf (Crypto.Data_Index (Obj.Crypto_Obj, Prim));
          Crypto.Drop_Completed_Primitive (Obj.Crypto_Obj, Prim);
          Pool.Mark_Completed_Primitive (Obj.Request_Pool_Obj, Prim);
 
@@ -2077,8 +2080,8 @@ is
                not Request_Equals_Primitive (Req, Prim);
 
             --  XXX remove later
-            Crypto.Obtain_Plain_Data (
-               Obj.Crypto_Obj, Prim, Crypto_Plain_Buf, Data);
+            Data := Crypto_Plain_Buf (Crypto.Data_Index (
+               Obj.Crypto_Obj, Prim));
 
             Crypto.Drop_Generated_Primitive (Obj.Crypto_Obj, Prim);
 
@@ -2111,8 +2114,8 @@ is
                Idx    => 0);
       begin
 
-         Crypto.Supply_Cipher_Data (
-            Obj.Crypto_Obj, Prim, Crypto_Cipher_Buf, Data);
+         Crypto_Cipher_Buf (
+            Crypto.Data_Index_By_Request (Obj.Crypto_Obj, Req)) := Data;
 
          Crypto.Mark_Completed_Primitive (Obj.Crypto_Obj, Prim);
 
@@ -2185,8 +2188,8 @@ is
                not Request_Equals_Primitive (Req, Prim);
 
             --  XXX remove later
-            Crypto.Obtain_Cipher_Data (
-               Obj.Crypto_Obj, Prim, Crypto_Cipher_Buf, Data);
+            Data := Crypto_Cipher_Buf (Crypto.Data_Index (
+               Obj.Crypto_Obj, Prim));
 
             Crypto.Drop_Generated_Primitive (Obj.Crypto_Obj, Prim);
 
@@ -2219,8 +2222,8 @@ is
                Idx    => 0);
       begin
 
-         Crypto.Supply_Plain_Data (
-            Obj.Crypto_Obj, Prim, Crypto_Plain_Buf, Data);
+         Crypto_Plain_Buf (
+            Crypto.Data_Index_By_Request (Obj.Crypto_Obj, Req)) := Data;
 
          Crypto.Mark_Completed_Primitive (Obj.Crypto_Obj, Prim);
 
