@@ -126,8 +126,11 @@ append config {
 
 	<start name="block_tester" caps="200">
 		<resource name="RAM" quantum="80M"/>
-		<config verbose="yes" report="no" log="yes" stop_on_error="no">
+		<config verbose="yes" report="no" log="yes" stop_on_error="yes">
 			<tests>
+				<compare verbose="yes" length="128K" size="4K"/>
+				<compare verbose="yes" length="128K" size="4K"/>
+
 <!--
 				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="1"/> </replay>
 				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
