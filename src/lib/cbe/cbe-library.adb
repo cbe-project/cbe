@@ -788,10 +788,11 @@ is
 
                   --  DBG ("new snapshot for generation: ", Obj.Cur_Gen,
                   --       " Snap: ", Snap);
+
+                  Obj.Cur_Snap := Next_Snap;
                end Declare_Next_Snap;
 
                Obj.Cur_Gen         := Obj.Cur_Gen  + 1;
-               Obj.Cur_Snap        := Obj.Cur_Snap + 1;
                Obj.Seal_Generation := False;
 
             else
@@ -1050,7 +1051,7 @@ is
             Declare_Next_SB :
             declare
                Next_SB : constant Superblock_Index_Type :=
-                  Obj.Cur_SB + 1 mod
+                  (Obj.Cur_SB + 1) mod
                      (Superblock_Index_Type (Superblocks_Index_Type'Last) + 1);
             begin
                Obj.Superblocks (Superblocks_Index_Type (Next_SB)) :=
