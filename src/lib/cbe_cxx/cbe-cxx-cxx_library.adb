@@ -18,15 +18,12 @@ is
    is (Obj'Size / 8);
 
    procedure Initialize_Object (
-      Obj               : out Library.Object_Type;
-      SBs               :     Superblocks_Type;
-      Curr_SB           :     Superblocks_Index_Type;
-      Crypto_Plain_Buf  : out Crypto.Plain_Buffer_Type;
-      Crypto_Cipher_Buf : out Crypto.Cipher_Buffer_Type)
+      Obj     : out Library.Object_Type;
+      SBs     :     Superblocks_Type;
+      Curr_SB :     Superblocks_Index_Type)
    is
    begin
-      Library.Initialize_Object (
-         Obj, SBs, Curr_SB, Crypto_Plain_Buf, Crypto_Cipher_Buf);
+      Library.Initialize_Object (Obj, SBs, Curr_SB);
    end Initialize_Object;
 
    function Cache_Dirty (Obj : Library.Object_Type)

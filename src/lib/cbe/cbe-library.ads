@@ -44,11 +44,9 @@ is
    --  \param  current_sb  super-block that should be used initially
    --
    procedure Initialize_Object (
-      Obj               : out Object_Type;
-      SBs               :     Superblocks_Type;
-      Curr_SB           :     Superblocks_Index_Type;
-      Crypto_Plain_Buf  : out Crypto.Plain_Buffer_Type;
-      Crypto_Cipher_Buf : out Crypto.Cipher_Buffer_Type);
+      Obj     : out Object_Type;
+      SBs     :     Superblocks_Type;
+      Curr_SB :     Superblocks_Index_Type);
 
    function Cache_Dirty (Obj : Object_Type)
    return Boolean;

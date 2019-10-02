@@ -72,10 +72,8 @@ class Cbe::Library : public Cbe::Spark_object<216648>
 	 *
 	 * \param  current_sb  super-block that should be used initially
 	 */
-	Library(Superblocks    const &sbs,
-	        Superblock_index      current_sb,
-	        Crypto_plain_buffer  &crypto_plain_buf,
-	        Crypto_cipher_buffer &crypto_cipher_buf);
+	Library(Superblocks const &sbs,
+	        Superblock_index   current_sb);
 
 	/**
 	 * Print current active super-block/snapshot information to LOG

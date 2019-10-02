@@ -25,17 +25,14 @@ is
       External_Name => "_ZN3Cbe11object_sizeERKNS_7LibraryE";
 
    procedure Initialize_Object (
-      Obj               : out Library.Object_Type;
-      SBs               :     Superblocks_Type;
-      Curr_SB           :     Superblocks_Index_Type;
-      Crypto_Plain_Buf  : out Crypto.Plain_Buffer_Type;
-      Crypto_Cipher_Buf : out Crypto.Cipher_Buffer_Type)
+      Obj     : out Library.Object_Type;
+      SBs     :     Superblocks_Type;
+      Curr_SB :     Superblocks_Index_Type)
    with
       Export,
       Convention    => C,
       External_Name =>
-         "_ZN3Cbe7LibraryC2ERKNS_11SuperblocksENS_16Superblock_indexERNS_" &
-         "19Crypto_plain_bufferERNS_20Crypto_cipher_bufferE";
+         "_ZN3Cbe7LibraryC2ERKNS_11SuperblocksENS_16Superblock_indexE";
 
    function Cache_Dirty (Obj : Library.Object_Type)
    return CXX_Bool_Type

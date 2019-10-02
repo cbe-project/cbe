@@ -727,7 +727,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			 * access to the SBs.
 			 *
 			 */
-			_cbe.construct(_super_blocks, curr_sb, _crypto_plain_buf, _crypto_cipher_buf);
+			_cbe.construct(_super_blocks, curr_sb);
 			_time.schedule_sync_timeout(_sync_interval);
 			_time.schedule_secure_timeout(_secure_interval);
 

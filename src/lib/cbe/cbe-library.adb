@@ -127,11 +127,9 @@ is
    end Superblock_Snapshot_Slot;
 
    procedure Initialize_Object (
-      Obj               : out Object_Type;
-      SBs               :     Superblocks_Type;
-      Curr_SB           :     Superblocks_Index_Type;
-      Crypto_Plain_Buf  : out Crypto.Plain_Buffer_Type;
-      Crypto_Cipher_Buf : out Crypto.Cipher_Buffer_Type)
+      Obj     : out Object_Type;
+      SBs     :     Superblocks_Type;
+      Curr_SB :     Superblocks_Index_Type)
    is
       Snap_Slot : constant Snapshot_ID_Type :=
          Superblock_Snapshot_Slot (SBs (Curr_SB));
@@ -163,9 +161,6 @@ is
          --  Genode::error ("tree outer-degree of ", degree, " not supported");
          raise Program_Error; --  throw Invalid_Tree;
       end if;
-
-      Crypto.Initialize_Plain_Buffer  (Crypto_Plain_Buf);
-      Crypto.Initialize_Cipher_Buffer (Crypto_Cipher_Buf);
 
       Obj.Execute_Progress := False;
       Obj.Request_Pool_Obj        := Pool.Initialized_Object;

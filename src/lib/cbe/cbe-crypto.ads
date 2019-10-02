@@ -35,16 +35,6 @@ is
    return Object_Type;
 
    --
-   --  Initialize_Plain_Buffer
-   --
-   procedure Initialize_Plain_Buffer (Buf : out Plain_Buffer_Type);
-
-   --
-   --  Initialize_Cipher_Buffer
-   --
-   procedure Initialize_Cipher_Buffer (Buf : out Cipher_Buffer_Type);
-
-   --
    --  Primitive_Acceptable
    --
    function Primitive_Acceptable (Obj : Object_Type)

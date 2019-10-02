@@ -267,20 +267,4 @@ is
    function Execute_Progress (Obj : Object_Type) return Boolean
    is (Obj.Execute_Progress);
 
-   procedure Initialize_Plain_Buffer (Buf : out Plain_Buffer_Type)
-   is
-   begin
-      For_Items : for Item_Idx in Buf'Range loop
-         Buf (Item_Idx) := (others => 0);
-      end loop For_Items;
-   end Initialize_Plain_Buffer;
-
-   procedure Initialize_Cipher_Buffer (Buf : out Cipher_Buffer_Type)
-   is
-   begin
-      For_Items : for Item_Idx in Buf'Range loop
-         Buf (Item_Idx) := (others => 0);
-      end loop For_Items;
-   end Initialize_Cipher_Buffer;
-
 end CBE.Crypto;
