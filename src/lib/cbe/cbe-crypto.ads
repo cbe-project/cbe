@@ -88,8 +88,9 @@ is
    --  Mark_Completed_Primitive
    --
    procedure Mark_Completed_Primitive (
-      Obj  : in out Object_Type;
-      Prim :        Primitive.Object_Type);
+      Obj        : in out Object_Type;
+      Item_Index :        Item_Index_Type;
+      Success    :        Boolean);
 
    --
    --  Data_Index
@@ -131,8 +132,8 @@ private
       --  Mark_Completed_Primitive
       --
       procedure Mark_Completed_Primitive (
-         Obj : in out Item_Type;
-         Prm :        Primitive.Object_Type);
+         Obj     : in out Item_Type;
+         Success :        Boolean);
 
       --
       --  Invalid_Object

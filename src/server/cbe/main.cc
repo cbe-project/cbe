@@ -563,11 +563,16 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 				/* encrypt */
 				do {
-					Cbe::Request const request = _cbe->crypto_data_required();
+					Cbe::Request request = _cbe->crypto_data_required();
 					if (!request.valid()) { break; }
 					if (!_crypto.encryption_request_acceptable()) { break; }
 
-					if (!_cbe->obtain_crypto_plain_data(request, _crypto_plain_buf, _crypto_data.items[0])) { break; }
+					Crypto_plain_buffer::Index data_index(0);
+					if (!_cbe->obtain_crypto_plain_data(request, data_index)) {
+						break;
+					}
+					_crypto_data.items[0] = _crypto_plain_buf.item(data_index);
+					request.tag = data_index.value;
 
 					_crypto.submit_encryption_request(request, _crypto_data.items[0], 0);
 					progress |= true;
@@ -579,17 +584,24 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					if (!_crypto.supply_cipher_data(request, _crypto_data.items[0])) { break; }
 
-					_cbe->supply_crypto_cipher_data(request, _crypto_cipher_buf, _crypto_data.items[0]);
+					Crypto_cipher_buffer::Index const data_index(request.tag);
+					_crypto_cipher_buf.item(data_index) = _crypto_data.items[0];
+					_cbe->supply_crypto_cipher_data(data_index, request.success == Request::Success::TRUE);
 					progress |= true;
 				}
 
 				/* decrypt */
 				do {
-					Cbe::Request const request = _cbe->has_crypto_data_to_decrypt();
+					Cbe::Request request = _cbe->has_crypto_data_to_decrypt();
 					if (!request.valid()) { break; }
 					if (!_crypto.decryption_request_acceptable()) { break; }
 
-					if (!_cbe->obtain_crypto_cipher_data(request, _crypto_cipher_buf, _crypto_data.items[0])) { break; }
+					Crypto_cipher_buffer::Index data_index(0);
+					if (!_cbe->obtain_crypto_cipher_data(request, data_index)) {
+						break;
+					}
+					_crypto_data.items[0] = _crypto_cipher_buf.item(data_index);
+					request.tag = data_index.value;
 
 					_crypto.submit_decryption_request(request, _crypto_data.items[0], 0);
 					progress |= true;
@@ -601,7 +613,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 					if (!_crypto.supply_plain_data(request, _crypto_data.items[0])) { break; }
 
-					_cbe->supply_crypto_plain_data(request, _crypto_plain_buf, _crypto_data.items[0]);
+					Crypto_plain_buffer::Index const data_index(request.tag);
+					_crypto_plain_buf.item(data_index) = _crypto_data.items[0];
+					_cbe->supply_crypto_plain_data(data_index, request.success == Request::Success::TRUE);
 					progress |= true;
 				}
 

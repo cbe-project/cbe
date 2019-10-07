@@ -2063,9 +2063,8 @@ is
    procedure Obtain_Crypto_Plain_Data (
       Obj              : in out Library.Object_Type;
       Req              :        Request.Object_Type;
-      Crypto_Plain_Buf :        Crypto.Plain_Buffer_Type;
-      Data             :    out Crypto.Plain_Data_Type;
-      Progress         :    out Boolean)
+      Data_Index       :    out Crypto.Plain_Buffer_Index_Type;
+      Data_Index_Valid :    out Boolean)
    is
       function Request_Equals_Primitive (
          Req  : Request.Object_Type;
@@ -2076,11 +2075,12 @@ is
           Request.Operation (Req) = Primitive.Operation (Prim) and then
           Request.Tag (Req) = Primitive.Tag (Prim));
    begin
-      if not Request.Valid (Req) then
-         Progress := False;
-      end if;
+      Data_Index_Valid := False;
+      Data_Index       := Crypto.Plain_Buffer_Index_Type'First;
 
-      --  Print_String ("Obtain_Crypto_Plain_Data " & Request.To_String (Req));
+      if not Request.Valid (Req) then
+         return;
+      end if;
 
       Loop_Crypto_Plain_Data :
       loop
@@ -2089,52 +2089,27 @@ is
             Prim : constant Primitive.Object_Type :=
                Crypto.Peek_Generated_Primitive (Obj.Crypto_Obj);
          begin
-            exit Loop_Crypto_Plain_Data when
-               not Primitive.Valid (Prim) or else
-               not Request_Equals_Primitive (Req, Prim);
+            exit Loop_Crypto_Plain_Data when not Primitive.Valid (Prim);
+            if Request_Equals_Primitive (Req, Prim) then
+               Data_Index := Crypto.Plain_Buffer_Index_Type (
+                  Crypto.Data_Index (Obj.Crypto_Obj, Prim));
 
-            --  XXX remove later
-            Data := Crypto_Plain_Buf (Crypto.Data_Index (
-               Obj.Crypto_Obj, Prim));
-
-            Crypto.Drop_Generated_Primitive (Obj.Crypto_Obj, Prim);
-
+               Data_Index_Valid := True;
+               Crypto.Drop_Generated_Primitive (Obj.Crypto_Obj, Prim);
+               return;
+            end if;
          end Declare_Crypto_Plain_Prim;
-         Progress := True;
-
       end loop Loop_Crypto_Plain_Data;
    end Obtain_Crypto_Plain_Data;
 
    procedure Supply_Crypto_Cipher_Data (
-      Obj               : in out Library.Object_Type;
-      Req               :        Request.Object_Type;
-      Crypto_Cipher_Buf : in out Crypto.Cipher_Buffer_Type;
-      Data              :        Crypto.Cipher_Data_Type;
-      Progress          :    out Boolean)
+      Obj        : in out Object_Type;
+      Data_Index :        Crypto.Cipher_Buffer_Index_Type;
+      Data_Valid :        Boolean)
    is
    begin
-      --  XXX extend check
-      if not Request.Valid (Req) then
-         Progress := False;
-      end if;
-
-      Declare_Cipher_Data_Primitive :
-      declare
-            Prim : constant Primitive.Object_Type := Primitive.Valid_Object (
-               Op     => Request.Operation (Req),
-               Succ   => Request.Success (Req),
-               Tg     => Request.Tag (Req),
-               Blk_Nr => Request.Block_Number (Req),
-               Idx    => 0);
-      begin
-
-         Crypto_Cipher_Buf (
-            Crypto.Data_Index_By_Request (Obj.Crypto_Obj, Req)) := Data;
-
-         Crypto.Mark_Completed_Primitive (Obj.Crypto_Obj, Prim);
-
-      end Declare_Cipher_Data_Primitive;
-      Progress := True;
+      Crypto.Mark_Completed_Primitive (
+         Obj.Crypto_Obj, Crypto.Item_Index_Type (Data_Index), Data_Valid);
    end Supply_Crypto_Cipher_Data;
 
    procedure Has_Crypto_Data_To_Decrypt (
@@ -2164,11 +2139,10 @@ is
    end Has_Crypto_Data_To_Decrypt;
 
    procedure Obtain_Crypto_Cipher_Data (
-      Obj               : in out Library.Object_Type;
-      Req               :        Request.Object_Type;
-      Crypto_Cipher_Buf :        Crypto.Cipher_Buffer_Type;
-      Data              :    out Crypto.Cipher_Data_Type;
-      Progress          :    out Boolean)
+      Obj              : in out Library.Object_Type;
+      Req              :        Request.Object_Type;
+      Data_Index       :    out Crypto.Cipher_Buffer_Index_Type;
+      Data_Index_Valid :    out Boolean)
    is
       function Request_Equals_Primitive (
          Req  : Request.Object_Type;
@@ -2180,8 +2154,10 @@ is
           Request.Tag (Req) = Primitive.Tag (Prim));
 
    begin
+      Data_Index_Valid := False;
+      Data_Index       := Crypto.Cipher_Buffer_Index_Type'First;
       if not Request.Valid (Req) then
-         Progress := False;
+         return;
       end if;
 
       Loop_Crypto_Cipher_Data :
@@ -2198,51 +2174,28 @@ is
 
             Print_String (Request.To_String (Req));
 
-            exit Loop_Crypto_Cipher_Data when
-               not Request_Equals_Primitive (Req, Prim);
+            if Request_Equals_Primitive (Req, Prim) then
 
-            --  XXX remove later
-            Data := Crypto_Cipher_Buf (Crypto.Data_Index (
-               Obj.Crypto_Obj, Prim));
+               Data_Index :=
+                  Crypto.Cipher_Buffer_Index_Type (
+                     Crypto.Data_Index (Obj.Crypto_Obj, Prim));
 
-            Crypto.Drop_Generated_Primitive (Obj.Crypto_Obj, Prim);
+               Data_Index_Valid := True;
+               Crypto.Drop_Generated_Primitive (Obj.Crypto_Obj, Prim);
 
+            end if;
          end Declare_Crypto_Cipher_Prim;
-         Progress := True;
-
       end loop Loop_Crypto_Cipher_Data;
    end Obtain_Crypto_Cipher_Data;
 
    procedure Supply_Crypto_Plain_Data (
-      Obj              : in out Library.Object_Type;
-      Req              :        Request.Object_Type;
-      Crypto_Plain_Buf : in out Crypto.Plain_Buffer_Type;
-      Data             :        Crypto.Plain_Data_Type;
-      Progress         :    out Boolean)
+      Obj        : in out Object_Type;
+      Data_Index :        Crypto.Plain_Buffer_Index_Type;
+      Data_Valid :        Boolean)
    is
    begin
-      --  XXX extend check
-      if not Request.Valid (Req) then
-         Progress := False;
-      end if;
-
-      Declare_Plain_Data_Primitive :
-      declare
-            Prim : constant Primitive.Object_Type := Primitive.Valid_Object (
-               Op     => Request.Operation (Req),
-               Succ   => Request.Success (Req),
-               Tg     => Request.Tag (Req),
-               Blk_Nr => Request.Block_Number (Req),
-               Idx    => 0);
-      begin
-
-         Crypto_Plain_Buf (
-            Crypto.Data_Index_By_Request (Obj.Crypto_Obj, Req)) := Data;
-
-         Crypto.Mark_Completed_Primitive (Obj.Crypto_Obj, Prim);
-
-      end Declare_Plain_Data_Primitive;
-      Progress := True;
+      Crypto.Mark_Completed_Primitive (
+         Obj.Crypto_Obj, Crypto.Item_Index_Type (Data_Index), Data_Valid);
    end Supply_Crypto_Plain_Data;
 
    function Execute_Progress (Obj : Object_Type)

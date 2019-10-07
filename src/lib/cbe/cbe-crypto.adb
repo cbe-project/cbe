@@ -21,22 +21,17 @@ is
       --  Mark_Completed_Primitive
       --
       procedure Mark_Completed_Primitive (
-         Obj : in out Item_Type;
-         Prm :        Primitive.Object_Type)
+         Obj     : in out Item_Type;
+         Success :        Boolean)
       is
       begin
 
-         if
-            Obj.State /= In_Progress or else
-            Primitive.Block_Number (Obj.Prim) /=
-               Primitive.Block_Number (Prm) or else
-            Primitive.Operation (Obj.Prim) /= Primitive.Operation (Prm)
-         then
-            return;
+         if Obj.State /= In_Progress then
+            raise Program_Error;
          end if;
 
          Obj.State := Item.Complete;
-         Primitive.Success (Obj.Prim, Primitive.Success (Prm));
+         Primitive.Success (Obj.Prim, Success);
 
       end Mark_Completed_Primitive;
 
@@ -196,13 +191,12 @@ is
    --  Mark_Completed_Primitive
    --
    procedure Mark_Completed_Primitive (
-      Obj  : in out Object_Type;
-      Prim :        Primitive.Object_Type)
+      Obj        : in out Object_Type;
+      Item_Index :        Item_Index_Type;
+      Success    :        Boolean)
    is
    begin
-      for Item_Id in Obj.Items'Range loop
-         Item.Mark_Completed_Primitive (Obj.Items (Item_Id), Prim);
-      end loop;
+      Item.Mark_Completed_Primitive (Obj.Items (Item_Index), Success);
    end Mark_Completed_Primitive;
 
    function Data_Index (

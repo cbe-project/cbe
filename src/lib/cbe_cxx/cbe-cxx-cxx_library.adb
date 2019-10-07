@@ -255,31 +255,30 @@ is
    procedure Obtain_Crypto_Plain_Data (
       Obj              : in out Library.Object_Type;
       Req              :        CXX_Request_Type;
-      Crypto_Plain_Buf :        Crypto.Plain_Buffer_Type;
-      Data             :    out Crypto.Plain_Data_Type;
-      Progress         :    out CXX_Bool_Type)
+      Data_Index       :    out CXX_Crypto_Plain_Buffer_Index_Type;
+      Data_Index_Valid :    out CXX_Bool_Type)
    is
-      SPARK_Progress : Boolean;
+      SPARK_Data_Index       : Crypto.Plain_Buffer_Index_Type;
+      SPARK_Data_Index_Valid : Boolean;
    begin
       Library.Obtain_Crypto_Plain_Data (
-         Obj, CXX_Request_To_SPARK (Req), Crypto_Plain_Buf, Data,
-         SPARK_Progress);
-      Progress := CXX_Bool_From_SPARK (SPARK_Progress);
+         Obj, CXX_Request_To_SPARK (Req), SPARK_Data_Index,
+         SPARK_Data_Index_Valid);
+
+      Data_Index       := (Value => CXX_UInt32_Type (SPARK_Data_Index));
+      Data_Index_Valid := CXX_Bool_From_SPARK (SPARK_Data_Index_Valid);
    end Obtain_Crypto_Plain_Data;
 
    procedure Supply_Crypto_Cipher_Data (
-      Obj               : in out Library.Object_Type;
-      Req               :        CXX_Request_Type;
-      Crypto_Cipher_Buf : in out Crypto.Cipher_Buffer_Type;
-      Data              :        Crypto.Cipher_Data_Type;
-      Progress          :    out CXX_Bool_Type)
+      Obj        : in out Library.Object_Type;
+      Data_Index :        CXX_Crypto_Cipher_Buffer_Index_Type;
+      Data_Valid :        CXX_Bool_Type)
    is
-      SPARK_Progress : Boolean;
    begin
       Library.Supply_Crypto_Cipher_Data (
-         Obj, CXX_Request_To_SPARK (Req), Crypto_Cipher_Buf, Data,
-         SPARK_Progress);
-      Progress := CXX_Bool_From_SPARK (SPARK_Progress);
+         Obj, Crypto.Cipher_Buffer_Index_Type (Data_Index.Value),
+         CXX_Bool_To_SPARK (Data_Valid));
+
    end Supply_Crypto_Cipher_Data;
 
    procedure Has_Crypto_Data_To_Decrypt (
@@ -293,33 +292,31 @@ is
    end Has_Crypto_Data_To_Decrypt;
 
    procedure Obtain_Crypto_Cipher_Data (
-      Obj               : in out Library.Object_Type;
-      Req               :        CXX_Request_Type;
-      Crypto_Cipher_Buf :        Crypto.Cipher_Buffer_Type;
-      Data              :    out Crypto.Cipher_Data_Type;
-      Progress          :    out CXX_Bool_Type)
+      Obj              : in out Library.Object_Type;
+      Req              :        CXX_Request_Type;
+      Data_Index       :    out CXX_Crypto_Cipher_Buffer_Index_Type;
+      Data_Index_Valid :    out CXX_Bool_Type)
    is
-      SPARK_Progress : Boolean;
+      SPARK_Data_Index       : Crypto.Cipher_Buffer_Index_Type;
+      SPARK_Data_Index_Valid : Boolean;
    begin
       Library.Obtain_Crypto_Cipher_Data (
-         Obj, CXX_Request_To_SPARK (Req), Crypto_Cipher_Buf, Data,
-         SPARK_Progress);
-      Progress := CXX_Bool_From_SPARK (SPARK_Progress);
+         Obj, CXX_Request_To_SPARK (Req), SPARK_Data_Index,
+         SPARK_Data_Index_Valid);
+
+      Data_Index       := (Value => CXX_UInt32_Type (SPARK_Data_Index));
+      Data_Index_Valid := CXX_Bool_From_SPARK (SPARK_Data_Index_Valid);
    end Obtain_Crypto_Cipher_Data;
 
    procedure Supply_Crypto_Plain_Data (
-      Obj              : in out Library.Object_Type;
-      Req              :        CXX_Request_Type;
-      Crypto_Plain_Buf : in out Crypto.Plain_Buffer_Type;
-      Data             :        Crypto.Plain_Data_Type;
-      Progress         :    out CXX_Bool_Type)
+      Obj        : in out Library.Object_Type;
+      Data_Index :        CXX_Crypto_Plain_Buffer_Index_Type;
+      Data_Valid :        CXX_Bool_Type)
    is
-      SPARK_Progress : Boolean;
    begin
       Library.Supply_Crypto_Plain_Data (
-         Obj, CXX_Request_To_SPARK (Req), Crypto_Plain_Buf, Data,
-         SPARK_Progress);
-      Progress := CXX_Bool_From_SPARK (SPARK_Progress);
+         Obj, Crypto.Plain_Buffer_Index_Type (Data_Index.Value),
+         CXX_Bool_To_SPARK (Data_Valid));
    end Supply_Crypto_Plain_Data;
 
 end CBE.CXX.CXX_Library;
