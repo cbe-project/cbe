@@ -210,8 +210,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Signal_handler<Main> _request_handler {
 			_env.ep(), *this, &Main::_handle_requests };
 
-		uint32_t _loop_count = 0;
-
 		Time::Timestamp _sync_interval;
 		Time::Timestamp _secure_interval;
 		Time::Timestamp _last_sync_time;
@@ -222,6 +220,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			if (!_block_session.constructed()) { return; }
 
 			Block_session_component &block_session = *_block_session;
+
+			uint32_t _loop_count = 0;
 
 			for (;;) {
 
