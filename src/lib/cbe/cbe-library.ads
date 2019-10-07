@@ -201,6 +201,12 @@ is
       Data             :    out Crypto.Plain_Data_Type;
       Progress         :    out Boolean);
 
+   procedure Obtain_Client_Data_2 (
+      Obj              : in out Object_Type;
+      Req              :        Request.Object_Type;
+      Data             :    out Crypto.Plain_Data_Type;
+      Progress         :    out Boolean);
+
    --
    --  Return a client request that provides data to the frontend block data
    --

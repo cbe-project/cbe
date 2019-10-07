@@ -200,6 +200,19 @@ is
       Progress := CXX_Bool_From_SPARK (SPARK_Progress);
    end Obtain_Client_Data;
 
+   procedure Obtain_Client_Data_2 (
+      Obj              : in out Library.Object_Type;
+      Req              :        CXX_Request_Type;
+      Data             :    out Crypto.Plain_Data_Type;
+      Progress         :    out CXX_Bool_Type)
+   is
+      SPARK_Progress : Boolean;
+   begin
+      Library.Obtain_Client_Data_2 (
+         Obj, CXX_Request_To_SPARK (Req), Data, SPARK_Progress);
+      Progress := CXX_Bool_From_SPARK (SPARK_Progress);
+   end Obtain_Client_Data_2;
+
    procedure Client_Data_Required (
       Obj : in out Library.Object_Type;
       Req :    out CXX_Request_Type)

@@ -1662,8 +1662,25 @@ is
 
          Obj.Front_End_Req_Prim := Request_Primitive_Invalid;
          Progress := True;
+      end if;
+   end Obtain_Client_Data;
 
-      elsif Tag = Tag_VBD then
+   procedure Obtain_Client_Data_2 (
+      Obj              : in out Object_Type;
+      Req              :        Request.Object_Type;
+      Data             :    out Crypto.Plain_Data_Type;
+      Progress         :    out Boolean)
+   is
+      Prim : constant Primitive.Object_Type := Obj.Front_End_Req_Prim.Prim;
+      Tag  : constant Tag_Type              := Obj.Front_End_Req_Prim.Tag;
+   begin
+      Progress := False;
+
+      if Front_End_Busy_With_Other_Request (Obj, Req) then
+         return;
+      end if;
+
+      if Tag = Tag_VBD then
 
          --
          --  We have to reset Front_End_Req_Prim before because in case there
@@ -1691,7 +1708,7 @@ is
             Progress := True;
          end if;
       end if;
-   end Obtain_Client_Data;
+   end Obtain_Client_Data_2;
 
    procedure Assign_Front_End_Req_Prim (
       Obj  : in out Object_Type;

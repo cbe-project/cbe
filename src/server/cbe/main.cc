@@ -409,6 +409,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 							Cbe::Block_data &data = *reinterpret_cast<Cbe::Block_data*>(addr);
 							progress |= _cbe->obtain_client_data(cbe_request, _crypto_plain_buf, data);
+							progress |= _cbe->obtain_client_data_2(cbe_request, data);
 							log("\033[36m INF ", "obtain_client_data: ", cbe_request);
 						});
 					}
