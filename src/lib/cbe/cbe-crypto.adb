@@ -234,7 +234,7 @@ is
           Request.Operation (Req) = Primitive.Operation (Prim) and then
           Request.Tag (Req) = Primitive.Tag (Prim));
 
-      Result       : Item_Index_Type := 1;
+      Result       : Item_Index_Type := Item_Index_Type'First;
       Result_Valid : Boolean         := False;
    begin
       For_Items :

@@ -20,7 +20,7 @@ is
    subtype Plain_Data_Type  is CBE.Block_Data_Type;
    subtype Cipher_Data_Type is CBE.Block_Data_Type;
 
-   type Item_Index_Type is range 1 .. 1;
+   type Item_Index_Type is range 0 .. 0;
 
    type Plain_Buffer_Index_Type is new Item_Index_Type;
 

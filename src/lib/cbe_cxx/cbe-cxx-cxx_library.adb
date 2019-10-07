@@ -198,7 +198,7 @@ is
          Obj, CXX_Request_To_SPARK (Req), SPARK_Data_Index,
          SPARK_Data_Index_Valid);
 
-      Data_Index       := (Value => CXX_UInt32_Type (SPARK_Data_Index) - 1);
+      Data_Index       := (Value => CXX_UInt32_Type (SPARK_Data_Index));
       Data_Index_Valid := CXX_Bool_From_SPARK (SPARK_Data_Index_Valid);
    end Obtain_Client_Data;
 
