@@ -1,8 +1,10 @@
 SRC_CC = vfs.cc
 
-LIBS += cbe cbe_cxx sha256_4k
+SRC_ADS := dummy.ads
 
-vpath %.cc $(REP_DIR)/src/lib/vfs/cbe
+LIBS += spark cbe cbe_cxx sha256_4k external_crypto external_crypto_cxx
+
+vpath % $(REP_DIR)/src/lib/vfs/cbe
 
 SHARED_LIB = yes
 
