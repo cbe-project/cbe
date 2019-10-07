@@ -49,7 +49,7 @@ class Cbe::Library : public Cbe::Spark_object<216648>
 		void _ack_io_data_to_write(Request const &, bool &);
 
 		void _client_data_ready(Request &);
-		void _obtain_client_data(Request const &, Crypto_plain_buffer const &, Block_data &, bool &);
+		void _obtain_client_data(Request const &, Crypto_plain_buffer::Index &, bool &);
 		void _obtain_client_data_2(Request const &, Block_data &, bool &);
 		void _client_data_required(Request &);
 		void _supply_client_data(Time::Timestamp const, Request const &, Block_data const &, bool &);
@@ -271,12 +271,11 @@ class Cbe::Library : public Cbe::Spark_object<216648>
 	 *                  Block::Request
 	 * \return          'true' on return if the CBE could process the request
 	 */
-	bool obtain_client_data(Request             const &request,
-	                        Crypto_plain_buffer const &crypto_plain_buf,
-	                        Block_data                &data)
+	bool obtain_client_data(Request              const &request,
+	                        Crypto_plain_buffer::Index &data_index)
 	{
 		bool result = false;
-		_obtain_client_data(request, crypto_plain_buf, data, result);
+		_obtain_client_data(request, data_index, result);
 		return result;
 	}
 

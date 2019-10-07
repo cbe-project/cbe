@@ -1641,14 +1641,14 @@ is
    procedure Obtain_Client_Data (
       Obj              : in out Object_Type;
       Req              :        Request.Object_Type;
-      Crypto_Plain_Buf :        Crypto.Plain_Buffer_Type;
-      Data             :    out Crypto.Plain_Data_Type;
-      Progress         :    out Boolean)
+      Data_Index       :    out Crypto.Plain_Buffer_Index_Type;
+      Data_Index_Valid :    out Boolean)
    is
       Prim : constant Primitive.Object_Type := Obj.Front_End_Req_Prim.Prim;
       Tag  : constant Tag_Type              := Obj.Front_End_Req_Prim.Tag;
    begin
-      Progress := False;
+      Data_Index_Valid := False;
+      Data_Index       := Crypto.Plain_Buffer_Index_Type'First;
 
       if Front_End_Busy_With_Other_Request (Obj, Req) then
          return;
@@ -1656,12 +1656,14 @@ is
 
       if Tag = Tag_Crypto then
 
-         Data := Crypto_Plain_Buf (Crypto.Data_Index (Obj.Crypto_Obj, Prim));
+         Data_Index := Crypto.Plain_Buffer_Index_Type (
+            Crypto.Data_Index (Obj.Crypto_Obj, Prim));
+
+         Data_Index_Valid := True;
          Crypto.Drop_Completed_Primitive (Obj.Crypto_Obj, Prim);
          Pool.Mark_Completed_Primitive (Obj.Request_Pool_Obj, Prim);
 
          Obj.Front_End_Req_Prim := Request_Primitive_Invalid;
-         Progress := True;
       end if;
    end Obtain_Client_Data;
 

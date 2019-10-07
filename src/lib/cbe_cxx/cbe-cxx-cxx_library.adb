@@ -188,16 +188,18 @@ is
    procedure Obtain_Client_Data (
       Obj              : in out Library.Object_Type;
       Req              :        CXX_Request_Type;
-      Crypto_Plain_Buf :        Crypto.Plain_Buffer_Type;
-      Data             :    out Crypto.Plain_Data_Type;
-      Progress         :    out CXX_Bool_Type)
+      Data_Index       :    out CXX_Crypto_Plain_Buffer_Index_Type;
+      Data_Index_Valid :    out CXX_Bool_Type)
    is
-      SPARK_Progress : Boolean;
+      SPARK_Data_Index       : Crypto.Plain_Buffer_Index_Type;
+      SPARK_Data_Index_Valid : Boolean;
    begin
       Library.Obtain_Client_Data (
-         Obj, CXX_Request_To_SPARK (Req), Crypto_Plain_Buf, Data,
-         SPARK_Progress);
-      Progress := CXX_Bool_From_SPARK (SPARK_Progress);
+         Obj, CXX_Request_To_SPARK (Req), SPARK_Data_Index,
+         SPARK_Data_Index_Valid);
+
+      Data_Index       := (Value => CXX_UInt32_Type (SPARK_Data_Index) - 1);
+      Data_Index_Valid := CXX_Bool_From_SPARK (SPARK_Data_Index_Valid);
    end Obtain_Client_Data;
 
    procedure Obtain_Client_Data_2 (

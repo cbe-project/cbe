@@ -202,15 +202,14 @@ is
    procedure Obtain_Client_Data (
       Obj              : in out Library.Object_Type;
       Req              :        CXX_Request_Type;
-      Crypto_Plain_Buf :        Crypto.Plain_Buffer_Type;
-      Data             :    out Crypto.Plain_Data_Type;
-      Progress         :    out CXX_Bool_Type)
+      Data_Index       :    out CXX_Crypto_Plain_Buffer_Index_Type;
+      Data_Index_Valid :    out CXX_Bool_Type)
    with
       Export,
       Convention    => C,
       External_Name =>
-         "_ZN3Cbe7Library19_obtain_client_dataERKNS_7RequestERKNS_" &
-         "19Crypto_plain_bufferERNS_10Block_dataERb";
+         "_ZN3Cbe7Library19_obtain_client_dataERKNS_7RequestERNS_" &
+         "19Crypto_plain_buffer5IndexERb";
 
    procedure Obtain_Client_Data_2 (
       Obj              : in out Library.Object_Type;

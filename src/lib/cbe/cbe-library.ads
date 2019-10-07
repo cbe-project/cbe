@@ -188,18 +188,19 @@ is
    return Primitive.Index_Type;
 
    --
-   --  Return data for the given client read request
+   --  Return data index for the given client read request
    --
-   --  \param Req       reference to the request processed by the CBE
-   --  \param Data      data associated with the request
-   --  \param Progress  return 'True' if the CBE could process the request
+   --  \param Req              reference to the request processed by the CBE
+   --  \param Data_Index       returns index of client data in crypto
+   --                          plain-data buffer if Data_Index_Valid returns
+   --                          True
+   --  \param Data_Index_Valid returns whether Data_Index is valid
    --
    procedure Obtain_Client_Data (
       Obj              : in out Object_Type;
       Req              :        Request.Object_Type;
-      Crypto_Plain_Buf :        Crypto.Plain_Buffer_Type;
-      Data             :    out Crypto.Plain_Data_Type;
-      Progress         :    out Boolean);
+      Data_Index       :    out Crypto.Plain_Buffer_Index_Type;
+      Data_Index_Valid :    out Boolean);
 
    procedure Obtain_Client_Data_2 (
       Obj              : in out Object_Type;

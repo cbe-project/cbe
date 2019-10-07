@@ -408,8 +408,16 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						payload.with_content(request, [&] (void *addr, Genode::size_t) {
 
 							Cbe::Block_data &data = *reinterpret_cast<Cbe::Block_data*>(addr);
-							progress |= _cbe->obtain_client_data(cbe_request, _crypto_plain_buf, data);
-							progress |= _cbe->obtain_client_data_2(cbe_request, data);
+							Crypto_plain_buffer::Index data_index(~0);
+							bool const data_index_valid =
+								_cbe->obtain_client_data(cbe_request, data_index);
+
+							if (data_index_valid) {
+								progress |= true;
+								data = _crypto_plain_buf.item(data_index);
+							} else {
+								progress |= _cbe->obtain_client_data_2(cbe_request, data);
+							}
 							log("\033[36m INF ", "obtain_client_data: ", cbe_request);
 						});
 					}

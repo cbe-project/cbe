@@ -22,6 +22,10 @@ is
 
    type Item_Index_Type is range 1 .. 1;
 
+   type Plain_Buffer_Index_Type is new Item_Index_Type;
+
+   type Cipher_Buffer_Index_Type is new Item_Index_Type;
+
    type Plain_Buffer_Type is array (Item_Index_Type) of Plain_Data_Type;
 
    type Cipher_Buffer_Type is array (Item_Index_Type) of Cipher_Data_Type;
