@@ -32,8 +32,6 @@
 
 namespace Cbe {
 
-	struct Crypto_Data;
-
 	struct Block_session_component;
 	struct Main;
 
@@ -134,12 +132,6 @@ namespace Cbe {
 } /* namespace Cbe */
 
 
-struct Cbe::Crypto_Data
-{
-	Cbe::Block_data items[1];
-};
-
-
 struct Cbe::Block_session_component : Rpc_object<Block::Session>,
                                       Block::Request_stream
 {
@@ -197,9 +189,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Constructible<Cbe::Library> _cbe               { };
 		Crypto_plain_buffer         _crypto_plain_buf  { };
 		Crypto_cipher_buffer        _crypto_cipher_buf { };
-
-		External::Crypto      _crypto      { };
-		Crypto_Data _crypto_data { };
+		External::Crypto            _crypto            { };
 
 		/*
  		 * Store current backend request
@@ -562,59 +552,61 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				progress |= _crypto.execute();
 
 				/* encrypt */
-				do {
+				while (true) {
 					Cbe::Request request = _cbe->crypto_data_required();
-					if (!request.valid()) { break; }
-					if (!_crypto.encryption_request_acceptable()) { break; }
-
+					if (!request.valid()) {
+						break;
+					}
+					if (!_crypto.encryption_request_acceptable()) {
+						break;
+					}
 					Crypto_plain_buffer::Index data_index(0);
 					if (!_cbe->obtain_crypto_plain_data(request, data_index)) {
 						break;
 					}
-					_crypto_data.items[0] = _crypto_plain_buf.item(data_index);
 					request.tag = data_index.value;
-
-					_crypto.submit_encryption_request(request, _crypto_data.items[0], 0);
+					_crypto.submit_encryption_request(request, _crypto_plain_buf.item(data_index), 0);
 					progress |= true;
-				} while (0);
-
+				}
 				while (true) {
 					Cbe::Request const request = _crypto.peek_completed_encryption_request();
-					if (!request.valid()) { break; }
-
-					if (!_crypto.supply_cipher_data(request, _crypto_data.items[0])) { break; }
-
+					if (!request.valid()) {
+						break;
+					}
 					Crypto_cipher_buffer::Index const data_index(request.tag);
-					_crypto_cipher_buf.item(data_index) = _crypto_data.items[0];
+					if (!_crypto.supply_cipher_data(request, _crypto_cipher_buf.item(data_index))) {
+						break;
+					}
 					_cbe->supply_crypto_cipher_data(data_index, request.success == Request::Success::TRUE);
 					progress |= true;
 				}
 
 				/* decrypt */
-				do {
+				while (true) {
 					Cbe::Request request = _cbe->has_crypto_data_to_decrypt();
-					if (!request.valid()) { break; }
-					if (!_crypto.decryption_request_acceptable()) { break; }
-
+					if (!request.valid()) {
+						break;
+					}
+					if (!_crypto.decryption_request_acceptable()) {
+						break;
+					}
 					Crypto_cipher_buffer::Index data_index(0);
 					if (!_cbe->obtain_crypto_cipher_data(request, data_index)) {
 						break;
 					}
-					_crypto_data.items[0] = _crypto_cipher_buf.item(data_index);
 					request.tag = data_index.value;
-
-					_crypto.submit_decryption_request(request, _crypto_data.items[0], 0);
+					_crypto.submit_decryption_request(request, _crypto_cipher_buf.item(data_index), 0);
 					progress |= true;
-				} while (0);
-
+				}
 				while (true) {
 					Cbe::Request const request = _crypto.peek_completed_decryption_request();
-					if (!request.valid()) { break; }
-
-					if (!_crypto.supply_plain_data(request, _crypto_data.items[0])) { break; }
-
+					if (!request.valid()) {
+						break;
+					}
 					Crypto_plain_buffer::Index const data_index(request.tag);
-					_crypto_plain_buf.item(data_index) = _crypto_data.items[0];
+					if (!_crypto.supply_plain_data(request, _crypto_plain_buf.item(data_index))) {
+						break;
+					}
 					_cbe->supply_crypto_plain_data(data_index, request.success == Request::Success::TRUE);
 					progress |= true;
 				}
