@@ -128,13 +128,18 @@ is
    --
    --  Peek_Generated_Primitive
    --
-   function Peek_Generated_Primitive (Obj : Object_Type)
+   function Peek_Generated_Primitive (
+      Obj      :     Object_Type;
+      Item_Idx : out Item_Index_Type)
    return Primitive.Object_Type
    is
    begin
-      Items_Loop : for Item_Id in Obj.Items'Range loop
-         if Item.Pending (Obj.Items (Item_Id)) then
-            return Item.Prim (Obj.Items (Item_Id));
+      Item_Idx := Item_Index_Type'First;
+      Items_Loop :
+      for Curr_Item_Idx in Obj.Items'Range loop
+         if Item.Pending (Obj.Items (Curr_Item_Idx)) then
+            Item_Idx := Curr_Item_Idx;
+            return Item.Prim (Obj.Items (Curr_Item_Idx));
          end if;
       end loop Items_Loop;
       return Primitive.Invalid_Object;
@@ -144,16 +149,14 @@ is
    --  Drop_Generated_Primitive
    --
    procedure Drop_Generated_Primitive (
-      Obj  : in out Object_Type;
-      Prim :        Primitive.Object_Type)
+      Obj        : in out Object_Type;
+      Item_Index :        Item_Index_Type)
    is
    begin
-      Items_Loop : for Item_Id in Obj.Items'Range loop
-         if Item.Pending (Obj.Items (Item_Id)) then
-            Item.State (Obj.Items (Item_Id), Item.In_Progress);
-            return;
-         end if;
-      end loop Items_Loop;
+      if not Item.Pending (Obj.Items (Item_Index)) then
+         raise Program_Error;
+      end if;
+      Item.State (Obj.Items (Item_Index), Item.In_Progress);
    end Drop_Generated_Primitive;
 
    --

@@ -2032,75 +2032,39 @@ is
       return False;
    end Supply_Client_Data;
 
-   procedure Crypto_Data_Required (
-      Obj : in out Object_Type;
-      Req :    out Request.Object_Type)
+   procedure Crypto_Cipher_Data_Required (
+      Obj        : in out Object_Type;
+      Req        :    out Request.Object_Type;
+      Data_Index :    out Crypto.Plain_Buffer_Index_Type)
    is
+      Item_Index : Crypto.Item_Index_Type;
+      Prim : constant Primitive.Object_Type :=
+         Crypto.Peek_Generated_Primitive (Obj.Crypto_Obj,  Item_Index);
    begin
-      Declare_Generated_Encryption_Prim :
-      declare
-            Prim : constant Primitive.Object_Type :=
-               Crypto.Peek_Generated_Primitive (Obj.Crypto_Obj);
-      begin
-         if not Primitive.Valid (Prim) or else
-            Primitive.Operation (Prim) = Read
-         then
-            Req := Request.Invalid_Object;
-         else
-
-            Req := Request.Valid_Object (
-               Op     => CBE.Write,
-               Succ   => False,
-               Blk_Nr => Primitive.Block_Number (Prim),
-               Off    => 0,
-               Cnt    => 1,
-               Tg     => Primitive.Tag (Prim));
-         end if;
-      end Declare_Generated_Encryption_Prim;
-
-   end Crypto_Data_Required;
-
-   procedure Obtain_Crypto_Plain_Data (
-      Obj              : in out Library.Object_Type;
-      Req              :        Request.Object_Type;
-      Data_Index       :    out Crypto.Plain_Buffer_Index_Type;
-      Data_Index_Valid :    out Boolean)
-   is
-      function Request_Equals_Primitive (
-         Req  : Request.Object_Type;
-         Prim : Primitive.Object_Type)
-      return Boolean
-      is
-         (Request.Block_Number (Req) = Primitive.Block_Number (Prim) and then
-          Request.Operation (Req) = Primitive.Operation (Prim) and then
-          Request.Tag (Req) = Primitive.Tag (Prim));
-   begin
-      Data_Index_Valid := False;
-      Data_Index       := Crypto.Plain_Buffer_Index_Type'First;
-
-      if not Request.Valid (Req) then
+      Data_Index := Crypto.Plain_Buffer_Index_Type (Item_Index);
+      if not Primitive.Valid (Prim) or else
+         Primitive.Operation (Prim) /= Write
+      then
+         Req := Request.Invalid_Object;
          return;
       end if;
+      Req := Request.Valid_Object (
+         Op     => CBE.Write,
+         Succ   => False,
+         Blk_Nr => Primitive.Block_Number (Prim),
+         Off    => 0,
+         Cnt    => 1,
+         Tg     => 0);
+   end Crypto_Cipher_Data_Required;
 
-      Loop_Crypto_Plain_Data :
-      loop
-         Declare_Crypto_Plain_Prim :
-         declare
-            Prim : constant Primitive.Object_Type :=
-               Crypto.Peek_Generated_Primitive (Obj.Crypto_Obj);
-         begin
-            exit Loop_Crypto_Plain_Data when not Primitive.Valid (Prim);
-            if Request_Equals_Primitive (Req, Prim) then
-               Data_Index := Crypto.Plain_Buffer_Index_Type (
-                  Crypto.Data_Index (Obj.Crypto_Obj, Prim));
-
-               Data_Index_Valid := True;
-               Crypto.Drop_Generated_Primitive (Obj.Crypto_Obj, Prim);
-               return;
-            end if;
-         end Declare_Crypto_Plain_Prim;
-      end loop Loop_Crypto_Plain_Data;
-   end Obtain_Crypto_Plain_Data;
+   procedure Crypto_Cipher_Data_Requested (
+      Obj        : in out Library.Object_Type;
+      Data_Index :        Crypto.Plain_Buffer_Index_Type)
+   is
+   begin
+      Crypto.Drop_Generated_Primitive (
+         Obj.Crypto_Obj, Crypto.Item_Index_Type (Data_Index));
+   end Crypto_Cipher_Data_Requested;
 
    procedure Supply_Crypto_Cipher_Data (
       Obj        : in out Object_Type;
@@ -2112,81 +2076,39 @@ is
          Obj.Crypto_Obj, Crypto.Item_Index_Type (Data_Index), Data_Valid);
    end Supply_Crypto_Cipher_Data;
 
-   procedure Has_Crypto_Data_To_Decrypt (
-      Obj : in out Object_Type;
-      Req :    out Request.Object_Type)
+   procedure Crypto_Plain_Data_Required (
+      Obj        : in out Object_Type;
+      Req        :    out Request.Object_Type;
+      Data_Index :    out Crypto.Cipher_Buffer_Index_Type)
    is
+      Item_Index : Crypto.Item_Index_Type;
+      Prim : constant Primitive.Object_Type :=
+         Crypto.Peek_Generated_Primitive (Obj.Crypto_Obj,  Item_Index);
    begin
-      Declare_Generated_Decryption_Prim :
-      declare
-            Prim : constant Primitive.Object_Type :=
-               Crypto.Peek_Generated_Primitive (Obj.Crypto_Obj);
-      begin
-         if not Primitive.Valid (Prim) or else
-            Primitive.Operation (Prim) = Write
-         then
-            Req := Request.Invalid_Object;
-         else
-            Req := Request.Valid_Object (
-               Op     => CBE.Read,
-               Succ   => False,
-               Blk_Nr => Primitive.Block_Number (Prim),
-               Off    => 0,
-               Cnt    => 1,
-               Tg     => Primitive.Tag (Prim));
-         end if;
-      end Declare_Generated_Decryption_Prim;
-   end Has_Crypto_Data_To_Decrypt;
-
-   procedure Obtain_Crypto_Cipher_Data (
-      Obj              : in out Library.Object_Type;
-      Req              :        Request.Object_Type;
-      Data_Index       :    out Crypto.Cipher_Buffer_Index_Type;
-      Data_Index_Valid :    out Boolean)
-   is
-      function Request_Equals_Primitive (
-         Req  : Request.Object_Type;
-         Prim : Primitive.Object_Type)
-      return Boolean
-      is
-         (Request.Block_Number (Req) = Primitive.Block_Number (Prim) and then
-          Request.Operation (Req) = Primitive.Operation (Prim) and then
-          Request.Tag (Req) = Primitive.Tag (Prim));
-
-   begin
-      Data_Index_Valid := False;
-      Data_Index       := Crypto.Cipher_Buffer_Index_Type'First;
-      if not Request.Valid (Req) then
+      Data_Index := Crypto.Cipher_Buffer_Index_Type (Item_Index);
+      if not Primitive.Valid (Prim) or else
+         Primitive.Operation (Prim) /= Read
+      then
+         Req := Request.Invalid_Object;
          return;
       end if;
+      Req := Request.Valid_Object (
+         Op     => CBE.Read,
+         Succ   => False,
+         Blk_Nr => Primitive.Block_Number (Prim),
+         Off    => 0,
+         Cnt    => 1,
+         Tg     => 0);
+   end Crypto_Plain_Data_Required;
 
-      Loop_Crypto_Cipher_Data :
-      loop
-         Declare_Crypto_Cipher_Prim :
-         declare
-            Prim : constant Primitive.Object_Type :=
-               Crypto.Peek_Generated_Primitive (Obj.Crypto_Obj);
-         begin
-            Print_String (Primitive.To_String (Prim));
-
-            exit Loop_Crypto_Cipher_Data when
-               not Primitive.Valid (Prim);
-
-            Print_String (Request.To_String (Req));
-
-            if Request_Equals_Primitive (Req, Prim) then
-
-               Data_Index :=
-                  Crypto.Cipher_Buffer_Index_Type (
-                     Crypto.Data_Index (Obj.Crypto_Obj, Prim));
-
-               Data_Index_Valid := True;
-               Crypto.Drop_Generated_Primitive (Obj.Crypto_Obj, Prim);
-
-            end if;
-         end Declare_Crypto_Cipher_Prim;
-      end loop Loop_Crypto_Cipher_Data;
-   end Obtain_Crypto_Cipher_Data;
+   procedure Crypto_Plain_Data_Requested (
+      Obj        : in out Library.Object_Type;
+      Data_Index :        Crypto.Cipher_Buffer_Index_Type)
+   is
+   begin
+      Crypto.Drop_Generated_Primitive (
+         Obj.Crypto_Obj, Crypto.Item_Index_Type (Data_Index));
+   end Crypto_Plain_Data_Requested;
 
    procedure Supply_Crypto_Plain_Data (
       Obj        : in out Object_Type;

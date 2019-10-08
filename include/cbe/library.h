@@ -54,11 +54,8 @@ class Cbe::Library : public Cbe::Spark_object<216648>
 		void _client_data_required(Request &);
 		void _supply_client_data(Time::Timestamp const, Request const &, Block_data const &, bool &);
 
-		void _crypto_data_required(Request &request);
-		void _obtain_crypto_cipher_data(Request const &, Crypto_cipher_buffer::Index &, bool &);
-
-		void _has_crypto_data_to_decrypt(Request &);
-		void _obtain_crypto_plain_data(Request const &, Crypto_plain_buffer::Index &, bool &);
+		void _crypto_cipher_data_required(Request &, Crypto_plain_buffer::Index &);
+		void _crypto_plain_data_required(Request &, Crypto_cipher_buffer::Index &);
 
 	public:
 
@@ -334,10 +331,10 @@ class Cbe::Library : public Cbe::Spark_object<216648>
 	 *                needs encrytion, otherwise an invalid one is
 	 *                returned
 	 */
-	Request crypto_data_required()
+	Request crypto_cipher_data_required(Crypto_plain_buffer::Index &data_index)
 	{
 		Request result { };
-		_crypto_data_required(result);
+		_crypto_cipher_data_required(result, data_index);
 		return result;
 	}
 
@@ -348,17 +345,9 @@ class Cbe::Library : public Cbe::Spark_object<216648>
 	 *                  by the CBE
 	 * \param  data     reference to the data associated with the
 	 *                  Block::Request
-	 *
-	 * \return  true if the CBE could supply the request's data,
-	 *          otherwise false
 	 */
-	bool obtain_crypto_plain_data(Request              const &request,
-	                              Crypto_plain_buffer::Index &data_index)
-	{
-		bool result = false;
-		_obtain_crypto_plain_data(request, data_index, result);
-		return result;
-	}
+	void crypto_cipher_data_requested(
+		Crypto_plain_buffer::Index const &data_index);
 
 	/**
 	 *  Collect cipher data for given completed encryption request
@@ -381,10 +370,10 @@ class Cbe::Library : public Cbe::Spark_object<216648>
 	 *                needs decrytion, otherwise an invalid one is
 	 *                returned
 	 */
-	Request has_crypto_data_to_decrypt()
+	Request crypto_plain_data_required(Crypto_cipher_buffer::Index &data_index)
 	{
 		Request result { };
-		_has_crypto_data_to_decrypt(result);
+		_crypto_plain_data_required(result, data_index);
 		return result;
 	}
 
@@ -399,13 +388,8 @@ class Cbe::Library : public Cbe::Spark_object<216648>
 	 * \return  true if the CBE could supply the ciphr data,
 	 *          otherwise false
 	 */
-	bool obtain_crypto_cipher_data(Request               const &request,
-	                               Crypto_cipher_buffer::Index &data_index)
-	{
-		bool result = false;
-		_obtain_crypto_cipher_data(request, data_index, result);
-		return result;
-	}
+	void crypto_plain_data_requested(
+		Crypto_cipher_buffer::Index const &data_index);
 
 	/**
 	 *  Collect plain data for given completed decryption request

@@ -251,25 +251,26 @@ is
       Convention    => C,
       External_Name => "_ZNK3Cbe7Library16execute_progressEv";
 
-   procedure Crypto_Data_Required (
-      Obj : in out Library.Object_Type;
-      Req :    out CXX_Request_Type)
-   with
-      Export,
-      Convention    => C,
-      External_Name => "_ZN3Cbe7Library21_crypto_data_requiredERNS_7RequestE";
-
-   procedure Obtain_Crypto_Plain_Data (
-      Obj              : in out Library.Object_Type;
-      Req              :        CXX_Request_Type;
-      Data_Index       :    out CXX_Crypto_Plain_Buffer_Index_Type;
-      Data_Index_Valid :    out CXX_Bool_Type)
+   procedure Crypto_Cipher_Data_Required (
+      Obj        : in out Library.Object_Type;
+      Req        :    out CXX_Request_Type;
+      Data_Index :    out CXX_Crypto_Plain_Buffer_Index_Type)
    with
       Export,
       Convention    => C,
       External_Name =>
-         "_ZN3Cbe7Library25_obtain_crypto_plain_dataERKNS_7RequestERNS_" &
-         "19Crypto_plain_buffer5IndexERb";
+         "_ZN3Cbe7Library28_crypto_cipher_data_requiredERNS_7RequestERNS_" &
+         "19Crypto_plain_buffer5IndexE";
+
+   procedure Crypto_Cipher_Data_Requested (
+      Obj        : in out Library.Object_Type;
+      Data_Index :        CXX_Crypto_Plain_Buffer_Index_Type)
+   with
+      Export,
+      Convention    => C,
+      External_Name =>
+         "_ZN3Cbe7Library28crypto_cipher_data_requestedERKNS_" &
+         "19Crypto_plain_buffer5IndexE";
 
    procedure Supply_Crypto_Cipher_Data (
       Obj        : in out Library.Object_Type;
@@ -282,26 +283,26 @@ is
          "_ZN3Cbe7Library25supply_crypto_cipher_dataERKNS_" &
          "20Crypto_cipher_buffer5IndexEb";
 
-   procedure Has_Crypto_Data_To_Decrypt (
-      Obj : in out Library.Object_Type;
-      Req :    out CXX_Request_Type)
+   procedure Crypto_Plain_Data_Required (
+      Obj        : in out Library.Object_Type;
+      Req        :    out CXX_Request_Type;
+      Data_Index :    out CXX_Crypto_Cipher_Buffer_Index_Type)
    with
       Export,
       Convention    => C,
       External_Name =>
-         "_ZN3Cbe7Library27_has_crypto_data_to_decryptERNS_7RequestE";
+         "_ZN3Cbe7Library27_crypto_plain_data_requiredERNS_7RequestERNS_" &
+         "20Crypto_cipher_buffer5IndexE";
 
-   procedure Obtain_Crypto_Cipher_Data (
-      Obj              : in out Library.Object_Type;
-      Req              :        CXX_Request_Type;
-      Data_Index       :    out CXX_Crypto_Cipher_Buffer_Index_Type;
-      Data_Index_Valid :    out CXX_Bool_Type)
+   procedure Crypto_Plain_Data_Requested (
+      Obj        : in out Library.Object_Type;
+      Data_Index :        CXX_Crypto_Cipher_Buffer_Index_Type)
    with
       Export,
       Convention    => C,
       External_Name =>
-         "_ZN3Cbe7Library26_obtain_crypto_cipher_dataERKNS_7RequestERNS_" &
-         "20Crypto_cipher_buffer5IndexERb";
+         "_ZN3Cbe7Library27crypto_plain_data_requestedERKNS_" &
+         "20Crypto_cipher_buffer5IndexE";
 
    procedure Supply_Crypto_Plain_Data (
       Obj        : in out Library.Object_Type;

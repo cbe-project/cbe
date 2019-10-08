@@ -242,32 +242,27 @@ is
    return CXX_Bool_Type
    is (CXX_Bool_From_SPARK (Library.Execute_Progress (Obj)));
 
-   procedure Crypto_Data_Required (
-      Obj : in out Library.Object_Type;
-      Req :    out CXX_Request_Type)
+   procedure Crypto_Cipher_Data_Required (
+      Obj        : in out Library.Object_Type;
+      Req        :    out CXX_Request_Type;
+      Data_Index :    out CXX_Crypto_Plain_Buffer_Index_Type)
    is
-      SPARK_Req : Request.Object_Type;
+      SPARK_Req        : Request.Object_Type;
+      SPARK_Data_Index : Crypto.Plain_Buffer_Index_Type;
    begin
-      Library.Crypto_Data_Required (Obj, SPARK_Req);
-      Req := CXX_Request_From_SPARK (SPARK_Req);
-   end Crypto_Data_Required;
+      Library.Crypto_Cipher_Data_Required (Obj, SPARK_Req, SPARK_Data_Index);
+      Req        := CXX_Request_From_SPARK (SPARK_Req);
+      Data_Index := (Value => CXX_UInt32_Type (SPARK_Data_Index));
+   end Crypto_Cipher_Data_Required;
 
-   procedure Obtain_Crypto_Plain_Data (
-      Obj              : in out Library.Object_Type;
-      Req              :        CXX_Request_Type;
-      Data_Index       :    out CXX_Crypto_Plain_Buffer_Index_Type;
-      Data_Index_Valid :    out CXX_Bool_Type)
+   procedure Crypto_Cipher_Data_Requested (
+      Obj        : in out Library.Object_Type;
+      Data_Index :        CXX_Crypto_Plain_Buffer_Index_Type)
    is
-      SPARK_Data_Index       : Crypto.Plain_Buffer_Index_Type;
-      SPARK_Data_Index_Valid : Boolean;
    begin
-      Library.Obtain_Crypto_Plain_Data (
-         Obj, CXX_Request_To_SPARK (Req), SPARK_Data_Index,
-         SPARK_Data_Index_Valid);
-
-      Data_Index       := (Value => CXX_UInt32_Type (SPARK_Data_Index));
-      Data_Index_Valid := CXX_Bool_From_SPARK (SPARK_Data_Index_Valid);
-   end Obtain_Crypto_Plain_Data;
+      Library.Crypto_Cipher_Data_Requested (
+         Obj, Crypto.Plain_Buffer_Index_Type (Data_Index.Value));
+   end Crypto_Cipher_Data_Requested;
 
    procedure Supply_Crypto_Cipher_Data (
       Obj        : in out Library.Object_Type;
@@ -281,32 +276,27 @@ is
 
    end Supply_Crypto_Cipher_Data;
 
-   procedure Has_Crypto_Data_To_Decrypt (
-      Obj : in out Library.Object_Type;
-      Req :    out CXX_Request_Type)
+   procedure Crypto_Plain_Data_Required (
+      Obj        : in out Library.Object_Type;
+      Req        :    out CXX_Request_Type;
+      Data_Index :    out CXX_Crypto_Cipher_Buffer_Index_Type)
    is
-      SPARK_Req : Request.Object_Type;
+      SPARK_Req        : Request.Object_Type;
+      SPARK_Data_Index : Crypto.Cipher_Buffer_Index_Type;
    begin
-      Library.Has_Crypto_Data_To_Decrypt (Obj, SPARK_Req);
-      Req := CXX_Request_From_SPARK (SPARK_Req);
-   end Has_Crypto_Data_To_Decrypt;
+      Library.Crypto_Plain_Data_Required (Obj, SPARK_Req, SPARK_Data_Index);
+      Req        := CXX_Request_From_SPARK (SPARK_Req);
+      Data_Index := (Value => CXX_UInt32_Type (SPARK_Data_Index));
+   end Crypto_Plain_Data_Required;
 
-   procedure Obtain_Crypto_Cipher_Data (
-      Obj              : in out Library.Object_Type;
-      Req              :        CXX_Request_Type;
-      Data_Index       :    out CXX_Crypto_Cipher_Buffer_Index_Type;
-      Data_Index_Valid :    out CXX_Bool_Type)
+   procedure Crypto_Plain_Data_Requested (
+      Obj        : in out Library.Object_Type;
+      Data_Index :        CXX_Crypto_Cipher_Buffer_Index_Type)
    is
-      SPARK_Data_Index       : Crypto.Cipher_Buffer_Index_Type;
-      SPARK_Data_Index_Valid : Boolean;
    begin
-      Library.Obtain_Crypto_Cipher_Data (
-         Obj, CXX_Request_To_SPARK (Req), SPARK_Data_Index,
-         SPARK_Data_Index_Valid);
-
-      Data_Index       := (Value => CXX_UInt32_Type (SPARK_Data_Index));
-      Data_Index_Valid := CXX_Bool_From_SPARK (SPARK_Data_Index_Valid);
-   end Obtain_Crypto_Cipher_Data;
+      Library.Crypto_Plain_Data_Requested (
+         Obj, Crypto.Cipher_Buffer_Index_Type (Data_Index.Value));
+   end Crypto_Plain_Data_Requested;
 
    procedure Supply_Crypto_Plain_Data (
       Obj        : in out Library.Object_Type;

@@ -553,19 +553,17 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 				/* encrypt */
 				while (true) {
-					Cbe::Request request = _cbe->crypto_data_required();
+					Crypto_plain_buffer::Index data_index(0);
+					Cbe::Request request = _cbe->crypto_cipher_data_required(data_index);
 					if (!request.valid()) {
 						break;
 					}
 					if (!_crypto.encryption_request_acceptable()) {
 						break;
 					}
-					Crypto_plain_buffer::Index data_index(0);
-					if (!_cbe->obtain_crypto_plain_data(request, data_index)) {
-						break;
-					}
 					request.tag = data_index.value;
 					_crypto.submit_encryption_request(request, _crypto_plain_buf.item(data_index), 0);
+					_cbe->crypto_cipher_data_requested(data_index);
 					progress |= true;
 				}
 				while (true) {
@@ -583,19 +581,17 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 				/* decrypt */
 				while (true) {
-					Cbe::Request request = _cbe->has_crypto_data_to_decrypt();
+					Crypto_cipher_buffer::Index data_index(0);
+					Cbe::Request request = _cbe->crypto_plain_data_required(data_index);
 					if (!request.valid()) {
 						break;
 					}
 					if (!_crypto.decryption_request_acceptable()) {
 						break;
 					}
-					Crypto_cipher_buffer::Index data_index(0);
-					if (!_cbe->obtain_crypto_cipher_data(request, data_index)) {
-						break;
-					}
 					request.tag = data_index.value;
 					_crypto.submit_decryption_request(request, _crypto_cipher_buf.item(data_index), 0);
+					_cbe->crypto_plain_data_requested(data_index);
 					progress |= true;
 				}
 				while (true) {

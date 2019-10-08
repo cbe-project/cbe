@@ -236,37 +236,32 @@ is
    return Boolean;
 
    --
-   --  Request encryption of data
+   --  Determine whether the encryption of plain data is required
    --
-   --  \param Req  return valid request in case the is one pending that
-   --             needs data, otherwise an invalid one is returned
+   --  \param Req         returns valid request if encryption of plain data is
+   --                     is required
+   --  \param Data_Index  returns index of plain data in crypto buffer if
+   --                     returned request is valid
    --
-   procedure Crypto_Data_Required (
-      Obj : in out Object_Type;
-      Req :    out Request.Object_Type);
+   procedure Crypto_Cipher_Data_Required (
+      Obj        : in out Object_Type;
+      Req        :    out Request.Object_Type;
+      Data_Index :    out Crypto.Plain_Buffer_Index_Type);
 
    --
-   --  Return plain data index for given encryption request
+   --  Acknowledge that the encryption of plain data was requested
    --
-   --  \param Request           reference to the Block::Request processed
-   --                           by the CBE
-   --  \param Data_Index        returns index of crypto data in crypto
-   --                           plain-data buffer when Data_Index_Valid is True
-   --  \param Data_Index_Valid  returns whether Data_Index is valid
+   --  \param Data_Index  index of plain data in crypto buffer
    --
-   procedure Obtain_Crypto_Plain_Data (
-      Obj              : in out Library.Object_Type;
-      Req              :        Request.Object_Type;
-      Data_Index       :    out Crypto.Plain_Buffer_Index_Type;
-      Data_Index_Valid :    out Boolean);
+   procedure Crypto_Cipher_Data_Requested (
+      Obj        : in out Library.Object_Type;
+      Data_Index :        Crypto.Plain_Buffer_Index_Type);
 
    --
-   --  Collect cipher data for given completed decryption request
+   --  Acknowledge that the encryption of plain data was completed
    --
-   --  \param Data_Index  index of data in crypto cipher-data buffer
-   --  \param Data_Valid  whether the data is valid or not (whether the
-   --                     data could be processed successfully by the outer
-   --                     world)
+   --  \param Data_Index  index of the resulting cipher data in crypto buffer
+   --  \param Data_Valid  whether the encryption was successful
    --
    procedure Supply_Crypto_Cipher_Data (
       Obj        : in out Object_Type;
@@ -276,28 +271,24 @@ is
    --
    --  Request decryption of data
    --
-   --  \param Req  return valid request in case the is one pending that
-   --             needs data, otherwise an invalid one is returned
+   --  \param Req         returns valid request in case there is one pending
+   --                     that needs data, otherwise an invalid one is returned
+   --  \param Data_Index  returns index of request data-slot in crypto
+   --                     plain-data buffer if returned request is valid
    --
-   procedure Has_Crypto_Data_To_Decrypt (
-      Obj : in out Object_Type;
-      Req :    out Request.Object_Type);
+   procedure Crypto_Plain_Data_Required (
+      Obj        : in out Object_Type;
+      Req        :    out Request.Object_Type;
+      Data_Index :    out Crypto.Cipher_Buffer_Index_Type);
 
    --
-   --  Return cipher data index for given decryption request
+   --  Acknowledge that required crypto plain-data was requested
    --
-   --  \param Request           reference to the Block::Request processed
-   --                           by the CBE
-   --  \param Data_Index        returns index of crypto data in crypto
-   --                           cipher-data buffer when Data_Index_Valid is
-   --                           True
-   --  \param Data_Index_Valid  returns whether Data_Index is valid
+   --  \param Data_Index  index of the data in crypto buffer
    --
-   procedure Obtain_Crypto_Cipher_Data (
-      Obj              : in out Library.Object_Type;
-      Req              :        Request.Object_Type;
-      Data_Index       :    out Crypto.Cipher_Buffer_Index_Type;
-      Data_Index_Valid :    out Boolean);
+   procedure Crypto_Plain_Data_Requested (
+      Obj        : in out Library.Object_Type;
+      Data_Index :        Crypto.Cipher_Buffer_Index_Type);
 
    --
    --  Collect plain data for given completed decryption request
