@@ -266,7 +266,7 @@ class Cbe::Vbd
 		struct Bad_i_node_child_id : Genode::Exception { };
 
 		Genode::Env                &_env;
-		Genode::Expanding_reporter  _reporter      { _env, "state", "state" };
+		Constructible<Expanding_reporter> _reporter { };
 		uint64_t                    _dump_leaves   { 0 };
 
 		Cbe::Tree                  &_tree;
@@ -822,6 +822,12 @@ class Cbe::Vbd
 			_free_tree { free_tree },
 			_verbose { verbose }
 		{
+			try {
+				_reporter.construct(_env, "state", "state");
+			} catch (...) {
+				warning("no state reporting, cannot construct reporter");
+			}
+
 			if (initialize) {
 				if (_verbose) {
 					Genode::log("Initialize VBD tree");
@@ -866,8 +872,10 @@ class Cbe::Vbd
 		 */
 		void report()
 		{
+			if (!_reporter.constructed()) { return; }
+
 			try {
-				_reporter.generate([&] (Genode::Xml_generator &xml) {
+				_reporter->generate([&] (Genode::Xml_generator &xml) {
 					_report(xml); });
 			} catch (Xml_generator::Buffer_exceeded) {
 				error("failed to generate report"); }
