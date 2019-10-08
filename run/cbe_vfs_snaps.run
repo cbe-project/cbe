@@ -1,0 +1,127 @@
+create_boot_directory
+
+import_from_depot [depot_user]/src/[base_src] \
+                  [depot_user]/pkg/[drivers_interactive_pkg] \
+                  [depot_user]/pkg/terminal \
+                  [depot_user]/src/init \
+                  [depot_user]/src/libc \
+                  [depot_user]/src/posix \
+                  [depot_user]/src/ncurses \
+                  [depot_user]/src/bash \
+                  [depot_user]/src/coreutils \
+                  [depot_user]/src/vfs \
+                  [depot_user]/src/fs_rom
+
+install_config {
+<config verbose="yes">
+	<parent-provides>
+		<service name="ROM"/>
+		<service name="LOG"/>
+		<service name="RM"/>
+		<service name="CPU"/>
+		<service name="PD"/>
+		<service name="IRQ"/>
+		<service name="IO_PORT"/>
+		<service name="IO_MEM"/>
+	</parent-provides>
+
+	<default-route>
+		<any-service> <parent/> <any-child/> </any-service>
+	</default-route>
+
+	<default caps="100"/>
+
+	<start name="timer">
+		<resource name="RAM" quantum="1M"/>
+		<provides><service name="Timer"/></provides>
+	</start>
+
+	<start name="drivers" caps="1000">
+		<resource name="RAM" quantum="32M" constrain_phys="yes"/>
+		<binary name="init"/>
+		<route>
+			<service name="ROM" label="config"> <parent label="drivers.config"/> </service>
+			<service name="Timer"> <child name="timer"/> </service>
+			<any-service> <parent/> </any-service>
+		</route>
+		<provides>
+			<service name="Input"/> <service name="Framebuffer"/>
+		</provides>
+	</start>
+
+	<start name="terminal" caps="110">
+		<resource name="RAM" quantum="2M"/>
+		<provides><service name="Terminal"/></provides>
+		<route>
+			<service name="ROM" label="config"> <parent label="terminal.config"/> </service>
+			<any-service> <parent/> <any-child/> </any-service>
+		</route>
+	</start>
+
+	<start name="cbe_block">
+		<resource name="RAM" quantum="128M"/>
+		<provides><service name="Block"/></provides>
+		<config report="no" verbose="no" backing_size="64M"
+		        vbd_size="2M" vbd_outer_degree="64"
+		        ft_size="1M"   ft_outer_degree="64"
+		        initialize="yes">
+		</config>
+		<route>
+			<service name="Report"> <child name="report_rom"/> </service>
+			<any-service> <parent/> </any-service>
+		</route>
+	</start>
+
+	<start name="noux" caps="1000">
+		<resource name="RAM" quantum="256M" />
+		<config>
+			<fstab>
+				<tar name="coreutils.tar" />
+				<tar name="bash.tar" />
+
+				<dir name="tmp"> <ram/> </dir>
+				<dir name="dev">
+					<zero/> <null/> <terminal/>
+					<inline name="rtc">2018-01-01 00:01</inline>
+					<block name="block" label="block_backend"/>
+
+					<cbe name="cbe" show_progress="no" sync_interval="3" secure_interval="10" block="/dev/block"/>
+				</dir>
+				<rom name=".bashrc" label="cbe_vfs_snaps.sh"/>
+			</fstab>
+
+			<start name="/bin/bash">
+				<env name="HOME" value="/"/>
+				<env name="TERM" value="screen"/>
+				<env name="PATH" value="/bin" />
+			</start>
+		</config>
+		<route>
+			<service name="Block" label="block_backend"> <child name="cbe_block"/> </service>
+			<service name="Timer"> <child name="timer"/> </service>
+			<service name="Terminal"> <child name="terminal"/> </service>
+			<any-service> <parent/> <any-child/> </any-service>
+		</route>
+	</start>
+</config>}
+
+build {
+	lib/ld
+	noux lib/libc_noux
+	server/cbe_block
+	lib/vfs/cbe
+}
+
+set shell_script "run/cbe_vfs_snaps.sh"
+set repo "[repository_contains $shell_script]"
+exec cp $repo/$shell_script bin/
+
+build_boot_image {
+	ld.lib.so noux libc_noux.lib.so
+	cbe_block spark.lib.so libsparkcrypto.lib.so vfs_cbe.lib.so
+	cbe_vfs_snaps.sh
+}
+
+append qemu_args " -m 1024M "
+
+run_genode_until forever
