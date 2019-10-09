@@ -21,6 +21,7 @@ def plot() -> None:  # pylint: disable=too-many-statements, too-many-locals
 
     fig_lat, ax_lat = plt.subplots(figsize=(12, 6), dpi=120)
     fig_jit, ax_jit = plt.subplots(figsize=(12, 6), dpi=120)
+    fig_ord, ax_ord = plt.subplots(figsize=(12, 6), dpi=120)
 
     burst_sizes: Dict[str, List[int]] = {}
     avg_latency: Dict[str, List[float]] = {}
@@ -48,6 +49,13 @@ def plot() -> None:  # pylint: disable=too-many-statements, too-many-locals
             save_figure(fig_jit, f'jitter_{burst_size}.png')
             ax_jit.clear()
 
+            ax_ord.set(xlabel='Request', ylabel='Received (ms)',
+                       title=f'Received order (burst size: {burst_size})')
+            ax_ord.set_xlim(left=0, right=x_max)
+            ax_ord.legend(loc='upper right')
+            save_figure(fig_ord, f'ordering_{burst_size}.png')
+            ax_ord.clear()
+
             x_max = 0
 
         burst_size = int(run.attrib['burst_size'])
@@ -67,6 +75,7 @@ def plot() -> None:  # pylint: disable=too-many-statements, too-many-locals
                 sent.append(float(request.attrib['sent']))
                 received.append(float(request.attrib['received']))
         jitter = [abs(j - i) for i, j in zip(latency[:-1], latency[1:])]
+        order = [(j - i) * 1000 for i, j in zip(received[:-1], received[1:])]
 
         operation = str(run.attrib['operation'])
         name = operation.lower()
@@ -76,6 +85,7 @@ def plot() -> None:  # pylint: disable=too-many-statements, too-many-locals
 
         ax_lat.plot(requests, latency, '.', label=operation, markersize=1)
         ax_jit.plot(requests[1:], jitter, '.', label=operation, markersize=1)
+        ax_ord.plot(requests[1:], order, '.', label=operation, markersize=1)
 
         fig_req, ax_req = plt.subplots(figsize=(12, 6), dpi=120)
         first_sent = sent[0]
