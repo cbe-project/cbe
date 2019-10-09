@@ -110,9 +110,12 @@ is
    is
    begin
       for Item_Id in Obj.Items'Range loop
+
+         --
          --  XXX change interface so that we cannot submit requests multiple
-         --     times. checking for any non invalid entry leads to only 1
-         --     request pending at all times.
+         --      times. checking for any non invalid entry leads to only 1
+         --      request pending at all times.
+         --
          if not Item.Invalid (Obj.Items (Item_Id)) then
             return False;
          end if;

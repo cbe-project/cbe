@@ -168,30 +168,6 @@ is
       begin
          SHA256_4K.Hash (SHA_Data, SHA_Hash);
          if CBE_Hash /= Obj.Walk (Natural (Obj.Level)).Hash then
-            --  Fixme error handling missing
-
-            --  Print_String ("Trans.Exe: hash mismatch: level ");
-            --  Print_Word_Dec (Obj.Level);
-            --  Print_String (" pba ");
-            --  Print_Word_Hex (Obj.Walk (Obj.Level).PBA);
-            --  Print_String (" <");
-            --  Print_Hash (Hash);
-            --  Print_String ("> != <");
-            --  Print_Hash (
-            --     SHA256_4K.Hash_Type (Obj.Walk (Natural (Obj.Level)).Hash));
-            --  Print_String (">");
-            --  Print_Line_Break;
-            --  for Level in 0..(Height (Obj) + 1) loop
-            --    Print_String ("Trans.Exe: Translation: node[");
-            --    Print_Word_Dec (Level);
-            --    Print_String ("]: ");
-            --    Print_Word_Hex (Obj.Walk (Level).PBA);
-            --    Print_String (" <");
-            --    Print_Hash (
-            --       SHA256_4K.Hash_Type (Obj.Walk (Natural (Level)).Hash));
-            --    Print_String (">");
-            --    Print_Line_Break;
-            --  end loop;
             raise Program_Error;
          end if;
       end Declare_SHA_Args;
@@ -276,20 +252,6 @@ is
    --
    function Can_Get_Type_1_Info (
       Obj   : Object_Type;
-      Prim  : Primitive.Object_Type;
-      Infos : Address_Type)
-   return Boolean
-   is (
-      Obj.Data_PBA /= PBA_Invalid and then
-      Physical_Block_Address_Type (Primitive.Block_Number (Prim)) =
-         Obj.Data_PBA and then
-      Infos /= 0);
-
-   --
-   --  Can_Get_Type_1_Info_SPARK
-   --
-   function Can_Get_Type_1_Info_SPARK (
-      Obj   : Object_Type;
       Prim  : Primitive.Object_Type)
    return Boolean
    is (
@@ -306,11 +268,6 @@ is
    is
    begin
       for Level in 0 .. Tree_Helper.Height (Obj.Helper) loop
-         --  Print_String ("Trans.GetT1Inf _walk[");
-         --  Print_Word_Dec (Level);
-         --  Print_String ("]: ");
-         --  Print_Word_Hex (Obj.Walk (Level).PBA);
-         --  Print_Line_Break;
          Infos (Natural (Level)) := Obj.Walk (Natural (Level));
       end loop;
    end Get_Type_1_Info;

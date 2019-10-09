@@ -71,8 +71,9 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 
 		Constructible<Cbe::Library> _cbe;
 
-		Cbe::Superblock_index _cur_sb { Cbe::Superblock_index::INVALID };
-		Cbe::Superblocks      _super_blocks { };
+		Cbe::Superblocks_index _cur_sb       { 0 };
+		bool                   _cur_sb_valid { false };
+		Cbe::Superblocks       _super_blocks { };
 
 		Cbe::Time _time { _env.env() };
 
@@ -98,10 +99,11 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 			_block_device    = config.attribute_value("block", _block_device);
 		}
 
-		Cbe::Superblock_index _read_superblocks(Cbe::Superblocks &sbs)
+		void _read_superblocks()
 		{
+			_cur_sb = false;
 			Cbe::Generation        last_gen = 0;
-			Cbe::Superblock_index most_recent_sb { Cbe::Superblock_index::INVALID };
+			Cbe::Superblocks_index most_recent_sb { 0 };
 
 			static_assert(sizeof (Cbe::Superblock) == Cbe::BLOCK_SIZE,
 			              "Super-block size mistmatch");
@@ -112,9 +114,9 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 			for (uint64_t i = 0; i < Cbe::NUM_SUPER_BLOCKS; i++) {
 				file_size bytes = 0;
 				_backend->seek(i * Cbe::BLOCK_SIZE);
-				Cbe::Superblock &dst = sbs.block[i];
+				Cbe::Superblock &dst = _super_blocks.block[i];
 				if (_backend->read((char *)&dst, Cbe::BLOCK_SIZE, bytes) != File_io_service::READ_OK)
-					return Cbe::Superblock_index();
+					return;
 
 				/*
 				 * For now this always selects the last SB if the generation
@@ -122,7 +124,7 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 				 * with generation == 0.
 				 */
 				if (dst.valid() && dst.last_secured_generation >= last_gen) {
-					most_recent_sb.value = i;
+					most_recent_sb = Cbe::Superblocks_index(i);
 					last_gen = dst.last_secured_generation;
 				}
 
@@ -132,7 +134,8 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 				Genode::log("SB[", i, "] hash: ", hash);
 			}
 
-			return most_recent_sb;
+			_cur_sb       = most_recent_sb;
+			_cur_sb_valid = true;
 		}
 
 	public:
@@ -515,9 +518,9 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 					return OPEN_ERR_UNACCESSIBLE;
 				}
 
-				_cur_sb = _read_superblocks(_super_blocks);
+				_read_superblocks();
 
-				if (!_cur_sb.valid()) {
+				if (!_cur_sb_valid) {
 					error("cbe_fs: No valid super block");
 					return OPEN_ERR_UNACCESSIBLE;
 				}

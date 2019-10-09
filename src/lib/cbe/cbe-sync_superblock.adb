@@ -31,7 +31,7 @@ is
       --
       procedure Pending_Item (
          Obj : out Item_Type;
-         Idx :     Superblock_Index_Type;
+         Idx :     Superblocks_Index_Type;
          Gen :     Generation_Type)
       is
       begin
@@ -60,7 +60,7 @@ is
       function State      (Obj : Item_Type) return State_Type
       is (Obj.Sta);
 
-      function Index      (Obj : Item_Type) return Superblock_Index_Type
+      function Index      (Obj : Item_Type) return Superblocks_Index_Type
       is (Obj.Idx);
 
       function Generation (Obj : Item_Type) return Generation_Type
@@ -108,7 +108,7 @@ is
    --
    procedure Submit_Request (
       Obj : in out Object_Type;
-      Idx :        Superblock_Index_Type;
+      Idx :        Superblocks_Index_Type;
       Gen :        Generation_Type)
    is
    begin
@@ -193,7 +193,7 @@ is
    function Peek_Generated_Index (
       Obj  : Object_Type;
       Prim : Primitive.Object_Type)
-   return Superblock_Index_Type
+   return Superblocks_Index_Type
    is
    begin
       if Item.Pending (Obj.Current_Item) and then
@@ -202,7 +202,7 @@ is
       then
          return Item.Index (Obj.Current_Item);
       end if;
-      return Superblock_Index_Type (0);
+      raise Program_Error;
    end Peek_Generated_Index;
 
    --

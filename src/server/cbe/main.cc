@@ -196,8 +196,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		 */
 		Cbe::Request _backend_request { };
 
-		Cbe::Superblock_index _cur_sb { Cbe::Superblock_index::INVALID };
-		Cbe::Superblocks      _super_blocks { };
+		Cbe::Superblocks _super_blocks { };
 
 		Signal_handler<Main> _request_handler {
 			_env.ep(), *this, &Main::_handle_requests };
@@ -633,10 +632,11 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		 *  \return  index of the most recent super-block or an INVALID
 		 *           index in case the super-block could not be found
 		 */
-		Cbe::Superblock_index _read_superblocks(Cbe::Superblocks &sbs)
+		Cbe::Superblocks_index _read_superblocks(Cbe::Superblocks &sbs)
 		{
 			Cbe::Generation        last_gen = 0;
-			Cbe::Superblock_index most_recent_sb { Cbe::Superblock_index::INVALID };
+			Cbe::Superblocks_index most_recent_sb { 0 };
+			bool                   most_recent_sb_valid { false };
 
 			/*
 			 * Read all super block slots and use the most recent one.
@@ -654,6 +654,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 */
 				if (dst.valid() && dst.last_secured_generation >= last_gen) {
 					most_recent_sb.value = i;
+					most_recent_sb_valid = true;
 					last_gen = dst.last_secured_generation;
 				}
 
@@ -662,7 +663,10 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				Sha256_4k::hash(data, hash);
 				Genode::log("SB[", i, "] hash: ", hash);
 			}
-
+			struct Failed : Exception { };
+			if (!most_recent_sb_valid) {
+				throw Failed();
+			}
 			return most_recent_sb;
 		}
 
@@ -708,11 +712,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			 *  SB to start from and whenever it wants to write a new one, it should pass
 			 *  the block on to the outside.)
 			 */
-			Cbe::Superblock_index curr_sb = _read_superblocks(_super_blocks);
-			if (curr_sb.value == Cbe::Superblock_index::INVALID) {
-				Genode::error("no valid super block found");
-				throw -1;
-			}
+			Cbe::Superblocks_index const curr_sb = _read_superblocks(_super_blocks);
 
 			/*
 			 * Set the timout handler directly on the time object which is actually

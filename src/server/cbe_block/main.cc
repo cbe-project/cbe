@@ -438,6 +438,7 @@ class Cbe::Vbd
 					uint64_t leafs = 0;
 					xml.node("snapshot", [&] () {
 						xml.attribute("id",     snap.id);
+						xml.attribute("valid",  snap.valid());
 						xml.attribute("gen",    snap.gen);
 						xml.attribute("pba",    snap.pba);
 						xml.attribute("height", snap.height);
@@ -1362,6 +1363,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				snap.gen       = sb.last_secured_generation;
 				snap.id        = sb.snapshot_id;
 				snap.flags     = Snapshot::FLAG_KEEP;
+				snap.valid(true);
 
 				{
 					Sha256_4k::Data const &data =
@@ -1372,7 +1374,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				}
 
 				for (uint32_t i = 1; i < Cbe::NUM_SNAPSHOTS; i++) {
-					sb.snapshots[i].id = Cbe::Snapshot::INVALID_ID;
+					sb.snapshots[i].valid(false);
 				}
 
 				sb.free_number = tree_root_pba;
@@ -1398,7 +1400,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					sbX.degree                  = sb.degree;
 
 					for (uint32_t i = 0; i < Cbe::NUM_SNAPSHOTS; i++) {
-						sbX.snapshots[i].id = Cbe::Snapshot::INVALID_ID;
+						sbX.snapshots[i].valid(false);
 					}
 
 					sbX.free_number = sb.free_number;

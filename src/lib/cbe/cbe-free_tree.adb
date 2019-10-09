@@ -67,9 +67,6 @@ is
    procedure Retry_Allocation (Obj : in out Object_Type)
    is
    begin
-      --  Print_String ("FRTR Retry_Allocation");
-      --  Print_Line_Break;
-
       Reset_Query_Prim (Obj);
       Obj.Do_Update        := False;
       Obj.Do_WB            := False;
@@ -101,7 +98,7 @@ is
 
          --
          --  FIXME may this be replaced by Query_Branch_Invalid
-         --       or at least something like Reset_Query_Branch?
+         --        or at least something like Reset_Query_Branch?
          --
          Obj.Query_Branches (Branch_ID).VBA := VBA_Invalid;
          Obj.Query_Branches (Branch_ID).Nr_Of_Free_Blocks := 0;
@@ -112,11 +109,6 @@ is
          end loop For_Query_Branch_PBAs;
 
       end loop For_Query_Branches;
-
-      --  Print_String ("FRTR Reset_Query_Prim");
-      --  Print_Primitive (Obj.Curr_Query_Prim);
-      --  Print_Line_Break;
-
    end Reset_Query_Prim;
 
    function Request_Acceptable (Obj : Object_Type)
@@ -124,16 +116,15 @@ is
    is (Obj.Nr_Of_Blocks = 0);
 
    procedure Submit_Request (
-      Obj             : in out Object_Type;
-      Curr_Gen        :        Generation_Type;
-      Nr_Of_Blks      :        Number_Of_Blocks_Type;
-      New_PBAs        :        Write_Back.New_PBAs_Type;
-      Old_PBAs        :        Type_1_Node_Infos_Type;
-      Tree_Height     :        Tree_Level_Type;
-      Fr_PBAs         :        Free_PBAs_Type;
-      --  Nr_Of_Free_Blks :        Number_Of_Blocks_Type;
-      Req_Prim        :        Primitive.Object_Type;
-      VBA             :        Virtual_Block_Address_Type)
+      Obj         : in out Object_Type;
+      Curr_Gen    :        Generation_Type;
+      Nr_Of_Blks  :        Number_Of_Blocks_Type;
+      New_PBAs    :        Write_Back.New_PBAs_Type;
+      Old_PBAs    :        Type_1_Node_Infos_Type;
+      Tree_Height :        Tree_Level_Type;
+      Fr_PBAs     :        Free_PBAs_Type;
+      Req_Prim    :        Primitive.Object_Type;
+      VBA         :        Virtual_Block_Address_Type)
    is
    begin
       if Obj.Nr_Of_Blocks /= 0 then
@@ -211,9 +202,6 @@ is
             For_Active_Snaps :
             for Snap of Active_Snaps loop
                if Snapshot_Valid (Snap) then
-                  --  Print_String ("FRTR Leaf_Usable snap:");
-                  --  Print_Snapshot (Active_Snaps (Snap_ID));
-                  --  Print_Line_Break;
                   Declare_B_Generation :
                   declare
                      B_Gen   : constant Generation_Type := Snap.Gen;
@@ -227,19 +215,6 @@ is
             end loop For_Active_Snaps;
             Free := not In_Use;
          end if;
-         --  Print_String ("FRTR Leaf_Usable ");
-         --  if Free then
-         --    Print_String ("REUSE");
-         --  else
-         --    Print_String ("RESERVE");
-         --  end if;
-         --  Print_String (" PBA: ");
-         --  Print_Word_Hex (Node.PBA);
-         --  Print_String (" f: ");
-         --  Print_Word_Dec (F_Gen);
-         --  Print_String (" a: ");
-         --  Print_Word_Dec (A_Gen);
-         --  Print_Line_Break;
       end Declare_Generations;
       return Free;
 
@@ -299,10 +274,6 @@ is
             exit Loop_Handle_Trans_Generated_Prim when
                not Primitive.Valid (Prim);
 
-            --  Print_String ("FRTR Execute trans peek generated: ");
-            --  Print_Primitive (Prim);
-            --  Print_Line_Break;
-
             Declare_PBA :
             declare
                PBA : constant Physical_Block_Address_Type :=
@@ -310,22 +281,16 @@ is
                      Primitive.Block_Number (Prim));
             begin
                if not Cache.Data_Available (Cach, PBA) then
-                  --  Print_String ("FRTR Execute cache data not available: ");
-                  --  Print_Word_Hex (PBA);
-                  --  Print_Line_Break;
                   if Cache.Request_Acceptable_Logged (Cach, PBA) then
                      Cache.Submit_Request_Logged (Cach, PBA);
 
                      --  FIXME it stands to reason if we have to set
-                     --  progress |= true;
-                     --     in this case to prevent the CBE from
-                     --     stalling
+                     --        progress |= true;
+                     --        in this case to prevent the CBE from
+                     --        stalling
                   end if;
                   exit Loop_Handle_Trans_Generated_Prim;
                else
-                  --  Print_String ("FRTR Execute cache data available: ");
-                  --  Print_Word_Hex (PBA);
-                  --  Print_Line_Break;
                   Declare_Data_Index_1 :
                   declare
                      Data_Index : constant Cache.Cache_Index_Type :=
@@ -364,22 +329,13 @@ is
                State => Pending,
                Index => 0);
 
-            --  Print_String ("FRTR Execute trans completed: ");
-            --  Print_Primitive (Prim);
-            --  Print_Line_Break;
-
             --
             --  To later update the free-tree, store the inner type 1 nodes
             --  of the branch.
             --
             --  (Currently not implemented.)
             --
-            if not
-               Translation.Can_Get_Type_1_Info_SPARK (
-                  Obj.Trans, Prim)
-            then
-               --  Print_String ("FRTR Execute could not get type 1 info");
-               --  Print_Line_Break;
+            if not Translation.Can_Get_Type_1_Info (Obj.Trans, Prim) then
                raise Program_Error;
             end if;
             Translation.Get_Type_1_Info (
@@ -406,8 +362,6 @@ is
       --  there.)
       --
       Obj.Curr_Query_Prim := Primitive.Invalid_Object;
-
-      --  MOD_DBG ("Obj.Curr_Type_2 complete");
 
       --
       --  Check each entry in the type 2 node
@@ -445,8 +399,10 @@ is
                   begin
                      if Usable then
 
-                        --  set VBA on the first Usable entry, NOP for
+                        --
+                        --  Set VBA on the first Usable entry, NOP for
                         --  remaining entries
+                        --
                         if
                            Obj.Query_Branches (Obj.Curr_Query_Branch).VBA =
                               VBA_Invalid
@@ -473,7 +429,6 @@ is
 
                            Found_New_Free_Blocks := True;
 
-                           --  MOD_DBG ("found free PBA: ", PBA);
                         end Declare_Free_Blocks;
                      end if;
                   end Declare_Usable;
@@ -523,9 +478,6 @@ is
             --
             if End_Of_Tree then
 
-               --  Genode::warning (
-               --     "could not find enough usable leafs: ",
-               --     Obj.Nr_Of_Blocks - Obj.Nr_Of_Found_Blocks, " missing");
                Obj.WB_Data.Finished := True;
                Primitive.Success (Obj.WB_Data.Prim, False);
 
@@ -559,9 +511,10 @@ is
                   for PBA_Index in 0 .. Obj.Query_Branches (Branch_Index).
                                            Nr_Of_Free_Blocks - 1
                   loop
-
+                     --
                      --  store iterator out-side so we start from the last set
                      --  entry
+                     --
                      For_Unhandled_New_PBAs :
                      for New_PBA_Index
                      in Last_New_PBA_Index .. Tree_Level_Index_Type'Last
@@ -577,10 +530,7 @@ is
                               Obj.Query_Branches (Branch_Index).
                                  PBAs (Natural (PBA_Index));
 
-                           --  MOD_DBG ("use free branch: ", Branch_Index,
-                           --           " n: ", PBA_Index, " PBA: ", PBA);
                            exit For_Unhandled_New_PBAs;
-
                         end if;
 
                         Last_New_PBA_Index := Last_New_PBA_Index + 1;
@@ -845,7 +795,7 @@ is
       end loop For_WB_IOs;
 
       --  FIXME why check here for not Obj.WB_Done? should be guarded by
-      --     the previous check
+      --        the previous check
       if not WB_Ongoing and then not Obj.WB_Done then
          Obj.Do_WB := False;
          Obj.WB_Done := True;
@@ -914,7 +864,6 @@ is
 
       end if;
 
-      --  MOD_DBG ("progress: ", progress);
    end Execute;
 
    function Execute_Progress (Obj : Object_Type)
@@ -927,7 +876,6 @@ is
    begin
       --  current type 2 node
       if Obj.Curr_Type_2.State = Pending then
-         --  MOD_DBG (Prim);
          return Primitive.Valid_Object (
             Tg     => Tag_IO,
             Op     => Read,
@@ -945,8 +893,6 @@ is
                Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).State =
                   Pending
             then
-
-               --  MOD_DBG (p);
                return Primitive.Valid_Object (
                   Tg     => Tag_Write_Back,
                   Op     => Write,
@@ -986,8 +932,6 @@ is
                   Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).State /=
                     Pending
                then
-                  --  Genode::warning (__Func__, ": ignore invalid",
-                  --                   "WRITE_BACK_TAG primitive");
                   exit For_WB_IOs;
                end if;
 
@@ -1000,7 +944,6 @@ is
       end if;
 
       if Index = Index_Invalid then
-         --  FIXME error handling
          raise Program_Error;
       end if;
 
@@ -1020,22 +963,15 @@ is
             if
                Physical_Block_Address_Type (Primitive.Block_Number (Prim)) =
                Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).PBA
+            and then
+               Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).State =
+                  Pending
             then
-               if
-                  Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).State =
-                     Pending
-               then
-                  Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).State :=
-                     In_Progress;
-               else
-                  null;
-                  --  MOD_DBG ("ignore invalid WRITE_BACK_TAG primitive: ",
-                  --           prim);
-               end if;
+               Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).State :=
+                  In_Progress;
             end if;
          end loop For_WB_IOs;
       else
-         --  MOD_ERR ("invalid primitive: ", prim);
          raise Program_Error;
       end if;
    end Drop_Generated_Primitive;
@@ -1049,40 +985,27 @@ is
          if Obj.Curr_Type_2.State = In_Progress then
             Obj.Curr_Type_2.State := Complete;
          else
-            null;
-            --  MOD_DBG ("ignore invalid I/O primitive: ", prim);
+            raise Program_Error;
          end if;
       elsif Primitive.Tag (Prim) = Tag_Write_Back then
          For_WB_IOs :
          for WB_IO_Index in Tree_Level_Index_Type'Range loop
             if
                Physical_Block_Address_Type (Primitive.Block_Number (Prim)) =
-               Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).PBA
+                  Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).PBA
+            and then
+               Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).State =
+                  In_Progress
             then
-               if
-                  Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).State =
-                     In_Progress
-               then
-                  Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).State :=
-                     Complete;
+               Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).State :=
+                  Complete;
 
-                  if not Primitive.Success (Prim) then
-                     --  FIXME propagate failure
-                     null;
-                     --  MOD_ERR ("failed primitive: ", prim);
-                  end if;
-               else
-                  null;
-                  --  MOD_DBG ("ignore invalid WRITE_BACK_TAG primitive: ",
-                  --           prim,
-                  --           " entry: ", i, " state: ", (uint32_T)_WB_IOs ",
-                  --           "(WB_IO_Index).State);
+               if not Primitive.Success (Prim) then
+                  raise Program_Error;
                end if;
             end if;
          end loop For_WB_IOs;
       else
-         --  FIXME handle error
-         --  MOD_ERR ("invalid primitive: ", prim);
          raise Program_Error;
       end if;
    end Mark_Generated_Primitive_Complete;
@@ -1104,12 +1027,9 @@ is
    is
    begin
       if not Primitive.Equal (Prim, Obj.WB_Data.Prim) then
-         --  FIXME handle or avoid error
-         --  MOD_ERR ("invalid primitive: ", prim);
          raise Program_Error;
       end if;
 
-      --  MOD_DBG (prim);
       return Obj.WB_Data;
    end Peek_Completed_WB_Data;
 
@@ -1119,10 +1039,8 @@ is
    is
    begin
       if not Primitive.Equal (Prim, Obj.WB_Data.Prim) then
-         --  MOD_ERR ("invalid primitive: ", prim);
          raise Program_Error;
       end if;
-      --  MOD_DBG (prim);
 
       --  reset state
       Obj.WB_Data.Finished := False;

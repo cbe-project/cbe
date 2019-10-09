@@ -24,8 +24,8 @@ with CBE.Primitive;
 package CBE.Library
 with SPARK_Mode
 is
---   FIXME cannot be pure yet because of CBE.Crypto
---   pragma Pure;
+   --  FIXME cannot be pure yet because of CBE.Crypto
+   --  pragma Pure;
 
    type Object_Type is private;
 
@@ -380,10 +380,9 @@ private
       Free_Tree_Trans_Data    : Translation_Data_Type;
       Free_Tree_Query_Data    : Query_Data_Type;
       Superblocks             : Superblocks_Type;
-      Cur_SB                  : Superblock_Index_Type;
+      Cur_SB                  : Superblocks_Index_Type;
       Cur_Gen                 : Generation_Type;
       Last_Secured_Generation : Generation_Type;
-      Cur_Snap                : Snapshot_ID_Type;
       Last_Snapshot_ID        : Snapshot_ID_Type;
       Seal_Generation         : Boolean;
       Secure_Superblock       : Boolean;
@@ -392,26 +391,20 @@ private
       Back_End_Req_Prim       : Request_Primitive_Type;
    end record;
 
-   function Superblock_Snapshot_Slot (SB : Superblock_Type)
-   return Snapshot_ID_Type;
-
-   function Discard_Snapshot (Active_Snaps : in out Snapshots_Type;
-                              Curr_Snap_ID :        Snapshot_ID_Type)
+   function Discard_Snapshot (
+      Snaps     : in out Snapshots_Type;
+      Keep_Snap :        Snapshots_Index_Type)
    return Boolean;
 
    function To_String (Req_Prim : Request_Primitive_Type) return String;
-
-   function Curr_SB (Obj : Object_Type)
-   return Superblocks_Index_Type;
 
    function Curr_Snap (Obj : Object_Type)
    return Snapshots_Index_Type;
 
    procedure Create_New_Snapshot (
-      Obj  :        Object_Type;
-      Snap : in out Snapshot_Type;
-      Prim :        Primitive.Object_Type;
-      ID   :    out Snapshot_ID_Type);
+      Obj  : in out Object_Type;
+      Snap :        Snapshots_Index_Type;
+      Prim :        Primitive.Object_Type);
 
    procedure Update_Snapshot_Hash (
       Obj  :        Object_Type;

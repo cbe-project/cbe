@@ -83,8 +83,6 @@ is
       Root_Gen  :        Generation_Type;
       Root_Hash :        Hash_Type;
       Prim      :        Primitive.Object_Type);
-   --  with
-   --    Pre => not Primitive.Valid (Current);
 
    --
    --  Execute
@@ -103,30 +101,17 @@ is
    --  Drop_Completed_Primitive
    --
    procedure Drop_Completed_Primitive (Obj : in out Object_Type);
-   --  with
-   --    Pre => Primitive.Block_Number (Prim) = Obj.Data_PBA;
 
    --
    --  Get_Virtual_Block_Address
    --
    function Get_Virtual_Block_Address (Obj : Object_Type)
    return Block_Number_Type;
-   --  with
-   --    Pre => Primitive.Block_Number (Prim) = Obj.Data_PBA;
 
    --
    --  Can_Get_Type_1_Info
    --
    function Can_Get_Type_1_Info (
-      Obj   : Object_Type;
-      Prim  : Primitive.Object_Type;
-      Infos : Address_Type)
-   return Boolean;
-
-   --
-   --  Can_Get_Type_1_Info_SPARK
-   --
-   function Can_Get_Type_1_Info_SPARK (
       Obj   : Object_Type;
       Prim  : Primitive.Object_Type)
    return Boolean;
@@ -148,8 +133,6 @@ is
    --  Discard the generated primitive
    --
    procedure Discard_Generated_Primitive (Obj : in out Object_Type);
-   --  with
-   --    Pre => Primitive.Block_Number (Prim) = Obj.Next_PBA;
 
    --
    --  Mark the generated primitive as completed
@@ -158,8 +141,6 @@ is
       Obj        : in out Object_Type;
       Data       :        Block_Data_Type;
       Trans_Data : in out Translation_Data_Type);
-   --  with
-   --    Pre => Primitive.Block_Number (Prim) = Obj.Next_PBA;
 
    -----------------
    --  Accessors  --

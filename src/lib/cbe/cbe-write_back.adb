@@ -247,8 +247,11 @@ is
       --  always start by encrypting the new leaf data
       Obj.State := Crypto;
 
+      --
       --  handle common members of an entry...
+      --
       --  XXX iterate from 0?
+      --
       for I in 0 .. Obj.Levels - 1 loop
          Obj.Entries (I).PBA        := Old_PBAs (Natural (I)).PBA;
          Obj.Entries (I).Update_PBA := New_PBAs (I);

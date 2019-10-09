@@ -13,61 +13,32 @@ with CBE.Tree_Helper;
 package body CBE.Library
 with SPARK_Mode
 is
-   function Discard_Snapshot (Active_Snaps : in out Snapshots_Type;
-                              Curr_Snap_ID :        Snapshot_ID_Type)
+   function Discard_Snapshot (
+      Snaps     : in out Snapshots_Type;
+      Keep_Snap :        Snapshots_Index_Type)
    return Boolean
    is
-      Lowest_Snap_ID : Snapshot_ID_Type := Snapshot_ID_Invalid;
+      Discard_Idx       : Snapshots_Index_Type := Snapshots_Index_Type'First;
+      Discard_Idx_Valid : Boolean              := False;
    begin
-      for Snap of Active_Snaps loop
+      For_Snapshots :
+      for Idx in Snapshots_Index_Type loop
          if
-            Snapshot_Valid (Snap) and then
-            not Snapshot_Keep (Snap) and then
-            Snap.ID /= Curr_Snap_ID and then
-            Snap.ID < Lowest_Snap_ID
+            Idx /= Keep_Snap and then
+            Snapshot_Valid (Snaps (Idx)) and then
+            not Snapshot_Keep (Snaps (Idx)) and then (
+               not Discard_Idx_Valid or else
+               Snaps (Idx).ID < Snaps (Discard_Idx).ID)
          then
-            Lowest_Snap_ID := Snap.ID;
+            Discard_Idx       := Idx;
+            Discard_Idx_Valid := True;
          end if;
-      end loop;
-
-      if Lowest_Snap_ID = Snapshot_ID_Invalid then
-         return False;
+      end loop For_Snapshots;
+      if Discard_Idx_Valid then
+         Snapshot_Valid (Snaps (Discard_Idx), False);
       end if;
-
-      Active_Snaps (Snapshots_Index_Type (Lowest_Snap_ID)).ID :=
-         Snapshot_ID_Invalid;
-
-      --  DBG ("discard snapshot: ", Snap);
-      return True;
+      return Discard_Idx_Valid;
    end Discard_Snapshot;
-
---
---  Not translated as only for debugging
---
---   procedure Dump_Cur_Sb_Info () const
---   is begin
---      CBE::Superblock const &sb := Obj.Superblocks (Obj.Cur_SB);
---      Snapshot_Type    const &Snap := sb.Snapshots (Obj.Cur_SB);
---
---      CBE::Physical_Block_Address const root_Number := Snap.PBA;
---      CBE::Height                 const height      := Snap.Height;
---      CBE::Number_Of_Leafs       const leafs      := Snap.Leafs;
---
---      CBE::Degree                 const degree      := sb.Degree;
---      CBE::Physical_Block_Address const free_Number := sb.Free_Number;
---      CBE::Number_Of_Leafs       const free_Leafs := sb.Free_Leafs;
---      CBE::Height                 const free_Height := sb.Free_Height;
---
---      Genode::log ("Virtual block-device info in SB (", Obj.Cur_SB, "): ",
---                  " SNAP (", Obj.Cur_SB, "): ",
---                  "tree height: ", height, " ",
---                  "edges per node: ", degree, " ",
---                  "leafs: ", leafs, " ",
---                  "root block address: ", root_Number, " ",
---                  "free block address: ", free_Number, " ",
---                  "free leafs: (", free_Leafs, "/", free_Height, ")"
---      );
---   end Dump_Cur_Sb_Info;
 
    function Cache_Dirty (Obj : Object_Type)
    return Boolean
@@ -108,58 +79,31 @@ is
       Obj.Seal_Generation := True;
    end Start_Sealing_Generation;
 
-   function Superblock_Snapshot_Slot (SB : Superblock_Type)
-   return Snapshot_ID_Type
-   is
-      Snap_Slot : Snapshot_ID_Type := Snapshot_ID_Invalid_Slot;
-   begin
-      For_Snapshots :
-      for Snap_Index in Snapshots_Index_Type loop
-         if
-            Snapshot_Valid (SB.Snapshots (Snap_Index)) and then
-            SB.Snapshots (Snap_Index).ID = SB.Snapshot_ID
-         then
-            Snap_Slot := Snapshot_ID_Type (Snap_Index);
-            exit For_Snapshots;
-         end if;
-      end loop For_Snapshots;
-      return Snap_Slot;
-   end Superblock_Snapshot_Slot;
-
    procedure Initialize_Object (
       Obj     : out Object_Type;
       SBs     :     Superblocks_Type;
       Curr_SB :     Superblocks_Index_Type)
    is
-      Snap_Slot : constant Snapshot_ID_Type :=
-         Superblock_Snapshot_Slot (SBs (Curr_SB));
+      Curr_Snap : constant Snapshots_Index_Type :=
+         Snapshots_Index_Type (SBs (Curr_SB).Curr_Snap);
 
       Degree : constant Tree_Degree_Type := SBs (Curr_SB).Degree;
-      Height : constant Tree_Level_Type :=
-         SBs (Curr_SB).Snapshots (Snapshots_Index_Type (Snap_Slot)).Height;
+      Height : constant Tree_Level_Type  :=
+         SBs (Curr_SB).Snapshots (Curr_Snap).Height;
 
-      Leafs  : constant Tree_Number_Of_Leafs_Type :=
-         SBs (Curr_SB).Snapshots (
-            Snapshots_Index_Type (Snap_Slot)).Nr_Of_Leafs;
+      Leafs : constant Tree_Number_Of_Leafs_Type :=
+         SBs (Curr_SB).Snapshots (Curr_Snap).Nr_Of_Leafs;
    begin
-
-      if Snap_Slot = Snapshot_ID_Invalid_Slot then
-         --  Genode::error ("snapshot slot not found");
-         raise Program_Error; --  throw Invalid_Snapshot_Slot;
-      end if;
-
       --
       --  The Current implementation is limited with regard to the
       --  tree topology. Make sure it fits.
       --
       if Height > Tree_Max_Height or else Height < Tree_Min_Height then
-         --  Genode::error ("tree height of ", height, " not supported");
-         raise Program_Error; --  throw Invalid_Tree;
+         raise Program_Error;
       end if;
 
       if Degree < Tree_Min_Degree then
-         --  Genode::error ("tree outer-degree of ", degree, " not supported");
-         raise Program_Error; --  throw Invalid_Tree;
+         raise Program_Error;
       end if;
 
       Obj.Execute_Progress := False;
@@ -193,13 +137,11 @@ is
       Obj.Free_Tree_Trans_Data    := (others => (others => 0));
       Obj.Free_Tree_Query_Data    := (others => (others => 0));
       Obj.Superblocks             := SBs;
-      Obj.Cur_SB                  := Superblock_Index_Type (Curr_SB);
+      Obj.Cur_SB                  := Curr_SB;
       Obj.Cur_Gen                 := SBs (Curr_SB).Last_Secured_Generation + 1;
       Obj.Last_Secured_Generation := SBs (Curr_SB).Last_Secured_Generation;
-      Obj.Cur_Snap                := Snap_Slot;
       Obj.Last_Snapshot_ID        :=
-         SBs (Curr_SB).
-            Snapshots (Snapshots_Index_Type (Snap_Slot)).ID;
+         Snapshot_ID_Type (SBs (Curr_SB).Snapshots (Curr_Snap).ID);
 
       Obj.Seal_Generation         := False;
       Obj.Secure_Superblock       := False;
@@ -209,33 +151,9 @@ is
 
    end Initialize_Object;
 
---
---  Not translated as only for debugging
---
---   procedure Dump_Cur_SB_Info () const
---   is begin
---      _Dump_Cur_SB_Info ();
---   end Dump_Cur_SB_Info;
-
-   function Curr_SB (Obj : Object_Type)
-   return Superblocks_Index_Type
-   is
-   begin
-      if Obj.Cur_SB > Superblock_Index_Type (Superblocks_Index_Type'Last) then
-         raise Program_Error;
-      end if;
-      return Superblocks_Index_Type (Obj.Cur_SB);
-   end Curr_SB;
-
    function Curr_Snap (Obj : Object_Type)
    return Snapshots_Index_Type
-   is
-   begin
-      if Obj.Cur_Snap > Snapshot_ID_Type (Snapshots_Index_Type'Last) then
-         raise Program_Error;
-      end if;
-      return Snapshots_Index_Type (Obj.Cur_Snap);
-   end Curr_Snap;
+   is (Snapshots_Index_Type (Obj.Superblocks (Obj.Cur_SB).Curr_Snap));
 
    function Max_VBA (Obj : Object_Type)
    return Virtual_Block_Address_Type
@@ -243,34 +161,42 @@ is
    begin
       return
          Virtual_Block_Address_Type (
-            Obj.Superblocks (Curr_SB (Obj)).
+            Obj.Superblocks (Obj.Cur_SB).
                Snapshots (Curr_Snap (Obj)).Nr_Of_Leafs - 1);
    end Max_VBA;
 
    procedure Create_New_Snapshot (
-      Obj  :        Object_Type;
-      Snap : in out Snapshot_Type;
-      Prim :        Primitive.Object_Type;
-      ID   :    out Snapshot_ID_Type)
+      Obj  : in out Object_Type;
+      Snap :        Snapshots_Index_Type;
+      Prim :        Primitive.Object_Type)
    is
       Snap_ID : constant Snapshot_ID_Type := Obj.Last_Snapshot_ID + 1;
    begin
-      Snap.PBA := Write_Back.Peek_Completed_Root (Obj.Write_Back_Obj, Prim);
+      Obj.Superblocks (Obj.Cur_SB).Snapshots (Snap).PBA :=
+         Write_Back.Peek_Completed_Root (Obj.Write_Back_Obj, Prim);
+
       Write_Back.Peek_Completed_Root_Hash (
-         Obj.Write_Back_Obj, Prim, Snap.Hash);
+         Obj.Write_Back_Obj, Prim,
+         Obj.Superblocks (Obj.Cur_SB).Snapshots (Snap).Hash);
 
       Declare_Tree :
       declare
          Tree : constant Tree_Helper.Object_Type :=
             Virtual_Block_Device.Get_Tree_Helper (Obj.VBD);
       begin
-         Snap.Height      := Tree_Helper.Height (Tree);
-         Snap.Nr_Of_Leafs := Tree_Helper.Leafs (Tree);
-         Snap.Gen         := Obj.Cur_Gen;
-         Snap.ID          := Snap_ID;
+         Obj.Superblocks (Obj.Cur_SB).Snapshots (Snap).Height :=
+            Tree_Helper.Height (Tree);
+         Obj.Superblocks (Obj.Cur_SB).Snapshots (Snap).Nr_Of_Leafs :=
+            Tree_Helper.Leafs (Tree);
+         Obj.Superblocks (Obj.Cur_SB).Snapshots (Snap).Gen :=
+            Obj.Cur_Gen;
+         Obj.Superblocks (Obj.Cur_SB).Snapshots (Snap).ID :=
+            Snapshot_ID_Storage_Type (Snap_ID);
       end Declare_Tree;
 
-      ID := Snap_ID;
+      Obj.Last_Snapshot_ID := Snap_ID;
+      Obj.Superblocks (Obj.Cur_SB).Curr_Snap :=
+         Snapshots_Index_Storage_Type (Snap);
    end Create_New_Snapshot;
 
    procedure Update_Snapshot_Hash (
@@ -326,7 +252,7 @@ is
       begin
          Free_Tree.Execute (
             Obj.Free_Tree_Obj,
-            Obj.Superblocks (Curr_SB (Obj)).Snapshots,
+            Obj.Superblocks (Obj.Cur_SB).Snapshots,
             Obj.Last_Secured_Generation,
             Obj.Free_Tree_Trans_Data,
             Obj.Cache_Obj,
@@ -337,7 +263,6 @@ is
          if Free_Tree.Execute_Progress (Obj.Free_Tree_Obj) then
             Progress := True;
          end if;
-         --  LOG_PROGRESS (FT_Progress);
       end;
 
       --
@@ -366,48 +291,35 @@ is
                not Primitive.Valid (Prim) or else
                Primitive.Success (Prim);
 
-            --  DBG ("allocating new blocks failed: ",
-            --       Obj.Free_Tree_Retry_Count);
             if Obj.Free_Tree_Retry_Count < Free_Tree_Retry_Limit then
+               if
+                  Discard_Snapshot (
+                     Obj.Superblocks (Obj.Cur_SB).Snapshots,
+                     Curr_Snap (Obj))
+               then
+                  Obj.Free_Tree_Retry_Count :=
+                     Obj.Free_Tree_Retry_Count + 1;
 
-               Declare_Curr :
-               declare
-                  Curr : constant Snapshot_ID_Type :=
-                     Obj.Superblocks (Curr_SB (Obj)).
-                        Snapshots (Curr_Snap (Obj)).ID;
-               begin
-                  if
-                     Discard_Snapshot (
-                        Obj.Superblocks (Curr_SB (Obj)).Snapshots,
-                        Curr)
-                  then
-                     Obj.Free_Tree_Retry_Count :=
-                        Obj.Free_Tree_Retry_Count + 1;
+                  --
+                  --  Instructing the FT to retry the allocation will
+                  --  lead to clearing its internal 'query branches'
+                  --  state and executing the previously submitted
+                  --  Request again.
+                  --
+                  --  (This retry attempt is a shortcut as we do not have
+                  --  all information available at this point to call
+                  --  'submit_Request' again - so we must not call
+                  --  'drop_Completed_Primitive' as this will clear the
+                  --  Request.)
+                  --
+                  Free_Tree.Retry_Allocation (Obj.Free_Tree_Obj);
 
-                     --
-                     --  Instructing the FT to retry the allocation will
-                     --  lead to clearing its internal 'query branches'
-                     --  state and executing the previously submitted
-                     --  Request again.
-                     --
-                     --  (This retry attempt is a shortcut as we do not have
-                     --  all information available at this point to call
-                     --  'submit_Request' again - so we must not call
-                     --  'drop_Completed_Primitive' as this will clear the
-                     --  Request.)
-                     --
-                     Free_Tree.Retry_Allocation (Obj.Free_Tree_Obj);
-
-                  end if;
-               end Declare_Curr;
+               end if;
                exit Loop_Free_Tree_Completed_Prims;
             end if;
 
-            --  Genode::error ("could not find enough useable blocks");
             Pool.Mark_Completed_Primitive (Obj.Request_Pool_Obj, Prim);
-            --  DBG ("-----------------------> current primitive: ",
-            --       current_Primitive, " FINISHED");
-            --  current_Primitive :=  : Primitive.Object_Type{ };
+
             --  FIXME
             Virtual_Block_Device.Trans_Resume_Translation (Obj.VBD);
             Free_Tree.Drop_Completed_Primitive (Obj.Free_Tree_Obj, Prim);
@@ -485,8 +397,8 @@ is
       ---------------------------------
 
       --
-      --  An arbitrary sized Block Request will be cut into 4096 byte
-      --  sized primitves by the Splitter module.
+      --  An arbitrary sized Block Request will be cut into Block_Size-sized
+      --  primitves by the Splitter module.
       --
       Loop_Pool_Pending_Requests :
       loop
@@ -526,14 +438,10 @@ is
             --  that mainly is intended to block write primitives--
             --
             if Obj.Secure_Superblock then
-               --  DBG ("prevent processing new primitives while securing",
-               --       "super-block");
                exit Loop_Splitter_Generated_Prims;
             end if;
 
             Splitter.Drop_Generated_Primitive (Obj.Splitter_Obj, Prim);
-
-            --  current_Primitive := Prim;
 
             --
             --  For every new Request, we have to use the currlently active
@@ -541,22 +449,14 @@ is
             --
             Virtual_Block_Device.Submit_Primitive (
                Obj.VBD,
-               Obj.Superblocks (
-                  Curr_SB (Obj)).Snapshots (Curr_Snap (Obj)).PBA,
-               Obj.Superblocks (
-                  Curr_SB (Obj)).Snapshots (Curr_Snap (Obj)).Gen,
-               Obj.Superblocks (
-                  Curr_SB (Obj)).Snapshots (Curr_Snap (Obj)).Hash,
+               Obj.Superblocks (Obj.Cur_SB).Snapshots (Curr_Snap (Obj)).PBA,
+               Obj.Superblocks (Obj.Cur_SB).Snapshots (Curr_Snap (Obj)).Gen,
+               Obj.Superblocks (Obj.Cur_SB).Snapshots (Curr_Snap (Obj)).Hash,
                Prim);
 
          end Declare_Prim_3;
          Progress := True;
       end loop Loop_Splitter_Generated_Prims;
-
-      --  if current_Primitive.Valid () then
-      --    DBG ("-----------------------> current primitive: ",
-      --         current_Primitive);
-      --  end if;
 
       --------------------
       --  VBD handling  --
@@ -578,7 +478,6 @@ is
       if Virtual_Block_Device.Execute_Progress (Obj.VBD) then
          Progress := True;
       end if;
-      --  LOG_PROGRESS (vbd_Progress);
 
       ------------------------------
       --  Cache_Flusher handling  --
@@ -612,8 +511,7 @@ is
                not Primitive.Valid (Prim);
 
             if not Primitive.Success (Prim) then
-               --  DBG (Prim);
-               raise Program_Error; --  throw Primitive_Failed;
+               raise Program_Error;
             end if;
 
             Cache.Mark_Clean (
@@ -621,7 +519,6 @@ is
                Physical_Block_Address_Type (
                   Primitive.Block_Number (Prim)));
 
-            --  DBG ("mark_Clean: ", PBA);
             Cache_Flusher.Drop_Completed_Primitive (
                Obj.Cache_Flusher_Obj, Prim);
 
@@ -698,8 +595,7 @@ is
                not Primitive.Valid (Prim);
 
             if not Primitive.Success (Prim) then
-               --  DBG (Prim);
-               raise Program_Error; --  throw Primitive_Failed;
+               raise Program_Error;
             end if;
 
             if Obj.Seal_Generation then
@@ -721,8 +617,6 @@ is
                      if Cache.Dirty (Obj.Cache_Obj, Cache_Index) then
 
                         Cache_Dirty := True;
-                        --  DBG (" i: ", Idx.Value, " PBA: ", PBA, " needs",
-                        --       " flushing");
 
                         Cache_Flusher.Submit_Request (
                            Obj.Cache_Flusher_Obj,
@@ -736,7 +630,6 @@ is
                   --  finished doing that.
                   --
                   if Cache_Dirty then
-                     --  DBG ("CACHE FLUSH NEEDED: Progress: ", Progress);
                      Progress := True;
                      exit Loop_WB_Completed_Prims;
                   end if;
@@ -750,30 +643,24 @@ is
                --
                Declare_Next_Snap :
                declare
-                  Next_Snap : Snapshot_ID_Type := Obj.Cur_Snap;
+                  Next_Snap : Snapshots_Index_Type := Curr_Snap (Obj);
                begin
                   For_Snapshots :
-                  for Snap_ID in Snapshots_Index_Type loop
-                     Next_Snap :=
-                        (Next_Snap + 1) mod
-                        Snapshot_ID_Type (Snapshots_Index_Type'Last + 1);
+                  for Idx in Snapshots_Index_Type loop
+                     Next_Snap := (
+                        if Next_Snap < Snapshots_Index_Type'Last then
+                           Next_Snap + 1
+                        else
+                           Snapshots_Index_Type'First);
 
-                     if not Snapshot_Valid (
-                        Obj.Superblocks (Curr_SB (Obj)).
-                           Snapshots (Snapshots_Index_Type (Next_Snap)))
-                     then
-                        exit For_Snapshots;
-                     else
-                        exit For_Snapshots when not Snapshot_Keep (
-                           Obj.Superblocks (Curr_SB (Obj)).
-                              Snapshots (Snapshots_Index_Type (Next_Snap)));
-                     end if;
+                     exit For_Snapshots when
+                        not Snapshot_Valid (Obj.Superblocks (Obj.Cur_SB).
+                           Snapshots (Next_Snap)) or else
+                        not Snapshot_Keep (Obj.Superblocks (Obj.Cur_SB).
+                           Snapshots (Next_Snap));
                   end loop For_Snapshots;
-
-                  if Next_Snap = Obj.Cur_Snap then
-                     --  Genode::error ("could not find free snapshot slot");
-                     --  proper handling pending--
-                     raise Program_Error; --  throw Invalid_Snapshot_Slot;
+                  if Next_Snap = Curr_Snap (Obj) then
+                     raise Program_Error;
                   end if;
 
                   --
@@ -781,17 +668,7 @@ is
                   --  meta-Data in a new slot and afterwards setting the
                   --  seal timeout again.
                   --
-                  Create_New_Snapshot (
-                     Obj,
-                     Obj.Superblocks (Curr_SB (Obj)).
-                        Snapshots (Snapshots_Index_Type (Next_Snap)),
-                     Prim,
-                     Obj.Last_Snapshot_ID);
-
-                  --  DBG ("new snapshot for generation: ", Obj.Cur_Gen,
-                  --       " Snap: ", Snap);
-
-                  Obj.Cur_Snap := Next_Snap;
+                  Create_New_Snapshot (Obj, Next_Snap, Prim);
                end Declare_Next_Snap;
 
                Obj.Cur_Gen         := Obj.Cur_Gen  + 1;
@@ -805,7 +682,7 @@ is
                --
                Update_Snapshot_Hash (
                   Obj,
-                  Obj.Superblocks (Curr_SB (Obj)).
+                  Obj.Superblocks (Obj.Cur_SB).
                      Snapshots (Curr_Snap (Obj)),
                   Prim);
             end if;
@@ -826,14 +703,11 @@ is
             Pool.Mark_Completed_Primitive (Obj.Request_Pool_Obj, Prim);
 
          end Declare_Prim_6;
-         --  DBG ("-----------------------> current primitive: ",
-         --       current_Primitive, " FINISHED");
-         --  current_Primitive :=  : Primitive.Object_Type{ };
          Progress := True;
 
          --
          --  FIXME stalling translation as long as the write-back takes places
-         --     is not a good idea
+         --        is not a good idea
          --
          Virtual_Block_Device.Trans_Resume_Translation (Obj.VBD);
 
@@ -854,8 +728,10 @@ is
                not Primitive.Valid (Prim) or else
                not Crypto.Primitive_Acceptable (Obj.Crypto_Obj);
 
-            --  the Data will be copied into the Crypto module's internal
+            --
+            --  The Data will be copied into the Crypto module's internal
             --  buffer
+            --
             Declare_Crypto_Data :
             declare
                Plain_Data_Index : constant Write_Back.Data_Index_Type :=
@@ -919,7 +795,6 @@ is
             Prim : constant Primitive.Object_Type :=
                Write_Back.Peek_Generated_Cache_Primitive (Obj.Write_Back_Obj);
          begin
-            --  DBG (Prim);
             exit Loop_WB_Generated_Cache_Prims when
                not Primitive.Valid (Prim);
 
@@ -944,7 +819,6 @@ is
                --  check and Request both.
                --
                if not Cache.Data_Available (Obj.Cache_Obj, PBA) then
-                  --  DBG ("Cache miss PBA: ", PBA);
                   if Cache.Request_Acceptable (Obj.Cache_Obj, PBA) then
                      Cache.Submit_Request (Obj.Cache_Obj, PBA);
                   end if;
@@ -953,7 +827,6 @@ is
 
                if PBA /= Update_PBA then
                   if not Cache.Data_Available (Obj.Cache_Obj, Update_PBA) then
-                     --  DBG ("Cache miss Update_PBA: ", Update_PBA);
                      if Cache.Request_Acceptable (Obj.Cache_Obj, Update_PBA)
                      then
                         Cache.Submit_Request (Obj.Cache_Obj, Update_PBA);
@@ -962,16 +835,13 @@ is
                   end if;
                end if;
 
-               --  read the needed blocks first--
+               --  read the needed blocks first
                if Cache_Miss then
-                  --  DBG ("Cache_Miss");
                   exit Loop_WB_Generated_Cache_Prims;
                end if;
 
                Write_Back.Drop_Generated_Cache_Primitive (
                   Obj.Write_Back_Obj, Prim);
-
-               --  DBG ("Cache hot PBA: ", PBA, " Update_PBA: ", Update_PBA);
 
                --
                --  To keep it simply, always set both properly - even if
@@ -996,8 +866,10 @@ is
                      Obj.Cache_Data (Index),
                      Obj.Cache_Data (Update_Index));
 
-                  --  make the potentially new entry as dirty so it gets
+                  --
+                  --  Make the potentially new entry as dirty so it gets
                   --  flushed next time
+                  --
                   Cache.Mark_Dirty (Obj.Cache_Obj, Update_PBA);
 
                end Declare_Indices;
@@ -1013,21 +885,15 @@ is
       ----------------------------
 
       --
-      --  Store the current generation and snapshot id in the current
+      --  Store the current generation in the current
       --  super-block before it gets secured.
       --
       if
          Obj.Secure_Superblock and then
          Sync_Superblock.Request_Acceptable (Obj.Sync_SB_Obj)
       then
-         Obj.Superblocks (Curr_SB (Obj)).Last_Secured_Generation :=
+         Obj.Superblocks (Obj.Cur_SB).Last_Secured_Generation :=
             Obj.Cur_Gen;
-
-         Obj.Superblocks (Curr_SB (Obj)).Snapshot_ID :=
-            Snapshot_ID_Type (Obj.Cur_SB);
-
-         --  DBG ("secure current super-block Gen: ", Obj.Cur_Gen,
-         --     " Snap.ID: ", Obj.Cur_SB);
 
          Sync_Superblock.Submit_Request (
             Obj.Sync_SB_Obj, Obj.Cur_SB, Obj.Cur_Gen);
@@ -1047,21 +913,21 @@ is
                not Primitive.Valid (Prim);
 
             if not Primitive.Success (Prim) then
-               --  DBG (Prim);
-               raise Program_Error; --  throw Primitive_Failed;
+               raise Program_Error;
             end if;
 
-            --  DBG ("primitive: ", Prim);
             Declare_Next_SB :
             declare
-               Next_SB : constant Superblock_Index_Type :=
-                  (Obj.Cur_SB + 1) mod
-                     (Superblock_Index_Type (Superblocks_Index_Type'Last) + 1);
+               Next_SB : constant Superblocks_Index_Type := (
+                  if Obj.Cur_SB < Superblocks_Index_Type'Last then
+                     Obj.Cur_SB + 1
+                  else
+                     Superblocks_Index_Type'First);
             begin
-               Obj.Superblocks (Superblocks_Index_Type (Next_SB)) :=
-                  Obj.Superblocks (Curr_SB (Obj));
+               Obj.Superblocks (Next_SB) :=
+                  Obj.Superblocks (Obj.Cur_SB);
 
-               --  handle state--
+               --  handle state
                Obj.Cur_SB                  := Next_SB;
                Obj.Last_Secured_Generation :=
                   Sync_Superblock.Peek_Completed_Generation (
@@ -1094,12 +960,11 @@ is
 
             Declare_SB_Data :
             declare
-               SB_Index : constant Superblock_Index_Type :=
+               SB_Index : constant Superblocks_Index_Type :=
                   Sync_Superblock.Peek_Generated_Index (Obj.Sync_SB_Obj, Prim);
 
                SB_Data : Block_Data_Type with
-                  Address => Obj.Superblocks (
-                     Superblocks_Index_Type (SB_Index))'Address;
+                  Address => Obj.Superblocks (SB_Index)'Address;
             begin
                Block_IO.Submit_Primitive (
                   Obj.IO_Obj, Tag_Sync_SB, Prim, Obj.IO_Data,
@@ -1139,8 +1004,7 @@ is
                Primitive.Operation (Prim) = Read;
 
             if not Primitive.Success (Prim) then
-               --  DBG (Prim);
-               raise Program_Error; --  throw Primitive_Failed;
+               raise Program_Error;
             end if;
 
             Declare_Index_2 :
@@ -1187,8 +1051,6 @@ is
       if Cache.Execute_Progress (Obj.Cache_Obj) then
          Progress := True;
       end if;
-
-      --  LOG_PROGRESS (Cache_Progress);
 
       --
       --  Read Data from the block device to fill the Cache.
@@ -1244,8 +1106,7 @@ is
             exit Loop_IO_Completed_Prims when not Primitive.Valid (Prim);
 
             if not Primitive.Success (Prim) then
-               --  DBG (Prim);
-               raise Program_Error; --  throw Primitive_Failed;
+               raise Program_Error;
             end if;
 
             Declare_Index_3 :
@@ -1382,7 +1243,7 @@ is
          return;
       end if;
 
-      --  I/O module--
+      --  I/O module
       declare
          Prim : constant Primitive.Object_Type :=
             Block_IO.Peek_Generated_Primitive (Obj.IO_Obj);
@@ -1499,7 +1360,7 @@ is
          return;
       end if;
 
-      --  I/O module--
+      --  I/O module
       declare
          Prim : constant Primitive.Object_Type :=
             Block_IO.Peek_Generated_Primitive (Obj.IO_Obj);
@@ -1610,7 +1471,9 @@ is
 
       --
       --  When it was a read Request, we need access to the data the Crypto
-      --  module should decrypt. --  XXX this should be handled in I/O backend
+      --  module should decrypt.
+      --
+      --  XXX this should be handled in I/O backend
       --
       declare
          Prim : constant Primitive.Object_Type :=
@@ -1727,8 +1590,10 @@ is
       );
    end Assign_Front_End_Req_Prim;
 
+   --
    --  FIXME move Front_End_Req_Prim allocation into execute,
    --       turn procedure into function
+   --
    procedure Client_Data_Required (
       Obj : in out Object_Type;
       Req :    out Request.Object_Type)
@@ -1813,8 +1678,8 @@ is
          end;
 
          Free_Tree.Drop_Completed_Primitive (Obj.Free_Tree_Obj, Prim);
---         _Frontend_Req_Prim := Req_Prim { };
---  XXX check if default constructor produces invalid object
+
+         --  XXX check if default constructor produces invalid object
          Obj.Front_End_Req_Prim := Request_Primitive_Invalid;
          return True;
 
@@ -1841,9 +1706,7 @@ is
             return False;
          end if;
 
-         if
-           not Virtual_Block_Device.Trans_Can_Get_Type_1_Info_SPARK (
-                  Obj.VBD, Prim)
+         if not Virtual_Block_Device.Trans_Can_Get_Type_1_Info (Obj.VBD, Prim)
          then
             return False;
          end if;
@@ -1862,10 +1725,8 @@ is
             Trans_Height : constant Tree_Level_Type :=
                Virtual_Block_Device.Tree_Height (Obj.VBD) + 1;
 
-            --  XXX merge Superblocks_Index_Type and Superblock_Index_Type
             Snap : constant Snapshot_Type :=
-               Obj.Superblocks (Superblocks_Index_Type (Obj.Cur_SB))
-                  .Snapshots (Snapshots_Index_Type (Obj.Cur_Snap));
+               Obj.Superblocks (Obj.Cur_SB).Snapshots (Curr_Snap (Obj));
 
             --
             --  The array of new_PBA will either get populated from the Old_PBA
@@ -1926,12 +1787,6 @@ is
                   ID : constant Tree_Child_Index_Type :=
                      Virtual_Block_Device.Index_For_Level (Obj.VBD, VBA, I);
 
---                  CBE::Block_Data const &data :=
---                     _Cache_Data.Item (idx.Value);
---                  uint32_T const id := _VBD->index_For_Level (VBA, i);
---                  CBE::Type_I_Node const *n :=
---                     reinterpret_Cast<CBE::Type_I_Node const*>(&data);
-
                   Node : Type_I_Node_Block_Type
                   with Address => Obj.Cache_Data (Idx)'Address;
 
@@ -1963,7 +1818,7 @@ is
 
             end loop;
 
-            --  check root node--
+            --  check root node
             if Snap.Gen = Obj.Cur_Gen or else Snap.Gen = 0 then
                New_PBAs (Tree_Level_Index_Type (Trans_Height - 1)) :=
                   Old_PBAs (Natural (Trans_Height - 1)).PBA;
