@@ -11,11 +11,27 @@ pragma Ada_2012;
 package body CBE
 with SPARK_Mode
 is
-   procedure Snapshot_Discard (Snap : in out Snapshot_Type)
+   function Snapshot_Valid (Snap : Snapshot_Type)
+   return Boolean
    is
    begin
-      Snap.ID := Snapshot_ID_Invalid;
-   end Snapshot_Discard;
+      case Snap.Valid is
+      when 0      => return False;
+      when 1      => return True;
+      when others => raise Program_Error;
+      end case;
+   end Snapshot_Valid;
+
+   procedure Snapshot_Valid (
+      Snap  : in out Snapshot_Type;
+      Valid :        Boolean)
+   is
+   begin
+      case Valid is
+      when False => Snap.Valid := 0;
+      when True  => Snap.Valid := 1;
+      end case;
+   end Snapshot_Valid;
 
    procedure Print_String (S : String)
    is

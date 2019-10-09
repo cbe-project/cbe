@@ -264,11 +264,13 @@ is
             Cache_Item.PBA (Obj.Cache_Items (Cache_Item_Id)) = PBA
          then
             Cache_Item.Set_Ts (Obj.Cache_Items (Cache_Item_Id), Ts);
-            return Cache_Item_Id; --  XXX convert
+            --  XXX convert
+            return Cache_Item_Id;
          end if;
       end loop;
 
-      return Cache_Index_Type'Last; --  XXX make proper INVALID
+      --  XXX make proper INVALID
+      return Cache_Index_Type'Last;
    end Data_Index;
 
    --
@@ -363,10 +365,6 @@ is
    is
       Result : constant Boolean := Request_Acceptable (Obj, PBA);
    begin
-      --  Print_String ("Cach.ReqAcc: PBA: ");
-      --  Print_Word_Hex (PBA);
-      --  Print_String (" acceptable: ");
-      --  Print_Word_Dec (Result);
       return Result;
    end Request_Acceptable_Logged;
 
@@ -402,9 +400,6 @@ is
    is
    begin
       Submit_Request (Obj, PBA);
-      --  Print_String ("Cach.SubmReq: PBA: ");
-      --  Print_Word_Hex (PBA);
-      --  Print_Line_Break;
    end Submit_Request_Logged;
 
    --
@@ -466,7 +461,8 @@ is
                Obj.Cache_Items (Cache_Id),
                Job_Item.PBA (Obj.Job_Items (Job_Item_Id)), Time);
 
-            Data (Cache_Id) := Job_Data (Job_Item_Id); --  XXX will it work?
+            --  XXX will it work?
+            Data (Cache_Id) := Job_Data (Job_Item_Id);
 
             Job_Item.Set_Unused (Obj.Job_Items (Job_Item_Id));
 

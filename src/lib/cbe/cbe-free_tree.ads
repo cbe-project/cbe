@@ -112,16 +112,15 @@ is
    --  FIXME refer to tree_height for number of valid elements
    --
    procedure Submit_Request (
-      Obj             : in out Object_Type;
-      Curr_Gen        :        Generation_Type;
-      Nr_Of_Blks      :        Number_Of_Blocks_Type;
-      New_PBAs        :        Write_Back.New_PBAs_Type;
-      Old_PBAs        :        Type_1_Node_Infos_Type;
-      Tree_Height     :        Tree_Level_Type;
-      Fr_PBAs         :        Free_PBAs_Type;
-      --  Nr_Of_Free_Blks :        Number_Of_Blocks_Type;
-      Req_Prim        :        Primitive.Object_Type;
-      VBA             :        Virtual_Block_Address_Type);
+      Obj         : in out Object_Type;
+      Curr_Gen    :        Generation_Type;
+      Nr_Of_Blks  :        Number_Of_Blocks_Type;
+      New_PBAs    :        Write_Back.New_PBAs_Type;
+      Old_PBAs    :        Type_1_Node_Infos_Type;
+      Tree_Height :        Tree_Level_Type;
+      Fr_PBAs     :        Free_PBAs_Type;
+      Req_Prim    :        Primitive.Object_Type;
+      VBA         :        Virtual_Block_Address_Type);
 
    --
    --  Execute module
@@ -251,8 +250,8 @@ private
    --
    --  FIXME account for n + m blocks
    --  FIXME the number of pba depends on degree which for now
-   --       is dynamically set. Since 64 edges are the eventually
-   --       used ones, hardcode that.
+   --        is dynamically set. Since 64 edges are the eventually
+   --        used ones, hardcode that.
    --
    type Query_Branch_PBAs_Type
    is array (0 .. 63) of Physical_Block_Address_Type;

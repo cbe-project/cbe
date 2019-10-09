@@ -149,8 +149,10 @@ is
    is
    begin
       for I in Obj.Entries'Range loop
+         --
          --  XXX why is the condition different from
          --     'Peek_Generated_Primitive' and 'Drop_Completed_Primitive'?
+         --
          if
             Obj.Entries (I).State = Pending or else
             Obj.Entries (I).State = In_Progress

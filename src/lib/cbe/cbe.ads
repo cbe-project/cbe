@@ -37,16 +37,18 @@ is
 
    type Byte_Type is range 0 .. 255 with Size => 8;
 
+   Superblock_Nr_Of_Snapshots : constant := 48;
+   Block_Size : constant := 4096;
+
    type Block_Data_Type
-   is array (0 .. 4095) of Byte_Type with Size => 4096 * 8;
+   is array (0 .. Block_Size - 1) of Byte_Type with Size => Block_Size * 8;
 
    type Translation_Data_Type
-   is array (0 .. 0) of Block_Data_Type with Size => 1 * 4096 * 8;
+   is array (0 .. 0) of Block_Data_Type with Size => 1 * Block_Size * 8;
 
    type Number_Of_Primitives_Type    is mod 2**64;
    type Index_Type                   is mod 2**64;
    type Generation_Type              is mod 2**64;
-   type Superblock_Index_Type        is mod 2**64;
    type Block_Number_Type            is mod 2**64;
    type Physical_Block_Address_Type  is mod 2**64;
    type Virtual_Block_Address_Type   is mod 2**64;
@@ -60,13 +62,13 @@ is
    type Tree_Child_Index_Type        is mod 2**32;
    type Tag_Type                     is mod 2**32;
    type Number_Of_Blocks_Type        is mod 2**32;
-   type Snapshot_ID_Type             is mod 2**32;
+   type Snapshot_ID_Type             is range 0 .. 2**32 - 1;
+   type Snapshot_ID_Storage_Type     is range 0 .. 2**32 - 1 with Size => 32;
+   type Snapshot_Valid_Storage_Type  is range 0 .. 2**8 - 1 with Size => 8;
    type Snapshot_Flags_Type          is mod 2**32;
-   type Key_ID_Type                  is mod 2**32;
+   type Key_ID_Type                  is range 0 .. 2**32 - 1;
+   type Key_ID_Storage_Type          is range 0 .. 2**32 - 1 with Size => 32;
    type Operation_Type               is (Read, Write, Sync);
-
-   --  FIXME should be architecture-dependent
-   type Address_Type is mod 2**64;
 
    type Hash_Type is array (1 .. 32) of Byte_Type with Size => 32 * 8;
 
@@ -107,7 +109,7 @@ is
       Last_VBA    : Virtual_Block_Address_Type;
       Alloc_Gen   : Generation_Type;
       Free_Gen    : Generation_Type;
-      Last_Key_ID : Key_ID_Type;
+      Last_Key_ID : Key_ID_Storage_Type;
       Reserved    : Boolean;
       Padding     : Type_II_Node_Padding_Type;
    end record with Size =>
@@ -126,7 +128,7 @@ is
    pragma Pack (Type_II_Node_Block_Type);
 
    type Query_Data_Type
-   is array (0 .. 0) of Block_Data_Type with Size => 1 * 4096 * 8;
+   is array (0 .. 0) of Block_Data_Type with Size => 1 * Block_Size * 8;
 
    --
    --  The CBE::Snapshot stores the information about a given tree within
@@ -138,7 +140,8 @@ is
       Gen         : Generation_Type;
       Nr_Of_Leafs : Tree_Number_Of_Leafs_Type;
       Height      : Tree_Level_Type;
-      ID          : Snapshot_ID_Type;
+      Valid       : Snapshot_Valid_Storage_Type;
+      ID          : Snapshot_ID_Storage_Type;
       Flags       : Snapshot_Flags_Type;
    end record;
 
@@ -148,6 +151,7 @@ is
       Gen         at 40 range 0 ..  8 * 8 - 1;
       Nr_Of_Leafs at 48 range 0 ..  8 * 8 - 1;
       Height      at 56 range 0 ..  4 * 8 - 1;
+      Valid       at 60 range 0 ..  1 * 8 - 1;
       ID          at 64 range 0 ..  4 * 8 - 1;
       Flags       at 68 range 0 ..  4 * 8 - 1;
    end record;
@@ -158,7 +162,8 @@ is
        8 * 8 + --  Gen
        8 * 8 + --  Nr_Of_Leafs
        4 * 8 + --  Height
-       4 * 8 + --  <Padding>
+       1 * 8 + --  Valid
+       3 * 8 + --  <Padding>
        4 * 8 + --  ID
        4 * 8;  --  Flags
 
@@ -174,35 +179,30 @@ is
    return Tree_Level_Type
    is (Tree_Level_Type (Tree_Level_Index_Type'Last) + 1);
 
-   function Snapshot_ID_Invalid
-   return Snapshot_ID_Type
-   is (Snapshot_ID_Type'Last);
+   function Snapshot_Valid (Snap : Snapshot_Type)
+   return Boolean;
+
+   procedure Snapshot_Valid (
+      Snap  : in out Snapshot_Type;
+      Valid :        Boolean);
 
    function Snapshot_Flags_Keep_Mask
    return Snapshot_Flags_Type
    is (1);
 
-   function Snapshot_Valid (Snap : Snapshot_Type)
-   return Boolean
-   is (Snap.ID /= Snapshot_ID_Invalid);
-
    function Snapshot_Keep (Snap : Snapshot_Type)
    return Boolean
    is ((Snap.Flags and Snapshot_Flags_Keep_Mask) /= 0);
 
-   procedure Snapshot_Discard (Snap : in out Snapshot_Type);
-
-   type Snapshots_Index_Type is range 0 .. 47;
+   type Snapshots_Index_Type is range 0 .. Superblock_Nr_Of_Snapshots - 1;
+   type Snapshots_Index_Storage_Type is range 0 .. 2**32 - 1 with Size => 32;
    type Snapshots_Type
-   is array (Snapshots_Index_Type) of Snapshot_Type with Size => 48 * 72 * 8;
+   is array (Snapshots_Index_Type) of Snapshot_Type
+   with Size => Superblock_Nr_Of_Snapshots * 72 * 8;
 
    type Type_1_Node_Infos_Type
    is array (0 .. Natural (Tree_Level_Index_Type'Last))
       of Type_1_Node_Info_Type;
-
-   function Snapshot_ID_Invalid_Slot
-   return Snapshot_ID_Type
-   is (Snapshot_ID_Type (Snapshots_Index_Type'Last) + 1);
 
    function Type_1_Node_Info_Invalid
    return Type_1_Node_Info_Type
@@ -220,9 +220,6 @@ is
 
    function Tree_Level_Invalid return Tree_Level_Type
    is (Tree_Level_Type'Last);
-
-   function Superblock_Index_Invalid return Superblock_Index_Type
-   is (Superblock_Index_Type'Last);
 
    --
    --  Tag meanings
@@ -255,7 +252,7 @@ is
    --
    type Key_Type is record
       Value : Key_Value_Type;
-      ID    : Key_ID_Type;
+      ID    : Key_ID_Storage_Type;
    end record with Size =>
       64 * 8 + --  Value
        4 * 8;  --  ID
@@ -296,7 +293,7 @@ is
       Keys                    : Keys_Type;
       Snapshots               : Snapshots_Type;
       Last_Secured_Generation : Generation_Type;
-      Snapshot_ID             : Snapshot_ID_Type;
+      Curr_Snap               : Snapshots_Index_Storage_Type;
       Degree                  : Tree_Degree_Type;
       Free_Gen                : Generation_Type;
       Free_Number             : Physical_Block_Address_Type;
@@ -306,25 +303,25 @@ is
       Free_Leafs              : Tree_Number_Of_Leafs_Type;
       Padding                 : Superblock_Padding_Type;
    end record with Size =>
-       2 * 68 * 8 + --  Keys
-      48 * 72 * 8 + --  Snapshots
-            8 * 8 + --  Last_Secured_Generation
-            4 * 8 + --  Snapshot_ID
-            4 * 8 + --  Degree
-            8 * 8 + --  Free_Gen
-            8 * 8 + --  Free_Number
-           32 * 8 + --  Free_Hash
-            4 * 8 + --  Free_Height
-            4 * 8 + --  Free_Degree
-            8 * 8 + --  Free_Leafs
-          424 * 8;  --  Padding
+                               2 * 68 * 8 + --  Keys
+      Superblock_Nr_Of_Snapshots * 72 * 8 + --  Snapshots
+                                    8 * 8 + --  Last_Secured_Generation
+                                    4 * 8 + --  Curr_Snap
+                                    4 * 8 + --  Degree
+                                    8 * 8 + --  Free_Gen
+                                    8 * 8 + --  Free_Number
+                                   32 * 8 + --  Free_Hash
+                                    4 * 8 + --  Free_Height
+                                    4 * 8 + --  Free_Degree
+                                    8 * 8 + --  Free_Leafs
+                                  424 * 8;  --  Padding
 
    pragma Assert (Superblock_Type'Size = Block_Data_Type'Size);
 
    type Superblocks_Index_Type is range 0 .. 7;
    type Superblocks_Type
    is array (Superblocks_Index_Type) of Superblock_Type
-   with Size => 8 * 4096 * 8;
+   with Size => 8 * Block_Size * 8;
 
    type Timeout_Request_Type is record
       Valid   : Boolean;

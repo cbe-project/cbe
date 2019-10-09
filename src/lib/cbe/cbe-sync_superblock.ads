@@ -41,7 +41,7 @@ is
    --
    procedure Submit_Request (
       Obj : in out Object_Type;
-      Idx :        Superblock_Index_Type;
+      Idx :        Superblocks_Index_Type;
       Gen :        Generation_Type);
 
    --
@@ -79,7 +79,7 @@ is
    function Peek_Generated_Index (
       Obj  : Object_Type;
       Prim : Primitive.Object_Type)
-   return Superblock_Index_Type
+   return Superblocks_Index_Type
    with
       Pre => Primitive.Valid (Prim);
 
@@ -121,7 +121,7 @@ private
       --
       procedure Pending_Item (
          Obj : out Item_Type;
-         Idx :     Superblock_Index_Type;
+         Idx :     Superblocks_Index_Type;
          Gen :     Generation_Type);
 
       -----------------
@@ -134,7 +134,7 @@ private
       function Complete    (Obj : Item_Type) return Boolean;
 
       function State      (Obj : Item_Type) return State_Type;
-      function Index      (Obj : Item_Type) return Superblock_Index_Type;
+      function Index      (Obj : Item_Type) return Superblocks_Index_Type;
       function Generation (Obj : Item_Type) return Generation_Type;
 
       procedure Set_State (
@@ -147,7 +147,7 @@ private
       --  Item_Type
       --
       type Item_Type is record
-         Idx : Superblock_Index_Type;
+         Idx : Superblocks_Index_Type;
          Gen : Generation_Type;
          Sta : State_Type;
       end record;

@@ -20,10 +20,11 @@ is
    procedure Initialize_Object (
       Obj     : out Library.Object_Type;
       SBs     :     Superblocks_Type;
-      Curr_SB :     Superblocks_Index_Type)
+      Curr_SB :     CXX_Superblocks_Index_Type)
    is
    begin
-      Library.Initialize_Object (Obj, SBs, Curr_SB);
+      Library.Initialize_Object (
+         Obj, SBs, Superblocks_Index_Type (Curr_SB.Value));
    end Initialize_Object;
 
    function Cache_Dirty (Obj : Library.Object_Type)

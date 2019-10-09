@@ -36,8 +36,9 @@ is
 
    type Data_Index_Type is range 0 .. 0;
 
-   type Data_Type is array (Data_Index_Type) of Block_Data_Type
-      with Size => 4096 * 8 * 1;
+   type Data_Type
+   is array (Data_Index_Type) of Block_Data_Type
+   with Size => Block_Size * 8 * 1;
 
    --
    --  Initialize_Object
@@ -334,7 +335,7 @@ private
    --  entry 0               -> leaf node
    --  entry 1 ... entry N-1 -> inner node
    --  entry N-1             -> root node
-   --/
+   --
    type Entries_Type is array (Tree_Level_Index_Type'Range) of Entry_Type;
    type Hashes_Type  is array (Tree_Level_Index_Type'Range) of Hash_Type;
 

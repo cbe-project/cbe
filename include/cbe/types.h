@@ -452,8 +452,8 @@ namespace Cbe {
 			Generation             gen;
 			Number_of_leaves       leaves;
 			Height                 height;
+			uint8_t                _valid;
 		};
-		enum { INVALID_ID = ~0U, };
 		uint32_t id;
 		enum {
 			FLAGS_CLEAR = 0u,
@@ -461,10 +461,28 @@ namespace Cbe {
 		};
 		uint32_t flags;
 
-		bool valid() const { return id != Snapshot::INVALID_ID; }
 		bool keep()  const { return flags & FLAG_KEEP; }
 
-		void discard() { id = Snapshot::INVALID_ID; }
+		bool valid() const
+		{
+			struct Bad_value : Exception { };
+			if (_valid == 1) {
+				return true;
+			} else if (_valid == 0) {
+				return false;
+			} else {
+				throw Bad_value();
+			}
+		}
+
+		void valid(bool v)
+		{
+			if (v) {
+				_valid = 1;
+			} else {
+				_valid = 0;
+			}
+		}
 
 		/* debug */
 		void print(Genode::Output &out) const
@@ -482,26 +500,20 @@ namespace Cbe {
 
 
 	/*
-	 * The Superblock_index
+	 * The Superblocks_index
 	 *
 	 * (It stands to reason if the type is needed.)
 	 */
-	struct Superblock_index
+	struct Superblocks_index
 	{
-		enum { INVALID  = 255, };
-
 		uint64_t value;
 
-		Superblock_index(uint64_t val) : value(val) { }
-
-		Superblock_index() : value(INVALID) { }
+		Superblocks_index(uint64_t val) : value(val) { }
 
 		void print(Genode::Output &out) const
 		{
 			Genode::print(out, value);
 		}
-
-		bool valid() const { return value != INVALID; }
 	};
 
 
