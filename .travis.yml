@@ -1,0 +1,11 @@
+sudo: required
+language: c
+
+services:
+  - docker
+
+git:
+  submodules: recursive
+
+script:
+  - docker run -v $PWD:/app -w /app jklmnn/gnat:gpl.2019.spark make -f .ci/prove.mk prove_spark_ci
