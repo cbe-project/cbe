@@ -98,7 +98,7 @@ def plot() -> None:  # pylint: disable=too-many-statements, too-many-locals
                     markersize=1)
         ax_req.plot(limited_received, limited_requests, '.', label='received',
                     markersize=1)
-        ax_req.set(xlabel='Time (ms)', ylabel='Requests',
+        ax_req.set(xlabel='Time (s)', ylabel='Requests',
                    title=f'Requests (burst size: {burst_size}, operation: {operation})')
         ax_req.set_xlim(left=0)
         ax_req.set_ylim(bottom=0)
