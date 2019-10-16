@@ -57,11 +57,10 @@ is
    --  \param Data  reference to a Block_data object
    --
    procedure Submit_Primitive (
-      Obj     : in out Object_Type;
-      Tag     :        CBE.Tag_Type;
-      Prim    :        Primitive.Object_Type;
-      IO_Data : in out Data_Type;
-      Data    : in     Block_Data_Type);
+      Obj        : in out Object_Type;
+      Tag        :        CBE.Tag_Type;
+      Prim       :        Primitive.Object_Type;
+      Data_Index :    out Data_Index_Type);
 
    --
    --  Peek_Completed_Primitive
@@ -151,13 +150,21 @@ is
       Prim :        Primitive.Object_Type);
 
    --
-   --  Mark given generated primitive as complete
+   --  Discard given generated primitive
    --
-   --  \param p  reference to primitive
+   --  This method must only be called after 'peek_generated_io_primitive'
+   --  returned a valid primitive.
    --
+   --  \param Prim  reference to primitive
+   --
+   procedure Drop_Generated_Primitive_2 (
+      Obj      : in out Object_Type;
+      Data_Idx :        Data_Index_Type);
+
    procedure Mark_Generated_Primitive_Complete (
-      Obj  : in out Object_Type;
-      Prim :        Primitive.Object_Type);
+      Obj      : in out Object_Type;
+      Data_Idx :        Data_Index_Type;
+      Success  :        Boolean);
 
 private
 
