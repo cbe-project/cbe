@@ -112,7 +112,6 @@ is
       Obj.Crypto_Obj              := Crypto.Initialized_Object;
 
       Obj.IO_Obj                  := Block_IO.Initialized_Object;
-      Obj.IO_Data                 := (others => (others => 0));
       Obj.Cache_Obj               := Cache.Initialized_Object;
       Obj.Cache_Data              := (others => (others => 0));
       Obj.Cache_Job_Data          := (others => (others => 0));
@@ -219,6 +218,7 @@ is
 
    procedure Execute (
       Obj               : in out Object_Type;
+      IO_Buf            : in out Block_IO.Data_Type;
       Crypto_Plain_Buf  : in out Crypto.Plain_Buffer_Type;
       Crypto_Cipher_Buf : in out Crypto.Cipher_Buffer_Type;
       Now               :        Timestamp_Type)
@@ -360,6 +360,7 @@ is
                Index : constant Index_Type :=
                   Free_Tree.Peek_Generated_Data_Index (
                      Obj.Free_Tree_Obj, Prim);
+               Data_Idx : Block_IO.Data_Index_Type;
             begin
                if Primitive.Tag (Prim) = Tag_Write_Back then
                   --
@@ -375,14 +376,21 @@ is
                   --  solution.)
                   --
                   Block_IO.Submit_Primitive (
-                     Obj.IO_Obj, Tag_Free_Tree_WB, Prim, Obj.IO_Data,
-                     Obj.Cache_Data (Cache.Cache_Index_Type (Index)));
+                     Obj.IO_Obj, Tag_Free_Tree_WB, Prim, Data_Idx);
+
+                  if Primitive.Operation (Prim) = Write then
+                     IO_Buf (Data_Idx) :=
+                        Obj.Cache_Data (Cache.Cache_Index_Type (Index));
+                  end if;
 
                elsif Primitive.Tag (Prim) = Tag_IO then
                   Block_IO.Submit_Primitive (
-                     Obj.IO_Obj, Tag_Free_Tree_IO, Prim, Obj.IO_Data,
-                     Obj.Free_Tree_Query_Data (Natural (Index)));
+                     Obj.IO_Obj, Tag_Free_Tree_IO, Prim, Data_Idx);
 
+                  if Primitive.Operation (Prim) = Write then
+                     IO_Buf (Data_Idx) :=
+                        Obj.Free_Tree_Query_Data (Natural (Index));
+                  end if;
                end if;
             end Declare_Index_1;
             Free_Tree.Drop_Generated_Primitive (Obj.Free_Tree_Obj, Prim);
@@ -538,16 +546,21 @@ is
             Prim : constant Primitive.Object_Type :=
                Cache_Flusher.Peek_Generated_Primitive (
                   Obj.Cache_Flusher_Obj);
+
+            Data_Idx : Block_IO.Data_Index_Type;
          begin
             exit Loop_Cache_Flusher_Generated_Prims when
                not Primitive.Valid (Prim) or else
                not Block_IO.Primitive_Acceptable (Obj.IO_Obj);
 
             Block_IO.Submit_Primitive (
-               Obj.IO_Obj, Tag_Cache_Flush, Prim, Obj.IO_Data,
-               Obj.Cache_Data (
-                  Cache_Flusher.Peek_Generated_Data_Index (
-                     Obj.Cache_Flusher_Obj, Prim)));
+               Obj.IO_Obj, Tag_Cache_Flush, Prim, Data_Idx);
+
+            if Primitive.Operation (Prim) = Write then
+               IO_Buf (Data_Idx) :=
+                  Obj.Cache_Data (Cache_Flusher.Peek_Generated_Data_Index (
+                     Obj.Cache_Flusher_Obj, Prim));
+            end if;
 
             Cache_Flusher.Drop_Generated_Primitive (
                Obj.Cache_Flusher_Obj, Prim);
@@ -764,16 +777,21 @@ is
          declare
             Prim : constant Primitive.Object_Type :=
                Write_Back.Peek_Generated_IO_Primitive (Obj.Write_Back_Obj);
+
+            Data_Idx : Block_IO.Data_Index_Type;
          begin
             exit Loop_WB_Generated_IO_Prims when
                not Primitive.Valid (Prim) or else
                not Block_IO.Primitive_Acceptable (Obj.IO_Obj);
 
             Block_IO.Submit_Primitive (
-               Obj.IO_Obj, Tag_Write_Back, Prim, Obj.IO_Data,
-               Obj.Write_Back_Data (
-                  Write_Back.Peek_Generated_IO_Data (
-                     Obj.Write_Back_Obj, Prim)));
+               Obj.IO_Obj, Tag_Write_Back, Prim, Data_Idx);
+
+            if Primitive.Operation (Prim) = Write then
+               IO_Buf (Data_Idx) :=
+                  Obj.Write_Back_Data (Write_Back.Peek_Generated_IO_Data (
+                     Obj.Write_Back_Obj, Prim));
+            end if;
 
             Write_Back.Drop_Generated_IO_Primitive (
                Obj.Write_Back_Obj, Prim);
@@ -965,11 +983,15 @@ is
 
                SB_Data : Block_Data_Type with
                   Address => Obj.Superblocks (SB_Index)'Address;
+
+               Data_Idx : Block_IO.Data_Index_Type;
             begin
                Block_IO.Submit_Primitive (
-                  Obj.IO_Obj, Tag_Sync_SB, Prim, Obj.IO_Data,
-                  SB_Data);
+                  Obj.IO_Obj, Tag_Sync_SB, Prim, Data_Idx);
 
+               if Primitive.Operation (Prim) = Write then
+                  IO_Buf (Data_Idx) := SB_Data;
+               end if;
             end Declare_SB_Data;
             Sync_Superblock.Drop_Generated_Primitive (
                Obj.Sync_SB_Obj, Prim);
@@ -1068,16 +1090,20 @@ is
          declare
             Prim : constant Primitive.Object_Type :=
                Cache.Peek_Generated_Primitive (Obj.Cache_Obj);
+
+            Data_Idx : Block_IO.Data_Index_Type;
          begin
             exit Loop_Cache_Generated_Prims when
                not Primitive.Valid (Prim) or else
                not Block_IO.Primitive_Acceptable (Obj.IO_Obj);
 
-            Block_IO.Submit_Primitive (
-               Obj.IO_Obj, Tag_Cache, Prim, Obj.IO_Data,
-               Obj.Cache_Job_Data (
+            Block_IO.Submit_Primitive (Obj.IO_Obj, Tag_Cache, Prim, Data_Idx);
+
+            if Primitive.Operation (Prim) = Write then
+               IO_Buf (Data_Idx) := Obj.Cache_Job_Data (
                   Cache.Cache_Job_Index_Type (
-                     Cache.Peek_Generated_Data_Index (Obj.Cache_Obj, Prim))));
+                     Cache.Peek_Generated_Data_Index (Obj.Cache_Obj, Prim)));
+            end if;
 
             Cache.Drop_Generated_Primitive (Obj.Cache_Obj, Prim);
 
@@ -1130,7 +1156,7 @@ is
                      Declare_Data :
                      declare
                         Cipher_Data : Crypto.Cipher_Data_Type with Address =>
-                           Obj.IO_Data (Index)'Address;
+                           IO_Buf (Index)'Address;
 
                         Data_Idx : Crypto.Item_Index_Type;
                      begin
@@ -1160,7 +1186,7 @@ is
                   --        Cache job Data index, for now rely on the
                   --        knowledge that there is only one item
                   --
-                  Obj.Cache_Job_Data (0) := Obj.IO_Data (Index);
+                  Obj.Cache_Job_Data (0) := IO_Buf (Index);
                   Cache.Mark_Completed_Primitive (Obj.Cache_Obj, Prim);
 
                elsif Primitive.Tag (Prim) = Tag_Cache_Flush then
@@ -1188,7 +1214,7 @@ is
                   --       Data index, for now rely on the knowledge that there
                   --       is only one item
                   --
-                  Obj.Free_Tree_Query_Data (0) := Obj.IO_Data (Index);
+                  Obj.Free_Tree_Query_Data (0) := IO_Buf (Index);
                   Free_Tree.Mark_Generated_Primitive_Complete (
                      Obj.Free_Tree_Obj,
                      Primitive.Copy_Valid_Object_Change_Tag (
@@ -1233,42 +1259,6 @@ is
       Pool.Drop_Completed_Request (Obj.Request_Pool_Obj, Req);
    end Drop_Completed_Request;
 
-   procedure IO_Data_Required (
-      Obj : in out Object_Type;
-      Req :    out Request.Object_Type)
-   is
-   begin
-      if Primitive.Valid (Obj.Back_End_Req_Prim.Prim) then
-         Req := Request.Invalid_Object;
-         return;
-      end if;
-
-      --  I/O module
-      declare
-         Prim : constant Primitive.Object_Type :=
-            Block_IO.Peek_Generated_Primitive (Obj.IO_Obj);
-      begin
-         if Primitive.Valid (Prim) and then Primitive.Operation (Prim) = Read
-         then
-            Obj.Back_End_Req_Prim := (
-               Req => Request.Valid_Object (
-                  Op     => Primitive.Operation (Prim),
-                  Succ   => False,
-                  Blk_Nr => Primitive.Block_Number (Prim),
-                  Off    => 0,
-                  Cnt    => 1,
-                  Tg     => Tag_Invalid),
-               Prim => Prim,
-               Tag  => Tag_IO,
-               In_Progress => False
-            );
-            Req := Obj.Back_End_Req_Prim.Req;
-         else
-            Req := Request.Invalid_Object;
-         end if;
-      end;
-   end IO_Data_Required;
-
    --
    --  For now there can be only one Request pending.
    --
@@ -1278,95 +1268,24 @@ is
    return Boolean
    is (not Request.Equal (Obj.Front_End_Req_Prim.Req, Req));
 
-   procedure IO_Data_Read_In_Progress (
+   procedure Has_IO_Request (
       Obj      : in out Object_Type;
-      Req      :        Request.Object_Type;
-      Progress :    out Boolean)
+      Req      :    out Request.Object_Type;
+      Data_Idx :    out Block_IO.Data_Index_Type)
    is
    begin
-      Progress := False;
+      Req      := Request.Invalid_Object;
+      Data_Idx := 0;
 
-      if
-         not Request.Equal (Obj.Back_End_Req_Prim.Req, Req) or else
-         Obj.Back_End_Req_Prim.In_Progress or else
-         Obj.Back_End_Req_Prim.Tag /= Tag_IO
-      then
-         return;
-      end if;
-
-      Block_IO.Drop_Generated_Primitive (
-         Obj.IO_Obj,
-         Obj.Back_End_Req_Prim.Prim);
-
-      Obj.Back_End_Req_Prim.In_Progress := True;
-      Progress := True;
-   end IO_Data_Read_In_Progress;
-
-   --
-   --  Return copy of Primitive with specified Success state
-   --
-   function Primitive_With_Success (
-      Prim    : Primitive.Object_Type;
-      Success : Request.Success_Type)
-   return Primitive.Object_Type
-   is
-      (Primitive.Valid_Object (
-         Op     => Primitive.Operation    (Prim),
-         Succ   => Success,
-         Tg     => Primitive.Tag          (Prim),
-         Blk_Nr => Primitive.Block_Number (Prim),
-         Idx    => Primitive.Index        (Prim)));
-
-   procedure Supply_IO_Data (
-      Obj      : in out Object_Type;
-      Req      :        Request.Object_Type;
-      Data     :        Block_Data_Type;
-      Progress :    out Boolean)
-   is
-      Prim : constant Primitive.Object_Type := Obj.Back_End_Req_Prim.Prim;
-   begin
-      Progress := False;
-
-      if
-         not Request.Equal (Obj.Back_End_Req_Prim.Req, Req) or else
-         not Obj.Back_End_Req_Prim.In_Progress or else
-         Obj.Back_End_Req_Prim.Tag /= Tag_IO
-      then
-         return;
-      end if;
-
-      if Request.Success (Req) then
-         Obj.IO_Data (Block_IO.Peek_Generated_Data_Index (Obj.IO_Obj, Prim)) :=
-            Data;
-      end if;
-
-      Block_IO.Mark_Generated_Primitive_Complete (
-         Obj.IO_Obj,
-         Primitive_With_Success (Prim, Request.Success (Req))
-      );
-
-      Obj.Back_End_Req_Prim := Request_Primitive_Invalid;
-
-      Progress := True;
-   end Supply_IO_Data;
-
-   procedure Has_IO_Data_To_Write (
-      Obj : in out Object_Type;
-      Req :    out Request.Object_Type)
-   is
-   begin
       if Primitive.Valid (Obj.Back_End_Req_Prim.Prim) then
-         Req := Request.Invalid_Object;
          return;
       end if;
 
-      --  I/O module
       declare
          Prim : constant Primitive.Object_Type :=
             Block_IO.Peek_Generated_Primitive (Obj.IO_Obj);
       begin
-         if Primitive.Valid (Prim) and then Primitive.Operation (Prim) = Write
-         then
+         if Primitive.Valid (Prim) then
             Obj.Back_End_Req_Prim := (
                Req => Request.Valid_Object (
                   Op     => Primitive.Operation (Prim),
@@ -1374,71 +1293,47 @@ is
                   Blk_Nr => Primitive.Block_Number (Prim),
                   Off    => 0,
                   Cnt    => 1,
-                  Tg     => Tag_Invalid),
-               Prim => Prim,
-               Tag  => Tag_IO,
-               In_Progress => False
-            );
-            Req := Obj.Back_End_Req_Prim.Req;
-         else
-            Req := Request.Invalid_Object;
+                  Tg     => 0),
+               Prim        => Prim,
+               Tag         => Tag_IO,
+               In_Progress => False);
+
+            Data_Idx := Block_IO.Peek_Generated_Data_Index (Obj.IO_Obj, Prim);
+            Req      := Obj.Back_End_Req_Prim.Req;
          end if;
       end;
-   end Has_IO_Data_To_Write;
+   end Has_IO_Request;
 
-   procedure Obtain_IO_Data (
+   procedure IO_Request_In_Progress (
       Obj      : in out Object_Type;
-      Req      :        Request.Object_Type;
-      Data     :    out Block_Data_Type;
-      Progress :    out Boolean)
+      Data_Idx :        Block_IO.Data_Index_Type)
    is
-      Prim : constant Primitive.Object_Type := Obj.Back_End_Req_Prim.Prim;
    begin
-      Progress := False;
-
-      if
-         not Request.Equal (Obj.Back_End_Req_Prim.Req, Req) or else
-         Obj.Back_End_Req_Prim.In_Progress or else
+      if Obj.Back_End_Req_Prim.In_Progress or else
          Obj.Back_End_Req_Prim.Tag /= Tag_IO
       then
-         return;
+         raise Program_Error;
       end if;
-
-      Data :=
-         Obj.IO_Data (Block_IO.Peek_Generated_Data_Index (Obj.IO_Obj, Prim));
-
-      Block_IO.Drop_Generated_Primitive (Obj.IO_Obj, Prim);
-
+      Block_IO.Drop_Generated_Primitive_2 (Obj.IO_Obj, Data_Idx);
       Obj.Back_End_Req_Prim.In_Progress := True;
-      Progress := True;
-   end Obtain_IO_Data;
+   end IO_Request_In_Progress;
 
-   procedure Ack_IO_Data_To_Write (
-      Obj      : in out Object_Type;
-      Req      :        Request.Object_Type;
-      Progress :    out Boolean)
+   procedure IO_Request_Completed (
+      Obj        : in out Object_Type;
+      Data_Index :        Block_IO.Data_Index_Type;
+      Success    :        Boolean)
    is
-      Prim : constant Primitive.Object_Type := Obj.Back_End_Req_Prim.Prim;
    begin
-      Progress := False;
-
-      if
-         not Request.Equal (Obj.Back_End_Req_Prim.Req, Req) or else
-         not Obj.Back_End_Req_Prim.In_Progress or else
+      if not Obj.Back_End_Req_Prim.In_Progress or else
          Obj.Back_End_Req_Prim.Tag /= Tag_IO
       then
-         return;
+         raise Program_Error;
       end if;
-
       Block_IO.Mark_Generated_Primitive_Complete (
-         Obj.IO_Obj,
-         Primitive_With_Success (Prim, Request.Success (Req))
-      );
+         Obj.IO_Obj, Data_Index, Success);
 
       Obj.Back_End_Req_Prim := Request_Primitive_Invalid;
-
-      Progress := True;
-   end Ack_IO_Data_To_Write;
+   end IO_Request_Completed;
 
    procedure Client_Data_Ready (
       Obj : in out Object_Type;
@@ -1531,10 +1426,11 @@ is
    end Obtain_Client_Data;
 
    procedure Obtain_Client_Data_2 (
-      Obj              : in out Object_Type;
-      Req              :        Request.Object_Type;
-      Data             :    out Crypto.Plain_Data_Type;
-      Progress         :    out Boolean)
+      Obj      : in out Object_Type;
+      Req      :        Request.Object_Type;
+      IO_Buf   : in out Block_IO.Data_Type;
+      Data     :    out Crypto.Plain_Data_Type;
+      Progress :    out Boolean)
    is
       Prim : constant Primitive.Object_Type := Obj.Front_End_Req_Prim.Prim;
       Tag  : constant Tag_Type              := Obj.Front_End_Req_Prim.Tag;
@@ -1559,13 +1455,14 @@ is
             declare
                --  cast Crypto.Plain_Data_Type to Block_Data_Type
                Block_Data : Block_Data_Type with Address => Data'Address;
+               Data_Idx   : Block_IO.Data_Index_Type;
             begin
                Block_IO.Submit_Primitive (
-                  Obj     => Obj.IO_Obj,
-                  Tag     => Tag_Decrypt,
-                  Prim    => Prim,
-                  IO_Data => Obj.IO_Data,
-                  Data    => Block_Data);
+                  Obj.IO_Obj, Tag_Decrypt, Prim, Data_Idx);
+
+               if Primitive.Operation (Prim) = Write then
+                  IO_Buf (Data_Idx) := Block_Data;
+               end if;
             end;
 
             Virtual_Block_Device.Drop_Completed_Primitive (Obj.VBD);

@@ -35,35 +35,30 @@ is
    is (Obj.Used_Entries < Num_Entries_Type'Last);
 
    procedure Submit_Primitive (
-      Obj     : in out Object_Type;
-      Tag     :        Tag_Type;
-      Prim    :        Primitive.Object_Type;
-      IO_Data : in out Data_Type;
-      Data    : in     Block_Data_Type)
+      Obj        : in out Object_Type;
+      Tag        :        Tag_Type;
+      Prim       :        Primitive.Object_Type;
+      Data_Index :    out Data_Index_Type)
    is
    begin
-      for I in Obj.Entries'Range loop
-
-         if Obj.Entries (I).State = Unused then
-
-            Obj.Entries (I) := (
+      for Idx in Obj.Entries'Range loop
+         if Obj.Entries (Idx).State = Unused then
+            Obj.Entries (Idx) := (
                Orig_Tag => Primitive.Tag (Prim),
                Prim     => Primitive.Valid_Object (
-                  Op     => Primitive.Operation (Prim),
-                  Succ   => Primitive.Success (Prim),
-                  Tg     => Tag,
-                  Blk_Nr => Primitive.Block_Number (Prim),
-                  Idx    => Primitive.Index (Prim)),
+               Op       => Primitive.Operation (Prim),
+               Succ     => Primitive.Success (Prim),
+               Tg       => Tag,
+               Blk_Nr   => Primitive.Block_Number (Prim),
+               Idx      => Primitive.Index (Prim)),
                State    => Pending);
 
-            if Primitive.Operation (Prim) = Write then
-               IO_Data (I) := Data;
-            end if;
-
+            Data_Index       := Idx;
             Obj.Used_Entries := Obj.Used_Entries + 1;
             return;
          end if;
       end loop;
+      raise Program_Error;
    end Submit_Primitive;
 
    function Peek_Completed_Primitive (Obj : Object_Type)
@@ -183,24 +178,28 @@ is
       end loop;
    end Drop_Generated_Primitive;
 
-   procedure Mark_Generated_Primitive_Complete (
-      Obj  : in out Object_Type;
-      Prim :        Primitive.Object_Type)
+   procedure Drop_Generated_Primitive_2 (
+      Obj      : in out Object_Type;
+      Data_Idx :        Data_Index_Type)
    is
    begin
-      for I in Obj.Entries'Range loop
-         if
-            Obj.Entries (I).State = In_Progress and then
-            Primitive.Equal (Prim, Obj.Entries (I).Prim)
-         then
-            Primitive.Success (Obj.Entries (I).Prim, Primitive.Success (Prim));
-            Obj.Entries (I).State := Complete;
-            return;
-         end if;
-      end loop;
+      if Obj.Entries (Data_Idx).State /= Pending then
+         raise Program_Error;
+      end if;
+      Obj.Entries (Data_Idx).State := In_Progress;
+   end Drop_Generated_Primitive_2;
 
-      --  XXX precondition
-      raise Program_Error;
+   procedure Mark_Generated_Primitive_Complete (
+      Obj      : in out Object_Type;
+      Data_Idx :        Data_Index_Type;
+      Success  :        Boolean)
+   is
+   begin
+      if Obj.Entries (Data_Idx).State /= In_Progress then
+         raise Program_Error;
+      end if;
+      Primitive.Success (Obj.Entries (Data_Idx).Prim, Success);
+      Obj.Entries (Data_Idx).State := Complete;
    end Mark_Generated_Primitive_Complete;
 
 end CBE.Block_IO;

@@ -104,27 +104,6 @@ is
       Req :        Request.Object_Type);
 
    --
-   --  Return a read request for the backend block session
-   --
-   --  \param Req  return valid request in case the is one pending that
-   --             needs data, otherwise an invalid one is returned
-   --
-   procedure IO_Data_Required (
-      Obj : in out Object_Type;
-      Req :    out Request.Object_Type);
-
-   --
-   --  Mark read request for backend block session
-   --
-   --  \param Req       reference to the request from the CBE
-   --  \param Progress  return true if the CBE could process the request
-   --
-   procedure IO_Data_Read_In_Progress (
-      Obj      : in out Object_Type;
-      Req      :        Request.Object_Type;
-      Progress :    out Boolean);
-
-   --
    --  Submit read request data from the backend block session to the CBE
    --
    --  The given data will be transfered to the CBE.
@@ -133,11 +112,10 @@ is
    --  \param Data      reference to the data associated with the request
    --  \param Progress  return true if the CBE acknowledged the request
    --
-   procedure Supply_IO_Data (
-      Obj      : in out Object_Type;
-      Req      :        Request.Object_Type;
-      Data     :        Block_Data_Type;
-      Progress :    out Boolean);
+   procedure IO_Request_Completed (
+      Obj        : in out Object_Type;
+      Data_Index :        Block_IO.Data_Index_Type;
+      Success    :        Boolean);
 
    --
    --  Return write request for the backend block session
@@ -145,9 +123,10 @@ is
    --  \param Req  return valid request in case the is one pending that
    --             needs data, otherwise an invalid one is returned
    --
-   procedure Has_IO_Data_To_Write (
-      Obj : in out Object_Type;
-      Req :    out Request.Object_Type);
+   procedure Has_IO_Request (
+      Obj      : in out Object_Type;
+      Req      :    out Request.Object_Type;
+      Data_Idx :    out Block_IO.Data_Index_Type);
 
    --
    --  Obtain data for write request for the backend block session
@@ -158,16 +137,9 @@ is
    --  \param Data      reference to the data associated with the request
    --  \param Progress  return true if the CBE could process the request
    --
-   procedure Obtain_IO_Data (
+   procedure IO_Request_In_Progress (
       Obj      : in out Object_Type;
-      Req      :        Request.Object_Type;
-      Data     :    out Block_Data_Type;
-      Progress :    out Boolean);
-
-   procedure Ack_IO_Data_To_Write (
-      Obj      : in out Object_Type;
-      Req      :        Request.Object_Type;
-      Progress :    out Boolean);
+      Data_Idx :        Block_IO.Data_Index_Type);
 
    --
    --  Return a client request that provides data to the frontend block data
@@ -203,10 +175,11 @@ is
       Data_Index_Valid :    out Boolean);
 
    procedure Obtain_Client_Data_2 (
-      Obj              : in out Object_Type;
-      Req              :        Request.Object_Type;
-      Data             :    out Crypto.Plain_Data_Type;
-      Progress         :    out Boolean);
+      Obj      : in out Object_Type;
+      Req      :        Request.Object_Type;
+      IO_Buf   : in out Block_IO.Data_Type;
+      Data     :    out Crypto.Plain_Data_Type;
+      Progress :    out Boolean);
 
    --
    --  Return a client request that provides data to the frontend block data
@@ -316,6 +289,7 @@ is
    --
    procedure Execute (
       Obj               : in out Object_Type;
+      IO_Buf            : in out Block_IO.Data_Type;
       Crypto_Plain_Buf  : in out Crypto.Plain_Buffer_Type;
       Crypto_Cipher_Buf : in out Crypto.Cipher_Buffer_Type;
       Now               :        Timestamp_Type);
@@ -365,7 +339,6 @@ private
       Splitter_Obj            : Splitter.Object_Type;
       Crypto_Obj              : Crypto.Object_Type;
       IO_Obj                  : Block_IO.Object_Type;
-      IO_Data                 : Block_IO.Data_Type;
       Cache_Obj               : Cache.Object_Type;
       Cache_Data              : Cache.Cache_Data_Type;
       Cache_Job_Data          : Cache.Cache_Job_Data_Type;

@@ -319,6 +319,36 @@ namespace Cbe {
 		}
 	} __attribute__((packed));
 
+
+	class Io_buffer
+	{
+		private:
+
+			Block_data items[1];
+
+		public:
+
+			struct Bad_index : Genode::Exception { };
+
+			struct Index
+			{
+				uint32_t value;
+
+				explicit Index(uint32_t value) : value(value) { }
+
+			} __attribute__((packed));
+
+			Block_data &item(Index const idx)
+			{
+				if (idx.value >= sizeof(items) / sizeof(items[0])) {
+					throw Bad_index();
+				}
+				return items[idx.value];
+			}
+
+	} __attribute__((packed));
+
+
 	class Crypto_plain_buffer
 	{
 		private:
