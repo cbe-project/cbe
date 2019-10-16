@@ -65,10 +65,8 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 		Vfs::Env          &_env;
 		Single_vfs_handle *_backend { nullptr };
 
-		struct Crypto_Data
-		{
-			Cbe::Block_data items[1];
-		} _crypto_data;
+		Cbe::Crypto_cipher_buffer _cipher_data { };
+		Cbe::Crypto_plain_buffer  _plain_data { };
 		External::Crypto _crypto { };
 
 		Constructible<Cbe::Library> _cbe;
@@ -141,29 +139,33 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 
 		struct Vfs_handle : Single_vfs_handle
 		{
-			Genode::Allocator   &_alloc;
-			External::Crypto    &_crypto;
-			Crypto_Data         &_crypto_data;
-			Cbe::Library        &_cbe;
-			Cbe::Time           &_time;
-			Single_vfs_handle   *_backend { };
-			Cbe::Request         _backend_request { };
+			Genode::Allocator         &_alloc;
+			External::Crypto          &_crypto;
+			Cbe::Crypto_plain_buffer  &_plain_data;
+			Cbe::Crypto_cipher_buffer &_cipher_data;
+			Cbe::Library              &_cbe;
+			Cbe::Time                 &_time;
+			Single_vfs_handle         *_backend { };
+			Cbe::Request               _backend_request { };
 
 			bool _show_progress { false };
 			bool _show_if_progress { false };
 
-			Vfs_handle(Directory_service &ds,
-			           File_io_service   &fs,
-			           Genode::Allocator &alloc,
-			           External::Crypto  &crypto,
-			           Crypto_Data       &crypto_data,
-			           Cbe::Library      &cbe,
-			           Cbe::Time         &time,
-			           Single_vfs_handle *backend,
-			           bool show_progress)
+			Vfs_handle(Directory_service         &ds,
+			           File_io_service           &fs,
+			           Genode::Allocator         &alloc,
+			           External::Crypto          &crypto,
+			           Cbe::Crypto_plain_buffer  &plain_data,
+			           Cbe::Crypto_cipher_buffer &cipher_data,
+			           Cbe::Library              &cbe,
+			           Cbe::Time                 &time,
+			           Single_vfs_handle         *backend,
+			           bool                       show_progress)
 			: Single_vfs_handle(ds, fs, alloc, 0),
 			  _alloc(alloc),
-			  _crypto(crypto), _crypto_data(crypto_data),
+			  _crypto(crypto),
+			  _plain_data(plain_data),
+			  _cipher_data(cipher_data),
 			  _cbe(cbe),
 			  _time(time),
 			  _backend(backend),
@@ -283,7 +285,7 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 						progress = true;
 					}
 
-					_cbe.execute(_time.timestamp());
+					_cbe.execute(_plain_data, _cipher_data, _time.timestamp());
 					progress |= _cbe.execute_progress();
 
 					/* read */
@@ -300,9 +302,17 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 						Cbe::Block_data &data = *reinterpret_cast<Cbe::Block_data*>(
 							cbe_request.offset + (prim_index * Cbe::BLOCK_SIZE));
 
-						_cbe.obtain_client_data(cbe_request, data);
+						Cbe::Crypto_plain_buffer::Index data_index(~0);
+						bool const data_index_valid =
+							_cbe.obtain_client_data(cbe_request, data_index);
 
-						progress = true;
+						if (data_index_valid) {
+							Genode::memcpy(&data, &_plain_data.item(data_index), sizeof (Cbe::Block_data));
+
+							progress |= true;
+						} else {
+							progress |= _cbe.obtain_client_data_2(cbe_request, data);
+						}
 					}
 
 					/* write */
@@ -338,46 +348,58 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 					progress |= _crypto.execute();
 
 					/* encrypt */
-					do {
-						Cbe::Request const request = _cbe.crypto_data_required();
-						if (!request.valid()) { break; }
-						if (!_crypto.encryption_request_acceptable()) { break; }
-
-						if (!_cbe.obtain_crypto_plain_data(request, _crypto_data.items[0])) { break; }
-
-						_crypto.submit_encryption_request(request, _crypto_data.items[0], 0);
+					while (true) {
+						Cbe::Crypto_plain_buffer::Index data_index(0);
+						Cbe::Request request = _cbe.crypto_cipher_data_required(data_index);
+						if (!request.valid()) {
+							break;
+						}
+						if (!_crypto.encryption_request_acceptable()) {
+							break;
+						}
+						request.tag = data_index.value;
+						_crypto.submit_encryption_request(request, _plain_data.item(data_index), 0);
+						_cbe.crypto_cipher_data_requested(data_index);
 						progress |= true;
-					} while (0);
-
+					}
 					while (true) {
 						Cbe::Request const request = _crypto.peek_completed_encryption_request();
-						if (!request.valid()) { break; }
-
-						if (!_crypto.supply_cipher_data(request, _crypto_data.items[0])) { break; }
-
-						_cbe.supply_crypto_cipher_data(request, _crypto_data.items[0]);
+						if (!request.valid()) {
+							break;
+						}
+						Cbe::Crypto_cipher_buffer::Index const data_index(request.tag);
+						if (!_crypto.supply_cipher_data(request, _cipher_data.item(data_index))) {
+							break;
+						}
+						_cbe.supply_crypto_cipher_data(data_index, request.success == Cbe::Request::Success::TRUE);
 						progress |= true;
 					}
 
 					/* decrypt */
-					do {
-						Cbe::Request const request = _cbe.has_crypto_data_to_decrypt();
-						if (!request.valid()) { break; }
-						if (!_crypto.decryption_request_acceptable()) { break; }
-
-						if (!_cbe.obtain_crypto_cipher_data(request, _crypto_data.items[0])) { break; }
-
-						_crypto.submit_decryption_request(request, _crypto_data.items[0], 0);
+					while (true) {
+						Cbe::Crypto_cipher_buffer::Index data_index(0);
+						Cbe::Request request = _cbe.crypto_plain_data_required(data_index);
+						if (!request.valid()) {
+							break;
+						}
+						if (!_crypto.decryption_request_acceptable()) {
+							break;
+						}
+						request.tag = data_index.value;
+						_crypto.submit_decryption_request(request, _cipher_data.item(data_index), 0);
+						_cbe.crypto_plain_data_requested(data_index);
 						progress |= true;
-					} while (0);
-
+					}
 					while (true) {
 						Cbe::Request const request = _crypto.peek_completed_decryption_request();
-						if (!request.valid()) { break; }
-
-						if (!_crypto.supply_plain_data(request, _crypto_data.items[0])) { break; }
-
-						_cbe.supply_crypto_plain_data(request, _crypto_data.items[0]);
+						if (!request.valid()) {
+							break;
+						}
+						Cbe::Crypto_plain_buffer::Index const data_index(request.tag);
+						if (!_crypto.supply_plain_data(request, _plain_data.item(data_index))) {
+							break;
+						}
+						_cbe.supply_crypto_plain_data(data_index, request.success == Cbe::Request::Success::TRUE);
 						progress |= true;
 					}
 
@@ -503,7 +525,7 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 				_cbe.construct(_super_blocks, _cur_sb);
 			}
 			log("open: ", path);
-			*out_handle = new (alloc) Vfs_handle(*this, *this, alloc, _crypto, _crypto_data, *_cbe,
+			*out_handle = new (alloc) Vfs_handle(*this, *this, alloc, _crypto, _plain_data, _cipher_data, *_cbe,
 			                                     _time, _backend, _show_progress);
 
 			return OPEN_OK;
