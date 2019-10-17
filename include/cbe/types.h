@@ -624,6 +624,11 @@ namespace Cbe {
 	static_assert(sizeof(Superblock) == BLOCK_SIZE);
 
 
+	struct Active_snapshot_ids
+	{
+		uint32_t values[NUM_SNAPSHOTS];
+	} __attribute__((packed));
+
 	struct Superblocks
 	{
 		Superblock block[NUM_SUPER_BLOCKS];

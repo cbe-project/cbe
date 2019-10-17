@@ -36,6 +36,7 @@ is
       Obj.Curr_Blk_Nr   := 0;
       Obj.Curr_Idx      := 0;
       Obj.Nr_Of_Prims   := 0;
+      Obj.Snap_ID       := 0;
    end Reset_Curr_Req;
 
    --
@@ -57,7 +58,8 @@ is
       Curr_Req      => Request.Invalid_Object,
       Curr_Blk_Nr   => 0,
       Curr_Idx      => 0,
-      Nr_Of_Prims   => 0);
+      Nr_Of_Prims   => 0,
+      Snap_ID       => 0);
 
    --
    --  Submit_Request
@@ -65,7 +67,8 @@ is
    procedure Submit_Request (
       Obj      : in out Object_Type;
       Pool_Idx :        Pool_Index_Type;
-      Req      :        Request.Object_Type)
+      Req      :        Request.Object_Type;
+      ID       :        Snapshot_ID_Type)
    is
    begin
 
@@ -74,7 +77,8 @@ is
          Curr_Req      => Req,
          Curr_Blk_Nr   => Request.Block_Number (Req),
          Curr_Idx      => 0,
-         Nr_Of_Prims   => Number_Of_Primitives_Type (Request.Count (Req)));
+         Nr_Of_Prims   => Number_Of_Primitives_Type (Request.Count (Req)),
+         Snap_ID       => ID);
 
    end Submit_Request;
 
@@ -126,6 +130,14 @@ is
       case Request.Valid (Obj.Curr_Req) is
       when False => Primitive.Invalid_Object,
       when True  => Curr_Primitive (Obj));
+
+   --
+   --  Peek_Generated_Primitive_ID
+   --
+   function Peek_Generated_Primitive_ID (
+      Obj  : Splitter.Object_Type)
+   return Snapshot_ID_Type
+   is (Obj.Snap_ID);
 
    -----------------
    --  Accessors  --

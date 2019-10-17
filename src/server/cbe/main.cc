@@ -203,9 +203,9 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			_env.ep(), *this, &Main::_handle_requests };
 
 		Time::Timestamp _sync_interval;
-		Time::Timestamp _secure_interval;
 		Time::Timestamp _last_sync_time;
-		Time::Timestamp _last_secure_time;
+
+		uint32_t _creating_snapshot_id { 0 };
 
 		void _handle_requests()
 		{
@@ -249,7 +249,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					}
 
 					Cbe::Request req = convert_to(request);
-					_cbe->submit_client_request(req);
+					_cbe->submit_client_request(req, 0);
 
 					if (_show_progress || _show_if_progress) {
 						log("\033[35m", "> NEW request: ", req);
@@ -292,83 +292,29 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				/*
 				 * Query current time and check if a timeout has triggered
 				 */
-
-				/*
-				 * Seal the current generation if sealing is not already
-				 * in Progress. In case no write operation was performed just set
-				 * the trigger for the next interval.
-				 *
-				 *
-				 * (Instead of checking all Cache entries it would be nice if the
-				 *  Cache module would provide an interface that would allow us to
-				 *  simple check if it contains any dirty entries as it could easily
-				 *  track that condition internally itself.)
-				 */
 				Time::Timestamp const now = _time.timestamp();
-				bool is_sealing_generation = _cbe->is_sealing_generation();
-				if (now - _last_sync_time >= _sync_interval &&
-				    !is_sealing_generation)
+				if (now - _last_sync_time >= _sync_interval && !_creating_snapshot_id)
 				{
-					if (_cbe->cache_dirty()) {
-						// Genode::log ("\033[93;44m", __Func__, " SEAL current generation: ", Obj.Cur_Gen);
-						_cbe->start_sealing_generation();
-						is_sealing_generation = true;
-					} else {
-						// DBG("Cache is not dirty, re-arm trigger");
-						_last_sync_time = now;
-						_time.schedule_sync_timeout(_sync_interval);
-					}
+					_creating_snapshot_id = _cbe->create_snapshot(false);
+					log("\033[36;1m INF ", "CREATING SNAPSHOT: ",
+					    _creating_snapshot_id);
 				}
 
-				/*
-				 * Secure the current super-block if securing is not already
-				 * in Progress. In case no write operation was performed,
-				 * i.E., no snapshot was changed, just set the trigger for the
-				 * next interval.
-				 *
-				 *
-				 * (Obj.Superblock_Dirty is set whenver the Write_Back module
-				 * has done its work
-				 * and will be reset when the super-block was secured.)
-				 */
-				bool is_securing_superblock = _cbe->is_securing_superblock();
-				if (now - _last_secure_time >= _secure_interval &&
-				    !is_securing_superblock)
-				{
-					if (_cbe->superblock_dirty()) {
-						// Genode::log ("\033[93;44m", __Func__,
-						//              " SEALCurr super-block: ", Obj.Cur_SB);
-						_cbe->start_securing_superblock();
-						is_securing_superblock = true;
+				if (_creating_snapshot_id) {
+					if (_cbe->snapshot_creation_complete(_creating_snapshot_id)) {
+						log("\033[36;1m INF ", "CREATING SNAPSHOT: ",
+						    _creating_snapshot_id, " FINISHED");
+						_creating_snapshot_id = 0;
+						_last_sync_time = now;
+						_time.schedule_sync_timeout(_sync_interval);
 					} else {
-						// DBG("no snapshots created, re-arm trigger");
-						_last_secure_time = now;
+						log("\033[36;1m INF ", "CREATING SNAPSHOT: ",
+						    _creating_snapshot_id, " PENDING");
 					}
 				}
 
 				_cbe->execute(_io_buf, _crypto_plain_buf, _crypto_cipher_buf, now);
 				progress |= _cbe->execute_progress();
-
-				/* if sealing has finished during 'execute', set new timeout */
-				if (is_sealing_generation && !_cbe->is_sealing_generation()) {
-					/*
-					 * (As already briefly mentioned in the time handling section,
-					 *  it would be more reasonable to only set the timeouts when
-					 *  we actually perform write Request.)
-					 */
-					_last_sync_time = now;
-					_time.schedule_sync_timeout(_sync_interval);
-				}
-				/* if securing has finished during 'execute', set new timeout */
-				if (is_securing_superblock && !_cbe->is_securing_superblock()) {
-					/*
-					 * (FIXME same was with sealing the generation, it might make
-					 *  sense to set the trigger only when a write operation
-					 *  was performed.)
-					 */
-					_last_secure_time = now;
-					_time.schedule_secure_timeout(_secure_interval);
-				}
 
 				using Payload = Block::Request_stream::Payload;
 
@@ -667,9 +613,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		:
 			_env              { env },
 			_sync_interval    { 1000 * _config_rom.xml().attribute_value("sync_interval", 5u) },
-			_secure_interval  { 1000 * _config_rom.xml().attribute_value("secure_interval", 30u) },
-			_last_sync_time   { _time.timestamp() },
-			_last_secure_time { _time.timestamp() }
+			_last_sync_time   { _time.timestamp() }
 		{
 			/*
 			 * We first parse the configuration here which is used to control the
@@ -710,7 +654,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			 *  it does not hurt us for now.)
 			 */
 			_time.sync_sigh(_request_handler);
-			_time.secure_sigh(_request_handler);
 
 			/*
 			 * We construct the CBE library. For now it contains all modules needed
@@ -726,7 +669,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			 */
 			_cbe.construct(_super_blocks, curr_sb);
 			_time.schedule_sync_timeout(_sync_interval);
-			_time.schedule_secure_timeout(_secure_interval);
 
 			/*
 			 * Install signal handler for the backend Block connection.

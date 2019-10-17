@@ -27,33 +27,37 @@ is
          Obj, SBs, Superblocks_Index_Type (Curr_SB.Value));
    end Initialize_Object;
 
-   function Cache_Dirty (Obj : Library.Object_Type)
-   return CXX_Bool_Type
-   is (CXX_Bool_From_SPARK (Library.Cache_Dirty (Obj)));
+   procedure Create_Snapshot (
+      Obj     : in out Library.Object_Type;
+      Quara   :        CXX_Bool_Type;
+      Snap_id :    out CXX_Snapshot_ID_Type)
+   is
+      Snap_id_SPARK : Snapshot_ID_Type;
+   begin
+      Library.Create_Snapshot (
+         Obj,
+         CXX_Bool_To_SPARK (Quara),
+         Snap_id_SPARK);
+      Snap_id := CXX_Snapshot_ID_Type (Snap_id_SPARK);
+   end Create_Snapshot;
 
-   function Superblock_Dirty (Obj : Library.Object_Type)
+   function Snapshot_Creation_Complete (
+      Obj     : Library.Object_Type;
+      Snap_id : CXX_Snapshot_ID_Type)
    return CXX_Bool_Type
-   is (CXX_Bool_From_SPARK (Library.Superblock_Dirty (Obj)));
-
-   function Is_Securing_Superblock (Obj : Library.Object_Type)
-   return CXX_Bool_Type
-   is (CXX_Bool_From_SPARK (Library.Is_Securing_Superblock (Obj)));
-
-   function Is_Sealing_Generation (Obj : Library.Object_Type)
-   return CXX_Bool_Type
-   is (CXX_Bool_From_SPARK (Library.Is_Sealing_Generation (Obj)));
-
-   procedure Start_Securing_Superblock (Obj : in out Library.Object_Type)
    is
    begin
-      Library.Start_Securing_Superblock (Obj);
-   end Start_Securing_Superblock;
+      return (CXX_Bool_From_SPARK (Library.Snapshot_Creation_Complete (Obj,
+         Snapshot_ID_Type (Snap_id))));
+   end Snapshot_Creation_Complete;
 
-   procedure Start_Sealing_Generation (Obj : in out Library.Object_Type)
+   procedure Active_Snapshot_IDs (
+      Obj :     Library.Object_Type;
+      IDs : out Active_Snapshot_IDs_Type)
    is
    begin
-      Library.Start_Sealing_Generation (Obj);
-   end Start_Sealing_Generation;
+      Library.Active_Snapshot_IDs (Obj, IDs);
+   end Active_Snapshot_IDs;
 
    function Max_VBA (Obj : Library.Object_Type)
    return Virtual_Block_Address_Type
@@ -79,10 +83,12 @@ is
 
    procedure Submit_Client_Request (
       Obj : in out Library.Object_Type;
-      Req :        CXX_Request_Type)
+      Req :        CXX_Request_Type;
+      ID  :        CXX_Snapshot_ID_Type)
    is
    begin
-      Library.Submit_Client_Request (Obj, CXX_Request_To_SPARK (Req));
+      Library.Submit_Client_Request (
+         Obj, CXX_Request_To_SPARK (Req), Snapshot_ID_Type (ID));
    end Submit_Client_Request;
 
    function Peek_Completed_Client_Request (Obj : Library.Object_Type)

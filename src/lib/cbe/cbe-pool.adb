@@ -43,6 +43,7 @@ is
       is (
          State            => Invalid,
          Req              => Request.Invalid_Object,
+         Snap_ID          => 0,
          Nr_Of_Prims      => 0,
          Nr_Of_Done_Prims => 0);
 
@@ -51,12 +52,14 @@ is
       --
       function Pending_Object (
          Rq               : Request.Object_Type;
+         ID               : Snapshot_ID_Type;
          Nr_Of_Prims      : Number_Of_Primitives_Type;
          Nr_Of_Done_Prims : Number_Of_Primitives_Type)
       return Item_Type
       is (
          State            => Pending,
          Req              => Rq,
+         Snap_ID          => ID,
          Nr_Of_Prims      => Nr_Of_Prims,
          Nr_Of_Done_Prims => Nr_Of_Done_Prims);
 
@@ -78,6 +81,9 @@ is
 
       function Req (Obj : Item_Type) return Request.Object_Type
       is (Obj.Req);
+
+      function Snap_ID (Obj : Item_Type) return Snapshot_ID_Type
+      is (Obj.Snap_ID);
 
       procedure Req (
          Obj : in out Item_Type;
@@ -135,6 +141,7 @@ is
    procedure Submit_Request (
       Obj         : in out Object_Type;
       Req         :        Request.Object_Type;
+      ID          :        Snapshot_ID_Type;
       Nr_Of_Prims :        Number_Of_Primitives_Type)
    is
       Req_Buf : Request.Object_Type := Req;
@@ -149,6 +156,7 @@ is
             Obj.Items (Item_Id) :=
                Item.Pending_Object (
                   Rq               => Req_Buf,
+                  ID               => ID,
                   Nr_Of_Prims      => Nr_Of_Prims,
                   Nr_Of_Done_Prims => 0);
 
@@ -236,6 +244,25 @@ is
       end loop For_Each_Item;
       raise Program_Error;
    end Drop_Completed_Request;
+
+   --
+   --  Snap_ID_For_Request
+   --
+   function Snap_ID_For_Request (
+      Obj : Object_Type;
+      Req : Request.Object_Type)
+   return Snapshot_ID_Type
+   is
+   begin
+      for Itm of Obj.Items loop
+         if not Item.Invalid (Itm) then
+            if Request.Equal (Item.Req (Itm), (Req)) then
+               return Item.Snap_ID (Itm);
+            end if;
+         end if;
+      end loop;
+      raise Program_Error;
+   end Snap_ID_For_Request;
 
    --
    --  Request_For_Index

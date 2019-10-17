@@ -35,45 +35,33 @@ is
       External_Name =>
          "_ZN3Cbe7LibraryC2ERKNS_11SuperblocksERKNS_17Superblocks_indexE";
 
-   function Cache_Dirty (Obj : Library.Object_Type)
+   procedure Create_Snapshot (
+      Obj     : in out Library.Object_Type;
+      Quara   :        CXX_Bool_Type;
+      Snap_id :    out CXX_Snapshot_ID_Type)
+   with
+      Export,
+      Convention    => C,
+      External_Name => "_ZN3Cbe7Library16_create_snapshotEbRj";
+
+   function Snapshot_Creation_Complete (
+      Obj     : Library.Object_Type;
+      Snap_id : CXX_Snapshot_ID_Type)
    return CXX_Bool_Type
    with
       Export,
       Convention    => C,
-      External_Name => "_ZNK3Cbe7Library11cache_dirtyEv";
+      External_Name => "_ZNK3Cbe7Library26snapshot_creation_completeEj";
 
-   function Superblock_Dirty (Obj : Library.Object_Type)
-   return CXX_Bool_Type
+   procedure Active_Snapshot_IDs (
+      Obj :     Library.Object_Type;
+      IDs : out Active_Snapshot_IDs_Type)
    with
       Export,
       Convention    => C,
-      External_Name => "_ZNK3Cbe7Library16superblock_dirtyEv";
-
-   function Is_Securing_Superblock (Obj : Library.Object_Type)
-   return CXX_Bool_Type
-   with
-      Export,
-      Convention    => C,
-      External_Name => "_ZNK3Cbe7Library22is_securing_superblockEv";
-
-   function Is_Sealing_Generation (Obj : Library.Object_Type)
-   return CXX_Bool_Type
-   with
-      Export,
-      Convention    => C,
-      External_Name => "_ZNK3Cbe7Library21is_sealing_generationEv";
-
-   procedure Start_Securing_Superblock (Obj : in out Library.Object_Type)
-   with
-      Export,
-      Convention    => C,
-      External_Name => "_ZN3Cbe7Library25start_securing_superblockEv";
-
-   procedure Start_Sealing_Generation (Obj : in out Library.Object_Type)
-   with
-      Export,
-      Convention    => C,
-      External_Name => "_ZN3Cbe7Library24start_sealing_generationEv";
+      External_Name =>
+         "_ZN3Cbe7Library19active_snapshot_idsERNS_" &
+         "19Active_snapshot_idsE";
 
    function Max_VBA (Obj : Library.Object_Type)
    return Virtual_Block_Address_Type
@@ -104,11 +92,13 @@ is
 
    procedure Submit_Client_Request (
       Obj : in out Library.Object_Type;
-      Req :        CXX_Request_Type)
+      Req :        CXX_Request_Type;
+      ID  :        CXX_Snapshot_ID_Type)
    with
       Export,
       Convention    => C,
-      External_Name => "_ZN3Cbe7Library21submit_client_requestERKNS_7RequestE";
+      External_Name =>
+         "_ZN3Cbe7Library21submit_client_requestERKNS_7RequestEj";
 
    function Peek_Completed_Client_Request (Obj : Library.Object_Type)
    return CXX_Request_Type

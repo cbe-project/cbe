@@ -75,4 +75,8 @@ is
    function Image (Int : Uint64_Type)
    return String;
 
+   procedure Dump_Current_Superblock (
+      SBs     : Superblocks_Type;
+      Curr_SB : Superblocks_Index_Type);
+
 end CBE.Debug;

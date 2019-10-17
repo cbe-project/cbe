@@ -205,6 +205,14 @@ is
          SHA256_4K.Hash (SHA_Data, SHA_Hash);
          CBE_Hash_From_SHA256_4K_Hash (CBE_Hash, SHA_Hash);
          if CBE_Hash /= Obj.Walk (Natural (Obj.Level)).Hash then
+            pragma Debug (Debug.Print_String ("Translation: " & "Level: "
+               & Debug.To_String (Debug.Uint64_Type (Obj.Level)) & " "
+               & "PBA: "
+               & Debug.To_String (Debug.Uint64_Type (
+                  Obj.Walk (Natural (Obj.Level)).PBA)) & " "
+               & "GOT: " & Debug.To_String (CBE_Hash) & " "
+               & "EXP: " & Debug.To_String (
+                  Obj.Walk (Natural (Obj.Level)).Hash)));
             raise Program_Error;
          end if;
       end Declare_SHA_Args;
