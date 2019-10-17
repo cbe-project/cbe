@@ -264,7 +264,7 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 				}
 
 				if (_cbe.client_request_acceptable() && _state == NONE) {
-					_cbe.submit_client_request(request);
+					_cbe.submit_client_request(request, 0);
 					_state = PENDING;
 					progress = true;
 				}

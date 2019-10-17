@@ -28,6 +28,7 @@ is
    type CXX_Block_Offset_Type    is new CXX_UInt64_Type;
    type CXX_Block_Count_Type     is new CXX_UInt32_Type;
    type CXX_Primitive_Index_Type is new CXX_UInt64_Type;
+   type CXX_Snapshot_ID_Type     is new CXX_UInt32_Type;
 
    type CXX_Superblocks_Index_Type is record
       Value : CXX_UInt64_Type;

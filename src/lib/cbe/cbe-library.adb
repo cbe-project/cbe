@@ -56,29 +56,137 @@ is
       return Result;
    end Cache_Dirty;
 
-   function Superblock_Dirty (Obj : Object_Type)
-   return Boolean
-   is (Obj.Superblock_Dirty);
-
-   function Is_Securing_Superblock (Obj : Object_Type)
-   return Boolean
-   is (Obj.Secure_Superblock);
-
-   procedure Start_Securing_Superblock (Obj : in out Object_Type)
+   procedure Create_Snapshot (
+      Obj     : in out Object_Type;
+      Quara   :        Boolean;
+      Snap_ID :    out Snapshot_ID_Type)
    is
    begin
-      Obj.Secure_Superblock := True;
-   end Start_Securing_Superblock;
 
-   function Is_Sealing_Generation (Obj : Object_Type)
-   return Boolean
-   is (Obj.Seal_Generation);
+      --
+      --  As long as we are creating a snapshot or
+      --  the superblock the new snapshot belongs to is being
+      --  written we do not allow the creation of a new
+      --  snapshot.
+      --
+      if not Obj.Creating_Snapshot or else
+         not Obj.Secure_Superblock
+      then
+         if not Cache_Dirty (Obj) then
+            pragma Debug (Debug.Print_String ("Creating_Snapshot: "
+               & "cache not dirty - no new snapshot: "
+               & Debug.To_String (Debug.Uint64_Type (Obj.Last_Snapshot_ID))));
 
-   procedure Start_Sealing_Generation (Obj : in out Object_Type)
+            Snap_ID := Obj.Last_Snapshot_ID;
+            return;
+         end if;
+
+         Obj.Creating_Snapshot := True;
+         Obj.Creating_Quarantine_Snapshot := Quara;
+         Obj.Next_Snapshot_ID := Obj.Last_Snapshot_ID + 1;
+      end if;
+      pragma Debug (Debug.Print_String ("Creating_Snapshot: id: "
+         & Debug.To_String (Debug.Uint64_Type (Obj.Next_Snapshot_ID))));
+
+      Snap_ID := Obj.Next_Snapshot_ID;
+   end Create_Snapshot;
+
+   procedure Create_Snapshot_Internal (
+      Obj      : in out Object_Type;
+      Progress :    out Boolean)
    is
    begin
-      Obj.Seal_Generation := True;
-   end Start_Sealing_Generation;
+      Delcare_Cache_Flusher_Active :
+      declare
+         Cache_Flusher_Active : constant Boolean :=
+            Cache_Flusher.Active (Obj.Cache_Flusher_Obj);
+      begin
+         if Cache_Flusher_Active or else Obj.Secure_Superblock then
+            pragma Debug (Debug.Print_String ("Create_Snapshot_Internal: "
+                & "flusher active: "
+                & Debug.To_String (Cache_Flusher_Active) & " "
+                & "Secure_Superblock: "
+                & Debug.To_String (Obj.Secure_Superblock)));
+            Progress := False;
+            return;
+         end if;
+      end Delcare_Cache_Flusher_Active;
+
+      Declare_Cache_Dirty :
+      declare
+         Cache_Dirty : Boolean := False;
+      begin
+
+         Check_Cache_Dirty :
+         for Cache_Index in Cache.Cache_Index_Type loop
+            if Cache.Dirty (Obj.Cache_Obj, Cache_Index) then
+
+               Cache_Dirty := True;
+
+               Cache_Flusher.Submit_Request (
+                  Obj.Cache_Flusher_Obj,
+                  Cache.Flush (Obj.Cache_Obj, Cache_Index),
+                  Cache_Index);
+            end if;
+         end loop Check_Cache_Dirty;
+
+         --
+         --  In case we have to flush the Cache, wait until we have
+         --  finished doing that.
+         --
+         if not Cache_Dirty then
+            pragma Debug (Debug.Print_String ("Create_Snapshot_Internal: "
+               & "snapshot created: "
+               & "gen: " & Debug.To_String (Debug.Uint64_Type (Obj.Cur_Gen))));
+
+            Obj.Superblocks (Obj.Cur_SB).Snapshots (
+               Curr_Snap (Obj)).Flags := (
+                  if Obj.Creating_Quarantine_Snapshot then 1 else 0);
+            Obj.Cur_Gen := Obj.Cur_Gen  + 1;
+            --  trigger securing of suerblock
+            Obj.Creating_Snapshot := False;
+            Obj.Secure_Superblock := True;
+         end if;
+         Progress := True;
+      end Declare_Cache_Dirty;
+   end Create_Snapshot_Internal;
+
+   function Snapshot_Creation_Complete (
+      Obj     : Object_Type;
+      Snap_ID : Snapshot_ID_Type)
+   return Boolean
+   is
+      Result : constant Boolean := (Obj.Last_Snapshot_ID = Snap_ID);
+   begin
+      pragma Debug (Debug.Print_String ("Snapshot_Creation_Complete: " &
+         Debug.To_String (Debug.Uint64_Type (Obj.Last_Snapshot_ID))
+         & " = "
+         & Debug.To_String (Debug.Uint64_Type (Snap_ID)) & " "
+         & " result: " & Debug.To_String (Result)));
+
+      return Result;
+   end Snapshot_Creation_Complete;
+
+   procedure Active_Snapshot_IDs (
+      Obj  :     Object_Type;
+      List : out Active_Snapshot_IDs_Type)
+   is
+   begin
+      For_Snapshots :
+      for Snap_ID in Snapshots_Index_Type loop
+
+         if Snapshot_Valid (
+            Obj.Superblocks (Obj.Cur_SB).Snapshots (Snap_ID)) and then
+            Snapshot_Keep (
+               Obj.Superblocks (Obj.Cur_SB).Snapshots (Snap_ID))
+         then
+            List (Snap_ID) := Snapshot_ID_Storage_Type (Obj.Superblocks (
+               Obj.Cur_SB).Snapshots (Snap_ID).Gen);
+         else
+            List (Snap_ID) := Snapshot_ID_Storage_Type (0);
+         end if;
+      end loop For_Snapshots;
+   end Active_Snapshot_IDs;
 
    procedure Initialize_Object (
       Obj     : out Object_Type;
@@ -145,11 +253,15 @@ is
       Obj.Last_Snapshot_ID        :=
          Snapshot_ID_Type (SBs (Curr_SB).Snapshots (Curr_Snap).ID);
 
-      Obj.Seal_Generation         := False;
       Obj.Secure_Superblock       := False;
-      Obj.Superblock_Dirty        := False;
       Obj.Wait_For_Front_End      := Wait_For_Event_Invalid;
       Obj.Wait_For_Back_End       := Wait_For_Event_Invalid;
+
+      Obj.Creating_Snapshot            := False;
+      Obj.Creating_Quarantine_Snapshot := False;
+      Obj.Next_Snapshot_ID             := 0;
+      Obj.Stall_Snapshot_Creation      := False;
+
       declare
          Next_Snap : constant Snapshots_Index_Type :=
             Next_Snap_Slot (Obj);
@@ -167,17 +279,41 @@ is
             Snapshots_Index_Storage_Type (Next_Snap);
       end;
 
+      pragma Debug (Debug.Print_String ("Initial SB state: "));
+      pragma Debug (
+         Debug.Dump_Current_Superblock (Obj.Superblocks, Obj.Cur_SB));
+
    end Initialize_Object;
 
    function Curr_Snap (Obj : Object_Type)
    return Snapshots_Index_Type
    is (Snapshots_Index_Type (Obj.Superblocks (Obj.Cur_SB).Curr_Snap));
 
+   function Snap_Slot_For_ID (
+      Obj : Object_Type;
+      ID  : Snapshot_ID_Type)
+   return Snapshots_Index_Type
+   is
+   begin
+      for I in Snapshots_Index_Type loop
+         if Snapshot_Valid (Obj.Superblocks (Obj.Cur_SB).
+            Snapshots (I)) and then
+            Obj.Superblocks (Obj.Cur_SB).Snapshots (I).Gen =
+               Generation_Type (ID)
+         then
+            return I;
+         end if;
+      end loop;
+      raise Program_Error;
+   end Snap_Slot_For_ID;
+
    function Next_Snap_Slot (Obj : Object_Type)
    return Snapshots_Index_Type
    is
          Next_Snap : Snapshots_Index_Type := Curr_Snap (Obj);
    begin
+      --  XXX make sure we end up at the same idx in case
+      --  there is no free slot
       Loop_Snap_Slots :
       for Idx in Snapshots_Index_Type loop
          Next_Snap := (
@@ -192,9 +328,6 @@ is
             not Snapshot_Keep (Obj.Superblocks (Obj.Cur_SB).
                Snapshots (Next_Snap));
       end loop Loop_Snap_Slots;
-      if Next_Snap = Curr_Snap (Obj) then
-         raise Program_Error;
-      end if;
       return Next_Snap;
    end Next_Snap_Slot;
 
@@ -268,6 +401,16 @@ is
    begin
 
       pragma Debug (Debug.Print_String (To_String (Obj)));
+
+      -------------------------
+      --  Snapshot handling  --
+      -------------------------
+
+      if Obj.Creating_Snapshot and then
+         not Obj.Stall_Snapshot_Creation
+      then
+         Create_Snapshot_Internal (Obj, Progress);
+      end if;
 
       --------------------------
       --  Free-tree handling  --
@@ -367,6 +510,7 @@ is
 
             --  FIXME
             Virtual_Block_Device.Trans_Resume_Translation (Obj.VBD);
+            Obj.Stall_Snapshot_Creation := False;
             Free_Tree.Drop_Completed_Primitive (Obj.Free_Tree_Obj, Prim);
 
          end Declare_Prim_1;
@@ -468,11 +612,16 @@ is
             declare
                Pool_Idx : constant Pool_Index_Type :=
                   Pool_Idx_Slot_Content (Pool_Idx_Slot);
+
+               Req : constant Request.Object_Type :=
+                  Pool.Request_For_Index (Obj.Request_Pool_Obj, Pool_Idx);
+
+               Snap_ID : constant Snapshot_ID_Type :=
+                  Pool.Snap_ID_For_Request (Obj.Request_Pool_Obj, Req);
             begin
                Pool.Drop_Pending_Request (Obj.Request_Pool_Obj);
                Splitter.Submit_Request (
-                  Obj.Splitter_Obj, Pool_Idx, Pool.Request_For_Index (
-                     Obj.Request_Pool_Obj, Pool_Idx));
+                  Obj.Splitter_Obj, Pool_Idx, Req, Snap_ID);
 
             end Declare_Pool_Idx;
          end Declare_Pool_Idx_Slot;
@@ -486,22 +635,49 @@ is
       loop
          Declare_Prim_3 :
          declare
+            Snap_Slot_Index : Snapshots_Index_Type;
             Prim : constant Primitive.Object_Type :=
                Splitter.Peek_Generated_Primitive (Obj.Splitter_Obj);
+            Snap_ID : constant Snapshot_ID_Type :=
+               Splitter.Peek_Generated_Primitive_ID (Obj.Splitter_Obj);
          begin
             exit Loop_Splitter_Generated_Prims when
                not Primitive.Valid (Prim) or else
                not Virtual_Block_Device.Primitive_Acceptable (Obj.VBD);
 
-            --
-            --  FIXME why is Obj.Seal_Generation check not necessary?
-            --  that mainly is intended to block write primitives--
-            --
-            if Obj.Secure_Superblock then
+            if Obj.Secure_Superblock or else Obj.Creating_Snapshot then
+               pragma Debug (Debug.Print_String ("Execute: "
+                  & "creating snapshot or securing superblock in progress, "
+                  & "inhibit Splitter"));
                exit Loop_Splitter_Generated_Prims;
             end if;
 
             Splitter.Drop_Generated_Primitive (Obj.Splitter_Obj);
+
+            if Snap_ID /= 0 then
+               Snap_Slot_Index := Snap_Slot_For_ID (Obj, Snap_ID);
+            else
+               Snap_Slot_Index := Curr_Snap (Obj);
+            end if;
+
+            pragma Debug (Debug.Print_String ("Execute: "
+               & "submit VBD: "
+               & "Snap_ID: " & Debug.To_String (Debug.Uint64_Type (Snap_ID))
+               & " Prim: " & Primitive.To_String (Prim)
+               & " Cur_SB: " & Debug.To_String (Debug.Uint64_Type (Obj.Cur_SB))
+               & " Curr_Snap: " & Debug.To_String (Debug.Uint64_Type (
+                  Obj.Superblocks (Obj.Cur_SB).Curr_Snap))
+               & " PBA: " & Debug.To_String (Debug.Uint64_Type (
+                  Obj.Superblocks (Obj.Cur_SB).Snapshots (
+                     Snap_Slot_Index).PBA))
+               & " Gen: "
+               & Debug.To_String (Debug.Uint64_Type (
+                  Obj.Superblocks (Obj.Cur_SB).Snapshots (
+                     Snap_Slot_Index).Gen))
+               & " "
+               & Debug.To_String (
+                  Obj.Superblocks (Obj.Cur_SB).Snapshots (
+                     Snap_Slot_Index).Hash)));
 
             --
             --  For every new Request, we have to use the currlently active
@@ -509,9 +685,9 @@ is
             --
             Virtual_Block_Device.Submit_Primitive (
                Obj.VBD,
-               Obj.Superblocks (Obj.Cur_SB).Snapshots (Curr_Snap (Obj)).PBA,
-               Obj.Superblocks (Obj.Cur_SB).Snapshots (Curr_Snap (Obj)).Gen,
-               Obj.Superblocks (Obj.Cur_SB).Snapshots (Curr_Snap (Obj)).Hash,
+               Obj.Superblocks (Obj.Cur_SB).Snapshots (Snap_Slot_Index).PBA,
+               Obj.Superblocks (Obj.Cur_SB).Snapshots (Snap_Slot_Index).Gen,
+               Obj.Superblocks (Obj.Cur_SB).Snapshots (Snap_Slot_Index).Hash,
                Prim);
 
          end Declare_Prim_3;
@@ -548,8 +724,7 @@ is
       --  to the block device and mark them as clean again. While the flusher
       --  is doing its work, all Cache entries should be locked, i.E., do not
       --  Cache an entry while its flushed - otherwise the change might not
-      --  end up on the block device. Should be guarded by
-      --  'Obj.Seal_Generation'.
+      --  end up on the block device.
       --
       --  (For better or worse it is just a glorified I/O manager. At some
       --  point it should be better merged into the Cache module later on.)
@@ -637,16 +812,7 @@ is
       --                  write it to the block device
       --    3. (CACHE)    starting by the lowest inner node it will update the
       --                  node entry (PBA and Hash)
-      --    4. (COMPLETE) it returns the new root PBA and root Hash
-      --
-      --  When 'Obj.Seal_Generation' is set, it will first instruct the
-      --  Cache_Flusher module to clean the Cache. Afterwards it will store
-      --  the current snapshot and increment the 'Obj.Cur_SB' as well as
-      --  '_Cur_Gen' (-> there is only one snapshot per generation and there
-      --  are currently only 48 snapshot slots per super-block) and set the
-      --  sync trigger.
-      --
-      --  Otherwise it will just update the root Hash in place.
+      --    4. (COMPLETE) update root PBA and root Hash
       --
 
       Loop_WB_Completed_Prims :
@@ -663,86 +829,17 @@ is
                raise Program_Error;
             end if;
 
-            if Obj.Seal_Generation then
-
-               --  FIXME only check flusher when the Cache is dirty
-               --  FIXME and track if flusher is already active, e.G. by adding
-               --     a 'active' function that returns True whenever is doing
-               --     its job. I fear it currently only works by chance
-               exit Loop_WB_Completed_Prims when
-                  not Cache_Flusher.Request_Acceptable (Obj.Cache_Flusher_Obj);
-
-               Declare_Cache_Dirty_2 :
-               declare
-                  Cache_Dirty : Boolean := False;
-               begin
-
-                  For_Cache_Data_2 :
-                  for Cache_Index in Cache.Cache_Index_Type loop
-                     if Cache.Dirty (Obj.Cache_Obj, Cache_Index) then
-
-                        Cache_Dirty := True;
-
-                        Cache_Flusher.Submit_Request (
-                           Obj.Cache_Flusher_Obj,
-                           Cache.Flush (Obj.Cache_Obj, Cache_Index),
-                           Cache_Index);
-                     end if;
-                  end loop For_Cache_Data_2;
-
-                  --
-                  --  In case we have to flush the Cache, wait until we have
-                  --  finished doing that.
-                  --
-                  if Cache_Dirty then
-                     Progress := True;
-                     exit Loop_WB_Completed_Prims;
-                  end if;
-
-               end Declare_Cache_Dirty_2;
-
-               --
-               --  Look for a new snapshot slot. If we cannot find one
-               --  we manual intervention b/c there are too many snapshots
-               --  flagged as keep
-               --
-               Declare_Next_Snap :
-               declare
-                  Next_Snap : constant Snapshots_Index_Type :=
-                     Next_Snap_Slot (Obj);
-               begin
-
-                  --
-                  --  Creating a new snapshot only involves storing its
-                  --  meta-Data in a new slot and afterwards setting the
-                  --  seal timeout again.
-                  --
-                  Create_New_Snapshot (Obj, Next_Snap, Prim);
-                  Obj.Secure_Superblock := True;
-               end Declare_Next_Snap;
-
-               Obj.Cur_Gen         := Obj.Cur_Gen  + 1;
-               Obj.Seal_Generation := False;
-
-            else
-
-               --
-               --  No need to create a new snapshot, just update the Hash
-               --  in place and move on.
-               --
-               Update_Snapshot_Hash (
-                  Obj.Write_Back_Obj,
-                  Obj.Cur_Gen,
-                  Obj.Superblocks (Obj.Cur_SB).Snapshots (Curr_Snap (Obj)),
-                  Prim);
-            end if;
+            Update_Snapshot_Hash (
+               Obj.Write_Back_Obj,
+               Obj.Cur_Gen,
+               Obj.Superblocks (Obj.Cur_SB).Snapshots (Curr_Snap (Obj)),
+               Prim);
 
             --
             --  We touched the super-block, either by updating a snapshot or by
             --  creating a new one - make sure it gets secured within the next
             --  interval.
             --
-            Obj.Superblock_Dirty := True;
             Write_Back.Drop_Completed_Primitive (Obj.Write_Back_Obj, Prim);
 
             --
@@ -760,6 +857,7 @@ is
          --        is not a good idea
          --
          Virtual_Block_Device.Trans_Resume_Translation (Obj.VBD);
+         Obj.Stall_Snapshot_Creation := False;
 
       end loop Loop_WB_Completed_Prims;
 
@@ -1024,8 +1122,58 @@ is
                   Sync_Superblock.Peek_Completed_Generation (
                      Obj.Sync_SB_Obj, Prim);
 
-               Obj.Superblock_Dirty  := False;
+               Obj.Last_Snapshot_ID  := Obj.Next_Snapshot_ID;
+
+               --
+               --  Look for a new snapshot slot. If we cannot find one
+               --  we manual intervention b/c there are too many snapshots
+               --  flagged as keep
+               --
+               Declare_Next_Snap_2 :
+               declare
+                  Next_Snap : constant Snapshots_Index_Type :=
+                     Next_Snap_Slot (Obj);
+               begin
+
+                  --
+                  --  Could not find free slots, we need to discard some
+                  --  quarantine snapshots, user intervention needed.
+                  --
+                  if Next_Snap = Curr_Snap (Obj) then
+                     raise Program_Error;
+                  end if;
+
+                  Declare_Tree :
+                  declare
+                     Tree : constant Tree_Helper.Object_Type :=
+                        Virtual_Block_Device.Get_Tree_Helper (Obj.VBD);
+                  begin
+                     Obj.Superblocks (Obj.Cur_SB).Snapshots (
+                        Next_Snap).Height := Tree_Helper.Height (Tree);
+                     Obj.Superblocks (Obj.Cur_SB).Snapshots (
+                        Next_Snap).Nr_Of_Leafs := Tree_Helper.Leafs (Tree);
+                  end Declare_Tree;
+
+                  Obj.Superblocks (Obj.Cur_SB).Snapshots (Next_Snap) :=
+                  Obj.Superblocks (Obj.Cur_SB).Snapshots (Curr_Snap (Obj));
+                  Obj.Superblocks (Obj.Cur_SB).Snapshots (
+                     Next_Snap).Flags := 0;
+
+                  --  Obj.Superblocks (Obj.Cur_SB).Snapshots (Next_Snap).Gen :=
+                  --     Obj.Cur_Gen;
+                  Obj.Superblocks (Obj.Cur_SB).Snapshots (Next_Snap).ID :=
+                     Snapshot_ID_Storage_Type (Obj.Next_Snapshot_ID);
+
+                  Obj.Superblocks (Obj.Cur_SB).Snapshots (
+                     Next_Snap).Valid := 1;
+                  Obj.Superblocks (Obj.Cur_SB).Curr_Snap :=
+                     Snapshots_Index_Storage_Type (Next_Snap);
+               end Declare_Next_Snap_2;
+
                Obj.Secure_Superblock := False;
+
+               pragma Debug (
+                  Debug.Dump_Current_Superblock (Obj.Superblocks, Obj.Cur_SB));
 
             end Declare_Next_SB;
             Sync_Superblock.Drop_Completed_Primitive (Obj.Sync_SB_Obj, Prim);
@@ -1329,12 +1477,14 @@ is
 
    procedure Submit_Client_Request (
       Obj : in out Object_Type;
-      Req :        Request.Object_Type)
+      Req :        Request.Object_Type;
+      ID  :        Snapshot_ID_Type)
    is
    begin
       Pool.Submit_Request (
          Obj.Request_Pool_Obj,
          Req,
+         ID,
          Splitter.Number_Of_Primitives (Req));
    end Submit_Client_Request;
 
@@ -1730,6 +1880,15 @@ is
                      --  change it in place and store it directly in the
                      --  new_PBA array.
                      --
+                     pragma Debug (Debug.Print_String ("PBA: "
+                        & Debug.To_String (Debug.Uint64_Type (PBA)) & " "
+                        & "Gen: "
+                        & Debug.To_String (Debug.Uint64_Type (Gen)) & " "
+                        & "Cur_Gen: "
+                        & Debug.To_String (Debug.Uint64_Type (Obj.Cur_Gen))
+                        & " Npba: "
+                        & Debug.To_String (Debug.Uint64_Type (
+                           Nodes (Natural (Child_Idx)).PBA))));
                      if Gen = Obj.Cur_Gen or else Gen = 0 then
 
                         New_PBAs (Tree_Level_Index_Type (I - 1)) :=
@@ -1746,16 +1905,39 @@ is
 
                         Free_Blocks := Free_Blocks + 1;
                         New_Blocks  := New_Blocks  + 1;
+
+                        pragma Debug (Debug.Print_String ("New_Blocks: "
+                           & Debug.To_String (Debug.Uint64_Type (New_Blocks))
+                           & " Free_PBA: "
+                           & Debug.To_String (Debug.Uint64_Type (
+                              Free_PBAs (Free_Blocks))) & " "
+                           & Debug.To_String (Debug.Uint64_Type (
+                              Old_PBAs (Natural (I - 1)).PBA))));
                      end if;
                   end Declare_Generation;
                end Declare_Nodes;
             end loop;
 
+            pragma Debug (Debug.Print_String ("Snap.Gen: "
+               & Debug.To_String (Debug.Uint64_Type (Snap.Gen)) & " "
+               & "Cur_Gen: "
+               & Debug.To_String (Debug.Uint64_Type (Obj.Cur_Gen))
+               & " root PBA: "
+               & Debug.To_String (Debug.Uint64_Type (
+                  Old_PBAs (Natural (Trans_Height - 1)).PBA))
+               & " Gen: "
+               & Debug.To_String (Debug.Uint64_Type (
+                  Old_PBAs (Natural (Trans_Height - 1)).Gen))));
+
             --  check root node
-            if Snap.Gen = Obj.Cur_Gen or else Snap.Gen = 0 then
+            if Old_PBAs (Natural (Trans_Height - 1)).Gen = Obj.Cur_Gen or else
+               Snap.Gen = 0
+            then
+               pragma Debug (Debug.Print_String ("Change root PBA in place"));
                New_PBAs (Tree_Level_Index_Type (Trans_Height - 1)) :=
                   Old_PBAs (Natural (Trans_Height - 1)).PBA;
             else
+               pragma Debug (Debug.Print_String ("New root PBA"));
                Free_PBAs (Free_Blocks) :=
                   Old_PBAs (Natural (Trans_Height - 1)).PBA;
                New_Blocks := New_Blocks  + 1;
@@ -1813,6 +1995,7 @@ is
             --  the same branch are serialized.)
             --
             Virtual_Block_Device.Trans_Inhibit_Translation (Obj.VBD);
+            Obj.Stall_Snapshot_Creation := True;
             Progress := True;
             return;
          end Declare_Old_PBAs;
@@ -1926,7 +2109,6 @@ is
       ", Wait_For_Back_End="  & To_String (Obj.Wait_For_Back_End) &
       ", Wait_For_Front_End=" & To_String (Obj.Wait_For_Front_End) &
       ", VBD="                & Virtual_Block_Device.To_String (Obj.VBD) &
-      ", Superblock_Dirty="   & Debug.To_String (Obj.Superblock_Dirty) &
       ", Secure_Superblock="  & Debug.To_String (Obj.Secure_Superblock) &
       ")");
 

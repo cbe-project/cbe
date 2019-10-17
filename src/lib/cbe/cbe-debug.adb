@@ -78,4 +78,45 @@ is
       To_String (Uint64_Type (H (8))) & "," &
       "...)");
 
+   procedure Dump_Current_Superblock (
+      SBs     : Superblocks_Type;
+      Curr_SB : Superblocks_Index_Type)
+   is
+   begin
+      pragma Debug (Debug.Print_String ("Superblock secured: "));
+
+      for J in Superblocks_Index_Type loop
+         if J = Curr_SB then
+            pragma Debug (Debug.Print_String ("--- CURRENT ---"));
+         end if;
+         pragma Debug (Debug.Print_String ("SB: " & Debug.To_String (
+            Debug.Uint64_Type (J)) & " "
+            & " Curr_Snap: " & Debug.To_String (Debug.Uint64_Type (
+               SBs (J).Curr_Snap))));
+         for I in Snapshots_Index_Type loop
+            if Snapshot_Valid (SBs (J).Snapshots (I))
+            then
+               pragma Debug (Debug.Print_String ("SB: "
+                  & Debug.To_String (Debug.Uint64_Type (J)) & " "
+                  & "SN: "
+                  & Debug.To_String (Debug.Uint64_Type (I)) & " "
+                  & "PBA: "
+                  & Debug.To_String (Debug.Uint64_Type (
+                     SBs (J).Snapshots (I).PBA)) & " "
+                  & "GEN: "
+                  & Debug.To_String (Debug.Uint64_Type (
+                     SBs (J).Snapshots (I).Gen)) & " "
+                  & "ID: "
+                  & Debug.To_String (Debug.Uint64_Type (
+                     SBs (J).Snapshots (I).ID)) & " "
+                  & "KEEP: "
+                  & Debug.To_String (Debug.Uint64_Type (
+                     SBs (J).Snapshots (I).Flags)) & " "
+                  & Debug.To_String (
+                     SBs (J).Snapshots (I).Hash)));
+            end if;
+         end loop;
+      end loop;
+   end Dump_Current_Superblock;
+
 end CBE.Debug;

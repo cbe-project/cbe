@@ -61,7 +61,8 @@ is
    procedure Submit_Request (
       Obj      : in out Object_Type;
       Pool_Idx :        Pool_Index_Type;
-      Req      :        Request.Object_Type)
+      Req      :        Request.Object_Type;
+      ID       :        Snapshot_ID_Type)
    with
       Pre  => (Request_Acceptable (Obj) and then Request.Valid (Req)),
       Post => (not Request_Acceptable (Obj));
@@ -71,6 +72,13 @@ is
    --
    function Peek_Generated_Primitive (Obj : Splitter.Object_Type)
    return Primitive.Object_Type;
+
+   --
+   --  Peek_Generated_Primitive_ID
+   --
+   function Peek_Generated_Primitive_ID (
+      Obj  : Splitter.Object_Type)
+   return Snapshot_ID_Type;
 
    --
    --  Drop_Generated_Primitive
@@ -94,6 +102,7 @@ private
       Curr_Blk_Nr   : Block_Number_Type;
       Curr_Idx      : Primitive.Index_Type;
       Nr_Of_Prims   : Number_Of_Primitives_Type;
+      Snap_ID       : Snapshot_ID_Type;
    end record;
 
    --

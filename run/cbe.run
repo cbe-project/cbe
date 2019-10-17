@@ -103,7 +103,7 @@ append config {"/>
 	<start name="cbe">
 		<resource name="RAM" quantum="4M"/>
 		<provides><service name="Block"/></provides>
-		<config show_progress="no" sync_interval="1" secure_interval="10"/>
+		<config show_progress="no" sync_interval="1"/>
 		<route>
 			<service name="Block"> <child name="cbe_block"/> </service>
 			<service name="Terminal"> <child name="log_terminal"/> </service>

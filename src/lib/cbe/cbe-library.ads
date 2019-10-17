@@ -48,21 +48,34 @@ is
       SBs     :     Superblocks_Type;
       Curr_SB :     Superblocks_Index_Type);
 
-   function Cache_Dirty (Obj : Object_Type)
+   --
+   --  Create snapshot
+   --
+   --  \param snap_id   id of the snapshot
+   --
+   procedure Create_Snapshot (
+      Obj     : in out Object_Type;
+      Quara   :        Boolean;
+      Snap_ID :    out Snapshot_ID_Type);
+
+   --
+   --  Check if snapshot creation is complete
+   --
+   --  \param snap_id   id of the snapshot
+   --
+   function Snapshot_Creation_Complete (
+      Obj     : Object_Type;
+      Snap_ID : Snapshot_ID_Type)
    return Boolean;
 
-   function Superblock_Dirty (Obj : Object_Type)
-   return Boolean;
-
-   function Is_Securing_Superblock (Obj : Object_Type)
-   return Boolean;
-
-   function Is_Sealing_Generation (Obj : Object_Type)
-   return Boolean;
-
-   procedure Start_Securing_Superblock (Obj : in out Object_Type);
-
-   procedure Start_Sealing_Generation (Obj : in out Object_Type);
+   --
+   --  Return active snapshot ids
+   --
+   --  \param reference to id array
+   --
+   procedure Active_Snapshot_IDs (
+      Obj  :     Object_Type;
+      List : out Active_Snapshot_IDs_Type);
 
    --
    --  Check if the CBE can accept a new requeust
@@ -82,7 +95,8 @@ is
    --
    procedure Submit_Client_Request (
       Obj : in out Object_Type;
-      Req :        Request.Object_Type);
+      Req :        Request.Object_Type;
+      ID  :        Snapshot_ID_Type);
 
    --
    --  Check for any completed request
@@ -334,34 +348,36 @@ private
       In_Progress => False);
 
    type Object_Type is record
-      Execute_Progress        : Boolean;
-      Request_Pool_Obj        : Pool.Object_Type;
-      Splitter_Obj            : Splitter.Object_Type;
-      Crypto_Obj              : Crypto.Object_Type;
-      IO_Obj                  : Block_IO.Object_Type;
-      Cache_Obj               : Cache.Object_Type;
-      Cache_Data              : Cache.Cache_Data_Type;
-      Cache_Job_Data          : Cache.Cache_Job_Data_Type;
-      Cache_Flusher_Obj       : Cache_Flusher.Object_Type;
-      Trans_Data              : Translation_Data_Type;
-      VBD                     : Virtual_Block_Device.Object_Type;
-      Write_Back_Obj          : Write_Back.Object_Type;
-      Write_Back_Data         : Write_Back.Data_Type;
-      Sync_SB_Obj             : Sync_Superblock.Object_Type;
-      Free_Tree_Obj           : Free_Tree.Object_Type;
-      Free_Tree_Retry_Count   : Free_Tree_Retry_Count_Type;
-      Free_Tree_Trans_Data    : Translation_Data_Type;
-      Free_Tree_Query_Data    : Query_Data_Type;
-      Superblocks             : Superblocks_Type;
-      Cur_SB                  : Superblocks_Index_Type;
-      Cur_Gen                 : Generation_Type;
-      Last_Secured_Generation : Generation_Type;
-      Last_Snapshot_ID        : Snapshot_ID_Type;
-      Seal_Generation         : Boolean;
-      Secure_Superblock       : Boolean;
-      Superblock_Dirty        : Boolean;
-      Wait_For_Front_End      : Wait_For_Event_Type;
-      Wait_For_Back_End       : Wait_For_Event_Type;
+      Execute_Progress             : Boolean;
+      Request_Pool_Obj             : Pool.Object_Type;
+      Splitter_Obj                 : Splitter.Object_Type;
+      Crypto_Obj                   : Crypto.Object_Type;
+      IO_Obj                       : Block_IO.Object_Type;
+      Cache_Obj                    : Cache.Object_Type;
+      Cache_Data                   : Cache.Cache_Data_Type;
+      Cache_Job_Data               : Cache.Cache_Job_Data_Type;
+      Cache_Flusher_Obj            : Cache_Flusher.Object_Type;
+      Trans_Data                   : Translation_Data_Type;
+      VBD                          : Virtual_Block_Device.Object_Type;
+      Write_Back_Obj               : Write_Back.Object_Type;
+      Write_Back_Data              : Write_Back.Data_Type;
+      Sync_SB_Obj                  : Sync_Superblock.Object_Type;
+      Free_Tree_Obj                : Free_Tree.Object_Type;
+      Free_Tree_Retry_Count        : Free_Tree_Retry_Count_Type;
+      Free_Tree_Trans_Data         : Translation_Data_Type;
+      Free_Tree_Query_Data         : Query_Data_Type;
+      Superblocks                  : Superblocks_Type;
+      Cur_SB                       : Superblocks_Index_Type;
+      Cur_Gen                      : Generation_Type;
+      Last_Secured_Generation      : Generation_Type;
+      Last_Snapshot_ID             : Snapshot_ID_Type;
+      Secure_Superblock            : Boolean;
+      Wait_For_Front_End           : Wait_For_Event_Type;
+      Wait_For_Back_End            : Wait_For_Event_Type;
+      Creating_Snapshot            : Boolean;
+      Creating_Quarantine_Snapshot : Boolean;
+      Next_Snapshot_ID             : Snapshot_ID_Type;
+      Stall_Snapshot_Creation      : Boolean;
    end record;
 
    procedure Discard_Snapshot (
@@ -369,13 +385,25 @@ private
       Keep_Snap :        Snapshots_Index_Type;
       Success   :    out Boolean);
 
+   function Cache_Dirty (Obj : Object_Type)
+   return Boolean;
+
    function To_String (WFE : Wait_For_Event_Type) return String;
 
    function Curr_Snap (Obj : Object_Type)
    return Snapshots_Index_Type;
 
+   function Snap_Slot_For_ID (
+      Obj : Object_Type;
+      ID  : Snapshot_ID_Type)
+   return Snapshots_Index_Type;
+
    function Next_Snap_Slot (Obj : Object_Type)
    return Snapshots_Index_Type;
+
+   procedure Create_Snapshot_Internal (
+      Obj      : in out Object_Type;
+      Progress :    out Boolean);
 
    procedure Create_New_Snapshot (
       Obj  : in out Object_Type;
