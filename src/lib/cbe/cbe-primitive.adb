@@ -8,6 +8,8 @@
 
 pragma Ada_2012;
 
+with CBE.Debug;
+
 package body CBE.Primitive
 with SPARK_Mode
 is
@@ -110,19 +112,20 @@ is
 
    function To_String (Obj : Object_Type)
    return String
-   is
-   begin
+   is (
       if not Obj.Valid then
-         return "Invalid Primitive";
-      end if;
-
-      return "Primitive (Op=" & Obj.Operation'Image &
-         ", Tag="           & CBE.To_String (U64 (Obj.Tag)) &
-         ", Success="       & CBE.To_String (Obj.Success) &
-         ", Block_Number="  & CBE.To_String (U64 (Obj.Block_Number)) &
-         ", Index="         & CBE.To_String (U64 (Obj.Index)) &
-         ")";
-
-   end To_String;
+         "Invalid Primitive"
+      else
+         "Primitive (Op=" &
+         Obj.Operation'Image &
+         ", Tag=" &
+         Debug.To_String (Debug.Uint64_Type (Obj.Tag)) &
+         ", Success=" &
+         Debug.To_String (Obj.Success) &
+         ", Block_Number=" &
+         Debug.To_String (Debug.Uint64_Type (Obj.Block_Number)) &
+         ", Index=" &
+         Debug.To_String (Debug.Uint64_Type (Obj.Index)) &
+         ")");
 
 end CBE.Primitive;

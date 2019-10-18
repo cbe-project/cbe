@@ -9,14 +9,15 @@
 pragma Ada_2012;
 
 with CBE.Tree_Helper;
+with CBE.Debug;
 
 package body CBE.Library
 with SPARK_Mode
 is
-   function Discard_Snapshot (
+   procedure Discard_Snapshot (
       Snaps     : in out Snapshots_Type;
-      Keep_Snap :        Snapshots_Index_Type)
-   return Boolean
+      Keep_Snap :        Snapshots_Index_Type;
+      Success   :    out Boolean)
    is
       Discard_Idx       : Snapshots_Index_Type := Snapshots_Index_Type'First;
       Discard_Idx_Valid : Boolean              := False;
@@ -37,7 +38,7 @@ is
       if Discard_Idx_Valid then
          Snapshot_Valid (Snaps (Discard_Idx), False);
       end if;
-      return Discard_Idx_Valid;
+      Success := Discard_Idx_Valid;
    end Discard_Snapshot;
 
    function Cache_Dirty (Obj : Object_Type)
@@ -226,7 +227,7 @@ is
       Progress : Boolean := False;
    begin
 
-      Print_String (To_String (Obj));
+      pragma Debug (Debug.Print_String (To_String (Obj)));
 
       --------------------------
       --  Free-tree handling  --
@@ -292,29 +293,33 @@ is
                Primitive.Success (Prim);
 
             if Obj.Free_Tree_Retry_Count < Free_Tree_Retry_Limit then
-               if
+               Declare_Could_Discard_Snap :
+               declare
+                  Could_Discard_Snap : Boolean;
+               begin
                   Discard_Snapshot (
                      Obj.Superblocks (Obj.Cur_SB).Snapshots,
-                     Curr_Snap (Obj))
-               then
-                  Obj.Free_Tree_Retry_Count :=
-                     Obj.Free_Tree_Retry_Count + 1;
+                     Curr_Snap (Obj), Could_Discard_Snap);
+                  if Could_Discard_Snap then
+                     Obj.Free_Tree_Retry_Count :=
+                        Obj.Free_Tree_Retry_Count + 1;
 
-                  --
-                  --  Instructing the FT to retry the allocation will
-                  --  lead to clearing its internal 'query branches'
-                  --  state and executing the previously submitted
-                  --  Request again.
-                  --
-                  --  (This retry attempt is a shortcut as we do not have
-                  --  all information available at this point to call
-                  --  'submit_Request' again - so we must not call
-                  --  'drop_Completed_Primitive' as this will clear the
-                  --  Request.)
-                  --
-                  Free_Tree.Retry_Allocation (Obj.Free_Tree_Obj);
+                     --
+                     --  Instructing the FT to retry the allocation will
+                     --  lead to clearing its internal 'query branches'
+                     --  state and executing the previously submitted
+                     --  Request again.
+                     --
+                     --  (This retry attempt is a shortcut as we do not have
+                     --  all information available at this point to call
+                     --  'submit_Request' again - so we must not call
+                     --  'drop_Completed_Primitive' as this will clear the
+                     --  Request.)
+                     --
+                     Free_Tree.Retry_Allocation (Obj.Free_Tree_Obj);
 
-               end if;
+                  end if;
+               end Declare_Could_Discard_Snap;
                exit Loop_Free_Tree_Completed_Prims;
             end if;
 
@@ -419,7 +424,7 @@ is
                not Request.Valid (Req) or else
                not Splitter.Request_Acceptable (Obj.Splitter_Obj);
 
-            Pool.Drop_Pending_Request (Obj.Request_Pool_Obj, Req);
+            Pool.Drop_Pending_Request (Obj.Request_Pool_Obj);
             Splitter.Submit_Request (Obj.Splitter_Obj, Req);
 
          end Declare_Req;
@@ -449,7 +454,7 @@ is
                exit Loop_Splitter_Generated_Prims;
             end if;
 
-            Splitter.Drop_Generated_Primitive (Obj.Splitter_Obj, Prim);
+            Splitter.Drop_Generated_Primitive (Obj.Splitter_Obj);
 
             --
             --  For every new Request, we have to use the currlently active
@@ -867,12 +872,13 @@ is
                --
                Declare_Indices :
                declare
-                  Index : constant Cache.Cache_Index_Type :=
-                     Cache.Data_Index (Obj.Cache_Obj, PBA, Now);
-
-                  Update_Index : constant Cache.Cache_Index_Type :=
-                     Cache.Data_Index (Obj.Cache_Obj, Update_PBA, Now);
+                  Index        : Cache.Cache_Index_Type;
+                  Update_Index : Cache.Cache_Index_Type;
                begin
+                  Cache.Data_Index (Obj.Cache_Obj, PBA, Now, Index);
+                  Cache.Data_Index (
+                     Obj.Cache_Obj, Update_PBA, Now, Update_Index);
+
                   --
                   --  (Later on we can remove the tree_Helper here as the
                   --  outer degree, which is used to calculate the entry in
@@ -1050,7 +1056,7 @@ is
                   Obj.Write_Back_Obj, Prim, Obj.Write_Back_Data (Index));
 
             end Declare_Index_2;
-            Crypto.Drop_Completed_Primitive (Obj.Crypto_Obj, Prim);
+            Crypto.Drop_Completed_Primitive (Obj.Crypto_Obj);
 
          end Declare_Prim_12;
          Progress := True;
@@ -1252,11 +1258,9 @@ is
    return Request.Object_Type
    is (Pool.Peek_Completed_Request (Obj.Request_Pool_Obj));
 
-   procedure Drop_Completed_Request (
-      Obj : in out Object_Type;
-      Req :        Request.Object_Type)
+   procedure Drop_Completed_Request (Obj : in out Object_Type)
    is begin
-      Pool.Drop_Completed_Request (Obj.Request_Pool_Obj, Req);
+      Pool.Drop_Completed_Request (Obj.Request_Pool_Obj);
    end Drop_Completed_Request;
 
    --
@@ -1418,7 +1422,7 @@ is
             Crypto.Data_Index (Obj.Crypto_Obj, Prim));
 
          Data_Index_Valid := True;
-         Crypto.Drop_Completed_Primitive (Obj.Crypto_Obj, Prim);
+         Crypto.Drop_Completed_Primitive (Obj.Crypto_Obj);
          Pool.Mark_Completed_Primitive (Obj.Request_Pool_Obj, Prim);
 
          Obj.Front_End_Req_Prim := Request_Primitive_Invalid;
@@ -1533,26 +1537,28 @@ is
       end;
    end Client_Data_Required;
 
-   function Supply_Client_Data (
-      Obj     : in out Object_Type;
-      Now     :        Timestamp_Type;
-      Req     :        Request.Object_Type;
-      Data    :        Block_Data_Type)
-   return Boolean
+   procedure Supply_Client_Data (
+      Obj      : in out Object_Type;
+      Now      :        Timestamp_Type;
+      Req      :        Request.Object_Type;
+      Data     :        Block_Data_Type;
+      Progress :    out Boolean)
    is
       Prim : constant Primitive.Object_Type := Obj.Front_End_Req_Prim.Prim;
    begin
+      Progress := False;
+
       --
       --  For now there is only one Request pending.
       --
       if not Request.Equal (Obj.Front_End_Req_Prim.Req, Req) then
-         return False;
+         return;
       end if;
 
       if Obj.Front_End_Req_Prim.Tag = Tag_Free_Tree then
 
          if not Write_Back.Primitive_Acceptable (Obj.Write_Back_Obj) then
-            return False;
+            return;
          end if;
 
          Obj.Free_Tree_Retry_Count := 0;
@@ -1578,7 +1584,8 @@ is
 
          --  XXX check if default constructor produces invalid object
          Obj.Front_End_Req_Prim := Request_Primitive_Invalid;
-         return True;
+         Progress := True;
+         return;
 
       --
       --  The VBD module translated a write Request, writing the data
@@ -1599,13 +1606,10 @@ is
          --
          --  As usual check first we can submit new requests.
          --
-         if not Free_Tree.Request_Acceptable (Obj.Free_Tree_Obj) then
-            return False;
-         end if;
-
-         if not Virtual_Block_Device.Trans_Can_Get_Type_1_Info (Obj.VBD, Prim)
+         if not Free_Tree.Request_Acceptable (Obj.Free_Tree_Obj) or else
+            not Virtual_Block_Device.Trans_Can_Get_Type_1_Info (Obj.VBD, Prim)
          then
-            return False;
+            return;
          end if;
 
          --
@@ -1674,45 +1678,51 @@ is
                --  Use the old PBA to get the node's data from the cache and
                --  use it check how we have to handle the node.
                --
+               Declare_Cache_Idx :
                declare
                   PBA : constant Physical_Block_Address_Type :=
                      Old_PBAs (Natural (I)).PBA;
 
-                  Idx : constant Cache.Cache_Index_Type :=
-                     Cache.Data_Index (Obj.Cache_Obj, PBA, Now);
-
-                  ID : constant Tree_Child_Index_Type :=
-                     Virtual_Block_Device.Index_For_Level (Obj.VBD, VBA, I);
-
-                  Node : Type_I_Node_Block_Type
-                  with Address => Obj.Cache_Data (Idx)'Address;
-
-                  Gen : constant Generation_Type := Node (Natural (ID)).Gen;
+                  Idx : Cache.Cache_Index_Type;
                begin
-                  --
-                  --  In case the generation of the entry is the same as the
-                  --  Curr generation OR if the generation is 0 (which means
-                  --  it was never used before) the block is volatile and we
-                  --  change it in place and store it directly in the new_PBA
-                  --  array.
-                  --
-                  if Gen = Obj.Cur_Gen or else Gen = 0 then
+                  Cache.Data_Index (Obj.Cache_Obj, PBA, Now, Idx);
 
-                     New_PBAs (Tree_Level_Index_Type (I - 1)) :=
-                        Old_PBAs (Natural (I - 1)).PBA;
+                  Declare_Generation :
+                  declare
+                     ID : constant Tree_Child_Index_Type :=
+                        Virtual_Block_Device.Index_For_Level (Obj.VBD, VBA, I);
 
-                  --
-                  --  Otherwise add the block to the free_PBA array so that
-                  --  the FT will reserved it and note that we need another
-                  --  new block.
-                  --
-                  else
-                     Free_PBAs (Free_Blocks) := Old_PBAs (Natural (I - 1)).PBA;
-                     Free_Blocks := Free_Blocks + 1;
-                     New_Blocks  := New_Blocks  + 1;
-                  end if;
-               end;
+                     Node : Type_I_Node_Block_Type
+                     with Address => Obj.Cache_Data (Idx)'Address;
 
+                     Gen : constant Generation_Type := Node (Natural (ID)).Gen;
+                  begin
+                     --
+                     --  In case the generation of the entry is the same as the
+                     --  Curr generation OR if the generation is 0 (which means
+                     --  it was never used before) the block is volatile and we
+                     --  change it in place and store it directly in the
+                     --  new_PBA array.
+                     --
+                     if Gen = Obj.Cur_Gen or else Gen = 0 then
+
+                        New_PBAs (Tree_Level_Index_Type (I - 1)) :=
+                           Old_PBAs (Natural (I - 1)).PBA;
+
+                     --
+                     --  Otherwise add the block to the free_PBA array so that
+                     --  the FT will reserved it and note that we need another
+                     --  new block.
+                     --
+                     else
+                        Free_PBAs (Free_Blocks) :=
+                           Old_PBAs (Natural (I - 1)).PBA;
+
+                        Free_Blocks := Free_Blocks + 1;
+                        New_Blocks  := New_Blocks  + 1;
+                     end if;
+                  end Declare_Generation;
+               end Declare_Cache_Idx;
             end loop;
 
             --  check root node
@@ -1778,10 +1788,10 @@ is
             --  the same branch are serialized.)
             --
             Virtual_Block_Device.Trans_Inhibit_Translation (Obj.VBD);
-            return True;
+            Progress := True;
+            return;
          end Declare_Old_PBAs;
       end if;
-      return False;
    end Supply_Client_Data;
 
    procedure Crypto_Cipher_Data_Required (
@@ -1790,9 +1800,9 @@ is
       Data_Index :    out Crypto.Plain_Buffer_Index_Type)
    is
       Item_Index : Crypto.Item_Index_Type;
-      Prim : constant Primitive.Object_Type :=
-         Crypto.Peek_Generated_Primitive (Obj.Crypto_Obj,  Item_Index);
+      Prim       : Primitive.Object_Type;
    begin
+      Crypto.Peek_Generated_Primitive (Obj.Crypto_Obj,  Item_Index, Prim);
       Data_Index := Crypto.Plain_Buffer_Index_Type (Item_Index);
       if not Primitive.Valid (Prim) or else
          Primitive.Operation (Prim) /= Write
@@ -1834,9 +1844,9 @@ is
       Data_Index :    out Crypto.Cipher_Buffer_Index_Type)
    is
       Item_Index : Crypto.Item_Index_Type;
-      Prim : constant Primitive.Object_Type :=
-         Crypto.Peek_Generated_Primitive (Obj.Crypto_Obj,  Item_Index);
+      Prim       : Primitive.Object_Type;
    begin
+      Crypto.Peek_Generated_Primitive (Obj.Crypto_Obj,  Item_Index, Prim);
       Data_Index := Crypto.Cipher_Buffer_Index_Type (Item_Index);
       if not Primitive.Valid (Prim) or else
          Primitive.Operation (Prim) /= Read
@@ -1878,25 +1888,21 @@ is
 
    function To_String (Req_Prim : Request_Primitive_Type)
    return String
-   is
-   begin
-      return "Req_Prim (Req=" & Request.To_String (Req_Prim.Req) &
-         ", Prim="          & Primitive.To_String (Req_Prim.Prim) &
-         ", Tag="           & To_String (Req_Prim.Tag) &
-         ", In_Progress="   & To_String (Req_Prim.In_Progress) & ")";
-   end To_String;
+   is (
+      "Req_Prim (Req=" & Request.To_String (Req_Prim.Req) &
+      ", Prim="        & Primitive.To_String (Req_Prim.Prim) &
+      ", Tag="         & Debug.To_String (Req_Prim.Tag) &
+      ", In_Progress=" & Debug.To_String (Req_Prim.In_Progress) & ")");
 
    function To_String (Obj : Object_Type)
    return String
-   is
-   begin
-      return "CBE=(" &
-         ", Back_End_Req_Prim="  & To_String (Obj.Back_End_Req_Prim) &
-         ", Front_End_Req_Prim=" & To_String (Obj.Front_End_Req_Prim) &
-         ", VBD="                & Virtual_Block_Device.To_String (Obj.VBD) &
-         ", Superblock_Dirty="   & CBE.To_String (Obj.Superblock_Dirty) &
-         ", Secure_Superblock="  & CBE.To_String (Obj.Secure_Superblock) &
-         ")";
-   end To_String;
+   is (
+      "CBE=(" &
+      ", Back_End_Req_Prim="  & To_String (Obj.Back_End_Req_Prim) &
+      ", Front_End_Req_Prim=" & To_String (Obj.Front_End_Req_Prim) &
+      ", VBD="                & Virtual_Block_Device.To_String (Obj.VBD) &
+      ", Superblock_Dirty="   & Debug.To_String (Obj.Superblock_Dirty) &
+      ", Secure_Superblock="  & Debug.To_String (Obj.Secure_Superblock) &
+      ")");
 
 end CBE.Library;

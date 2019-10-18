@@ -57,10 +57,10 @@ is
    --
    --  Peek_Generated_Primitive
    --
-   function Peek_Generated_Primitive (
+   procedure Peek_Generated_Primitive (
       Obj      :     Object_Type;
-      Item_Idx : out Item_Index_Type)
-   return Primitive.Object_Type;
+      Item_Idx : out Item_Index_Type;
+      Prim     : out Primitive.Object_Type);
 
    --
    --  Drop_Generated_Primitive
@@ -78,11 +78,7 @@ is
    --
    --  Drop_Completed_Primitive
    --
-   procedure Drop_Completed_Primitive (
-      Obj  : in out Object_Type;
-      Prim :        Primitive.Object_Type)
-   with
-      Pre => (Primitive.Valid (Prim));
+   procedure Drop_Completed_Primitive (Obj : in out Object_Type);
 
    --
    --  Mark_Completed_Primitive

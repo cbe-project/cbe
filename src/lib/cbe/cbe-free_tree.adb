@@ -237,10 +237,6 @@ is
             not Translation.Acceptable (Obj.Trans) or else
             not Primitive.Valid (Obj.Curr_Query_Prim);
 
-         --  Print_String ("FRTR Execute trans submit: ");
-         --  Print_Primitive (Obj.Curr_Query_Prim);
-         --  Print_Line_Break;
-
          Translation.Submit_Primitive (
             Obj.Trans, Obj.Root_PBA, Obj.Root_Gen, Obj.Root_Hash,
             Obj.Curr_Query_Prim);
@@ -293,9 +289,9 @@ is
                else
                   Declare_Data_Index_1 :
                   declare
-                     Data_Index : constant Cache.Cache_Index_Type :=
-                        Cache.Data_Index (Cach, PBA, Timestamp);
+                     Data_Index : Cache.Cache_Index_Type;
                   begin
+                     Cache.Data_Index (Cach, PBA, Timestamp, Data_Index);
                      Translation.Mark_Generated_Primitive_Complete (
                         Obj.Trans, Cach_Data (Data_Index), Trans_Data);
 
@@ -560,20 +556,21 @@ is
          Obj.Query_Branches (Branch_Index).
             Trans_Infos (Natural (Pre_Level)).PBA;
 
-      Pre_Data_Index : constant Cache.Cache_Index_Type :=
-         Cache.Data_Index (Cach, Pre_PBA, Timestamp);
-
-      SHA_Hash : SHA256_4K.Hash_Type;
-      CBE_Hash : Hash_Type with Address => SHA_Hash'Address;
-
-      Pre_Hash_Data : SHA256_4K.Data_Type
-      with Address => Cach_Data (Pre_Data_Index)'Address;
+      Pre_Data_Index : Cache.Cache_Index_Type;
+      SHA_Hash       : SHA256_4K.Hash_Type;
+      CBE_Hash       : Hash_Type with Address => SHA_Hash'Address;
 
       Nodes : Type_I_Node_Block_Type
       with Address => Cach_Data (Data_Index)'Address;
    begin
-
-      SHA256_4K.Hash (Pre_Hash_Data, SHA_Hash);
+      Cache.Data_Index (Cach, Pre_PBA, Timestamp, Pre_Data_Index);
+      Declare_Pre_Hash_Data :
+      declare
+         Pre_Hash_Data : SHA256_4K.Data_Type
+         with Address => Cach_Data (Pre_Data_Index)'Address;
+      begin
+         SHA256_4K.Hash (Pre_Hash_Data, SHA_Hash);
+      end Declare_Pre_Hash_Data;
 
       For_Nodes :
       for Node_Index in 0 .. Tree_Helper.Degree (Obj.Trans_Helper) - 1 loop
@@ -714,11 +711,10 @@ is
                            Obj.Query_Branches (Branch_Index).Trans_Infos (
                               Natural (Tree_Level)).PBA;
 
-                        Data_Index : constant Cache.Cache_Index_Type :=
-                           Cache.Data_Index (Cach, PBA, Timestamp);
-
+                        Data_Index  : Cache.Cache_Index_Type;
                         Type_2_Node : constant Boolean := (Tree_Level = 1);
                      begin
+                        Cache.Data_Index (Cach, PBA, Timestamp, Data_Index);
 
                         if Type_2_Node then
                            --

@@ -8,6 +8,7 @@
 
 pragma Ada_2012;
 
+with CBE.Debug;
 with SHA256_4K;
 with Interfaces;
 use  Interfaces;
@@ -374,16 +375,14 @@ is
    is (6);
 
    function To_String (Obj : Object_Type) return String
-   is
-   begin
-      return "Translation (Current=" & Primitive.To_String (Obj.Current) &
-         ", Level="            & CBE.To_String (U64 (Obj.Level)) &
-         ", Next_PBA="         & CBE.To_String (Obj.Next_PBA) &
-         ", Data_PBA="         & CBE.To_String (Obj.Data_PBA) &
-         ", Suspended="        & CBE.To_String (Obj.Suspended) &
-         ", Free_Tree="        & CBE.To_String (Obj.Free_Tree) &
-         ", Execute_Progress=" & CBE.To_String (Obj.Execute_Progress) &
-         ")";
-   end To_String;
+   is (
+      "Translation (Current=" & Primitive.To_String (Obj.Current) &
+      ", Level=" & Debug.To_String (Debug.Uint64_Type (Obj.Level)) &
+      ", Next_PBA=" & Debug.To_String (Obj.Next_PBA) &
+      ", Data_PBA=" & Debug.To_String (Obj.Data_PBA) &
+      ", Suspended=" & Debug.To_String (Obj.Suspended) &
+      ", Free_Tree=" & Debug.To_String (Obj.Free_Tree) &
+      ", Execute_Progress=" & Debug.To_String (Obj.Execute_Progress) &
+      ")");
 
 end CBE.Translation;

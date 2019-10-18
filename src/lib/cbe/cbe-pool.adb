@@ -178,9 +178,7 @@ is
    --
    --  Drop_Pending_Request
    --
-   procedure Drop_Pending_Request (
-      Obj : in out Object_Type;
-      Req :        Request.Object_Type)
+   procedure Drop_Pending_Request (Obj : in out Object_Type)
    is
    begin
       for Item_Id in Obj.Items'Range loop
@@ -226,9 +224,7 @@ is
    --
    --  Drop_Completed_Request
    --
-   procedure Drop_Completed_Request (
-      Obj : in out Object_Type;
-      Req :        Request.Object_Type)
+   procedure Drop_Completed_Request (Obj : in out Object_Type)
    is
    begin
       for Item_Id in Obj.Items'Range loop

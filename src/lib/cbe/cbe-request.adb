@@ -8,6 +8,8 @@
 
 pragma Ada_2012;
 
+with CBE.Debug;
+
 package body CBE.Request
 with SPARK_Mode
 is
@@ -93,23 +95,27 @@ is
    function To_String (B : Block_Number_Type) return String
    is
    begin
-      return To_String (U64 (B));
+      return Debug.To_String (Debug.Uint64_Type (B));
    end To_String;
 
    function To_String (Obj : Object_Type)
    return String
-   is
-   begin
+   is (
       if not Obj.Valid then
-         return "Invalid Request";
-      end if;
-      return "Request (Op=" & Obj.Operation'Image &
-         " Tag="          & CBE.To_String (Obj.Tag) &
-         " Success="      & CBE.To_String (Obj.Success) &
-         " Block_Number=" & Request.To_String (Obj.Block_Number) &
-         " Offset="       & CBE.To_String (U64 (Obj.Offset)) &
-         " Count="        & CBE.To_String (U64 (Obj.Count)) &
-         ")";
-   end To_String;
+         "Invalid Request"
+      else
+         "Request (Op=" &
+         Obj.Operation'Image &
+         " Tag=" &
+         Debug.To_String (Obj.Tag) &
+         " Success=" &
+         Debug.To_String (Obj.Success) &
+         " Block_Number=" &
+         Request.To_String (Obj.Block_Number) &
+         " Offset=" &
+         Debug.To_String (Debug.Uint64_Type (Obj.Offset)) &
+         " Count=" &
+         Debug.To_String (Debug.Uint64_Type (Obj.Count)) &
+         ")");
 
 end CBE.Request;
