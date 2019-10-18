@@ -98,11 +98,8 @@ is
    --
    --  Drop_Generated_Primitive
    --
-   procedure Drop_Generated_Primitive (
-      Obj  : in out Object_Type;
-      Prim :        Primitive.Object_Type)
+   procedure Drop_Generated_Primitive (Obj : in out Object_Type)
    is
-      use type Primitive.Index_Type;
    begin
       Next_Primitive (Obj);
    end Drop_Generated_Primitive;

@@ -54,11 +54,7 @@ is
    --
    --  Drop_Pending_Request
    --
-   procedure Drop_Pending_Request (
-      Obj : in out Object_Type;
-      Req :        Request.Object_Type)
-   with
-      Pre => Request.Valid (Req);
+   procedure Drop_Pending_Request (Obj : in out Object_Type);
 
    --
    --  Mark_Completed_Primitive
@@ -76,11 +72,7 @@ is
    --
    --  Drop_Completed_Request
    --
-   procedure Drop_Completed_Request (
-      Obj : in out Object_Type;
-      Req :        Request.Object_Type)
-   with
-      Pre => Request.Valid (Req);
+   procedure Drop_Completed_Request (Obj : in out Object_Type);
 
    --
    --  Request_For_Tag

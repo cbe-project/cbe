@@ -38,9 +38,9 @@ is
          Ts  : Timestamp_Type)
       is
       begin
-         State (Obj, Sta => Used);
-         Obj.PBA := PBA;
-         Obj.Ts  := Ts;
+         Obj.State := Used;
+         Obj.PBA   := PBA;
+         Obj.Ts    := Ts;
       end Initialize_Object;
 
       -----------------
@@ -252,11 +252,11 @@ is
    --
    --  Data_Index
    --
-   function Data_Index (
-      Obj : in out Object_Type;
-      PBA :        Physical_Block_Address_Type;
-      Ts  :        Timestamp_Type)
-   return Cache_Index_Type
+   procedure Data_Index (
+      Obj    : in out Object_Type;
+      PBA    :        Physical_Block_Address_Type;
+      Ts     :        Timestamp_Type;
+      Result :    out Cache_Index_Type)
    is
    begin
       for Cache_Item_Id in Obj.Cache_Items'Range loop
@@ -264,13 +264,11 @@ is
             Cache_Item.PBA (Obj.Cache_Items (Cache_Item_Id)) = PBA
          then
             Cache_Item.Set_Ts (Obj.Cache_Items (Cache_Item_Id), Ts);
-            --  XXX convert
-            return Cache_Item_Id;
+            Result := Cache_Item_Id;
+            return;
          end if;
       end loop;
-
-      --  XXX make proper INVALID
-      return Cache_Index_Type'Last;
+      raise Program_Error;
    end Data_Index;
 
    --

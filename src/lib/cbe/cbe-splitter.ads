@@ -74,13 +74,7 @@ is
    --
    --  Drop_Generated_Primitive
    --
-   procedure Drop_Generated_Primitive (
-      Obj  : in out Object_Type;
-      Prim :        Primitive.Object_Type)
-   with
-      Pre => (
-         Primitive.Valid (Prim) and then
-         Primitive."="(Prim, Curr_Primitive (Obj)));
+   procedure Drop_Generated_Primitive (Obj : in out Object_Type);
 
    -----------------
    --  Accessors  --

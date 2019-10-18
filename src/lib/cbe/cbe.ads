@@ -13,28 +13,6 @@ with SPARK_Mode
 is
    pragma Pure;
 
-   type U8  is mod 2**8;
-   type U16 is mod 2**16;
-   type U32 is mod 2**32;
-   type U64 is mod 2**64;
-
-   procedure print_u8  (U : U8)
-   with Import, Convention => C, External_Name => "print_u8";
-
-   procedure print_u16 (U : U16)
-   with Import, Convention => C, External_Name => "print_u16";
-
-   procedure print_u32 (U : U32)
-   with Import, Convention => C, External_Name => "print_u32";
-
-   procedure print_u64 (U : U64)
-   with Import, Convention => C, External_Name => "print_u64";
-
-   procedure Print_Cstring (S : String; Length : U64)
-      with Import, Convention => C, External_Name => "print_cstring";
-
-   procedure Print_String (S : String);
-
    type Byte_Type is range 0 .. 255 with Size => 8;
 
    Superblock_Nr_Of_Snapshots : constant := 48;
@@ -327,13 +305,5 @@ is
       Valid   : Boolean;
       Timeout : Timestamp_Type;
    end record;
-
-   function To_String (N : U64)                         return String;
-   function To_String (B : Boolean)                     return String;
-   function To_String (T : Tag_Type)                    return String;
-   function To_String (A : Physical_Block_Address_Type) return String;
-   function To_String (B : Block_Data_Type)             return String;
-
-   function Image (I : U64) return String;
 
 end CBE;

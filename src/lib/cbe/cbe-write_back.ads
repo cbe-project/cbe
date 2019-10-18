@@ -304,8 +304,8 @@ is
    --  \return physical-block-address
    --
    function Peek_Generated_Cache_Update_PBA (
-      Obj  : in out Object_Type;
-      Prim :        Primitive.Object_Type)
+      Obj  : Object_Type;
+      Prim : Primitive.Object_Type)
    return Physical_Block_Address_Type;
 
    --

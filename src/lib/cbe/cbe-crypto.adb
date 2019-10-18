@@ -128,21 +128,22 @@ is
    --
    --  Peek_Generated_Primitive
    --
-   function Peek_Generated_Primitive (
+   procedure Peek_Generated_Primitive (
       Obj      :     Object_Type;
-      Item_Idx : out Item_Index_Type)
-   return Primitive.Object_Type
+      Item_Idx : out Item_Index_Type;
+      Prim     : out Primitive.Object_Type)
    is
    begin
+      Prim     := Primitive.Invalid_Object;
       Item_Idx := Item_Index_Type'First;
       Items_Loop :
       for Curr_Item_Idx in Obj.Items'Range loop
          if Item.Pending (Obj.Items (Curr_Item_Idx)) then
             Item_Idx := Curr_Item_Idx;
-            return Item.Prim (Obj.Items (Curr_Item_Idx));
+            Prim     := Item.Prim (Obj.Items (Curr_Item_Idx));
+            return;
          end if;
       end loop Items_Loop;
-      return Primitive.Invalid_Object;
    end Peek_Generated_Primitive;
 
    --
@@ -177,9 +178,7 @@ is
    --
    --  Drop_Completed_Primitive
    --
-   procedure Drop_Completed_Primitive (
-      Obj  : in out Object_Type;
-      Prim :        Primitive.Object_Type)
+   procedure Drop_Completed_Primitive (Obj : in out Object_Type)
    is
    begin
       for Item_Id in Obj.Items'Range loop

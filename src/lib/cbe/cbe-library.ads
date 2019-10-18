@@ -99,9 +99,7 @@ is
    --  This method must only be called after executing
    --  'Peek_Completed_Request' returned a valid request.
    --
-   procedure Drop_Completed_Request (
-      Obj : in out Object_Type;
-      Req :        Request.Object_Type);
+   procedure Drop_Completed_Request (Obj : in out Object_Type);
 
    --
    --  Submit read request data from the backend block session to the CBE
@@ -201,12 +199,12 @@ is
    --
    --  \return  true if the CBE could process the request
    --
-   function Supply_Client_Data (
-      Obj  : in out Object_Type;
-      Now  :        Timestamp_Type;
-      Req  :        Request.Object_Type;
-      Data :        Block_Data_Type)
-   return Boolean;
+   procedure Supply_Client_Data (
+      Obj      : in out Object_Type;
+      Now      :        Timestamp_Type;
+      Req      :        Request.Object_Type;
+      Data     :        Block_Data_Type;
+      Progress :    out Boolean);
 
    --
    --  Determine whether the encryption of plain data is required
@@ -364,10 +362,10 @@ private
       Back_End_Req_Prim       : Request_Primitive_Type;
    end record;
 
-   function Discard_Snapshot (
+   procedure Discard_Snapshot (
       Snaps     : in out Snapshots_Type;
-      Keep_Snap :        Snapshots_Index_Type)
-   return Boolean;
+      Keep_Snap :        Snapshots_Index_Type;
+      Success   :    out Boolean);
 
    function To_String (Req_Prim : Request_Primitive_Type) return String;
 

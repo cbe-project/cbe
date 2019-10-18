@@ -8,6 +8,8 @@
 
 pragma Ada_2012;
 
+with CBE.Debug;
+
 package body CBE.Virtual_Block_Device
 with SPARK_Mode
 is
@@ -220,18 +222,20 @@ is
                   end if;
                   exit Endless_Loop;
                else
-                  Declare_Data :
+                  Declare_Data_Index :
                   declare
-                     Data_Index : constant Cache.Cache_Index_Type :=
-                        Cache.Data_Index (Cach, PBA, Timestamp);
-
-                     Data : constant Block_Data_Type :=
-                        Cach_Data (Data_Index);
+                     Data_Index : Cache.Cache_Index_Type;
                   begin
-                     Translation.Mark_Generated_Primitive_Complete (
-                        Obj.Trans, Data, Trans_Data);
-
-                  end Declare_Data;
+                     Cache.Data_Index (Cach, PBA, Timestamp, Data_Index);
+                     Declare_Data :
+                     declare
+                        Data : constant Block_Data_Type :=
+                           Cach_Data (Data_Index);
+                     begin
+                        Translation.Mark_Generated_Primitive_Complete (
+                           Obj.Trans, Data, Trans_Data);
+                     end Declare_Data;
+                  end Declare_Data_Index;
 
                   Translation.Discard_Generated_Primitive (
                      Obj.Trans);
@@ -252,11 +256,11 @@ is
    is (Obj.Execute_Progress);
 
    function To_String (Obj : Object_Type) return String
-   is
-   begin
-      return "VBD (Execute_Progress=" & CBE.To_String (Obj.Execute_Progress) &
-         ", Trans=" & Translation.To_String (Obj.Trans) &
-         ")";
-   end To_String;
+   is (
+      "VBD (Execute_Progress=" &
+      Debug.To_String (Obj.Execute_Progress) &
+      ", Trans=" &
+      Translation.To_String (Obj.Trans) &
+      ")");
 
 end CBE.Virtual_Block_Device;

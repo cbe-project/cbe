@@ -466,8 +466,8 @@ is
    end Peek_Generated_Cache_Primitive;
 
    function Peek_Generated_Cache_Update_PBA (
-      Obj  : in out Object_Type;
-      Prim :        Primitive.Object_Type)
+      Obj  : Object_Type;
+      Prim : Primitive.Object_Type)
    return Physical_Block_Address_Type
    is
       PBA : constant Physical_Block_Address_Type :=

@@ -48,11 +48,11 @@ is
    --
    --  Data_Index
    --
-   function Data_Index (
-      Obj : in out Object_Type;
-      PBA :        Physical_Block_Address_Type;
-      Ts  :        Timestamp_Type)
-   return Cache_Index_Type;
+   procedure Data_Index (
+      Obj    : in out Object_Type;
+      PBA    :        Physical_Block_Address_Type;
+      Ts     :        Timestamp_Type;
+      Result :    out Cache_Index_Type);
 
    --
    --  Invalidate

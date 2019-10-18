@@ -275,7 +275,7 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 						Cbe::Request const cbe_request = _cbe.peek_completed_client_request();
 						if (!cbe_request.valid()) { break; }
 
-						_cbe.drop_completed_client_request(cbe_request);
+						_cbe.drop_completed_client_request();
 						_state = NONE;
 						progress = true;
 					}
