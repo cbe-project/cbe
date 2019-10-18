@@ -9,4 +9,9 @@ project CBE is
    for Library_Kind use "static";
    for Library_Name use "cbe";
 
+   --  show full paths
+   package Compiler is
+      for Switches ("Ada") use ("-gnatef");
+   end Compiler;
+
 end CBE;
