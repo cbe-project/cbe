@@ -1362,7 +1362,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				snap.leaves    = info.leaves;
 				snap.gen       = sb.last_secured_generation;
 				snap.id        = sb.snapshot_id;
-				snap.flags     = Snapshot::FLAG_KEEP;
+				snap.flags     = Snapshot::FLAGS_CLEAR;
 				snap.valid(true);
 
 				{
