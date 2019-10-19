@@ -305,8 +305,6 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 							Genode::memcpy(&data, &_plain_data.item(data_index), sizeof (Cbe::Block_data));
 
 							progress |= true;
-						} else {
-							progress |= _cbe.obtain_client_data_2(cbe_request, _io_data, data);
 						}
 					}
 

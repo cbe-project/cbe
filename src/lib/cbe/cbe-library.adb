@@ -1235,6 +1235,30 @@ is
          Progress := True;
 
       end loop Loop_IO_Completed_Prims;
+
+      --
+      --  Submit Block-IO read-primitives for completed primitives of the VBD
+      --
+      Loop_VBD_Completed_Prims :
+      loop
+         declare
+            Prim : constant Primitive.Object_Type :=
+               Virtual_Block_Device.Peek_Completed_Primitive (Obj.VBD);
+
+            Data_Idx : Block_IO.Data_Index_Type;
+         begin
+            exit Loop_VBD_Completed_Prims when
+               not Primitive.Valid (Prim) or else
+               Primitive.Operation (Prim) /= Read or else
+               not Block_IO.Primitive_Acceptable (Obj.IO_Obj);
+
+            Block_IO.Submit_Primitive (
+               Obj.IO_Obj, Tag_Decrypt, Prim, Data_Idx);
+
+            Virtual_Block_Device.Drop_Completed_Primitive (Obj.VBD);
+            Progress := True;
+         end;
+      end loop Loop_VBD_Completed_Prims;
       Obj.Execute_Progress := Progress;
 
    end Execute;
@@ -1367,24 +1391,6 @@ is
             return;
          end if;
       end;
-
-      --
-      --  When it was a read Request, we need access to the data the Crypto
-      --  module should decrypt.
-      --
-      --  XXX this should be handled in I/O backend
-      --
-      declare
-         Prim : constant Primitive.Object_Type :=
-            Virtual_Block_Device.Peek_Completed_Primitive (Obj.VBD);
-      begin
-         if Primitive.Valid (Prim) and then Primitive.Operation (Prim) = Read
-         then
-            Assign_Front_End_Req_Prim (Obj, Prim, Tag_VBD);
-            Req := Obj.Front_End_Req_Prim.Req;
-            return;
-         end if;
-      end;
    end Client_Data_Ready;
 
    function Give_Data_Index (
@@ -1412,69 +1418,20 @@ is
       Data_Index_Valid := False;
       Data_Index       := Crypto.Plain_Buffer_Index_Type'First;
 
-      if Front_End_Busy_With_Other_Request (Obj, Req) then
+      if Front_End_Busy_With_Other_Request (Obj, Req) or else
+         Tag /= Tag_Crypto
+      then
          return;
       end if;
 
-      if Tag = Tag_Crypto then
+      Data_Index := Crypto.Plain_Buffer_Index_Type (
+         Crypto.Data_Index (Obj.Crypto_Obj, Prim));
 
-         Data_Index := Crypto.Plain_Buffer_Index_Type (
-            Crypto.Data_Index (Obj.Crypto_Obj, Prim));
-
-         Data_Index_Valid := True;
-         Crypto.Drop_Completed_Primitive (Obj.Crypto_Obj);
-         Pool.Mark_Completed_Primitive (Obj.Request_Pool_Obj, Prim);
-
-         Obj.Front_End_Req_Prim := Request_Primitive_Invalid;
-      end if;
+      Data_Index_Valid := True;
+      Crypto.Drop_Completed_Primitive (Obj.Crypto_Obj);
+      Pool.Mark_Completed_Primitive (Obj.Request_Pool_Obj, Prim);
+      Obj.Front_End_Req_Prim := Request_Primitive_Invalid;
    end Obtain_Client_Data;
-
-   procedure Obtain_Client_Data_2 (
-      Obj      : in out Object_Type;
-      Req      :        Request.Object_Type;
-      IO_Buf   : in out Block_IO.Data_Type;
-      Data     :    out Crypto.Plain_Data_Type;
-      Progress :    out Boolean)
-   is
-      Prim : constant Primitive.Object_Type := Obj.Front_End_Req_Prim.Prim;
-      Tag  : constant Tag_Type              := Obj.Front_End_Req_Prim.Tag;
-   begin
-      Progress := False;
-
-      if Front_End_Busy_With_Other_Request (Obj, Req) then
-         return;
-      end if;
-
-      if Tag = Tag_VBD then
-
-         --
-         --  We have to reset Front_End_Req_Prim before because in case there
-         --  is current I/O pending, we have to make sure 'Client_Data_Ready'
-         --  is called again.
-         --
-         Obj.Front_End_Req_Prim := Request_Primitive_Invalid;
-
-         if Block_IO.Primitive_Acceptable (Obj.IO_Obj) then
-
-            declare
-               --  cast Crypto.Plain_Data_Type to Block_Data_Type
-               Block_Data : Block_Data_Type with Address => Data'Address;
-               Data_Idx   : Block_IO.Data_Index_Type;
-            begin
-               Block_IO.Submit_Primitive (
-                  Obj.IO_Obj, Tag_Decrypt, Prim, Data_Idx);
-
-               if Primitive.Operation (Prim) = Write then
-                  IO_Buf (Data_Idx) := Block_Data;
-               end if;
-            end;
-
-            Virtual_Block_Device.Drop_Completed_Primitive (Obj.VBD);
-
-            Progress := True;
-         end if;
-      end if;
-   end Obtain_Client_Data_2;
 
    procedure Assign_Front_End_Req_Prim (
       Obj  : in out Object_Type;

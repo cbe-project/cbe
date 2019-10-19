@@ -45,7 +45,6 @@ class Cbe::Library : public Cbe::Spark_object<216648>
 
 		void _client_data_ready(Request &);
 		void _obtain_client_data(Request const &, Crypto_plain_buffer::Index &, bool &);
-		void _obtain_client_data_2(Request const &, Io_buffer &, Block_data &, bool &);
 		void _client_data_required(Request &);
 		void _supply_client_data(Time::Timestamp const, Request const &, Block_data const &, bool &);
 
@@ -213,15 +212,6 @@ class Cbe::Library : public Cbe::Spark_object<216648>
 	{
 		bool result = false;
 		_obtain_client_data(request, data_index, result);
-		return result;
-	}
-
-	bool obtain_client_data_2(Request const &request,
-	                          Io_buffer     &io_buf,
-	                          Block_data    &data)
-	{
-		bool result = false;
-		_obtain_client_data_2(request, io_buf, data, result);
 		return result;
 	}
 

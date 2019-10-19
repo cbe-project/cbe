@@ -166,20 +166,6 @@ is
       Data_Index_Valid := CXX_Bool_From_SPARK (SPARK_Data_Index_Valid);
    end Obtain_Client_Data;
 
-   procedure Obtain_Client_Data_2 (
-      Obj      : in out Library.Object_Type;
-      Req      :        CXX_Request_Type;
-      IO_Buf   : in out Block_IO.Data_Type;
-      Data     :    out Crypto.Plain_Data_Type;
-      Progress :    out CXX_Bool_Type)
-   is
-      SPARK_Progress : Boolean;
-   begin
-      Library.Obtain_Client_Data_2 (
-         Obj, CXX_Request_To_SPARK (Req), IO_Buf, Data, SPARK_Progress);
-      Progress := CXX_Bool_From_SPARK (SPARK_Progress);
-   end Obtain_Client_Data_2;
-
    procedure Client_Data_Required (
       Obj : in out Library.Object_Type;
       Req :    out CXX_Request_Type)

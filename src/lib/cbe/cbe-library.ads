@@ -172,13 +172,6 @@ is
       Data_Index       :    out Crypto.Plain_Buffer_Index_Type;
       Data_Index_Valid :    out Boolean);
 
-   procedure Obtain_Client_Data_2 (
-      Obj      : in out Object_Type;
-      Req      :        Request.Object_Type;
-      IO_Buf   : in out Block_IO.Data_Type;
-      Data     :    out Crypto.Plain_Data_Type;
-      Progress :    out Boolean);
-
    --
    --  Return a client request that provides data to the frontend block data
    --

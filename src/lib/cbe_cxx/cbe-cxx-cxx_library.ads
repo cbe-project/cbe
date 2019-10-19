@@ -182,19 +182,6 @@ is
          "_ZN3Cbe7Library19_obtain_client_dataERKNS_7RequestERNS_" &
          "19Crypto_plain_buffer5IndexERb";
 
-   procedure Obtain_Client_Data_2 (
-      Obj      : in out Library.Object_Type;
-      Req      :        CXX_Request_Type;
-      IO_Buf   : in out Block_IO.Data_Type;
-      Data     :    out Crypto.Plain_Data_Type;
-      Progress :    out CXX_Bool_Type)
-   with
-      Export,
-      Convention    => C,
-      External_Name =>
-         "_ZN3Cbe7Library21_obtain_client_data_2ERKNS_7RequestERNS_" &
-         "9Io_bufferERNS_10Block_dataERb";
-
    procedure Client_Data_Required (
       Obj : in out Library.Object_Type;
       Req :    out CXX_Request_Type)
