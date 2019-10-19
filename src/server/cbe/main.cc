@@ -405,8 +405,6 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 							if (data_index_valid) {
 								progress |= true;
 								data = _crypto_plain_buf.item(data_index);
-							} else {
-								progress |= _cbe->obtain_client_data_2(cbe_request, _io_buf, data);
 							}
 							log("\033[36m INF ", "obtain_client_data: ", cbe_request);
 						});
