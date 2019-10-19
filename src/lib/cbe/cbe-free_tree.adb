@@ -498,7 +498,7 @@ is
       Declare_End_Of_Tree :
       declare
          End_Of_Tree : constant Boolean :=
-            Primitive.Block_Number (Obj.Curr_Query_Prim) +
+            Obj.Curr_Query_VBA +
             Block_Number_Type (Tree_Helper.Degree (Obj.Trans_Helper)) >=
             Block_Number_Type (Tree_Helper.Leafs (Obj.Trans_Helper));
       begin
