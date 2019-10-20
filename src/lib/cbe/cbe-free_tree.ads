@@ -147,7 +147,7 @@ is
       Trans_Data       : in out Translation_Data_Type;
       Cach             : in out Cache.Object_Type;
       Cach_Data        : in out Cache.Cache_Data_Type;
-      Query_Data       :        Query_Data_Type;
+      Query_Data       : in out Query_Data_Type;
       Timestamp        :        Timestamp_Type);
 
    --
@@ -388,7 +388,7 @@ private
       Obj              : in out Object_Type;
       Active_Snaps     :        Snapshots_Type;
       Last_Secured_Gen :        Generation_Type;
-      Query_Data       :        Query_Data_Type);
+      Query_Data       : in out Query_Data_Type);
 
    procedure Execute_Update (
       Obj              : in out Object_Type;

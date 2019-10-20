@@ -8,6 +8,8 @@
 
 pragma Ada_2012;
 
+with Interfaces;
+
 package CBE
 with SPARK_Mode
 is
@@ -18,8 +20,9 @@ is
    Superblock_Nr_Of_Snapshots : constant := 48;
    Block_Size : constant := 4096;
 
+   type Block_Data_Index_Type is range 0 .. Block_Size - 1;
    type Block_Data_Type
-   is array (0 .. Block_Size - 1) of Byte_Type with Size => Block_Size * 8;
+   is array (Block_Data_Index_Type) of Byte_Type with Size => Block_Size * 8;
 
    type Translation_Data_Type
    is array (0 .. 0) of Block_Data_Type with Size => 1 * Block_Size * 8;
@@ -48,7 +51,8 @@ is
    type Key_ID_Storage_Type          is range 0 .. 2**32 - 1 with Size => 32;
    type Operation_Type               is (Read, Write, Sync);
 
-   type Hash_Type is array (1 .. 32) of Byte_Type with Size => 32 * 8;
+   type Hash_Index_Type is range 1 .. 32;
+   type Hash_Type is array (Hash_Index_Type) of Byte_Type with Size => 32 * 8;
 
    type Type_I_Node_Padding_Type is array (0 .. 15) of Byte_Type;
 
@@ -305,5 +309,102 @@ is
       Valid   : Boolean;
       Timeout : Timestamp_Type;
    end record;
+
+   procedure Block_Data_From_Type_II_Node_Block (
+      Data  : out Block_Data_Type;
+      Nodes :     Type_II_Node_Block_Type);
+
+   procedure Type_II_Node_Block_From_Block_Data (
+      Nodes : out Type_II_Node_Block_Type;
+      Data  :     Block_Data_Type);
+
+   procedure Block_Data_From_Type_I_Node_Block (
+      Data  : out Block_Data_Type;
+      Nodes :     Type_I_Node_Block_Type);
+
+   procedure Type_I_Node_Block_From_Block_Data (
+      Nodes : out Type_I_Node_Block_Type;
+      Data  :     Block_Data_Type);
+
+   procedure Block_Data_From_Superblock (
+      Data  : out Block_Data_Type;
+      SB    :     Superblock_Type);
+
+private
+
+   procedure Block_Data_From_Unsigned_64 (
+      Data : in out Block_Data_Type;
+      Off  :        Block_Data_Index_Type;
+      Int  :        Interfaces.Unsigned_64);
+
+   procedure Block_Data_From_Unsigned_32 (
+      Data : in out Block_Data_Type;
+      Off  :        Block_Data_Index_Type;
+      Int  :        Interfaces.Unsigned_32);
+
+   procedure Block_Data_From_Boolean (
+      Data : in out Block_Data_Type;
+      Off  :        Block_Data_Index_Type;
+      Bool :        Boolean);
+
+   procedure Block_Data_Zero_Fill (
+      Data : in out Block_Data_Type;
+      Off  :        Block_Data_Index_Type;
+      Size :        Block_Data_Index_Type);
+
+   procedure Block_Data_From_Hash (
+      Data   : in out Block_Data_Type;
+      Off_In :        Block_Data_Index_Type;
+      Hash   :        Hash_Type);
+
+   procedure Block_Data_From_Type_I_Node (
+      Data   : in out Block_Data_Type;
+      Off_In :        Block_Data_Index_Type;
+      Node   :        Type_I_Node_Type);
+
+   procedure Block_Data_From_Type_II_Node (
+      Data   : in out Block_Data_Type;
+      Off_In :        Block_Data_Index_Type;
+      Node   :        Type_II_Node_Type);
+
+   function Boolean_From_Block_Data (
+      Data : Block_Data_Type;
+      Off  : Block_Data_Index_Type)
+   return Boolean;
+
+   function Unsigned_32_From_Block_Data (
+      Data : Block_Data_Type;
+      Off  : Block_Data_Index_Type)
+   return Interfaces.Unsigned_32;
+
+   function Unsigned_64_From_Block_Data (
+      Data : Block_Data_Type;
+      Off  : Block_Data_Index_Type)
+   return Interfaces.Unsigned_64;
+
+   function Hash_From_Block_Data (
+      Data : Block_Data_Type;
+      Base : Block_Data_Index_Type)
+   return Hash_Type;
+
+   procedure Block_Data_From_Key (
+      Data     : in out Block_Data_Type;
+      Data_Off :        Block_Data_Index_Type;
+      Key      :        Key_Type);
+
+   procedure Block_Data_From_Snap (
+      Data     : in out Block_Data_Type;
+      Data_Off :        Block_Data_Index_Type;
+      Snap     :        Snapshot_Type);
+
+   procedure Block_Data_From_Keys (
+      Data     : in out Block_Data_Type;
+      Data_Off :        Block_Data_Index_Type;
+      Keys     :        Keys_Type);
+
+   procedure Block_Data_From_Snapshots (
+      Data     : in out Block_Data_Type;
+      Data_Off :        Block_Data_Index_Type;
+      Snaps    :        Snapshots_Type);
 
 end CBE;
