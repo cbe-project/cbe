@@ -756,13 +756,11 @@ is
                   Write_Back.Peek_Generated_Crypto_Data (
                      Obj.Write_Back_Obj, Prim);
 
-               Plain_Data : Crypto.Plain_Data_Type with Address =>
-                  Obj.Write_Back_Data (Plain_Data_Index)'Address;
-
                Data_Idx : Crypto.Item_Index_Type;
             begin
                Crypto.Submit_Primitive (Obj.Crypto_Obj, Prim, Data_Idx);
-               Crypto_Plain_Buf (Data_Idx) := Plain_Data;
+               Crypto_Plain_Buf (Data_Idx) :=
+                  Obj.Write_Back_Data (Plain_Data_Index);
 
             end Declare_Crypto_Data;
             Write_Back.Drop_Generated_Crypto_Primitive (
@@ -984,14 +982,14 @@ is
 
             Declare_SB_Data :
             declare
-               SB_Index : constant Superblocks_Index_Type :=
-                  Sync_Superblock.Peek_Generated_Index (Obj.Sync_SB_Obj, Prim);
-
-               SB_Data : Block_Data_Type with
-                  Address => Obj.Superblocks (SB_Index)'Address;
-
+               SB_Data : Block_Data_Type;
                Data_Idx : Block_IO.Data_Index_Type;
             begin
+               Block_Data_From_Superblock (
+                  SB_Data, Obj.Superblocks (
+                     Sync_Superblock.Peek_Generated_Index (
+                        Obj.Sync_SB_Obj, Prim)));
+
                Block_IO.Submit_Primitive (
                   Obj.IO_Obj, Tag_Sync_SB, Prim, Data_Idx);
 
@@ -1040,16 +1038,13 @@ is
                Index : constant Write_Back.Data_Index_Type :=
                   Write_Back.Peek_Generated_Crypto_Data (
                      Obj.Write_Back_Obj, Prim);
-
-               Cipher_Data : Crypto.Cipher_Data_Type with Address =>
-                  Obj.Write_Back_Data (Index)'Address;
             begin
                --
                --  FIXME instead of copying the Data just ask the crypto
                --        module for the resulting Hash and omit further
                --        processing in case the operation failed
                --
-               Cipher_Data := Crypto_Cipher_Buf (
+               Obj.Write_Back_Data (Index) := Crypto_Cipher_Buf (
                   Crypto.Data_Index (Obj.Crypto_Obj, Prim));
 
                Write_Back.Mark_Completed_Crypto_Primitive (
@@ -1161,9 +1156,6 @@ is
                   else
                      Declare_Data :
                      declare
-                        Cipher_Data : Crypto.Cipher_Data_Type with Address =>
-                           IO_Buf (Index)'Address;
-
                         Data_Idx : Crypto.Item_Index_Type;
                      begin
                         --
@@ -1181,7 +1173,7 @@ is
                                  Obj.IO_Obj, Prim)),
                               Data_Idx);
 
-                        Crypto_Cipher_Buf (Data_Idx) := Cipher_Data;
+                        Crypto_Cipher_Buf (Data_Idx) := IO_Buf (Index);
 
                      end Declare_Data;
                   end if;
@@ -1635,24 +1627,25 @@ is
                --  Use the old PBA to get the node's data from the cache and
                --  use it check how we have to handle the node.
                --
-               Declare_Cache_Idx :
+               Declare_Nodes :
                declare
                   PBA : constant Physical_Block_Address_Type :=
                      Old_PBAs (Natural (I)).PBA;
 
-                  Idx : Cache.Cache_Index_Type;
+                  Cache_Idx : Cache.Cache_Index_Type;
+                  Nodes : Type_I_Node_Block_Type;
                begin
-                  Cache.Data_Index (Obj.Cache_Obj, PBA, Now, Idx);
+                  Cache.Data_Index (Obj.Cache_Obj, PBA, Now, Cache_Idx);
+                  Type_I_Node_Block_From_Block_Data (
+                     Nodes, Obj.Cache_Data (Cache_Idx));
 
                   Declare_Generation :
                   declare
-                     ID : constant Tree_Child_Index_Type :=
+                     Child_Idx : constant Tree_Child_Index_Type :=
                         Virtual_Block_Device.Index_For_Level (Obj.VBD, VBA, I);
 
-                     Node : Type_I_Node_Block_Type
-                     with Address => Obj.Cache_Data (Idx)'Address;
-
-                     Gen : constant Generation_Type := Node (Natural (ID)).Gen;
+                     Gen : constant Generation_Type :=
+                        Nodes (Natural (Child_Idx)).Gen;
                   begin
                      --
                      --  In case the generation of the entry is the same as the
@@ -1679,7 +1672,7 @@ is
                         New_Blocks  := New_Blocks  + 1;
                      end if;
                   end Declare_Generation;
-               end Declare_Cache_Idx;
+               end Declare_Nodes;
             end loop;
 
             --  check root node

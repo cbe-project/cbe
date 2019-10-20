@@ -14,6 +14,42 @@ with CBE.Request;
 package body CBE.Free_Tree
 with SPARK_Mode
 is
+   procedure CBE_Hash_From_SHA256_4K_Hash (
+      CBE_Hash : out Hash_Type;
+      SHA_Hash :     SHA256_4K.Hash_Type);
+
+   procedure SHA256_4K_Data_From_CBE_Data (
+      SHA_Data : out SHA256_4K.Data_Type;
+      CBE_Data :     Block_Data_Type);
+
+   procedure CBE_Hash_From_SHA256_4K_Hash (
+      CBE_Hash : out Hash_Type;
+      SHA_Hash :     SHA256_4K.Hash_Type)
+   is
+      SHA_Idx : SHA256_4K.Hash_Index_Type := SHA256_4K.Hash_Index_Type'First;
+   begin
+      for CBE_Idx in CBE_Hash'Range loop
+         CBE_Hash (CBE_Idx) := Byte_Type (SHA_Hash (SHA_Idx));
+         if CBE_Idx < CBE_Hash'Last then
+            SHA_Idx := SHA_Idx + 1;
+         end if;
+      end loop;
+   end CBE_Hash_From_SHA256_4K_Hash;
+
+   procedure SHA256_4K_Data_From_CBE_Data (
+      SHA_Data : out SHA256_4K.Data_Type;
+      CBE_Data :     Block_Data_Type)
+   is
+      CBE_Idx : Block_Data_Index_Type := Block_Data_Index_Type'First;
+   begin
+      for SHA_Idx in SHA_Data'Range loop
+         SHA_Data (SHA_Idx) := SHA256_4K.Byte (CBE_Data (CBE_Idx));
+         if SHA_Idx < SHA_Data'Last then
+            CBE_Idx := CBE_Idx + 1;
+         end if;
+      end loop;
+   end SHA256_4K_Data_From_CBE_Data;
+
    procedure Initialize_Object (
       Obj     : out Object_Type;
       Rt_PBA  :     Physical_Block_Address_Type;
@@ -349,7 +385,7 @@ is
       Obj              : in out Object_Type;
       Active_Snaps     :        Snapshots_Type;
       Last_Secured_Gen :        Generation_Type;
-      Query_Data       :        Query_Data_Type)
+      Query_Data       : in out Query_Data_Type)
    is
    begin
       --
@@ -364,10 +400,10 @@ is
       --
       Declare_Nodes_1 :
       declare
-         Nodes : Type_II_Node_Block_Type
-         with Address => Query_Data (0)'Address;
+         Nodes : Type_II_Node_Block_Type;
          Found_New_Free_Blocks : Boolean := False;
       begin
+         Type_II_Node_Block_From_Block_Data (Nodes, Query_Data (0));
 
          For_Type_2_Nodes :
          for Node_Index in Nodes'Range loop
@@ -447,6 +483,8 @@ is
          if Found_New_Free_Blocks then
             Obj.Curr_Query_Branch := Obj.Curr_Query_Branch + 1;
          end if;
+
+         Block_Data_From_Type_II_Node_Block (Query_Data (0), Nodes);
       end Declare_Nodes_1;
 
       --
@@ -558,36 +596,45 @@ is
 
       Pre_Data_Index : Cache.Cache_Index_Type;
       SHA_Hash       : SHA256_4K.Hash_Type;
-      CBE_Hash       : Hash_Type with Address => SHA_Hash'Address;
 
-      Nodes : Type_I_Node_Block_Type
-      with Address => Cach_Data (Data_Index)'Address;
+      Nodes : Type_I_Node_Block_Type;
    begin
+      Type_I_Node_Block_From_Block_Data (Nodes, Cach_Data (Data_Index));
       Cache.Data_Index (Cach, Pre_PBA, Timestamp, Pre_Data_Index);
       Declare_Pre_Hash_Data :
       declare
-         Pre_Hash_Data : SHA256_4K.Data_Type
-         with Address => Cach_Data (Pre_Data_Index)'Address;
+         Pre_Hash_Data : SHA256_4K.Data_Type;
       begin
+         SHA256_4K_Data_From_CBE_Data (
+            Pre_Hash_Data, Cach_Data (Pre_Data_Index));
          SHA256_4K.Hash (Pre_Hash_Data, SHA_Hash);
       end Declare_Pre_Hash_Data;
 
       For_Nodes :
       for Node_Index in 0 .. Tree_Helper.Degree (Obj.Trans_Helper) - 1 loop
          if Nodes (Natural (Node_Index)).PBA = Pre_PBA then
-            Nodes (Natural (Node_Index)).Hash := CBE_Hash;
+            Declare_CBE_Hash_1 :
+            declare
+               CBE_Hash : Hash_Type;
+            begin
+               CBE_Hash_From_SHA256_4K_Hash (CBE_Hash, SHA_Hash);
+               Nodes (Natural (Node_Index)).Hash := CBE_Hash;
+            end Declare_CBE_Hash_1;
          end if;
       end loop For_Nodes;
+      Block_Data_From_Type_I_Node_Block (Cach_Data (Data_Index), Nodes);
 
       --  for now the root node is a special case
       if Tree_Level = Tree_Helper.Height (Obj.Trans_Helper) then
 
          Declare_Hash_Data :
          declare
-            Hash_Data : SHA256_4K.Data_Type with Address =>
-               Cach_Data (Data_Index)'Address;
+            Hash_Data : SHA256_4K.Data_Type;
+            CBE_Hash : Hash_Type;
          begin
+            SHA256_4K_Data_From_CBE_Data (Hash_Data, Cach_Data (Data_Index));
             SHA256_4K.Hash (Hash_Data, SHA_Hash);
+            CBE_Hash_From_SHA256_4K_Hash (CBE_Hash, SHA_Hash);
             Obj.Root_Hash := CBE_Hash;
          end Declare_Hash_Data;
       end if;
@@ -598,9 +645,9 @@ is
       Cach_Data  : in out Cache.Cache_Data_Type;
       Data_Index :        Cache.Cache_Index_Type)
    is
-      Nodes : Type_II_Node_Block_Type
-      with Address => Cach_Data (Data_Index)'Address;
+      Nodes : Type_II_Node_Block_Type;
    begin
+      Type_II_Node_Block_From_Block_Data (Nodes, Cach_Data (Data_Index));
 
       For_Nodes :
       for Node_Index in 0 .. Tree_Helper.Degree (Obj.Trans_Helper) - 1 loop
@@ -625,6 +672,7 @@ is
             end if;
          end loop For_Tree_Levels;
       end loop For_Nodes;
+      Block_Data_From_Type_II_Node_Block (Cach_Data (Data_Index), Nodes);
    end Exchange_PBA_In_T2_Node_Entries;
 
    procedure Execute_Update (
@@ -808,7 +856,7 @@ is
       Trans_Data       : in out Translation_Data_Type;
       Cach             : in out Cache.Object_Type;
       Cach_Data        : in out Cache.Cache_Data_Type;
-      Query_Data       :        Query_Data_Type;
+      Query_Data       : in out Query_Data_Type;
       Timestamp        :        Timestamp_Type)
    is
    begin

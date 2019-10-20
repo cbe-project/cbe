@@ -16,6 +16,42 @@ use  Interfaces;
 package body CBE.Translation
 with SPARK_Mode
 is
+   procedure CBE_Hash_From_SHA256_4K_Hash (
+      CBE_Hash : out Hash_Type;
+      SHA_Hash :     SHA256_4K.Hash_Type);
+
+   procedure SHA256_4K_Data_From_CBE_Data (
+      SHA_Data : out SHA256_4K.Data_Type;
+      CBE_Data :     Block_Data_Type);
+
+   procedure CBE_Hash_From_SHA256_4K_Hash (
+      CBE_Hash : out Hash_Type;
+      SHA_Hash :     SHA256_4K.Hash_Type)
+   is
+      SHA_Idx : SHA256_4K.Hash_Index_Type := SHA256_4K.Hash_Index_Type'First;
+   begin
+      for CBE_Idx in CBE_Hash'Range loop
+         CBE_Hash (CBE_Idx) := Byte_Type (SHA_Hash (SHA_Idx));
+         if CBE_Idx < CBE_Hash'Last then
+            SHA_Idx := SHA_Idx + 1;
+         end if;
+      end loop;
+   end CBE_Hash_From_SHA256_4K_Hash;
+
+   procedure SHA256_4K_Data_From_CBE_Data (
+      SHA_Data : out SHA256_4K.Data_Type;
+      CBE_Data :     Block_Data_Type)
+   is
+      CBE_Idx : Block_Data_Index_Type := Block_Data_Index_Type'First;
+   begin
+      for SHA_Idx in SHA_Data'Range loop
+         SHA_Data (SHA_Idx) := SHA256_4K.Byte (CBE_Data (CBE_Idx));
+         if SHA_Idx < SHA_Data'Last then
+            CBE_Idx := CBE_Idx + 1;
+         end if;
+      end loop;
+   end SHA256_4K_Data_From_CBE_Data;
+
    --
    --  Initialize_Object
    --
@@ -163,11 +199,13 @@ is
       --  check hash
       Declare_SHA_Args :
       declare
-         SHA_Data : SHA256_4K.Data_Type with Address => Trans_Data (0)'Address;
+         SHA_Data : SHA256_4K.Data_Type;
          SHA_Hash : SHA256_4K.Hash_Type;
-         CBE_Hash : Hash_Type with Address => SHA_Hash'Address;
+         CBE_Hash : Hash_Type;
       begin
+         SHA256_4K_Data_From_CBE_Data (SHA_Data, Trans_Data (0));
          SHA256_4K.Hash (SHA_Data, SHA_Hash);
+         CBE_Hash_From_SHA256_4K_Hash (CBE_Hash, SHA_Hash);
          if CBE_Hash /= Obj.Walk (Natural (Obj.Level)).Hash then
             raise Program_Error;
          end if;
@@ -319,9 +357,10 @@ is
       Index : Tree_Child_Index_Type)
    return Type_I_Node_Type
    is
-      Node_Block : Type_I_Node_Block_Type with Address => Data'Address;
+      Nodes : Type_I_Node_Block_Type;
    begin
-      return Node_Block (Natural (Index));
+      Type_I_Node_Block_From_Block_Data (Nodes, Data);
+      return Nodes (Natural (Index));
    end Get_Node;
 
    --
