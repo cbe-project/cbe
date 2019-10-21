@@ -283,23 +283,28 @@ class Cbe::Vbd
 		                         uint64_t                          &leafs)
 		{
 			bool finished { false };
-			Type_i_node *parent_node {
-				reinterpret_cast<Cbe::Type_i_node*>(blk_alloc.data(parent)) };
+			try {
+				Type_i_node *parent_node {
+					reinterpret_cast<Cbe::Type_i_node*>(blk_alloc.data(parent)) };
 
-			for (uint32_t id = 0; id < degree; id++) {
+				for (uint32_t id = 0; id < degree; id++) {
 
-				xml.node("node", [&] () {
-					xml.attribute("type", 3u);
-					xml.attribute("id",   id);
-					xml.attribute("pba",  parent_node[id].pba);
-					xml.attribute("gen",  parent_node[id].gen);
-					xml.attribute("vba",  leafs);
-					xml.attribute("hash", Hash::String(parent_node[id].hash));
-				});
-				if ((++leafs) >= max_leafs) {
-					finished = true;
-					break;
+					xml.node("node", [&] () {
+						xml.attribute("type", 3u);
+						xml.attribute("id",   id);
+						xml.attribute("pba",  parent_node[id].pba);
+						xml.attribute("gen",  parent_node[id].gen);
+						xml.attribute("vba",  leafs);
+						xml.attribute("hash", Hash::String(parent_node[id].hash));
+					});
+					if ((++leafs) >= max_leafs) {
+						finished = true;
+						break;
+					}
 				}
+			} catch (Block_allocator::Invalid_physical_block_address) {
+				Genode::error(__func__, ":", __LINE__, " parent: ", parent);
+				throw;
 			}
 			return finished;
 		}
@@ -312,25 +317,31 @@ class Cbe::Vbd
 		                         uint64_t                          &leafs)
 		{
 			bool finished { false };
-			Type_ii_node *parent_node {
-				reinterpret_cast<Cbe::Type_ii_node*>(blk_alloc.data(parent)) };
 
-			for (uint32_t id = 0; id < degree; id++) {
+			try {
+				Type_ii_node *parent_node {
+					reinterpret_cast<Cbe::Type_ii_node*>(blk_alloc.data(parent)) };
 
-				xml.node("node", [&] () {
-					xml.attribute("type", 4u);
-					xml.attribute("id",   id);
-					xml.attribute("reserved",    parent_node[id].reserved);
-					xml.attribute("pba",         parent_node[id].pba);
-					xml.attribute("alloc_gen",   parent_node[id].alloc_gen);
-					xml.attribute("free_gen",    parent_node[id].free_gen);
-					xml.attribute("last_vba",    parent_node[id].last_vba);
-					xml.attribute("last_key_id", parent_node[id].last_key_id.value);
-				});
-				if ((++leafs) >= max_leafs) {
-					finished = true;
-					break;
+				for (uint32_t id = 0; id < degree; id++) {
+
+					xml.node("node", [&] () {
+						xml.attribute("type", 4u);
+						xml.attribute("id",   id);
+						xml.attribute("reserved",    parent_node[id].reserved);
+						xml.attribute("pba",         parent_node[id].pba);
+						xml.attribute("alloc_gen",   parent_node[id].alloc_gen);
+						xml.attribute("free_gen",    parent_node[id].free_gen);
+						xml.attribute("last_vba",    parent_node[id].last_vba);
+						xml.attribute("last_key_id", parent_node[id].last_key_id.value);
+					});
+					if ((++leafs) >= max_leafs) {
+						finished = true;
+						break;
+					}
 				}
+			} catch (Block_allocator::Invalid_physical_block_address) {
+				Genode::error(__func__, ":", __LINE__, " parent: ", parent);
+				throw;
 			}
 			return finished;
 		}
@@ -378,24 +389,29 @@ class Cbe::Vbd
 				return finished;
 			}
 
-			Cbe::Type_i_node *node {
-				reinterpret_cast<Cbe::Type_i_node*>(blk_alloc.data(parent)) };
+			try {
+				Cbe::Type_i_node *node {
+					reinterpret_cast<Cbe::Type_i_node*>(blk_alloc.data(parent)) };
 
-			bool const do_leafs = (height == 1);
-			for (uint32_t id = 0; id < degree && !finished; id++) {
+				bool const do_leafs = (height == 1);
+				for (uint32_t id = 0; id < degree && !finished; id++) {
 
-				xml.node("node", [&] () {
-					xml.attribute("type", 1u);
-					xml.attribute("id",   id);
-					xml.attribute("pba",  node[id].pba);
-					xml.attribute("gen",  node[id].gen);
-					xml.attribute("hash", Hash::String(node[id].hash));
+					xml.node("node", [&] () {
+						xml.attribute("type", 1u);
+						xml.attribute("id",   id);
+						xml.attribute("pba",  node[id].pba);
+						xml.attribute("gen",  node[id].gen);
+						xml.attribute("hash", Hash::String(node[id].hash));
 
-					finished = do_leafs ? _report_leaf(xml, degree, max_leafs, node[id].pba,
-					                                  blk_alloc, leafs, free_tree)
-					                    : _report_i_node(xml, degree, max_leafs, node[id].pba,
-					                                     blk_alloc, height, leafs, free_tree);
-				});
+						finished = do_leafs ? _report_leaf(xml, degree, max_leafs, node[id].pba,
+														  blk_alloc, leafs, free_tree)
+											: _report_i_node(xml, degree, max_leafs, node[id].pba,
+															 blk_alloc, height, leafs, free_tree);
+					});
+				}
+			} catch (Block_allocator::Invalid_physical_block_address) {
+				Genode::error(__func__, ":", __LINE__, " parent: ", parent);
+				throw;
 			}
 			return finished;
 		}
@@ -408,60 +424,69 @@ class Cbe::Vbd
 		                         uint64_t               curr_sb_id,
 		                         Block_allocator       &blk_alloc)
 		{
-			/* get reference to super-block */
-			Cbe::Superblock const &sb {
-				*reinterpret_cast<Cbe::Superblock const*>(blk_alloc.data(sb_id)) };
+			try {
+				/* get reference to super-block */
+				Cbe::Superblock const &sb {
+					*reinterpret_cast<Cbe::Superblock const*>(blk_alloc.data(sb_id)) };
 
-			/* add super-block tag */
-			xml.node("super-block", [&] () {
-				xml.attribute("id",          sb_id);
-				xml.attribute("is_current",  sb_id == curr_sb_id);
-				xml.attribute("generation",  sb.last_secured_generation);
-				xml.attribute("snapshot_id", sb.snapshot_id);
-				xml.attribute("degree",      sb.degree);
-				xml.attribute("free-number", sb.free_number);
-				xml.attribute("free-leafs",  sb.free_leaves);
-				xml.attribute("free-height", sb.free_height);
+				/* add super-block tag */
+				xml.node("super-block", [&] () {
+					xml.attribute("id",          sb_id);
+					xml.attribute("is_current",  sb_id == curr_sb_id);
+					xml.attribute("generation",  sb.last_secured_generation);
+					xml.attribute("snapshot_id", sb.snapshot_id);
+					xml.attribute("degree",      sb.degree);
+					xml.attribute("free-number", sb.free_number);
+					xml.attribute("free-leafs",  sb.free_leaves);
+					xml.attribute("free-height", sb.free_height);
 
-				if (sb_id != curr_sb_id) { return; }
+					if (sb_id != curr_sb_id) { return; }
 
-				/* skip sub-nodes for invalid super blocks */
-				if (!sb.valid()) { return; }
+					/* skip sub-nodes for invalid super blocks */
+					if (!sb.valid()) { return; }
 
-				for (uint32_t j = 0; j < Cbe::NUM_SNAPSHOTS; j++) {
+					for (uint32_t j = 0; j < Cbe::NUM_SNAPSHOTS; j++) {
 
-					Snapshot const &snap = sb.snapshots[j];
+						Snapshot const &snap = sb.snapshots[j];
 
-					if (!snap.valid() || snap.height == 0) { continue; }
+						if (!snap.valid() || snap.height == 0) { continue; }
 
-					/* report information about sub-nodes */
+						try {
+							/* report information about sub-nodes */
+							uint64_t leafs = 0;
+							xml.node("snapshot", [&] () {
+								xml.attribute("id",     snap.id);
+								xml.attribute("gen",    snap.gen);
+								xml.attribute("valid",  snap.valid());
+								xml.attribute("pba",    snap.pba);
+								xml.attribute("height", snap.height);
+								xml.attribute("leafs",  snap.leaves);
+								xml.attribute("hash",   Hash::String(snap.hash));
+								// xml.attribute("type", 1U);
+
+								_report_i_node(xml, sb.degree, snap.leaves, snap.pba,
+								               _tree.block_allocator(), snap.height,
+								               leafs, false);
+							});
+						} catch (Block_allocator::Invalid_physical_block_address) {
+							Genode::error(__func__, ":", __LINE__,
+						                  " sb_id: ", sb_id, " snap[", j, "]: ", snap.id);
+						}
+					}
+
 					uint64_t leafs = 0;
-					xml.node("snapshot", [&] () {
-						xml.attribute("id",     snap.id);
-						xml.attribute("valid",  snap.valid());
-						xml.attribute("gen",    snap.gen);
-						xml.attribute("pba",    snap.pba);
-						xml.attribute("height", snap.height);
-						xml.attribute("leafs",  snap.leaves);
-						xml.attribute("hash",   Hash::String(snap.hash));
-						// xml.attribute("type", 1U);
-
-						_report_i_node(xml, sb.degree, snap.leaves, snap.pba,
-						               _tree.block_allocator(), snap.height,
-						               leafs, false);
+					xml.node("free-list", [&] () {
+						xml.attribute("pba", sb.free_number);
+						xml.attribute("type", 1U);
+						xml.attribute("hash", Hash::String(sb.free_hash));
+						_report_i_node(xml, sb.free_degree, sb.free_leaves, sb.free_number,
+						               _free_tree.block_allocator(),
+						               sb.free_height, leafs, true);
 					});
-				}
-
-				uint64_t leafs = 0;
-				xml.node("free-list", [&] () {
-					xml.attribute("pba", sb.free_number);
-					xml.attribute("type", 1U);
-					xml.attribute("hash", Hash::String(sb.free_hash));
-					_report_i_node(xml, sb.free_degree, sb.free_leaves, sb.free_number,
-					               _free_tree.block_allocator(),
-					               sb.free_height, leafs, true);
 				});
-			});
+			} catch (Block_allocator::Invalid_physical_block_address) {
+				Genode::error(__func__, ":", __LINE__, " sb_id: ", sb_id);
+			}
 		}
 
 		/**
