@@ -104,6 +104,22 @@ is
    is (Items => (others => Item.Invalid_Item));
 
    --
+   --  Active
+   --
+   function Active (Obj : Object_Type)
+   return Boolean
+   is
+   begin
+      for Item_Id in Obj.Items'Range loop
+         if not Item.Invalid (Obj.Items (Item_Id)) then
+            return True;
+         end if;
+      end loop;
+
+      return False;
+   end Active;
+
+   --
    --  Request_Acceptable
    --
    function Request_Acceptable (Obj : Object_Type)
