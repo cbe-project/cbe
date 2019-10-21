@@ -824,7 +824,7 @@ class Cbe::Vbd
 			_verbose { verbose }
 		{
 			try {
-				_reporter.construct(_env, "state", "state");
+				_reporter.construct(_env, "state", "state", 64u<<20);
 			} catch (...) {
 				warning("no state reporting, cannot construct reporter");
 			}
