@@ -39,6 +39,12 @@ is
    return Object_Type;
 
    --
+   --  Active
+   --
+   function Active (Obj : Object_Type)
+   return Boolean;
+
+   --
    --  Request_Acceptable
    --
    function Request_Acceptable (Obj : Object_Type)
