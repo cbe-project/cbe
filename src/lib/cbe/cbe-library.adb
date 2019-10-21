@@ -191,6 +191,7 @@ is
       end Declare_Tree;
 
       Obj.Last_Snapshot_ID := Snap_ID;
+      Obj.Superblocks (Obj.Cur_SB).Snapshots (Snap).Valid := 1;
       Obj.Superblocks (Obj.Cur_SB).Curr_Snap :=
          Snapshots_Index_Storage_Type (Snap);
    end Create_New_Snapshot;
