@@ -252,11 +252,8 @@ is
       PBA : constant Physical_Block_Address_Type :=
          Write_Back.Peek_Completed_Root (WB, Prim);
    begin
-      --  FIXME why do we need that again?
-      if Snap.PBA /= PBA then
-         Snap.Gen := Curr_Gen;
-         Snap.PBA := PBA;
-      end if;
+      Snap.Gen := Curr_Gen;
+      Snap.PBA := PBA;
       Write_Back.Peek_Completed_Root_Hash (WB, Prim, Snap.Hash);
    end Update_Snapshot_Hash;
 
