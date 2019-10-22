@@ -718,6 +718,7 @@ is
                   --  seal timeout again.
                   --
                   Create_New_Snapshot (Obj, Next_Snap, Prim);
+                  Obj.Secure_Superblock := True;
                end Declare_Next_Snap;
 
                Obj.Cur_Gen         := Obj.Cur_Gen  + 1;
