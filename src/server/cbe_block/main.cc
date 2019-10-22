@@ -1216,7 +1216,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					return Block_session_component::Response::ACCEPTED;
 				});
 
-				_mmu->execute();
+				progress |= _mmu->execute();
 
 				/*
 				 * Acknowledge finished requests.
