@@ -133,7 +133,13 @@ is
       Obj.Free_Tree_Trans_Data    := (others => (others => 0));
       Obj.Free_Tree_Query_Data    := (others => (others => 0));
       Obj.Superblocks             := SBs;
-      Obj.Cur_SB                  := Curr_SB;
+      Obj.Cur_SB                  := (
+         if Curr_SB < Superblocks_Index_Type'Last then
+            Curr_SB + 1
+         else
+            Superblocks_Index_Type'First);
+      Obj.Superblocks (Obj.Cur_SB) := Obj.Superblocks (Curr_SB);
+
       Obj.Cur_Gen                 := SBs (Curr_SB).Last_Secured_Generation + 1;
       Obj.Last_Secured_Generation := SBs (Curr_SB).Last_Secured_Generation;
       Obj.Last_Snapshot_ID        :=
@@ -144,12 +150,53 @@ is
       Obj.Superblock_Dirty        := False;
       Obj.Wait_For_Front_End      := Wait_For_Event_Invalid;
       Obj.Wait_For_Back_End       := Wait_For_Event_Invalid;
+      declare
+         Next_Snap : constant Snapshots_Index_Type :=
+            Next_Snap_Slot (Obj);
+      begin
+         Obj.Superblocks (Obj.Cur_SB).Snapshots (Next_Snap) :=
+            Obj.Superblocks (Obj.Cur_SB).Snapshots (
+               Snapshots_Index_Type (Obj.Superblocks (Obj.Cur_SB).Curr_Snap));
+         --
+         --  Clear flags to prevent creating a quarantine snapshot
+         --  unintentionally.
+         --
+         Obj.Superblocks (Obj.Cur_SB).Snapshots (Next_Snap).Flags := 0;
+
+         Obj.Superblocks (Obj.Cur_SB).Curr_Snap :=
+            Snapshots_Index_Storage_Type (Next_Snap);
+      end;
 
    end Initialize_Object;
 
    function Curr_Snap (Obj : Object_Type)
    return Snapshots_Index_Type
    is (Snapshots_Index_Type (Obj.Superblocks (Obj.Cur_SB).Curr_Snap));
+
+   function Next_Snap_Slot (Obj : Object_Type)
+   return Snapshots_Index_Type
+   is
+         Next_Snap : Snapshots_Index_Type := Curr_Snap (Obj);
+   begin
+      Loop_Snap_Slots :
+      for Idx in Snapshots_Index_Type loop
+         Next_Snap := (
+            if Next_Snap < Snapshots_Index_Type'Last then
+               Next_Snap + 1
+            else
+               Snapshots_Index_Type'First);
+
+         exit Loop_Snap_Slots when
+            not Snapshot_Valid (Obj.Superblocks (Obj.Cur_SB).
+               Snapshots (Next_Snap)) or else
+            not Snapshot_Keep (Obj.Superblocks (Obj.Cur_SB).
+               Snapshots (Next_Snap));
+      end loop Loop_Snap_Slots;
+      if Next_Snap = Curr_Snap (Obj) then
+         raise Program_Error;
+      end if;
+      return Next_Snap;
+   end Next_Snap_Slot;
 
    function Max_VBA (Obj : Object_Type)
    return Virtual_Block_Address_Type
@@ -664,25 +711,9 @@ is
                --
                Declare_Next_Snap :
                declare
-                  Next_Snap : Snapshots_Index_Type := Curr_Snap (Obj);
+                  Next_Snap : constant Snapshots_Index_Type :=
+                     Next_Snap_Slot (Obj);
                begin
-                  For_Snapshots :
-                  for Idx in Snapshots_Index_Type loop
-                     Next_Snap := (
-                        if Next_Snap < Snapshots_Index_Type'Last then
-                           Next_Snap + 1
-                        else
-                           Snapshots_Index_Type'First);
-
-                     exit For_Snapshots when
-                        not Snapshot_Valid (Obj.Superblocks (Obj.Cur_SB).
-                           Snapshots (Next_Snap)) or else
-                        not Snapshot_Keep (Obj.Superblocks (Obj.Cur_SB).
-                           Snapshots (Next_Snap));
-                  end loop For_Snapshots;
-                  if Next_Snap = Curr_Snap (Obj) then
-                     raise Program_Error;
-                  end if;
 
                   --
                   --  Creating a new snapshot only involves storing its
