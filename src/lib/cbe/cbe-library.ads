@@ -374,6 +374,9 @@ private
    function Curr_Snap (Obj : Object_Type)
    return Snapshots_Index_Type;
 
+   function Next_Snap_Slot (Obj : Object_Type)
+   return Snapshots_Index_Type;
+
    procedure Create_New_Snapshot (
       Obj  : in out Object_Type;
       Snap :        Snapshots_Index_Type;
