@@ -64,4 +64,18 @@ is
       To_String (Uint64_Type (Blk (5))) & ", " &
       "...)");
 
+   function To_String (H : Hash_Type)
+   return String
+   is (
+      "HASH (" &
+      To_String (Uint64_Type (H (1))) & "," &
+      To_String (Uint64_Type (H (2))) & "," &
+      To_String (Uint64_Type (H (3))) & "," &
+      To_String (Uint64_Type (H (4))) & "," &
+      To_String (Uint64_Type (H (5))) & "," &
+      To_String (Uint64_Type (H (6))) & "," &
+      To_String (Uint64_Type (H (7))) & "," &
+      To_String (Uint64_Type (H (8))) & "," &
+      "...)");
+
 end CBE.Debug;

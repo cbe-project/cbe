@@ -69,6 +69,9 @@ is
    function To_String (Blk : Block_Data_Type)
    return String;
 
+   function To_String (H : Hash_Type)
+   return String;
+
    function Image (Int : Uint64_Type)
    return String;
 
