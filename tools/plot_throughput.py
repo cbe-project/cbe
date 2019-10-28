@@ -61,7 +61,7 @@ def plot(source: str) -> None:
     ax_thr.set_ylim(bottom=0, top=max(avg_reqs) * 1.1)
     ax_thr.legend(loc='best')
 
-    save_figure(fig_thr, 'throughput.png')
+    save_figure(fig_thr, f'throughput_{source}.png')
     ax_thr.clear()
 
 def get_axis_limits(ax, scale=.9):
@@ -74,4 +74,5 @@ def save_figure(fig: matplotlib.figure.Figure, name: str) -> None:
     print(f' ({time() - t_start:.2f} s)')
 
 if __name__ == '__main__':
-    plot(sys.argv[1])
+    for f in sys.argv[1:]:
+        plot(f)
