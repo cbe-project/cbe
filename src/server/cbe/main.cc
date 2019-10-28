@@ -173,7 +173,12 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Attached_rom_dataspace _config_rom { _env, "config" };
 
 		bool _show_progress    { false };
-		bool _show_if_progress { true };
+		bool _show_if_progress { false };
+
+#define LOGIF(...) \
+	do { \
+		if (_show_if_progress) { Genode::log(__VA_ARGS__); } \
+	} while (0)
 
 		Constructible<Attached_ram_dataspace>  _block_ds { };
 		Constructible<Block_session_component> _block_session { };
@@ -219,9 +224,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 				bool progress = false;
 
-				if (_show_if_progress) {
-					Genode::log("\033[33m", ">>> loop_count: ", ++_loop_count);
-				}
+				LOGIF("\033[33m", ">>> loop_count: ", ++_loop_count);
 
 				/*
 				 * Import new Block session requests and convert them to
@@ -252,7 +255,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					_cbe->submit_client_request(req, 0);
 
 					if (_show_progress || _show_if_progress) {
-						log("\033[35m", "> NEW request: ", req);
+						LOGIF("\033[35m", "> NEW request: ", req);
 					}
 
 					progress |= true;
@@ -274,7 +277,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					ack.submit(request);
 
 					if (_show_progress || _show_if_progress) {
-						Genode::log("\033[35m", "< ACK request: ", req);
+						LOGIF("\033[35m", "< ACK request: ", req);
 					}
 
 					progress |= true;
@@ -296,19 +299,19 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				if (now - _last_sync_time >= _sync_interval && !_creating_snapshot_id)
 				{
 					_creating_snapshot_id = _cbe->create_snapshot(false);
-					log("\033[36;1m INF ", "CREATING SNAPSHOT: ",
+					LOGIF("\033[36;1m INF ", "CREATING SNAPSHOT: ",
 					    _creating_snapshot_id);
 				}
 
 				if (_creating_snapshot_id) {
 					if (_cbe->snapshot_creation_complete(_creating_snapshot_id)) {
-						log("\033[36;1m INF ", "CREATING SNAPSHOT: ",
+						LOGIF("\033[36;1m INF ", "CREATING SNAPSHOT: ",
 						    _creating_snapshot_id, " FINISHED");
 						_creating_snapshot_id = 0;
 						_last_sync_time = now;
 						_time.schedule_sync_timeout(_sync_interval);
 					} else {
-						log("\033[36;1m INF ", "CREATING SNAPSHOT: ",
+						LOGIF("\033[36;1m INF ", "CREATING SNAPSHOT: ",
 						    _creating_snapshot_id, " PENDING");
 					}
 				}
@@ -328,7 +331,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					/* read */
 					{
 						Cbe::Request const cbe_request = _cbe->client_data_ready();
-						log("\033[36m INF ", "client_data_ready: ", cbe_request);
+						LOGIF("\033[36m INF ", "client_data_ready: ", cbe_request);
 						if (!cbe_request.valid()) { return; }
 
 						uint64_t const prim_index = _cbe->client_data_index(cbe_request);
@@ -352,7 +355,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 								progress |= true;
 								data = _crypto_plain_buf.item(data_index);
 							}
-							log("\033[36m INF ", "obtain_client_data: ", cbe_request);
+							LOGIF("\033[36m INF ", "obtain_client_data: ", cbe_request);
 						});
 					}
 				});
@@ -362,7 +365,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					/* write */
 					{
 						Cbe::Request const cbe_request = _cbe->client_data_required();
-						log("\033[36m INF ", "client_data_required: ", cbe_request);
+						LOGIF("\033[36m INF ", "client_data_required: ", cbe_request);
 						if (!cbe_request.valid()) { return; }
 
 						uint64_t const prim_index = _cbe->client_data_index(cbe_request);
@@ -379,7 +382,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 
 							Cbe::Block_data &data = *reinterpret_cast<Cbe::Block_data*>(addr);
 							progress |= _cbe->supply_client_data(_time.timestamp(), cbe_request, data);
-							log("\033[36m INF ", "supply_client_data: ", cbe_request);
+							LOGIF("\033[36m INF ", "supply_client_data: ", cbe_request);
 						});
 					}
 				});
@@ -399,7 +402,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					Io_buffer::Index data_index { 0 };
 					Cbe::Request request = _cbe->has_io_request(data_index);
 
-					log("\033[36m INF ", "has_io_request: ", request);
+					LOGIF("\033[36m INF ", "has_io_request: ", request);
 					if (!request.valid()) {
 						break;
 					}
@@ -431,7 +434,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 						_block.tx()->try_submit_packet(packet);
 						_backend_request = request;
 
-						log("\033[36m INF ", "io_request_in_progress: ", request);
+						LOGIF("\033[36m INF ", "io_request_in_progress: ", request);
 						_cbe->io_request_in_progress(data_index);
 
 						progress |= true;
@@ -464,7 +467,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 							*reinterpret_cast<Cbe::Block_data*>(
 								_block.tx()->packet_content(packet));
 					}
-					log("\033[36m INF ", "io_request_completed: ", _backend_request);
+					LOGIF("\033[36m INF ", "io_request_completed: ", _backend_request);
 					_cbe->io_request_completed(data_index, success);
 					progress |= true;
 
@@ -542,8 +545,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					break;
 			}
 
-			if (_show_if_progress)
-				log("\033[33m", ">>> wakeup I/O and client");
+			LOGIF("\033[33m", ">>> wakeup I/O and client");
 
 			/* notify I/O backend */
 			_block.tx()->wakeup();
@@ -622,6 +624,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			 */
 			_show_progress =
 				_config_rom.xml().attribute_value("show_progress", false);
+			_show_if_progress =
+				_config_rom.xml().attribute_value("show_if_progress", false);
 
 			/*
 			 * Set initial encryption key
