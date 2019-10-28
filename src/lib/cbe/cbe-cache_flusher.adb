@@ -37,7 +37,8 @@ is
          Idx :     Cache.Cache_Index_Type)
       is
       begin
-         State (Obj, Sta => Pending);
+         Obj.Suc := False;
+         Obj.Sta := Pending;
          Obj.PBA := PBA;
          Obj.Idx := Idx;
       end Pending_Item;

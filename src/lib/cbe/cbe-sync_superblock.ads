@@ -40,9 +40,9 @@ is
    --  Submit_Request
    --
    procedure Submit_Request (
-      Obj : in out Object_Type;
-      Idx :        Superblocks_Index_Type;
-      Gen :        Generation_Type);
+      Obj : out Object_Type;
+      Idx :     Superblocks_Index_Type;
+      Gen :     Generation_Type);
 
    --
    --  Peek_Completed_Primitive

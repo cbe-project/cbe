@@ -48,8 +48,8 @@ class Cbe::Library : public Cbe::Spark_object<216648>
 		void _client_data_required(Request &);
 		void _supply_client_data(Time::Timestamp const, Request const &, Block_data const &, bool &);
 
-		void _crypto_cipher_data_required(Request &, Crypto_plain_buffer::Index &);
-		void _crypto_plain_data_required(Request &, Crypto_cipher_buffer::Index &);
+		void _crypto_cipher_data_required(Request &, Crypto_plain_buffer::Index &) const;
+		void _crypto_plain_data_required(Request &, Crypto_cipher_buffer::Index &) const;
 
 	public:
 
@@ -264,7 +264,7 @@ class Cbe::Library : public Cbe::Spark_object<216648>
 	 *                needs encrytion, otherwise an invalid one is
 	 *                returned
 	 */
-	Request crypto_cipher_data_required(Crypto_plain_buffer::Index &data_index)
+	Request crypto_cipher_data_required(Crypto_plain_buffer::Index &data_index) const
 	{
 		Request result { };
 		_crypto_cipher_data_required(result, data_index);
@@ -303,7 +303,7 @@ class Cbe::Library : public Cbe::Spark_object<216648>
 	 *                needs decrytion, otherwise an invalid one is
 	 *                returned
 	 */
-	Request crypto_plain_data_required(Crypto_cipher_buffer::Index &data_index)
+	Request crypto_plain_data_required(Crypto_cipher_buffer::Index &data_index) const
 	{
 		Request result { };
 		_crypto_plain_data_required(result, data_index);

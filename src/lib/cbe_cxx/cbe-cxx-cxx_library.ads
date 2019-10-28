@@ -211,14 +211,14 @@ is
       External_Name => "_ZNK3Cbe7Library16execute_progressEv";
 
    procedure Crypto_Cipher_Data_Required (
-      Obj        : in out Library.Object_Type;
-      Req        :    out CXX_Request_Type;
-      Data_Index :    out CXX_Crypto_Plain_Buffer_Index_Type)
+      Obj        :     Library.Object_Type;
+      Req        : out CXX_Request_Type;
+      Data_Index : out CXX_Crypto_Plain_Buffer_Index_Type)
    with
       Export,
       Convention    => C,
       External_Name =>
-         "_ZN3Cbe7Library28_crypto_cipher_data_requiredERNS_7RequestERNS_" &
+         "_ZNK3Cbe7Library28_crypto_cipher_data_requiredERNS_7RequestERNS_" &
          "19Crypto_plain_buffer5IndexE";
 
    procedure Crypto_Cipher_Data_Requested (
@@ -243,14 +243,14 @@ is
          "20Crypto_cipher_buffer5IndexEb";
 
    procedure Crypto_Plain_Data_Required (
-      Obj        : in out Library.Object_Type;
-      Req        :    out CXX_Request_Type;
-      Data_Index :    out CXX_Crypto_Cipher_Buffer_Index_Type)
+      Obj        :     Library.Object_Type;
+      Req        : out CXX_Request_Type;
+      Data_Index : out CXX_Crypto_Cipher_Buffer_Index_Type)
    with
       Export,
       Convention    => C,
       External_Name =>
-         "_ZN3Cbe7Library27_crypto_plain_data_requiredERNS_7RequestERNS_" &
+         "_ZNK3Cbe7Library27_crypto_plain_data_requiredERNS_7RequestERNS_" &
          "20Crypto_cipher_buffer5IndexE";
 
    procedure Crypto_Plain_Data_Requested (

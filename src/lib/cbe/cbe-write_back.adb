@@ -264,7 +264,7 @@ is
       Old_PBAs :        Type_1_Node_Infos_Type;
       N        :        Tree_Level_Index_Type;
       Data     :        Block_Data_Type;
-      WB_Data  :    out Data_Type)
+      WB_Data  : in out Data_Type)
    is
    begin
 

@@ -208,9 +208,9 @@ is
    --                     returned request is valid
    --
    procedure Crypto_Cipher_Data_Required (
-      Obj        : in out Object_Type;
-      Req        :    out Request.Object_Type;
-      Data_Index :    out Crypto.Plain_Buffer_Index_Type);
+      Obj        :     Object_Type;
+      Req        : out Request.Object_Type;
+      Data_Index : out Crypto.Plain_Buffer_Index_Type);
 
    --
    --  Acknowledge that the encryption of plain data was requested
@@ -241,9 +241,9 @@ is
    --                     plain-data buffer if returned request is valid
    --
    procedure Crypto_Plain_Data_Required (
-      Obj        : in out Object_Type;
-      Req        :    out Request.Object_Type;
-      Data_Index :    out Crypto.Cipher_Buffer_Index_Type);
+      Obj        :     Object_Type;
+      Req        : out Request.Object_Type;
+      Data_Index : out Crypto.Cipher_Buffer_Index_Type);
 
    --
    --  Acknowledge that required crypto plain-data was requested
@@ -371,9 +371,10 @@ private
       Prim :        Primitive.Object_Type);
 
    procedure Update_Snapshot_Hash (
-      Obj  :        Object_Type;
-      Snap : in out Snapshot_Type;
-      Prim :        Primitive.Object_Type);
+      WB       :        Write_Back.Object_Type;
+      Curr_Gen :        Generation_Type;
+      Snap     : in out Snapshot_Type;
+      Prim     :        Primitive.Object_Type);
 
    procedure Assign_Front_End_Req_Prim (
       Obj  : in out Object_Type;

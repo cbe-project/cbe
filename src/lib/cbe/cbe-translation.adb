@@ -410,7 +410,7 @@ is
    function Current (Obj : Object_Type) return Primitive.Object_Type
    is (Obj.Current);
 
-   function Max_Levels (Obj : Object_Type) return Tree_Level_Type
+   function Max_Levels return Tree_Level_Type
    is (6);
 
    function To_String (Obj : Object_Type) return String

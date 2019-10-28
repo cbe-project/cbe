@@ -150,7 +150,7 @@ is
    function Data_PBA (Obj : Object_Type) return Physical_Block_Address_Type;
    function Next_PBA (Obj : Object_Type) return Physical_Block_Address_Type;
    function Current (Obj : Object_Type) return Primitive.Object_Type;
-   function Max_Levels (Obj : Object_Type) return Tree_Level_Type;
+   function Max_Levels return Tree_Level_Type;
 
    function To_String (Obj : Object_Type) return String;
 

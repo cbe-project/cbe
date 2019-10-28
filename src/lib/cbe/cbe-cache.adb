@@ -41,6 +41,7 @@ is
          Obj.State := Used;
          Obj.PBA   := PBA;
          Obj.Ts    := Ts;
+         Obj.Dirty := False;
       end Initialize_Object;
 
       -----------------

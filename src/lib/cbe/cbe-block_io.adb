@@ -34,6 +34,31 @@ is
    function Primitive_Acceptable (Obj : Object_Type) return Boolean
    is (Obj.Used_Entries < Num_Entries_Type'Last);
 
+   procedure Submit_Primitive_Dont_Return_Index (
+      Obj  : in out Object_Type;
+      Tag  :        Tag_Type;
+      Prim :        Primitive.Object_Type)
+   is
+   begin
+      for Idx in Obj.Entries'Range loop
+         if Obj.Entries (Idx).State = Unused then
+            Obj.Entries (Idx) := (
+               Orig_Tag => Primitive.Tag (Prim),
+               Prim     => Primitive.Valid_Object (
+                  Op     => Primitive.Operation (Prim),
+                  Succ   => Primitive.Success (Prim),
+                  Tg     => Tag,
+                  Blk_Nr => Primitive.Block_Number (Prim),
+                  Idx    => Primitive.Index (Prim)),
+               State    => Pending);
+
+            Obj.Used_Entries := Obj.Used_Entries + 1;
+            return;
+         end if;
+      end loop;
+      raise Program_Error;
+   end Submit_Primitive_Dont_Return_Index;
+
    procedure Submit_Primitive (
       Obj        : in out Object_Type;
       Tag        :        Tag_Type;
@@ -46,11 +71,11 @@ is
             Obj.Entries (Idx) := (
                Orig_Tag => Primitive.Tag (Prim),
                Prim     => Primitive.Valid_Object (
-               Op       => Primitive.Operation (Prim),
-               Succ     => Primitive.Success (Prim),
-               Tg       => Tag,
-               Blk_Nr   => Primitive.Block_Number (Prim),
-               Idx      => Primitive.Index (Prim)),
+                  Op     => Primitive.Operation (Prim),
+                  Succ   => Primitive.Success (Prim),
+                  Tg     => Tag,
+                  Blk_Nr => Primitive.Block_Number (Prim),
+                  Idx    => Primitive.Index (Prim)),
                State    => Pending);
 
             Data_Index       := Idx;

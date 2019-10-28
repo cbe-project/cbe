@@ -195,9 +195,9 @@ is
    is (CXX_Bool_From_SPARK (Library.Execute_Progress (Obj)));
 
    procedure Crypto_Cipher_Data_Required (
-      Obj        : in out Library.Object_Type;
-      Req        :    out CXX_Request_Type;
-      Data_Index :    out CXX_Crypto_Plain_Buffer_Index_Type)
+      Obj        :     Library.Object_Type;
+      Req        : out CXX_Request_Type;
+      Data_Index : out CXX_Crypto_Plain_Buffer_Index_Type)
    is
       SPARK_Req        : Request.Object_Type;
       SPARK_Data_Index : Crypto.Plain_Buffer_Index_Type;
@@ -229,9 +229,9 @@ is
    end Supply_Crypto_Cipher_Data;
 
    procedure Crypto_Plain_Data_Required (
-      Obj        : in out Library.Object_Type;
-      Req        :    out CXX_Request_Type;
-      Data_Index :    out CXX_Crypto_Cipher_Buffer_Index_Type)
+      Obj        :     Library.Object_Type;
+      Req        : out CXX_Request_Type;
+      Data_Index : out CXX_Crypto_Cipher_Buffer_Index_Type)
    is
       SPARK_Req        : Request.Object_Type;
       SPARK_Data_Index : Crypto.Cipher_Buffer_Index_Type;

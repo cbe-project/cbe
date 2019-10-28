@@ -100,15 +100,15 @@ is
    --  \param WB_Data  reference to the location where the new data is stored
    --
    procedure Submit_Primitive (
-      Obj                   : in out Object_Type;
-      Prim                  :        Primitive.Object_Type;
-      Gen                   :        Generation_Type;
-      VBA                   :        Virtual_Block_Address_Type;
-      New_PBAs              :        New_PBAs_Type;
-      Old_PBAs              :        Type_1_Node_Infos_Type;
-      N                     :        Tree_Level_Index_Type;
-      Data                  :        Block_Data_Type;
-      WB_Data               :    out Data_Type);
+      Obj      : in out Object_Type;
+      Prim     :        Primitive.Object_Type;
+      Gen      :        Generation_Type;
+      VBA      :        Virtual_Block_Address_Type;
+      New_PBAs :        New_PBAs_Type;
+      Old_PBAs :        Type_1_Node_Infos_Type;
+      N        :        Tree_Level_Index_Type;
+      Data     :        Block_Data_Type;
+      WB_Data  : in out Data_Type);
 
    --
    --  Check for any completed primitive
