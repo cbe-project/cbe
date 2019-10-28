@@ -200,21 +200,20 @@ is
    end Create_New_Snapshot;
 
    procedure Update_Snapshot_Hash (
-      Obj  :        Object_Type;
-      Snap : in out Snapshot_Type;
-      Prim :        Primitive.Object_Type)
+      WB       :        Write_Back.Object_Type;
+      Curr_Gen :        Generation_Type;
+      Snap     : in out Snapshot_Type;
+      Prim     :        Primitive.Object_Type)
    is
       PBA : constant Physical_Block_Address_Type :=
-         Write_Back.Peek_Completed_Root (Obj.Write_Back_Obj, Prim);
+         Write_Back.Peek_Completed_Root (WB, Prim);
    begin
       --  FIXME why do we need that again?
       if Snap.PBA /= PBA then
-         Snap.Gen := Obj.Cur_Gen;
+         Snap.Gen := Curr_Gen;
          Snap.PBA := PBA;
       end if;
-      Write_Back.Peek_Completed_Root_Hash (
-         Obj.Write_Back_Obj, Prim, Snap.Hash);
-
+      Write_Back.Peek_Completed_Root_Hash (WB, Prim, Snap.Hash);
    end Update_Snapshot_Hash;
 
    procedure Execute (
@@ -699,9 +698,9 @@ is
                --  in place and move on.
                --
                Update_Snapshot_Hash (
-                  Obj,
-                  Obj.Superblocks (Obj.Cur_SB).
-                     Snapshots (Curr_Snap (Obj)),
+                  Obj.Write_Back_Obj,
+                  Obj.Cur_Gen,
+                  Obj.Superblocks (Obj.Cur_SB).Snapshots (Curr_Snap (Obj)),
                   Prim);
             end if;
 
@@ -878,15 +877,32 @@ is
                      Obj.Cache_Obj, Update_PBA, Now, Update_Index);
 
                   --
-                  --  (Later on we can remove the tree_Helper here as the
-                  --  outer degree, which is used to calculate the entry in
-                  --  the inner node from the VBA is set at compile-time.)
+                  --  FIXME We copy the data to the stack first and back to the
+                  --  cache afterwards so gnatprove
+                  --  does not complain that 'formal parameters "Data" and
+                  --  "Update_Data" might be aliased (SPARK RM 6.4.2)' for the
+                  --  call to Write_Back.Update. This might be avoided by using
+                  --  assertions about the data indices.
                   --
-                  Write_Back.Update (
-                     Obj.Write_Back_Obj,
-                     PBA, Virtual_Block_Device.Get_Tree_Helper (Obj.VBD),
-                     Obj.Cache_Data (Index),
-                     Obj.Cache_Data (Update_Index));
+                  Declare_Update_Data : declare
+                     Data : constant Block_Data_Type :=
+                        Obj.Cache_Data (Index);
+
+                     Update_Data : Block_Data_Type :=
+                        Obj.Cache_Data (Update_Index);
+                  begin
+                     --
+                     --  (Later on we can remove the tree_Helper here as the
+                     --  outer degree, which is used to calculate the entry in
+                     --  the inner node from the VBA is set at compile-time.)
+                     --
+                     Write_Back.Update (
+                        Obj.Write_Back_Obj,
+                        PBA, Virtual_Block_Device.Get_Tree_Helper (Obj.VBD),
+                        Data, Update_Data);
+
+                     Obj.Cache_Data (Update_Index) := Update_Data;
+                  end Declare_Update_Data;
 
                   --
                   --  Make the potentially new entry as dirty so it gets
@@ -1236,16 +1252,14 @@ is
          declare
             Prim : constant Primitive.Object_Type :=
                Virtual_Block_Device.Peek_Completed_Primitive (Obj.VBD);
-
-            Data_Idx : Block_IO.Data_Index_Type;
          begin
             exit Loop_VBD_Completed_Prims when
                not Primitive.Valid (Prim) or else
                Primitive.Operation (Prim) /= Read or else
                not Block_IO.Primitive_Acceptable (Obj.IO_Obj);
 
-            Block_IO.Submit_Primitive (
-               Obj.IO_Obj, Tag_Decrypt, Prim, Data_Idx);
+            Block_IO.Submit_Primitive_Dont_Return_Index (
+               Obj.IO_Obj, Tag_Decrypt, Prim);
 
             Virtual_Block_Device.Drop_Completed_Primitive (Obj.VBD);
             Progress := True;
@@ -1682,8 +1696,7 @@ is
             else
                Free_PBAs (Free_Blocks) :=
                   Old_PBAs (Natural (Trans_Height - 1)).PBA;
-               Free_Blocks := Free_Blocks + 1;
-               New_Blocks  := New_Blocks  + 1;
+               New_Blocks := New_Blocks  + 1;
             end if;
 
             --
@@ -1745,9 +1758,9 @@ is
    end Supply_Client_Data;
 
    procedure Crypto_Cipher_Data_Required (
-      Obj        : in out Object_Type;
-      Req        :    out Request.Object_Type;
-      Data_Index :    out Crypto.Plain_Buffer_Index_Type)
+      Obj        :     Object_Type;
+      Req        : out Request.Object_Type;
+      Data_Index : out Crypto.Plain_Buffer_Index_Type)
    is
       Item_Index : Crypto.Item_Index_Type;
       Prim       : Primitive.Object_Type;
@@ -1789,9 +1802,9 @@ is
    end Supply_Crypto_Cipher_Data;
 
    procedure Crypto_Plain_Data_Required (
-      Obj        : in out Object_Type;
-      Req        :    out Request.Object_Type;
-      Data_Index :    out Crypto.Cipher_Buffer_Index_Type)
+      Obj        :     Object_Type;
+      Req        : out Request.Object_Type;
+      Data_Index : out Crypto.Cipher_Buffer_Index_Type)
    is
       Item_Index : Crypto.Item_Index_Type;
       Prim       : Primitive.Object_Type;

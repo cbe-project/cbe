@@ -35,8 +35,7 @@ is
          Gen :     Generation_Type)
       is
       begin
-         Set_State (Obj, Sta => Pending);
-
+         Obj.Sta := Pending;
          Obj.Idx := Idx;
          Obj.Gen := Gen;
       end Pending_Item;
@@ -107,9 +106,9 @@ is
    --  Submit_Request
    --
    procedure Submit_Request (
-      Obj : in out Object_Type;
-      Idx :        Superblocks_Index_Type;
-      Gen :        Generation_Type)
+      Obj : out Object_Type;
+      Idx :     Superblocks_Index_Type;
+      Gen :     Generation_Type)
    is
    begin
       Item.Pending_Item (Obj.Current_Item, Idx, Gen);
