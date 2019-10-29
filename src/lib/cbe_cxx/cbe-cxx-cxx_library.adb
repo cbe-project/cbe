@@ -51,6 +51,18 @@ is
          Snapshot_ID_Type (Snap_id))));
    end Snapshot_Creation_Complete;
 
+   procedure Discard_Snapshot (
+      Obj     : in out Library.Object_Type;
+      Snap_ID :        CXX_Snapshot_ID_Type;
+      Result  :    out CXX_Bool_Type)
+   is
+      SPARK_Result : Boolean;
+   begin
+      Library.Discard_Snapshot (Obj, Generation_Type (Snap_ID),
+         SPARK_Result);
+      Result := CXX_Bool_From_SPARK (SPARK_Result);
+   end Discard_Snapshot;
+
    procedure Active_Snapshot_IDs (
       Obj :     Library.Object_Type;
       IDs : out Active_Snapshot_IDs_Type)

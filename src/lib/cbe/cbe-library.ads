@@ -69,6 +69,16 @@ is
    return Boolean;
 
    --
+   --  Discard given quaratine snapshot
+   --
+   --  \param Snap_ID  id of the snapshot
+   --
+   procedure Discard_Snapshot (
+      Obj     : in out Object_Type;
+      Snap_ID :        Generation_Type;
+      Success :    out Boolean);
+
+   --
    --  Return active snapshot ids
    --
    --  \param reference to id array
@@ -380,7 +390,7 @@ private
       Stall_Snapshot_Creation      : Boolean;
    end record;
 
-   procedure Discard_Snapshot (
+   procedure Try_Discard_Snapshot (
       Snaps     : in out Snapshots_Type;
       Keep_Snap :        Snapshots_Index_Type;
       Success   :    out Boolean);

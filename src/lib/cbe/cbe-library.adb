@@ -14,7 +14,7 @@ with CBE.Debug;
 package body CBE.Library
 with SPARK_Mode
 is
-   procedure Discard_Snapshot (
+   procedure Try_Discard_Snapshot (
       Snaps     : in out Snapshots_Type;
       Keep_Snap :        Snapshots_Index_Type;
       Success   :    out Boolean)
@@ -39,6 +39,30 @@ is
          Snapshot_Valid (Snaps (Discard_Idx), False);
       end if;
       Success := Discard_Idx_Valid;
+   end Try_Discard_Snapshot;
+
+   procedure Discard_Snapshot (
+      Obj     : in out Object_Type;
+      Snap_ID :        Generation_Type;
+      Success :    out Boolean)
+   is
+   begin
+      Success := False;
+
+      Loop_Discard_Snapshot :
+      for I in Snapshots_Index_Type loop
+         if Snapshot_Valid (Obj.Superblocks (Obj.Cur_SB).Snapshots (
+               I)) and then
+            Snapshot_Keep (Obj.Superblocks (Obj.Cur_SB).Snapshots (
+               I)) and then
+            Obj.Superblocks (Obj.Cur_SB).Snapshots (I).Gen = Snap_ID
+         then
+            Snapshot_Valid (Obj.Superblocks (Obj.Cur_SB).Snapshots (I), False);
+            Success := True;
+            Obj.Secure_Superblock := True;
+            exit Loop_Discard_Snapshot;
+         end if;
+      end loop Loop_Discard_Snapshot;
    end Discard_Snapshot;
 
    function Cache_Dirty (Obj : Object_Type)
@@ -480,7 +504,7 @@ is
                declare
                   Could_Discard_Snap : Boolean;
                begin
-                  Discard_Snapshot (
+                  Try_Discard_Snapshot (
                      Obj.Superblocks (Obj.Cur_SB).Snapshots,
                      Curr_Snap (Obj), Could_Discard_Snap);
                   if Could_Discard_Snap then
