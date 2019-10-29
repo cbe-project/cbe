@@ -1269,11 +1269,11 @@ is
 
    end Execute;
 
-   function Request_Acceptable (Obj : Object_Type)
+   function Client_Request_Acceptable (Obj : Object_Type)
    return Boolean
    is (Pool.Request_Acceptable (Obj.Request_Pool_Obj));
 
-   procedure Submit_Request (
+   procedure Submit_Client_Request (
       Obj : in out Object_Type;
       Req :        Request.Object_Type)
    is
@@ -1282,16 +1282,19 @@ is
          Obj.Request_Pool_Obj,
          Req,
          Splitter.Number_Of_Primitives (Req));
-   end Submit_Request;
+   end Submit_Client_Request;
 
-   function Peek_Completed_Request (Obj : Object_Type)
+   function Peek_Completed_Client_Request (Obj : Object_Type)
    return Request.Object_Type
    is (Pool.Peek_Completed_Request (Obj.Request_Pool_Obj));
 
-   procedure Drop_Completed_Request (Obj : in out Object_Type)
-   is begin
-      Pool.Drop_Completed_Request (Obj.Request_Pool_Obj);
-   end Drop_Completed_Request;
+   procedure Drop_Completed_Client_Request (
+      Obj : in out Object_Type;
+      Req :        Request.Object_Type)
+   is
+   begin
+      Pool.Drop_Completed_Request (Obj.Request_Pool_Obj, Req);
+   end Drop_Completed_Client_Request;
 
    --
    --  For now there can be only one Request pending.
@@ -1399,7 +1402,7 @@ is
       end;
    end Client_Data_Ready;
 
-   function Give_Data_Index (
+   function Client_Data_Index (
       Obj : Object_Type;
       Req : Request.Object_Type)
    return Primitive.Index_Type
@@ -1410,7 +1413,7 @@ is
       end if;
 
       return Primitive.Index (Obj.Front_End_Req_Prim.Prim);
-   end Give_Data_Index;
+   end Client_Data_Index;
 
    procedure Obtain_Client_Data (
       Obj              : in out Object_Type;

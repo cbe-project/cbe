@@ -73,27 +73,31 @@ is
       Library.Execute (Obj, IO_Buf, Crypto_Plain_Buf, Crypto_Cipher_Buf, Now);
    end Execute;
 
-   function Request_Acceptable (Obj : Library.Object_Type)
+   function Client_Request_Acceptable (Obj : Library.Object_Type)
    return CXX_Bool_Type
-   is (CXX_Bool_From_SPARK (Library.Request_Acceptable (Obj)));
+   is (CXX_Bool_From_SPARK (Library.Client_Request_Acceptable (Obj)));
 
-   procedure Submit_Request (
+   procedure Submit_Client_Request (
       Obj : in out Library.Object_Type;
       Req :        CXX_Request_Type)
    is
    begin
-      Library.Submit_Request (Obj, CXX_Request_To_SPARK (Req));
-   end Submit_Request;
+      Library.Submit_Client_Request (Obj, CXX_Request_To_SPARK (Req));
+   end Submit_Client_Request;
 
-   function Peek_Completed_Request (Obj : Library.Object_Type)
+   function Peek_Completed_Client_Request (Obj : Library.Object_Type)
    return CXX_Request_Type
-   is (CXX_Request_From_SPARK (Library.Peek_Completed_Request (Obj)));
+   is (
+      CXX_Request_From_SPARK (
+         Library.Peek_Completed_Client_Request (Obj)));
 
-   procedure Drop_Completed_Request (Obj : in out Library.Object_Type)
+   procedure Drop_Completed_Client_Request (
+      Obj : in out Library.Object_Type;
+      Req :        CXX_Request_Type)
    is
    begin
-      Library.Drop_Completed_Request (Obj);
-   end Drop_Completed_Request;
+      Library.Drop_Completed_Client_Request (Obj, CXX_Request_To_SPARK (Req));
+   end Drop_Completed_Client_Request;
 
    procedure IO_Request_Completed (
       Obj        : in out Library.Object_Type;
@@ -139,15 +143,15 @@ is
       Req := CXX_Request_From_SPARK (SPARK_Req);
    end Client_Data_Ready;
 
-   function Give_Data_Index (
+   function Client_Data_Index (
       Obj : Library.Object_Type;
       Req : CXX_Request_Type)
    return CXX_Primitive_Index_Type
    is
    begin
       return CXX_Primitive_Index_Type (
-         Library.Give_Data_Index (Obj, CXX_Request_To_SPARK (Req)));
-   end Give_Data_Index;
+         Library.Client_Data_Index (Obj, CXX_Request_To_SPARK (Req)));
+   end Client_Data_Index;
 
    procedure Obtain_Client_Data (
       Obj              : in out Library.Object_Type;

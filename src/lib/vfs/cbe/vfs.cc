@@ -275,7 +275,7 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 						Cbe::Request const cbe_request = _cbe.peek_completed_client_request();
 						if (!cbe_request.valid()) { break; }
 
-						_cbe.drop_completed_client_request();
+						_cbe.drop_completed_client_request(cbe_request);
 						_state = NONE;
 						progress = true;
 					}
@@ -287,7 +287,7 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 					Cbe::Request cbe_request = _cbe.client_data_ready();
 					if (cbe_request.valid() && cbe_request.read()) {
 
-						uint64_t const prim_index = _cbe.give_data_index(cbe_request);
+						uint64_t const prim_index = _cbe.client_data_index(cbe_request);
 						if (prim_index == ~0ull) {
 							Genode::error("prim_index invalid: ", cbe_request);
 							_state = ERROR;
@@ -311,7 +311,7 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 					/* write */
 					cbe_request = _cbe.client_data_required();
 					if (cbe_request.valid() && cbe_request.write()) {
-						uint64_t const prim_index = _cbe.give_data_index(cbe_request);
+						uint64_t const prim_index = _cbe.client_data_index(cbe_request);
 						if (prim_index == ~0ull) {
 							Genode::error("prim_index invalid: ", cbe_request);
 							_state = ERROR;

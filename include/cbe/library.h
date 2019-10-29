@@ -129,7 +129,7 @@ class Cbe::Library : public Cbe::Spark_object<216648>
 	 * 'peek_completed_request' returned a valid request.
 	 *
 	 */
-	void drop_completed_client_request();
+	void drop_completed_client_request(Request const &req);
 
 	/*
 	 * Backend block I/O
@@ -196,7 +196,7 @@ class Cbe::Library : public Cbe::Spark_object<216648>
 	/**
 	 * Return primitive index
 	 */
-	uint64_t give_data_index(Request const &request) const;
+	uint64_t client_data_index(Request const &request) const;
 
 	/**
 	 * Return data for given client read request

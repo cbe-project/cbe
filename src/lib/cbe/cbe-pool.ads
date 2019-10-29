@@ -72,7 +72,9 @@ is
    --
    --  Drop_Completed_Request
    --
-   procedure Drop_Completed_Request (Obj : in out Object_Type);
+   procedure Drop_Completed_Request (
+      Obj : in out Object_Type;
+      Req :        Request.Object_Type);
 
    --
    --  Request_For_Tag

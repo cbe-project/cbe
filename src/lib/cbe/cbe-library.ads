@@ -69,7 +69,7 @@ is
    --
    --  \return true if a request can be accepted, otherwise false
    --
-   function Request_Acceptable (Obj : Object_Type)
+   function Client_Request_Acceptable (Obj : Object_Type)
    return Boolean;
 
    --
@@ -80,7 +80,7 @@ is
    --
    --  \param Req  block request
    --
-   procedure Submit_Request (
+   procedure Submit_Client_Request (
       Obj : in out Object_Type;
       Req :        Request.Object_Type);
 
@@ -90,7 +90,7 @@ is
    --  \return a valid block request will be returned if there is an
    --         completed request, otherwise an invalid one
    --
-   function Peek_Completed_Request (Obj : Object_Type)
+   function Peek_Completed_Client_Request (Obj : Object_Type)
    return Request.Object_Type;
 
    --
@@ -99,7 +99,9 @@ is
    --  This method must only be called after executing
    --  'Peek_Completed_Request' returned a valid request.
    --
-   procedure Drop_Completed_Request (Obj : in out Object_Type);
+   procedure Drop_Completed_Client_Request (
+      Obj : in out Object_Type;
+      Req :        Request.Object_Type);
 
    --
    --  Submit read request data from the backend block session to the CBE
@@ -152,7 +154,7 @@ is
    --
    --  Get primitive index
    --
-   function Give_Data_Index (
+   function Client_Data_Index (
       Obj : Object_Type;
       Req : Request.Object_Type)
    return Primitive.Index_Type;
