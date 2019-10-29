@@ -53,6 +53,15 @@ is
       Convention    => C,
       External_Name => "_ZNK3Cbe7Library26snapshot_creation_completeEj";
 
+   procedure Discard_Snapshot (
+      Obj     : in out Library.Object_Type;
+      Snap_ID :        CXX_Snapshot_ID_Type;
+      Result  :    out CXX_Bool_Type)
+   with
+      Export,
+      Convention    => C,
+      External_Name => "_ZN3Cbe7Library17_discard_snapshotEjRb";
+
    procedure Active_Snapshot_IDs (
       Obj :     Library.Object_Type;
       IDs : out Active_Snapshot_IDs_Type)

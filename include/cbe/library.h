@@ -53,6 +53,7 @@ class Cbe::Library : public Cbe::Spark_object<199448>
 
 		void _create_snapshot(bool, uint32_t &id);
 
+		void _discard_snapshot(uint32_t id, bool &);
 
 	public:
 
@@ -271,6 +272,20 @@ class Cbe::Library : public Cbe::Spark_object<199448>
 	 * \return snapshot id of the resulting snapshot
 	 */
 	bool snapshot_creation_complete(uint32_t id) const;
+
+	/**
+	 * Discard given snapshot
+	 *
+	 * \param id  id of the snapshot that should be discarded
+	 *
+	 * \return true if discard attempt was successful, false otherwise
+	 */
+	bool discard_snapshot(uint32_t id)
+	{
+		bool result { false };
+		_discard_snapshot(id, result);
+		return result;
+	}
 
 	/**
 	 * Query list of active snapshots
