@@ -224,15 +224,21 @@ is
    --
    --  Drop_Completed_Request
    --
-   procedure Drop_Completed_Request (Obj : in out Object_Type)
+   procedure Drop_Completed_Request (
+      Obj : in out Object_Type;
+      Req :        Request.Object_Type)
    is
    begin
-      for Item_Id in Obj.Items'Range loop
-         if Item.Complete (Obj.Items (Item_Id)) then
-            Obj.Items (Item_Id) := Item.Invalid_Object;
+      For_Each_Item : for Idx in Obj.Items'Range loop
+         if Request.Equal (Item.Req (Obj.Items (Idx)), Req) then
+            if not Item.Complete (Obj.Items (Idx)) then
+               raise Program_Error;
+            end if;
+            Obj.Items (Idx) := Item.Invalid_Object;
             return;
          end if;
-      end loop;
+      end loop For_Each_Item;
+      raise Program_Error;
    end Drop_Completed_Request;
 
    --
