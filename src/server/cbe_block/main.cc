@@ -1193,6 +1193,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		bool             const  _report          { _config.attribute_value("report",   false) };
 		bool             const  _dump_all        { _config.attribute_value("dump_all", false) };
 		bool             const  _write_init_state_to_block { _config.attribute_value("write_init_state_to_block", false) };
+		bool             const  _exit_after_init { _config.attribute_value("exit_after_init", false) };
 		Signal_handler<Main>    _request_handler { _env.ep(), *this, &Main::_handle_requests };
 		Block::Request          _current_request { };
 
@@ -1266,7 +1267,12 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		void _handle_write_state_done()
 		{
 			_write_state_to_block.destruct();
-			_env.parent().announce(_env.ep().manage(*this));
+
+			if (_exit_after_init) {
+				_env.parent().exit(0);
+			} else {
+				_env.parent().announce(_env.ep().manage(*this));
+			}
 		}
 
 	public:
