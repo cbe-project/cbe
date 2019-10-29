@@ -1085,31 +1085,11 @@ is
          Obj.Secure_Superblock and then
          Sync_Superblock.Request_Acceptable (Obj.Sync_SB_Obj)
       then
-         Delcare_Cache_Needs_Flushing :
-         declare
-            Cache_Needs_Flushing : constant Boolean := Cache_Dirty (Obj);
-         begin
-            if not Cache_Needs_Flushing then
-               Obj.Superblocks (Obj.Cur_SB).Last_Secured_Generation :=
-                  Obj.Cur_Gen;
+         Obj.Superblocks (Obj.Cur_SB).Last_Secured_Generation :=
+            Obj.Cur_Gen;
 
-               Sync_Superblock.Submit_Request (
-                  Obj.Sync_SB_Obj, Obj.Cur_SB, Obj.Cur_Gen);
-            else
-               if not Cache_Flusher.Active (Obj.Cache_Flusher_Obj) then
-                  Flush_Dirty_Cache :
-                  for Cache_Index in Cache.Cache_Index_Type loop
-                     if Cache.Dirty (Obj.Cache_Obj, Cache_Index) then
-
-                        Cache_Flusher.Submit_Request (
-                           Obj.Cache_Flusher_Obj,
-                           Cache.Flush (Obj.Cache_Obj, Cache_Index),
-                           Cache_Index);
-                     end if;
-                  end loop Flush_Dirty_Cache;
-               end if;
-            end if;
-         end Delcare_Cache_Needs_Flushing;
+         Sync_Superblock.Submit_Request (
+            Obj.Sync_SB_Obj, Obj.Cur_SB, Obj.Cur_Gen);
       end if;
 
       --
