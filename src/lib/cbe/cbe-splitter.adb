@@ -20,7 +20,8 @@ is
       Primitive.Valid_Object (
          Request.Operation (Obj.Curr_Req),
          Request.Success (Obj.Curr_Req),
-         Request.Tag (Obj.Curr_Req),
+         Primitive.Tag_Splitter,
+         Pool_Idx_Slot_Content (Obj.Pool_Idx_Slot),
          Obj.Curr_Blk_Nr,
          Obj.Curr_Idx));
 
@@ -30,10 +31,11 @@ is
    procedure Reset_Curr_Req (Obj : out Object_Type)
    is
    begin
-      Obj.Curr_Req    := Request.Invalid_Object;
-      Obj.Curr_Blk_Nr := 0;
-      Obj.Curr_Idx    := 0;
-      Obj.Nr_Of_Prims := 0;
+      Obj.Pool_Idx_Slot := Pool_Idx_Slot_Invalid;
+      Obj.Curr_Req      := Request.Invalid_Object;
+      Obj.Curr_Blk_Nr   := 0;
+      Obj.Curr_Idx      := 0;
+      Obj.Nr_Of_Prims   := 0;
    end Reset_Curr_Req;
 
    --
@@ -51,25 +53,28 @@ is
    function Initialized_Object
    return Object_Type
    is (
-      Curr_Req    => Request.Invalid_Object,
-      Curr_Blk_Nr => 0,
-      Curr_Idx    => 0,
-      Nr_Of_Prims => 0);
+      Pool_Idx_Slot => Pool_Idx_Slot_Invalid,
+      Curr_Req      => Request.Invalid_Object,
+      Curr_Blk_Nr   => 0,
+      Curr_Idx      => 0,
+      Nr_Of_Prims   => 0);
 
    --
    --  Submit_Request
    --
    procedure Submit_Request (
-      Obj : in out Object_Type;
-      Req :        Request.Object_Type)
+      Obj      : in out Object_Type;
+      Pool_Idx :        Pool_Index_Type;
+      Req      :        Request.Object_Type)
    is
    begin
 
       Obj := (
-         Curr_Req    => Req,
-         Curr_Blk_Nr => Request.Block_Number (Req),
-         Curr_Idx    => 0,
-         Nr_Of_Prims => Number_Of_Primitives_Type (Request.Count (Req)));
+         Pool_Idx_Slot => Pool_Idx_Slot_Valid (Pool_Idx),
+         Curr_Req      => Req,
+         Curr_Blk_Nr   => Request.Block_Number (Req),
+         Curr_Idx      => 0,
+         Nr_Of_Prims   => Number_Of_Primitives_Type (Request.Count (Req)));
 
    end Submit_Request;
 

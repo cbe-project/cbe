@@ -146,8 +146,8 @@ is
       Obj.Seal_Generation         := False;
       Obj.Secure_Superblock       := False;
       Obj.Superblock_Dirty        := False;
-      Obj.Front_End_Req_Prim      := Request_Primitive_Invalid;
-      Obj.Back_End_Req_Prim       := Request_Primitive_Invalid;
+      Obj.Wait_For_Front_End      := Wait_For_Event_Invalid;
+      Obj.Wait_For_Back_End       := Wait_For_Event_Invalid;
 
    end Initialize_Object;
 
@@ -366,7 +366,7 @@ is
                      Obj.Free_Tree_Obj, Prim);
                Data_Idx : Block_IO.Data_Index_Type;
             begin
-               if Primitive.Tag (Prim) = Tag_Write_Back then
+               if Primitive.Has_Tag_Write_Back (Prim) then
                   --
                   --  FIXME Accessing the Cache in this way could be dangerous
                   --  because the Cache is shared by the VBD as well as the FT.
@@ -380,16 +380,16 @@ is
                   --  solution.)
                   --
                   Block_IO.Submit_Primitive (
-                     Obj.IO_Obj, Tag_Free_Tree_WB, Prim, Data_Idx);
+                     Obj.IO_Obj, Primitive.Tag_Free_Tree_WB, Prim, Data_Idx);
 
                   if Primitive.Operation (Prim) = Write then
                      IO_Buf (Data_Idx) :=
                         Obj.Cache_Data (Cache.Cache_Index_Type (Index));
                   end if;
 
-               elsif Primitive.Tag (Prim) = Tag_IO then
+               elsif Primitive.Has_Tag_IO (Prim) then
                   Block_IO.Submit_Primitive (
-                     Obj.IO_Obj, Tag_Free_Tree_IO, Prim, Data_Idx);
+                     Obj.IO_Obj, Primitive.Tag_Free_Tree_IO, Prim, Data_Idx);
 
                   if Primitive.Operation (Prim) = Write then
                      IO_Buf (Data_Idx) :=
@@ -414,21 +414,28 @@ is
       --
       Loop_Pool_Pending_Requests :
       loop
-         Declare_Req :
+         Declare_Pool_Idx_Slot :
          declare
-            Req : constant Request.Object_Type :=
+            Pool_Idx_Slot : constant Pool_Index_Slot_Type :=
                Pool.Peek_Pending_Request (Obj.Request_Pool_Obj);
          begin
             exit Loop_Pool_Pending_Requests when
-               not Request.Valid (Req) or else
+               not Pool_Idx_Slot_Valid (Pool_Idx_Slot) or else
                not Splitter.Request_Acceptable (Obj.Splitter_Obj);
 
-            Pool.Drop_Pending_Request (Obj.Request_Pool_Obj);
-            Splitter.Submit_Request (Obj.Splitter_Obj, Req);
+            Declare_Pool_Idx :
+            declare
+               Pool_Idx : constant Pool_Index_Type :=
+                  Pool_Idx_Slot_Content (Pool_Idx_Slot);
+            begin
+               Pool.Drop_Pending_Request (Obj.Request_Pool_Obj);
+               Splitter.Submit_Request (
+                  Obj.Splitter_Obj, Pool_Idx, Pool.Request_For_Index (
+                     Obj.Request_Pool_Obj, Pool_Idx));
 
-         end Declare_Req;
+            end Declare_Pool_Idx;
+         end Declare_Pool_Idx_Slot;
          Progress := True;
-
       end loop Loop_Pool_Pending_Requests;
 
       --
@@ -558,7 +565,7 @@ is
                not Block_IO.Primitive_Acceptable (Obj.IO_Obj);
 
             Block_IO.Submit_Primitive (
-               Obj.IO_Obj, Tag_Cache_Flush, Prim, Data_Idx);
+               Obj.IO_Obj, Primitive.Tag_Cache_Flush, Prim, Data_Idx);
 
             if Primitive.Operation (Prim) = Write then
                IO_Buf (Data_Idx) :=
@@ -787,7 +794,7 @@ is
                not Block_IO.Primitive_Acceptable (Obj.IO_Obj);
 
             Block_IO.Submit_Primitive (
-               Obj.IO_Obj, Tag_Write_Back, Prim, Data_Idx);
+               Obj.IO_Obj, Primitive.Tag_Write_Back, Prim, Data_Idx);
 
             if Primitive.Operation (Prim) = Write then
                IO_Buf (Data_Idx) :=
@@ -1007,7 +1014,7 @@ is
                         Obj.Sync_SB_Obj, Prim)));
 
                Block_IO.Submit_Primitive (
-                  Obj.IO_Obj, Tag_Sync_SB, Prim, Data_Idx);
+                  Obj.IO_Obj, Primitive.Tag_Sync_SB, Prim, Data_Idx);
 
                if Primitive.Operation (Prim) = Write then
                   IO_Buf (Data_Idx) := SB_Data;
@@ -1114,7 +1121,8 @@ is
                not Primitive.Valid (Prim) or else
                not Block_IO.Primitive_Acceptable (Obj.IO_Obj);
 
-            Block_IO.Submit_Primitive (Obj.IO_Obj, Tag_Cache, Prim, Data_Idx);
+            Block_IO.Submit_Primitive (
+               Obj.IO_Obj, Primitive.Tag_Cache, Prim, Data_Idx);
 
             if Primitive.Operation (Prim) = Write then
                IO_Buf (Data_Idx) := Obj.Cache_Job_Data (
@@ -1165,7 +1173,7 @@ is
                --
                Mod_Progress : Boolean := True;
             begin
-               if Primitive.Tag (Prim) = Tag_Decrypt then
+               if Primitive.Has_Tag_Decrypt (Prim) then
 
                   if not Crypto.Primitive_Acceptable (Obj.Crypto_Obj) then
                      Mod_Progress := False;
@@ -1183,18 +1191,18 @@ is
                         --
                         Crypto.Submit_Primitive (
                            Obj.Crypto_Obj,
-                           Primitive.Copy_Valid_Object_Change_Tag (
+                           Primitive.Copy_Valid_Object_New_Tag (
                               Prim,
                               Block_IO.Peek_Completed_Tag (
                                  Obj.IO_Obj, Prim)),
-                              Data_Idx);
+                           Data_Idx);
 
                         Crypto_Cipher_Buf (Data_Idx) := IO_Buf (Index);
 
                      end Declare_Data;
                   end if;
 
-               elsif Primitive.Tag (Prim) = Tag_Cache then
+               elsif Primitive.Has_Tag_Cache (Prim) then
                   --
                   --  FIXME we need a proper method for getting the right
                   --        Cache job Data index, for now rely on the
@@ -1203,25 +1211,25 @@ is
                   Obj.Cache_Job_Data (0) := IO_Buf (Index);
                   Cache.Mark_Completed_Primitive (Obj.Cache_Obj, Prim);
 
-               elsif Primitive.Tag (Prim) = Tag_Cache_Flush then
+               elsif Primitive.Has_Tag_Cache_Flush (Prim) then
                   Cache_Flusher.Mark_Generated_Primitive_Complete (
                      Obj.Cache_Flusher_Obj, Prim);
 
-               elsif Primitive.Tag (Prim) = Tag_Write_Back then
+               elsif Primitive.Has_Tag_Write_Back (Prim) then
                   Write_Back.Mark_Completed_IO_Primitive (
                      Obj.Write_Back_Obj, Prim);
 
-               elsif Primitive.Tag (Prim) = Tag_Sync_SB then
+               elsif Primitive.Has_Tag_Sync_SB (Prim) then
                   Sync_Superblock.Mark_Generated_Primitive_Complete (
                      Obj.Sync_SB_Obj, Prim);
 
-               elsif Primitive.Tag (Prim) = Tag_Free_Tree_WB then
+               elsif Primitive.Has_Tag_Free_Tree_WB (Prim) then
                   Free_Tree.Mark_Generated_Primitive_Complete (
                      Obj.Free_Tree_Obj,
-                     Primitive.Copy_Valid_Object_Change_Tag (
-                        Prim, Tag_Write_Back));
+                     Primitive.Copy_Valid_Object_New_Tag (
+                        Prim, Primitive.Tag_Write_Back));
 
-               elsif Primitive.Tag (Prim) = Tag_Free_Tree_IO then
+               elsif Primitive.Has_Tag_Free_Tree_IO (Prim) then
 
                   --
                   --  FIXME we need a proper method for getting the right query
@@ -1231,8 +1239,8 @@ is
                   Obj.Free_Tree_Query_Data (0) := IO_Buf (Index);
                   Free_Tree.Mark_Generated_Primitive_Complete (
                      Obj.Free_Tree_Obj,
-                     Primitive.Copy_Valid_Object_Change_Tag (
-                        Prim, Tag_IO));
+                     Primitive.Copy_Valid_Object_New_Tag (
+                        Prim, Primitive.Tag_IO));
                end if;
                exit Loop_IO_Completed_Prims when not Mod_Progress;
 
@@ -1259,7 +1267,7 @@ is
                not Block_IO.Primitive_Acceptable (Obj.IO_Obj);
 
             Block_IO.Submit_Primitive_Dont_Return_Index (
-               Obj.IO_Obj, Tag_Decrypt, Prim);
+               Obj.IO_Obj, Primitive.Tag_Decrypt, Prim);
 
             Virtual_Block_Device.Drop_Completed_Primitive (Obj.VBD);
             Progress := True;
@@ -1303,7 +1311,7 @@ is
       Obj : Object_Type;
       Req : Request.Object_Type)
    return Boolean
-   is (not Request.Equal (Obj.Front_End_Req_Prim.Req, Req));
+   is (not Request.Equal (Obj.Wait_For_Front_End.Req, Req));
 
    procedure Has_IO_Request (
       Obj      : in out Object_Type;
@@ -1314,7 +1322,7 @@ is
       Req      := Request.Invalid_Object;
       Data_Idx := 0;
 
-      if Primitive.Valid (Obj.Back_End_Req_Prim.Prim) then
+      if Primitive.Valid (Obj.Wait_For_Back_End.Prim) then
          return;
       end if;
 
@@ -1323,7 +1331,7 @@ is
             Block_IO.Peek_Generated_Primitive (Obj.IO_Obj);
       begin
          if Primitive.Valid (Prim) then
-            Obj.Back_End_Req_Prim := (
+            Obj.Wait_For_Back_End := (
                Req => Request.Valid_Object (
                   Op     => Primitive.Operation (Prim),
                   Succ   => False,
@@ -1332,11 +1340,11 @@ is
                   Cnt    => 1,
                   Tg     => 0),
                Prim        => Prim,
-               Tag         => Tag_IO,
+               Event       => Event_IO_Request_Completed,
                In_Progress => False);
 
             Data_Idx := Block_IO.Peek_Generated_Data_Index (Obj.IO_Obj, Prim);
-            Req      := Obj.Back_End_Req_Prim.Req;
+            Req      := Obj.Wait_For_Back_End.Req;
          end if;
       end;
    end Has_IO_Request;
@@ -1346,13 +1354,13 @@ is
       Data_Idx :        Block_IO.Data_Index_Type)
    is
    begin
-      if Obj.Back_End_Req_Prim.In_Progress or else
-         Obj.Back_End_Req_Prim.Tag /= Tag_IO
+      if Obj.Wait_For_Back_End.In_Progress or else
+         Obj.Wait_For_Back_End.Event /= Event_IO_Request_Completed
       then
          raise Program_Error;
       end if;
       Block_IO.Drop_Generated_Primitive_2 (Obj.IO_Obj, Data_Idx);
-      Obj.Back_End_Req_Prim.In_Progress := True;
+      Obj.Wait_For_Back_End.In_Progress := True;
    end IO_Request_In_Progress;
 
    procedure IO_Request_Completed (
@@ -1361,15 +1369,15 @@ is
       Success    :        Boolean)
    is
    begin
-      if not Obj.Back_End_Req_Prim.In_Progress or else
-         Obj.Back_End_Req_Prim.Tag /= Tag_IO
+      if not Obj.Wait_For_Back_End.In_Progress or else
+         Obj.Wait_For_Back_End.Event /= Event_IO_Request_Completed
       then
          raise Program_Error;
       end if;
       Block_IO.Mark_Generated_Primitive_Complete (
          Obj.IO_Obj, Data_Index, Success);
 
-      Obj.Back_End_Req_Prim := Request_Primitive_Invalid;
+      Obj.Wait_For_Back_End := Wait_For_Event_Invalid;
    end IO_Request_Completed;
 
    procedure Client_Data_Ready (
@@ -1379,7 +1387,7 @@ is
    begin
       Req := Request.Invalid_Object;
 
-      if Primitive.Valid (Obj.Front_End_Req_Prim.Prim) then
+      if Primitive.Valid (Obj.Wait_For_Front_End.Prim) then
          return;
       end if;
 
@@ -1395,8 +1403,8 @@ is
             Primitive.Valid (Prim) and then
             Primitive.Operation (Prim) = Read
          then
-            Assign_Front_End_Req_Prim (Obj, Prim, Tag_Crypto);
-            Req := Obj.Front_End_Req_Prim.Req;
+            Start_Waiting_For_Front_End (Obj, Prim, Event_Obtain_Client_Data);
+            Req := Obj.Wait_For_Front_End.Req;
             return;
          end if;
       end;
@@ -1412,7 +1420,7 @@ is
          return Primitive.Invalid_Index;
       end if;
 
-      return Primitive.Index (Obj.Front_End_Req_Prim.Prim);
+      return Primitive.Index (Obj.Wait_For_Front_End.Prim);
    end Client_Data_Index;
 
    procedure Obtain_Client_Data (
@@ -1421,14 +1429,14 @@ is
       Data_Index       :    out Crypto.Plain_Buffer_Index_Type;
       Data_Index_Valid :    out Boolean)
    is
-      Prim : constant Primitive.Object_Type := Obj.Front_End_Req_Prim.Prim;
-      Tag  : constant Tag_Type              := Obj.Front_End_Req_Prim.Tag;
+      Prim  : constant Primitive.Object_Type := Obj.Wait_For_Front_End.Prim;
+      Event : constant Event_Type            := Obj.Wait_For_Front_End.Event;
    begin
       Data_Index_Valid := False;
       Data_Index       := Crypto.Plain_Buffer_Index_Type'First;
 
       if Front_End_Busy_With_Other_Request (Obj, Req) or else
-         Tag /= Tag_Crypto
+         Event /= Event_Obtain_Client_Data
       then
          return;
       end if;
@@ -1439,26 +1447,27 @@ is
       Data_Index_Valid := True;
       Crypto.Drop_Completed_Primitive (Obj.Crypto_Obj);
       Pool.Mark_Completed_Primitive (Obj.Request_Pool_Obj, Prim);
-      Obj.Front_End_Req_Prim := Request_Primitive_Invalid;
+      Obj.Wait_For_Front_End := Wait_For_Event_Invalid;
    end Obtain_Client_Data;
 
-   procedure Assign_Front_End_Req_Prim (
-      Obj  : in out Object_Type;
-      Prim :        Primitive.Object_Type;
-      Tag  :        Tag_Type)
+   procedure Start_Waiting_For_Front_End (
+      Obj   : in out Object_Type;
+      Prim  :        Primitive.Object_Type;
+      Event :        Event_Type)
    is
    begin
-      Obj.Front_End_Req_Prim := (
-         Req         => Pool.Request_For_Tag (Obj.Request_Pool_Obj,
-                                              Primitive.Tag (Prim)),
+      Obj.Wait_For_Front_End := (
+         Req         =>
+            Pool.Request_For_Index (
+               Obj.Request_Pool_Obj,
+               Pool_Idx_Slot_Content (Primitive.Pool_Idx_Slot (Prim))),
          Prim        => Prim,
-         Tag         => Tag,
-         In_Progress => False
-      );
-   end Assign_Front_End_Req_Prim;
+         Event       => Event,
+         In_Progress => False);
+   end Start_Waiting_For_Front_End;
 
    --
-   --  FIXME move Front_End_Req_Prim allocation into execute,
+   --  FIXME move Wait_For_Front_End allocation into execute,
    --       turn procedure into function
    --
    procedure Client_Data_Required (
@@ -1468,7 +1477,7 @@ is
    begin
       Req := Request.Invalid_Object;
 
-      if Primitive.Valid (Obj.Front_End_Req_Prim.Prim) then
+      if Primitive.Valid (Obj.Wait_For_Front_End.Prim) then
          return;
       end if;
 
@@ -1482,8 +1491,9 @@ is
       begin
          if Primitive.Valid (Prim) and then Primitive.Operation (Prim) = Write
          then
-            Assign_Front_End_Req_Prim (Obj, Prim, Tag_VBD);
-            Req := Obj.Front_End_Req_Prim.Req;
+            Start_Waiting_For_Front_End (
+               Obj, Prim, Event_Supply_Client_Data_After_VBD);
+            Req := Obj.Wait_For_Front_End.Req;
             return;
          end if;
       end;
@@ -1496,8 +1506,9 @@ is
             Free_Tree.Peek_Completed_Primitive (Obj.Free_Tree_Obj);
       begin
          if Primitive.Valid (Prim) and then Primitive.Success (Prim) then
-            Assign_Front_End_Req_Prim (Obj, Prim, Tag_Free_Tree);
-            Req := Obj.Front_End_Req_Prim.Req;
+            Start_Waiting_For_Front_End (
+               Obj, Prim, Event_Supply_Client_Data_After_FT);
+            Req := Obj.Wait_For_Front_End.Req;
             return;
          end if;
       end;
@@ -1510,18 +1521,18 @@ is
       Data     :        Block_Data_Type;
       Progress :    out Boolean)
    is
-      Prim : constant Primitive.Object_Type := Obj.Front_End_Req_Prim.Prim;
+      Prim : constant Primitive.Object_Type := Obj.Wait_For_Front_End.Prim;
    begin
       Progress := False;
 
       --
       --  For now there is only one Request pending.
       --
-      if not Request.Equal (Obj.Front_End_Req_Prim.Req, Req) then
+      if not Request.Equal (Obj.Wait_For_Front_End.Req, Req) then
          return;
       end if;
 
-      if Obj.Front_End_Req_Prim.Tag = Tag_Free_Tree then
+      if Obj.Wait_For_Front_End.Event = Event_Supply_Client_Data_After_FT then
 
          if not Write_Back.Primitive_Acceptable (Obj.Write_Back_Obj) then
             return;
@@ -1549,7 +1560,7 @@ is
          Free_Tree.Drop_Completed_Primitive (Obj.Free_Tree_Obj, Prim);
 
          --  XXX check if default constructor produces invalid object
-         Obj.Front_End_Req_Prim := Request_Primitive_Invalid;
+         Obj.Wait_For_Front_End := Wait_For_Event_Invalid;
          Progress := True;
          return;
 
@@ -1567,7 +1578,9 @@ is
       --  Those steps are handled by different modules, depending on
       --  the allocation of new blocks.
       --
-      elsif Obj.Front_End_Req_Prim.Tag = Tag_VBD then
+      elsif
+         Obj.Wait_For_Front_End.Event = Event_Supply_Client_Data_After_VBD
+      then
 
          --
          --  As usual check first we can submit new requests.
@@ -1741,7 +1754,7 @@ is
 
             Virtual_Block_Device.Drop_Completed_Primitive (Obj.VBD);
 
-            Obj.Front_End_Req_Prim := Request_Primitive_Invalid;
+            Obj.Wait_For_Front_End := Wait_For_Event_Invalid;
 
             --
             --  Inhibit translation which effectively will suspend the
@@ -1852,20 +1865,20 @@ is
    return Boolean
    is (Obj.Execute_Progress);
 
-   function To_String (Req_Prim : Request_Primitive_Type)
+   function To_String (WFE : Wait_For_Event_Type)
    return String
    is (
-      "Req_Prim (Req=" & Request.To_String (Req_Prim.Req) &
-      ", Prim="        & Primitive.To_String (Req_Prim.Prim) &
-      ", Tag="         & Debug.To_String (Req_Prim.Tag) &
-      ", In_Progress=" & Debug.To_String (Req_Prim.In_Progress) & ")");
+      "WFE (Req=" & Request.To_String (WFE.Req) &
+      ", Prim="        & Primitive.To_String (WFE.Prim) &
+      ", Event="       & To_String (WFE.Event) &
+      ", In_Progress=" & Debug.To_String (WFE.In_Progress) & ")");
 
    function To_String (Obj : Object_Type)
    return String
    is (
       "CBE=(" &
-      ", Back_End_Req_Prim="  & To_String (Obj.Back_End_Req_Prim) &
-      ", Front_End_Req_Prim=" & To_String (Obj.Front_End_Req_Prim) &
+      ", Wait_For_Back_End="  & To_String (Obj.Wait_For_Back_End) &
+      ", Wait_For_Front_End=" & To_String (Obj.Wait_For_Front_End) &
       ", VBD="                & Virtual_Block_Device.To_String (Obj.VBD) &
       ", Superblock_Dirty="   & Debug.To_String (Obj.Superblock_Dirty) &
       ", Secure_Superblock="  & Debug.To_String (Obj.Secure_Superblock) &

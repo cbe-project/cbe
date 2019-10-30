@@ -30,7 +30,7 @@ namespace Cbe {
 } /* namespace Cbe */
 
 
-class Cbe::Library : public Cbe::Spark_object<216648>
+class Cbe::Library : public Cbe::Spark_object<199448>
 {
 	private:
 

@@ -12,7 +12,7 @@ package body CBE.Block_IO
 with SPARK_Mode
 is
    function Invalid_Entry return Entry_Type
-   is (Orig_Tag => Tag_Invalid,
+   is (Orig_Tag => Primitive.Tag_Invalid,
        Prim     => Primitive.Invalid_Object,
        State    => Unused);
 
@@ -36,7 +36,7 @@ is
 
    procedure Submit_Primitive_Dont_Return_Index (
       Obj  : in out Object_Type;
-      Tag  :        Tag_Type;
+      Tag  :        Primitive.Tag_Type;
       Prim :        Primitive.Object_Type)
    is
    begin
@@ -44,12 +44,7 @@ is
          if Obj.Entries (Idx).State = Unused then
             Obj.Entries (Idx) := (
                Orig_Tag => Primitive.Tag (Prim),
-               Prim     => Primitive.Valid_Object (
-                  Op     => Primitive.Operation (Prim),
-                  Succ   => Primitive.Success (Prim),
-                  Tg     => Tag,
-                  Blk_Nr => Primitive.Block_Number (Prim),
-                  Idx    => Primitive.Index (Prim)),
+               Prim     => Primitive.Copy_Valid_Object_New_Tag (Prim, Tag),
                State    => Pending);
 
             Obj.Used_Entries := Obj.Used_Entries + 1;
@@ -61,7 +56,7 @@ is
 
    procedure Submit_Primitive (
       Obj        : in out Object_Type;
-      Tag        :        Tag_Type;
+      Tag        :        Primitive.Tag_Type;
       Prim       :        Primitive.Object_Type;
       Data_Index :    out Data_Index_Type)
    is
@@ -70,7 +65,7 @@ is
          if Obj.Entries (Idx).State = Unused then
             Obj.Entries (Idx) := (
                Orig_Tag => Primitive.Tag (Prim),
-               Prim     => Primitive.Valid_Object (
+               Prim     => Primitive.Valid_Object_No_Pool_Idx (
                   Op     => Primitive.Operation (Prim),
                   Succ   => Primitive.Success (Prim),
                   Tg     => Tag,
@@ -116,7 +111,7 @@ is
    function Peek_Completed_Tag (
       Obj  : Object_Type;
       Prim : Primitive.Object_Type)
-   return CBE.Tag_Type
+   return Primitive.Tag_Type
    is
    begin
       for I in Obj.Entries'Range loop

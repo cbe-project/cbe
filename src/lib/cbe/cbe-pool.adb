@@ -163,16 +163,16 @@ is
    --
    --  Peek_Pending_Request
    --
-   function Peek_Pending_Request (Obj : Pool.Object_Type)
-   return Request.Object_Type
+   function Peek_Pending_Request (Obj : Object_Type)
+   return Pool_Index_Slot_Type
    is
    begin
-      for Item_Id in Obj.Items'Range loop
-         if Item.Pending (Obj.Items (Item_Id)) then
-            return Item.Req (Obj.Items (Item_Id));
+      For_Each_Item : for Idx in Obj.Items'Range loop
+         if Item.Pending (Obj.Items (Idx)) then
+            return Pool_Idx_Slot_Valid (Idx);
          end if;
-      end loop;
-      return Request.Invalid_Object;
+      end loop For_Each_Item;
+      return Pool_Idx_Slot_Invalid;
    end Peek_Pending_Request;
 
    --
@@ -196,14 +196,10 @@ is
       Obj  : in out Object_Type;
       Prim :        Primitive.Object_Type)
    is
-      Req : Request.Object_Type;
    begin
-      for Item_Id in Obj.Items'Range loop
-         Req := Item.Req (Obj.Items (Item_Id));
-         if Request.Tag (Req) = Primitive.Tag (Prim) then
-            Item.Primitive_Completed (Obj.Items (Item_Id), Prim);
-         end if;
-      end loop;
+      Item.Primitive_Completed (
+         Obj.Items (Pool_Idx_Slot_Content (Primitive.Pool_Idx_Slot (Prim))),
+         Prim);
    end Mark_Completed_Primitive;
 
    --
@@ -242,24 +238,18 @@ is
    end Drop_Completed_Request;
 
    --
-   --  Request_For_Tag
+   --  Request_For_Index
    --
-   function Request_For_Tag (
+   function Request_For_Index (
       Obj : Object_Type;
-      Tag : Tag_Type)
+      Idx : Pool_Index_Type)
    return Request.Object_Type
    is
-      Req : Request.Object_Type;
    begin
-      for Itm of Obj.Items loop
-         if not Item.Invalid (Itm) then
-            Req := Item.Req (Itm);
-            if Request.Tag (Req) = Tag then
-               return Req;
-            end if;
-         end if;
-      end loop;
-      return Request.Invalid_Object;
-   end Request_For_Tag;
+      if not Request.Valid (Item.Req (Obj.Items (Idx))) then
+         raise Program_Error;
+      end if;
+      return Item.Req (Obj.Items (Idx));
+   end Request_For_Index;
 
 end CBE.Pool;

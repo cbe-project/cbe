@@ -9,7 +9,6 @@
 pragma Ada_2012;
 
 with CBE.Primitive;
-with CBE.Request;
 
 package CBE.Crypto
 with SPARK_Mode
@@ -94,17 +93,6 @@ is
    function Data_Index (
       Obj  : Crypto.Object_Type;
       Prim : Primitive.Object_Type)
-   return Item_Index_Type;
-
-   --
-   --  FIXME This function shouldn't be necessary in the future as we should
-   --        always remember a definite correlation from request to primitive.
-   --        This is currently not the case at least when creating a request
-   --        for the CBE crypto back-end from a primitive of the crypto module.
-   --
-   function Data_Index_By_Request (
-      Obj : Crypto.Object_Type;
-      Req : Request.Object_Type)
    return Item_Index_Type;
 
    -----------------

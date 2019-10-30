@@ -153,11 +153,11 @@ is
       Peek_Primitive : for Item_Id in Obj.Items'Range loop
          if Item.Complete (Obj.Items (Item_Id))
          then
-            return Primitive.Valid_Object (
+            return Primitive.Valid_Object_No_Pool_Idx (
                Op     => Write,
                Succ   => Request.Success_Type (
                             Item.Success (Obj.Items (Item_Id))),
-               Tg     => 16#21#,
+               Tg     => Primitive.Tag_Cache_Flush,
                Blk_Nr => Block_Number_Type (Item.PBA (Obj.Items (Item_Id))),
                Idx    => 0);
          end if;
@@ -195,10 +195,10 @@ is
       Peek_Primitive : for Item_Id in Obj.Items'Range loop
          if Item.Pending (Obj.Items (Item_Id))
          then
-            return Primitive.Valid_Object (
+            return Primitive.Valid_Object_No_Pool_Idx (
                Op     => Write,
                Succ   => Request.Success_Type (False),
-               Tg     => 16#21#,
+               Tg     => Primitive.Tag_Cache_Flush,
                Blk_Nr => Block_Number_Type (Item.PBA (Obj.Items (Item_Id))),
                Idx => 0);
          end if;

@@ -63,9 +63,6 @@ is
    function To_String (Bool : Boolean)
    return String;
 
-   function To_String (Tag : Tag_Type)
-   return String;
-
    function To_String (PBA : Physical_Block_Address_Type)
    return String;
 
