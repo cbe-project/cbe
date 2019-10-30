@@ -27,7 +27,7 @@ namespace External {
 } /* namespace Cbe */
 
 
-class External::Crypto : public Cbe::Spark_object<16552>
+class External::Crypto : public Cbe::Spark_object<16568>
 {
 	public:
 

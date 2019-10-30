@@ -488,10 +488,10 @@ is
       Peek_Primitive : for Job_Item_Id in Obj.Job_Items'Range loop
          if Job_Item.Pending (Obj.Job_Items (Job_Item_Id))
          then
-            return Primitive.Valid_Object (
+            return Primitive.Valid_Object_No_Pool_Idx (
                Op     => Read,
                Succ   => Request.Success_Type (False),
-               Tg     => 16#20#,
+               Tg     => Primitive.Tag_Cache,
                Blk_Nr => Block_Number_Type (
                   Job_Item.PBA (Obj.Job_Items (Job_Item_Id))),
                Idx    => 0);

@@ -41,7 +41,6 @@ is
    type Tree_Degree_Log_2_Type       is mod 2**32;
    type Tree_Level_Type              is mod 2**32;
    type Tree_Child_Index_Type        is mod 2**32;
-   type Tag_Type                     is mod 2**32;
    type Number_Of_Blocks_Type        is mod 2**32;
    type Snapshot_ID_Type             is range 0 .. 2**32 - 1;
    type Snapshot_ID_Storage_Type     is range 0 .. 2**32 - 1 with Size => 32;
@@ -203,24 +202,6 @@ is
    function Tree_Level_Invalid return Tree_Level_Type
    is (Tree_Level_Type'Last);
 
-   --
-   --  Tag meanings
-   --
-   function Tag_Invalid      return Tag_Type is (16#00#);
-   function Tag_IO           return Tag_Type is (16#10#);
-   function Tag_Translation  return Tag_Type is (16#60#);
-   function Tag_Write_Back   return Tag_Type is (16#70#);
-   function Tag_Cache        return Tag_Type is (16#20#);
-   function Tag_Cache_Flush  return Tag_Type is (16#21#);
-   function Tag_Crypto       return Tag_Type is (16#30#);
-   function Tag_Decrypt      return Tag_Type is (16#31#);
-   function Tag_Encrypt      return Tag_Type is (16#32#);
-   function Tag_Sync_SB      return Tag_Type is (16#80#);
-   function Tag_VBD          return Tag_Type is (16#100#);
-   function Tag_Free_Tree    return Tag_Type is (16#200#);
-   function Tag_Free_Tree_IO return Tag_Type is (16#210#);
-   function Tag_Free_Tree_WB return Tag_Type is (16#270#);
-
    type Key_Value_Index_Type is range 0 .. 63;
    type Key_Value_Type
    is array (Key_Value_Index_Type) of Byte_Type with Size => 64 * 8;
@@ -330,6 +311,24 @@ is
       Data  : out Block_Data_Type;
       SB    :     Superblock_Type);
 
+   type Pool_Index_Type is range 1 .. 1;
+   type Pool_Index_Slot_Type is private;
+
+   function Pool_Idx_Slot_Valid (Slot : Pool_Index_Slot_Type)
+   return Boolean;
+
+   function Pool_Idx_Slot_Content (Slot : Pool_Index_Slot_Type)
+   return Pool_Index_Type;
+
+   function Pool_Idx_Slot_Valid (Cont : Pool_Index_Type)
+   return Pool_Index_Slot_Type;
+
+   function Pool_Idx_Slot_Invalid
+   return Pool_Index_Slot_Type;
+
+   function To_String (Pool_Idx_Slot : Pool_Index_Slot_Type)
+   return String;
+
 private
 
    procedure Block_Data_From_Unsigned_64 (
@@ -406,5 +405,10 @@ private
       Data     : in out Block_Data_Type;
       Data_Off :        Block_Data_Index_Type;
       Snaps    :        Snapshots_Type);
+
+   type Pool_Index_Slot_Type is record
+      Valid   : Boolean;
+      Content : Pool_Index_Type;
+   end record;
 
 end CBE;

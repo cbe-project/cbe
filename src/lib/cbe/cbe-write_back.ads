@@ -328,7 +328,7 @@ private
       PBA        : Physical_Block_Address_Type;
       Update_PBA : Physical_Block_Address_Type;
       State      : Entry_State_Type;
-      Tag        : Tag_Type;
+      Tag        : Primitive.Tag_Type;
    end record;
 
    --

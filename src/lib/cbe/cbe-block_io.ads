@@ -58,12 +58,12 @@ is
    --
    procedure Submit_Primitive_Dont_Return_Index (
       Obj  : in out Object_Type;
-      Tag  :        CBE.Tag_Type;
+      Tag  :        Primitive.Tag_Type;
       Prim :        Primitive.Object_Type);
 
    procedure Submit_Primitive (
       Obj        : in out Object_Type;
-      Tag        :        CBE.Tag_Type;
+      Tag        :        Primitive.Tag_Type;
       Prim       :        Primitive.Object_Type;
       Data_Index :    out Data_Index_Type);
 
@@ -99,7 +99,7 @@ is
    function Peek_Completed_Tag (
       Obj  : Object_Type;
       Prim : Primitive.Object_Type)
-   return CBE.Tag_Type;
+   return Primitive.Tag_Type;
 
    --
    --  Take the next completed primitive
@@ -176,7 +176,7 @@ private
    type Entry_State_Type is (Unused, Pending, In_Progress, Complete);
 
    type Entry_Type is record
-      Orig_Tag : CBE.Tag_Type;
+      Orig_Tag : Primitive.Tag_Type;
       Prim     : Primitive.Object_Type;
       State    : Entry_State_Type;
    end record;

@@ -13,10 +13,11 @@ with SPARK_Mode
 is
    pragma Pure;
 
-   subtype Success_Type      is Boolean;
-   type    Offset_Type       is mod 2**64;
-   type    Count_Type        is mod 2**32;
-   type    Object_Type       is private;
+   subtype Success_Type is Boolean;
+   type    Offset_Type  is mod 2**64;
+   type    Count_Type   is mod 2**32;
+   type    Object_Type  is private;
+   type    Tag_Type     is range 0 .. 2**32 - 1;
 
    --
    --  Invalid_Object
@@ -93,6 +94,7 @@ is
    with Pre => (Valid (Obj));
 
    function To_String (B   : Block_Number_Type) return String;
+   function To_String (Tag : Tag_Type)          return String;
    function To_String (Obj : Object_Type)       return String;
 
 private

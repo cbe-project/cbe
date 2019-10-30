@@ -82,8 +82,11 @@ is
       end if;
       return Primitive.Valid_Object (
          Op     => Write,
-         Succ   => Request.Success_Type (False),
+         Succ   => False,
          Tg     => Obj.Entries (0).Tag,
+         Pl_Idx =>
+            Pool_Idx_Slot_Content (
+               Primitive.Pool_Idx_Slot (Obj.Pending_Primitive)),
          Blk_Nr => Block_Number_Type (Obj.Entries (0).Update_PBA),
          Idx    => 0);
    end Peek_Generated_Leaf_Primitive;
@@ -139,10 +142,11 @@ is
    end Drop_Generated_Leaf_Primitive;
 
    function Invalid_Entry return Entry_Type
-   is (PBA        => 0,
+   is (
+      PBA        => 0,
       Update_PBA => 0,
       State      => Invalid,
-      Tag        => Tag_Invalid);
+      Tag        => Primitive.Tag_Invalid);
 
    --
    --  Public
@@ -189,8 +193,8 @@ is
       --
       For_Each_Entry : for I in 1 .. Obj.Levels - 1 loop
 
-         if Obj.Entries (I).Tag = Tag_Cache and then Obj.Entries (I).PBA =
-               PBA
+         if Primitive."=" (Obj.Entries (I).Tag, Primitive.Tag_Cache) and then
+            Obj.Entries (I).PBA = PBA
          then
 
             --  CoW action incoming
@@ -292,11 +296,11 @@ is
          Obj.Entries (I).PBA        := Old_PBAs (Natural (I)).PBA;
          Obj.Entries (I).Update_PBA := New_PBAs (I);
          Obj.Entries (I).State      := Pending;
-         Obj.Entries (I).Tag        := Tag_Cache;
+         Obj.Entries (I).Tag        := Primitive.Tag_Cache;
       end loop;
 
       --  ... but the data or rather leaf node is special
-      Obj.Entries (0).Tag := Tag_Encrypt;
+      Obj.Entries (0).Tag := Primitive.Tag_Encrypt;
       WB_Data (0) := Data;
    end Submit_Primitive;
 
@@ -414,7 +418,7 @@ is
       end if;
 
       Obj.Entries (0).State := Pending;
-      Obj.Entries (0).Tag   := Tag_IO;
+      Obj.Entries (0).Tag   := Primitive.Tag_IO;
 
       Obj.State := IO;
 
@@ -496,6 +500,9 @@ is
                Op     => Write,
                Succ   => Request.Success_Type (False),
                Tg     => Obj.Entries (I).Tag,
+               Pl_Idx =>
+                  Pool_Idx_Slot_Content (
+                     Primitive.Pool_Idx_Slot (Obj.Pending_Primitive)),
                Blk_Nr => Block_Number_Type (Obj.Entries (I).PBA),
                Idx    => 0);
          end if;

@@ -8,6 +8,7 @@
 
 pragma Ada_2012;
 
+with CBE.Debug;
 with Interfaces;
 use Interfaces;
 
@@ -441,5 +442,40 @@ is
 
       Block_Data_Zero_Fill (Data, Off, SB.Padding'Size / 8);
    end Block_Data_From_Superblock;
+
+   function Pool_Idx_Slot_Valid (Cont : Pool_Index_Type)
+   return Pool_Index_Slot_Type
+   is (
+      Valid   => True,
+      Content => Cont);
+
+   function Pool_Idx_Slot_Invalid
+   return Pool_Index_Slot_Type
+   is (
+      Valid   => False,
+      Content => Pool_Index_Type'Last);
+
+   function Pool_Idx_Slot_Valid (Slot : Pool_Index_Slot_Type)
+   return Boolean
+   is (Slot.Valid);
+
+   function Pool_Idx_Slot_Content (Slot : Pool_Index_Slot_Type)
+   return Pool_Index_Type
+   is
+   begin
+      if not Slot.Valid then
+         raise Program_Error;
+      end if;
+      return Slot.Content;
+   end Pool_Idx_Slot_Content;
+
+   function To_String (Pool_Idx_Slot : Pool_Index_Slot_Type)
+   return String
+   is (
+      if Pool_Idx_Slot_Valid (Pool_Idx_Slot) then
+         Debug.To_String (
+            Debug.Uint64_Type (Pool_Idx_Slot_Content (Pool_Idx_Slot)))
+      else
+         "<Invalid>");
 
 end CBE;

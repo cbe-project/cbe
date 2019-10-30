@@ -59,8 +59,9 @@ is
    --  Submit_Request
    --
    procedure Submit_Request (
-      Obj : in out Object_Type;
-      Req :        Request.Object_Type)
+      Obj      : in out Object_Type;
+      Pool_Idx :        Pool_Index_Type;
+      Req      :        Request.Object_Type)
    with
       Pre  => (Request_Acceptable (Obj) and then Request.Valid (Req)),
       Post => (not Request_Acceptable (Obj));
@@ -88,10 +89,11 @@ private
    --  Object_Type
    --
    type Object_Type is record
-      Curr_Req    : Request.Object_Type;
-      Curr_Blk_Nr : Block_Number_Type;
-      Curr_Idx    : Primitive.Index_Type;
-      Nr_Of_Prims : Number_Of_Primitives_Type;
+      Pool_Idx_Slot : Pool_Index_Slot_Type;
+      Curr_Req      : Request.Object_Type;
+      Curr_Blk_Nr   : Block_Number_Type;
+      Curr_Idx      : Primitive.Index_Type;
+      Nr_Of_Prims   : Number_Of_Primitives_Type;
    end record;
 
    --

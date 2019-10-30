@@ -112,10 +112,10 @@ is
    is
    begin
       Item.Pending_Item (Obj.Current_Item, Idx, Gen);
-      Obj.Current_Primitive := Primitive.Valid_Object (
+      Obj.Current_Primitive := Primitive.Valid_Object_No_Pool_Idx (
          Op     => Write,
          Succ   => Request.Success_Type (False),
-         Tg     => 16#80#,
+         Tg     => Primitive.Tag_Sync_SB,
          --  there is currently a 1:1 mapping between SB slot and pba
          Blk_Nr => Block_Number_Type (Item.Index (Obj.Current_Item)),
          Idx    => 0);

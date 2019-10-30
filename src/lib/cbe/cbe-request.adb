@@ -98,6 +98,11 @@ is
       return Debug.To_String (Debug.Uint64_Type (B));
    end To_String;
 
+   function To_String (Tag : Tag_Type)
+   return String
+   is (
+      Debug.To_String (Debug.Uint64_Type (Tag)));
+
    function To_String (Obj : Object_Type)
    return String
    is (
@@ -107,7 +112,7 @@ is
          "Request (Op=" &
          Obj.Operation'Image &
          " Tag=" &
-         Debug.To_String (Obj.Tag) &
+         To_String (Obj.Tag) &
          " Success=" &
          Debug.To_String (Obj.Success) &
          " Block_Number=" &

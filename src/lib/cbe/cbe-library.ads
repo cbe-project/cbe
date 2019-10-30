@@ -311,19 +311,26 @@ private
    --  and should be properly managed, especially handling more
    --  than one request is "missing".
    --
-   type Request_Primitive_Type is record
+   type Event_Type is (
+      Event_Invalid,
+      Event_Supply_Client_Data_After_VBD,
+      Event_Supply_Client_Data_After_FT,
+      Event_IO_Request_Completed,
+      Event_Obtain_Client_Data);
+
+   type Wait_For_Event_Type is record
       Req         : Request.Object_Type;
       Prim        : Primitive.Object_Type;
-      Tag         : Tag_Type;
+      Event       : Event_Type;
       In_Progress : Boolean;
    end record;
 
-   function Request_Primitive_Invalid
-   return Request_Primitive_Type
+   function Wait_For_Event_Invalid
+   return Wait_For_Event_Type
    is (
       Req         => Request.Invalid_Object,
       Prim        => Primitive.Invalid_Object,
-      Tag         => Tag_Invalid,
+      Event       => Event_Invalid,
       In_Progress => False);
 
    type Object_Type is record
@@ -353,8 +360,8 @@ private
       Seal_Generation         : Boolean;
       Secure_Superblock       : Boolean;
       Superblock_Dirty        : Boolean;
-      Front_End_Req_Prim      : Request_Primitive_Type;
-      Back_End_Req_Prim       : Request_Primitive_Type;
+      Wait_For_Front_End      : Wait_For_Event_Type;
+      Wait_For_Back_End       : Wait_For_Event_Type;
    end record;
 
    procedure Discard_Snapshot (
@@ -362,7 +369,7 @@ private
       Keep_Snap :        Snapshots_Index_Type;
       Success   :    out Boolean);
 
-   function To_String (Req_Prim : Request_Primitive_Type) return String;
+   function To_String (WFE : Wait_For_Event_Type) return String;
 
    function Curr_Snap (Obj : Object_Type)
    return Snapshots_Index_Type;
@@ -378,9 +385,20 @@ private
       Snap     : in out Snapshot_Type;
       Prim     :        Primitive.Object_Type);
 
-   procedure Assign_Front_End_Req_Prim (
-      Obj  : in out Object_Type;
-      Prim :        Primitive.Object_Type;
-      Tag  :        Tag_Type);
+   procedure Start_Waiting_For_Front_End (
+      Obj   : in out Object_Type;
+      Prim  :        Primitive.Object_Type;
+      Event :        Event_Type);
+
+   function To_String (Event : Event_Type)
+   return String
+   is (
+      case Event is
+      when Event_Invalid                      => "Invalid",
+      when Event_Supply_Client_Data_After_VBD =>
+         "Supply_Client_Data_After_VBD",
+      when Event_Supply_Client_Data_After_FT  => "Supply_Client_Data_After_FT",
+      when Event_IO_Request_Completed         => "IO_Request_Completed",
+      when Event_Obtain_Client_Data           => "Obtain_Client_Data");
 
 end CBE.Library;

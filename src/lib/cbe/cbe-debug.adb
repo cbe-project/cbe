@@ -45,11 +45,6 @@ is
    is (
       if Bool then "True" else "False");
 
-   function To_String (Tag : Tag_Type)
-   return String
-   is (
-      To_String (Uint64_Type (Tag)));
-
    function To_String (PBA : Physical_Block_Address_Type)
    return String
    is (

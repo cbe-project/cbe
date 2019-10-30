@@ -105,7 +105,7 @@ is
          Block_Number_Type    (Req.Block_Number),
          Request.Offset_Type  (Req.Offset),
          Request.Count_Type   (Req.Count),
-         Tag_Type             (Req.Tag)));
+         Request.Tag_Type     (Req.Tag)));
 
    function CXX_Request_To_SPARK (Input : CXX_Request_Type)
    return Request.Object_Type

@@ -256,12 +256,8 @@ is
    return Primitive.Object_Type
    is (
       if Obj.Data_PBA /= PBA_Invalid then
-         Primitive.Valid_Object (
-            Op     => Primitive.Operation (Obj.Current),
-            Succ   => False,
-            Tg     => Primitive.Tag (Obj.Current),
-            Blk_Nr => Block_Number_Type (Obj.Data_PBA),
-            Idx    => Primitive.Index (Obj.Current))
+         Primitive.Copy_Valid_Object_New_Succ_Blk_Nr (
+            Obj.Current, False, Block_Number_Type (Obj.Data_PBA))
       else
          Primitive.Invalid_Object);
 
@@ -318,10 +314,10 @@ is
    return Primitive.Object_Type
    is (
       if Obj.Next_PBA /= PBA_Invalid then
-         Primitive.Valid_Object (
+         Primitive.Valid_Object_No_Pool_Idx (
             Op     => Read,
             Succ   => False,
-            Tg     => Tag_Translation,
+            Tg     => Primitive.Tag_Translation,
             Blk_Nr => Block_Number_Type (Obj.Next_PBA),
             Idx    => 0)
       else

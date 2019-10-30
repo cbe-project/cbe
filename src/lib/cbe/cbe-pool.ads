@@ -49,7 +49,7 @@ is
    --  Peek_Pending_Request
    --
    function Peek_Pending_Request (Obj : Pool.Object_Type)
-   return Request.Object_Type;
+   return Pool_Index_Slot_Type;
 
    --
    --  Drop_Pending_Request
@@ -77,11 +77,11 @@ is
       Req :        Request.Object_Type);
 
    --
-   --  Request_For_Tag
+   --  Request_For_Index
    --
-   function Request_For_Tag (
+   function Request_For_Index (
       Obj : Object_Type;
-      Tag : Tag_Type)
+      Idx : Pool_Index_Type)
    return Request.Object_Type;
 
 private
@@ -149,7 +149,7 @@ private
 
    end Item;
 
-   type Items_Type is array (1 .. 1) of Item.Item_Type;
+   type Items_Type is array (Pool_Index_Type) of Item.Item_Type;
 
    --
    --  Object_Type
