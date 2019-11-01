@@ -94,17 +94,26 @@ is
       if not Obj.Creating_Snapshot or else
          not Obj.Secure_Superblock
       then
-         if not Cache_Dirty (Obj) then
-            Snap_ID := Snapshot_ID_Type (Obj.Last_Secured_Generation);
+         Declare_Current_Snapshot :
+         declare
+            Snap : constant Snapshot_Type :=
+               Obj.Superblock.Snapshots (Curr_Snap (Obj));
+         begin
+            --  if Obj.Last_Secured_Generation = Obj.Cur_Gen then
+            if Snap.PBA = Obj.Last_Root_PBA and then
+               Snap.Hash = Obj.Last_Root_Hash
+            then
+               Snap_ID := Snapshot_ID_Type (Obj.Last_Secured_Generation);
 
-            pragma Debug (Debug.Print_String ("Creating_Snapshot: "
-               & "cache not dirty - no new snapshot: "
-               & Debug.To_String (Debug.Uint64_Type (Snap_ID))));
-            return;
-         end if;
+               pragma Debug (Debug.Print_String ("Creating_Snapshot: "
+                  & "generation already secured - no new snapshot: "
+                  & Debug.To_String (Debug.Uint64_Type (Snap_ID))));
+               return;
+            end if;
 
-         Obj.Creating_Snapshot := True;
-         Obj.Creating_Quarantine_Snapshot := Quara;
+            Obj.Creating_Snapshot := True;
+            Obj.Creating_Quarantine_Snapshot := Quara;
+         end Declare_Current_Snapshot;
       end if;
       Snap_ID := Snapshot_ID_Type (Obj.Cur_Gen);
 
@@ -265,15 +274,17 @@ is
       Obj.Wait_For_Back_End            := Wait_For_Event_Invalid;
       Obj.Creating_Snapshot            := False;
       Obj.Creating_Quarantine_Snapshot := False;
-      Obj.Next_Snapshot_ID             := 0;
       Obj.Stall_Snapshot_Creation      := False;
 
       Obj.Superblock := SBs (Curr_SB);
       Obj.Last_Secured_Generation := Obj.Superblock.Last_Secured_Generation;
       Obj.Cur_Gen := Obj.Last_Secured_Generation + 1;
+      Obj.Last_Root_PBA := Obj.Superblock.Snapshots (Snapshots_Index_Type (
+         Obj.Superblock.Curr_Snap)).PBA;
+      Obj.Last_Root_Hash := Obj.Superblock.Snapshots (Snapshots_Index_Type (
+         Obj.Superblock.Curr_Snap)).Hash;
+      Obj.Cur_SB := Curr_SB;
 
-      Obj.Snapshot := Snapshot_Invalid;
-      Obj.Cur_SB := Superblocks_Index_Type'Last;
       declare
          Next_Snap : constant Snapshots_Index_Type :=
             Next_Snap_Slot (Obj);
@@ -286,20 +297,11 @@ is
          --  unintentionally.
          --
          Obj.Superblock.Snapshots (Next_Snap).Flags := 0;
+         Obj.Superblock.Snapshots (Next_Snap).Gen := Obj.Cur_Gen;
 
          Obj.Superblock.Curr_Snap :=
             Snapshots_Index_Storage_Type (Next_Snap);
       end;
-
-      Obj.Snapshot := Obj.Superblock.Snapshots (
-         Snapshots_Index_Type (Obj.Superblock.Curr_Snap));
-
-      --
-      --  Clear flags to prevent creating a quarantine snapshot
-      --  unintentionally. XXX could be post-poned until writing
-      --  snapshot to disk.
-      --
-      Obj.Snapshot.Flags := 0;
 
       pragma Debug (Debug.Print_String ("Initial SB state: "));
       pragma Debug (Debug.Dump_Superblock (Obj.Cur_SB, Obj.Superblock));
@@ -1041,10 +1043,29 @@ is
          Obj.Secure_Superblock and then
          Sync_Superblock.Request_Acceptable (Obj.Sync_SB_Obj)
       then
-         Obj.Superblock.Last_Secured_Generation := Obj.Cur_Gen;
 
-         Sync_Superblock.Submit_Request (
-            Obj.Sync_SB_Obj, Obj.Cur_SB, Obj.Cur_Gen);
+         --
+         --  Only when a snapshot was created secure the generation.
+         --
+         --  In case the superblock was merely synced because either
+         --  a snapshot was dropped or a sync request was processed
+         --  do not secure the generation.
+         --
+         if Obj.Creating_Snapshot then
+            Obj.Superblock.Last_Secured_Generation := Obj.Cur_Gen;
+
+            pragma Debug (Debug.Print_String ("Sync_Superblock "
+               & " Obj.Last_Secured_Generation: "
+               & Debug.To_String (Debug.Uint64_Type (
+                  Obj.Superblock.Last_Secured_Generation))));
+
+            Sync_Superblock.Submit_Request (
+               Obj.Sync_SB_Obj, Obj.Cur_SB, Obj.Cur_Gen);
+         else
+            Sync_Superblock.Submit_Request (
+               Obj.Sync_SB_Obj, Obj.Cur_SB, Obj.Last_Secured_Generation);
+         end if;
+
       end if;
 
       --
@@ -1078,7 +1099,20 @@ is
                   Sync_Superblock.Peek_Completed_Generation (
                      Obj.Sync_SB_Obj, Prim);
 
+               pragma Debug (Debug.Print_String (
+                  "Loop_Sync_SB_Completed_Prims "
+                  & " Obj.Last_Secured_Generation: "
+                  & Debug.To_String (Debug.Uint64_Type (
+                     Obj.Last_Secured_Generation))));
+
                if Obj.Creating_Snapshot then
+                  --  next snapshot slot will contain new generation
+                  Obj.Cur_Gen := Obj.Cur_Gen  + 1;
+                  Obj.Last_Root_PBA := Obj.Superblock.Snapshots (
+                     Curr_Snap (Obj)).PBA;
+                  Obj.Last_Root_Hash := Obj.Superblock.Snapshots (
+                     Curr_Snap (Obj)).Hash;
+
                   --
                   --  Look for a new snapshot slot. If we cannot find one
                   --  we manual intervention b/c there are too many snapshots
@@ -1113,15 +1147,12 @@ is
                         Obj.Superblock.Snapshots (Curr_Snap (Obj));
                      Obj.Superblock.Snapshots (Next_Snap).Flags := 0;
 
-                     Obj.Superblock.Snapshots (Next_Snap).ID :=
-                        Snapshot_ID_Storage_Type (Obj.Next_Snapshot_ID);
-
                      Obj.Superblock.Snapshots (Next_Snap).Valid := 1;
+                     Obj.Superblock.Snapshots (Next_Snap).Gen := Obj.Cur_Gen;
                      Obj.Superblock.Curr_Snap :=
                         Snapshots_Index_Storage_Type (Next_Snap);
                   end Declare_Next_Snap_2;
 
-                  Obj.Cur_Gen := Obj.Cur_Gen  + 1;
                   Obj.Creating_Snapshot := False;
                end if;
 
@@ -1881,8 +1912,8 @@ is
                   Old_PBAs (Natural (Trans_Height - 1)).Gen))));
 
             --  check root node
-            if Old_PBAs (Natural (Trans_Height - 1)).Gen = Obj.Cur_Gen or else
-               Snap.Gen = 0
+            if Old_PBAs (Natural (Trans_Height - 1)).Gen = Obj.Cur_Gen and then
+               Old_PBAs (Natural (Trans_Height - 1)).PBA /= Obj.Last_Root_PBA
             then
                pragma Debug (Debug.Print_String ("Change root PBA in place"));
                New_PBAs (Tree_Level_Index_Type (Trans_Height - 1)) :=

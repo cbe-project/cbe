@@ -9,6 +9,8 @@
 pragma Ada_2012;
 
 with CBE.Request;
+with CBE.Debug;
+pragma Unreferenced (CBE.Debug);
 
 package body CBE.Sync_Superblock
 with SPARK_Mode
@@ -111,6 +113,9 @@ is
       Gen :     Generation_Type)
    is
    begin
+      pragma Debug (Debug.Print_String ("Sync_Superblock.Submit_Request: "
+         & " Gen: " & Debug.To_String (Debug.Uint64_Type (Gen))));
+
       Item.Pending_Item (Obj.Current_Item, Idx, Gen);
       Obj.Current_Primitive := Primitive.Valid_Object_No_Pool_Idx (
          Op     => Write,
