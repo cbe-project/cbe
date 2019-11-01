@@ -97,22 +97,21 @@ is
          not Obj.Secure_Superblock
       then
          if not Cache_Dirty (Obj) then
+            Snap_ID := Snapshot_ID_Type (Obj.Last_Secured_Generation);
+
             pragma Debug (Debug.Print_String ("Creating_Snapshot: "
                & "cache not dirty - no new snapshot: "
-               & Debug.To_String (Debug.Uint64_Type (Obj.Last_Snapshot_ID))));
-
-            Snap_ID := Obj.Last_Snapshot_ID;
+               & Debug.To_String (Debug.Uint64_Type (Snap_ID))));
             return;
          end if;
 
          Obj.Creating_Snapshot := True;
          Obj.Creating_Quarantine_Snapshot := Quara;
-         Obj.Next_Snapshot_ID := Obj.Last_Snapshot_ID + 1;
       end if;
-      pragma Debug (Debug.Print_String ("Creating_Snapshot: id: "
-         & Debug.To_String (Debug.Uint64_Type (Obj.Next_Snapshot_ID))));
+      Snap_ID := Snapshot_ID_Type (Obj.Cur_Gen);
 
-      Snap_ID := Obj.Next_Snapshot_ID;
+      pragma Debug (Debug.Print_String ("Creating_Snapshot: id: "
+         & Debug.To_String (Debug.Uint64_Type (Snap_ID))));
    end Create_Snapshot;
 
    procedure Create_Snapshot_Internal (
@@ -166,9 +165,9 @@ is
             Obj.Superblocks (Obj.Cur_SB).Snapshots (
                Curr_Snap (Obj)).Flags := (
                   if Obj.Creating_Quarantine_Snapshot then 1 else 0);
-            Obj.Cur_Gen := Obj.Cur_Gen  + 1;
+            --  Obj.Cur_Gen := Obj.Cur_Gen  + 1;
             --  trigger securing of suerblock
-            Obj.Creating_Snapshot := False;
+            --  Obj.Creating_Snapshot := False;
             Obj.Secure_Superblock := True;
          end if;
          Progress := True;
@@ -180,10 +179,11 @@ is
       Snap_ID : Snapshot_ID_Type)
    return Boolean
    is
-      Result : constant Boolean := (Obj.Last_Snapshot_ID = Snap_ID);
+      Result : constant Boolean := (Obj.Last_Secured_Generation =
+         Generation_Type (Snap_ID));
    begin
       pragma Debug (Debug.Print_String ("Snapshot_Creation_Complete: " &
-         Debug.To_String (Debug.Uint64_Type (Obj.Last_Snapshot_ID))
+         Debug.To_String (Debug.Uint64_Type (Obj.Last_Secured_Generation))
          & " = "
          & Debug.To_String (Debug.Uint64_Type (Snap_ID)) & " "
          & " result: " & Debug.To_String (Result)));
@@ -274,8 +274,6 @@ is
 
       Obj.Cur_Gen                 := SBs (Curr_SB).Last_Secured_Generation + 1;
       Obj.Last_Secured_Generation := SBs (Curr_SB).Last_Secured_Generation;
-      Obj.Last_Snapshot_ID        :=
-         Snapshot_ID_Type (SBs (Curr_SB).Snapshots (Curr_Snap).ID);
 
       Obj.Secure_Superblock       := False;
       Obj.Wait_For_Front_End      := Wait_For_Event_Invalid;
@@ -315,15 +313,14 @@ is
 
    function Snap_Slot_For_ID (
       Obj : Object_Type;
-      ID  : Snapshot_ID_Type)
+      ID  : Generation_Type)
    return Snapshots_Index_Type
    is
    begin
       for I in Snapshots_Index_Type loop
          if Snapshot_Valid (Obj.Superblocks (Obj.Cur_SB).
             Snapshots (I)) and then
-            Obj.Superblocks (Obj.Cur_SB).Snapshots (I).Gen =
-               Generation_Type (ID)
+            Obj.Superblocks (Obj.Cur_SB).Snapshots (I).Gen = ID
          then
             return I;
          end if;
@@ -365,41 +362,6 @@ is
                Snapshots (Curr_Snap (Obj)).Nr_Of_Leafs - 1);
    end Max_VBA;
 
-   procedure Create_New_Snapshot (
-      Obj  : in out Object_Type;
-      Snap :        Snapshots_Index_Type;
-      Prim :        Primitive.Object_Type)
-   is
-      Snap_ID : constant Snapshot_ID_Type := Obj.Last_Snapshot_ID + 1;
-   begin
-      Obj.Superblocks (Obj.Cur_SB).Snapshots (Snap).PBA :=
-         Write_Back.Peek_Completed_Root (Obj.Write_Back_Obj, Prim);
-
-      Write_Back.Peek_Completed_Root_Hash (
-         Obj.Write_Back_Obj, Prim,
-         Obj.Superblocks (Obj.Cur_SB).Snapshots (Snap).Hash);
-
-      Declare_Tree :
-      declare
-         Tree : constant Tree_Helper.Object_Type :=
-            Virtual_Block_Device.Get_Tree_Helper (Obj.VBD);
-      begin
-         Obj.Superblocks (Obj.Cur_SB).Snapshots (Snap).Height :=
-            Tree_Helper.Height (Tree);
-         Obj.Superblocks (Obj.Cur_SB).Snapshots (Snap).Nr_Of_Leafs :=
-            Tree_Helper.Leafs (Tree);
-         Obj.Superblocks (Obj.Cur_SB).Snapshots (Snap).Gen :=
-            Obj.Cur_Gen;
-         Obj.Superblocks (Obj.Cur_SB).Snapshots (Snap).ID :=
-            Snapshot_ID_Storage_Type (Snap_ID);
-      end Declare_Tree;
-
-      Obj.Last_Snapshot_ID := Snap_ID;
-      Obj.Superblocks (Obj.Cur_SB).Snapshots (Snap).Valid := 1;
-      Obj.Superblocks (Obj.Cur_SB).Curr_Snap :=
-         Snapshots_Index_Storage_Type (Snap);
-   end Create_New_Snapshot;
-
    procedure Update_Snapshot_Hash (
       WB       :        Write_Back.Object_Type;
       Curr_Gen :        Generation_Type;
@@ -431,6 +393,7 @@ is
       -------------------------
 
       if Obj.Creating_Snapshot and then
+         not Obj.Secure_Superblock and then
          not Obj.Stall_Snapshot_Creation
       then
          Create_Snapshot_Internal (Obj, Progress);
@@ -679,7 +642,8 @@ is
             Splitter.Drop_Generated_Primitive (Obj.Splitter_Obj);
 
             if Snap_ID /= 0 then
-               Snap_Slot_Index := Snap_Slot_For_ID (Obj, Snap_ID);
+               Snap_Slot_Index := Snap_Slot_For_ID (Obj,
+                  Generation_Type (Snap_ID));
             else
                Snap_Slot_Index := Curr_Snap (Obj);
             end if;
@@ -1126,8 +1090,6 @@ is
                   Sync_Superblock.Peek_Completed_Generation (
                      Obj.Sync_SB_Obj, Prim);
 
-               Obj.Last_Snapshot_ID  := Obj.Next_Snapshot_ID;
-
                --
                --  Look for a new snapshot slot. If we cannot find one
                --  we manual intervention b/c there are too many snapshots
@@ -1163,8 +1125,8 @@ is
                   Obj.Superblocks (Obj.Cur_SB).Snapshots (
                      Next_Snap).Flags := 0;
 
-                  --  Obj.Superblocks (Obj.Cur_SB).Snapshots (Next_Snap).Gen :=
-                  --     Obj.Cur_Gen;
+                  --  Obj.Superblocks (Obj.Cur_SB).Snapshots (
+                  --     Next_Snap).Gen := Obj.Cur_Gen;
                   Obj.Superblocks (Obj.Cur_SB).Snapshots (Next_Snap).ID :=
                      Snapshot_ID_Storage_Type (Obj.Next_Snapshot_ID);
 
@@ -1174,6 +1136,8 @@ is
                      Snapshots_Index_Storage_Type (Next_Snap);
                end Declare_Next_Snap_2;
 
+               Obj.Cur_Gen := Obj.Cur_Gen  + 1;
+               Obj.Creating_Snapshot := False;
                Obj.Secure_Superblock := False;
 
                pragma Debug (
