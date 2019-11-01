@@ -85,8 +85,10 @@ is
       Debug.Print_String (
          "Dump SB: " &
          Debug.To_String (Debug.Uint64_Type (SB_Index)) &
-         " " & " SN: " &
-         Debug.To_String (Debug.Uint64_Type (SB.Curr_Snap)));
+         " SN: " &
+         Debug.To_String (Debug.Uint64_Type (SB.Curr_Snap)) &
+         " LSGEN: " &
+         Debug.To_String (Debug.Uint64_Type (SB.Last_Secured_Generation)));
 
       for I in Snapshots_Index_Type loop
          if Snapshot_Valid (SB.Snapshots (I))

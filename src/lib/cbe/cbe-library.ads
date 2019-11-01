@@ -379,15 +379,15 @@ private
       Cur_SB                       : Superblocks_Index_Type;
       Cur_Gen                      : Generation_Type;
       Last_Secured_Generation      : Generation_Type;
+      Last_Root_PBA                : Physical_Block_Address_Type;
+      Last_Root_Hash               : Hash_Type;
       Secure_Superblock            : Boolean;
       Wait_For_Front_End           : Wait_For_Event_Type;
       Wait_For_Back_End            : Wait_For_Event_Type;
       Creating_Snapshot            : Boolean;
       Creating_Quarantine_Snapshot : Boolean;
-      Next_Snapshot_ID             : Snapshot_ID_Type;
       Stall_Snapshot_Creation      : Boolean;
       Superblock                   : Superblock_Type;
-      Snapshot                     : Snapshot_Type;
    end record;
 
    procedure Try_Discard_Snapshot (
