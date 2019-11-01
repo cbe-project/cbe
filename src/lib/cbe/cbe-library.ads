@@ -380,7 +380,6 @@ private
       Cur_SB                       : Superblocks_Index_Type;
       Cur_Gen                      : Generation_Type;
       Last_Secured_Generation      : Generation_Type;
-      Last_Snapshot_ID             : Snapshot_ID_Type;
       Secure_Superblock            : Boolean;
       Wait_For_Front_End           : Wait_For_Event_Type;
       Wait_For_Back_End            : Wait_For_Event_Type;
@@ -405,7 +404,7 @@ private
 
    function Snap_Slot_For_ID (
       Obj : Object_Type;
-      ID  : Snapshot_ID_Type)
+      ID  : Generation_Type)
    return Snapshots_Index_Type;
 
    function Next_Snap_Slot (Obj : Object_Type)
@@ -414,11 +413,6 @@ private
    procedure Create_Snapshot_Internal (
       Obj      : in out Object_Type;
       Progress :    out Boolean);
-
-   procedure Create_New_Snapshot (
-      Obj  : in out Object_Type;
-      Snap :        Snapshots_Index_Type;
-      Prim :        Primitive.Object_Type);
 
    procedure Update_Snapshot_Hash (
       WB       :        Write_Back.Object_Type;
