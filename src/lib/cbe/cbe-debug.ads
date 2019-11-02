@@ -13,9 +13,9 @@ with SPARK_Mode
 is
    pragma Pure;
 
-   type Uint8_Type  is mod 2**8  with Size => 8;
-   type Uint16_Type is mod 2**16 with Size => 16;
-   type Uint32_Type is mod 2**32 with Size => 32;
+   type Uint8_Type  is range 0 .. 2**8 - 1 with Size => 8;
+   type Uint16_Type is range 0 .. 2**16 - 1 with Size => 16;
+   type Uint32_Type is range 0 .. 2**32 - 1 with Size => 32;
    type Uint64_Type is mod 2**64 with Size => 64;
 
    procedure Print_Uint8  (Int : Uint8_Type)

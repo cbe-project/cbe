@@ -21,8 +21,8 @@ is
       Lfs  : Tree_Number_Of_Leafs_Type)
    return Object_Type
    is
-      Degr_Log_2 : constant Tree_Degree_Log_2_Type :=
-         Tree_Degree_Log_2_Type (Log_2 (Unsigned_32 (Degr)));
+      Degr_Log_2 : constant Degree_Log_2_Type :=
+         Degree_Log_2_Type (Log_2 (Unsigned_32 (Degr)));
    begin
       return (
          Degree       => Degr,
@@ -30,8 +30,8 @@ is
          Leafs        => Lfs,
          Degree_Log_2 => Degr_Log_2,
          Degree_Mask  =>
-            Tree_Degree_Mask_Type (
-               Shift_Left (Unsigned_32 (1), Natural (Degr_Log_2))) - 1);
+            Degree_Mask_Type (
+               Shift_Left (Unsigned_32 (1), Natural (Degr_Log_2)) - 1));
 
    end Initialized_Object;
 
@@ -82,12 +82,6 @@ is
 
    function Degree (Obj : Object_Type) return Tree_Degree_Type
    is (Obj.Degree);
-
-   function Degree_Log_2 (Obj : Object_Type) return Tree_Degree_Log_2_Type
-   is (Obj.Degree_Log_2);
-
-   function Degree_Mask (Obj : Object_Type) return Tree_Degree_Mask_Type
-   is (Obj.Degree_Mask);
 
    function Leafs (Obj : Object_Type) return Tree_Number_Of_Leafs_Type
    is (Obj.Leafs);

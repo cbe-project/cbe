@@ -42,11 +42,15 @@ is
 
    function Height (Obj : Object_Type) return Tree_Level_Type;
    function Degree (Obj : Object_Type) return Tree_Degree_Type;
-   function Degree_Log_2 (Obj : Object_Type) return Tree_Degree_Log_2_Type;
-   function Degree_Mask (Obj : Object_Type) return Tree_Degree_Mask_Type;
    function Leafs (Obj : Object_Type) return Tree_Number_Of_Leafs_Type;
 
 private
+
+   type Degree_Mask_Type
+   is range 2**Tree_Min_Degree_Log_2 - 1 .. 2**Tree_Max_Degree_Log_2 - 1;
+
+   type Degree_Log_2_Type
+   is range Tree_Min_Degree_Log_2 .. Tree_Max_Degree_Log_2;
 
    --
    --  Log_2
@@ -60,8 +64,8 @@ private
       Degree       : Tree_Degree_Type;
       Height       : Tree_Level_Type;
       Leafs        : Tree_Number_Of_Leafs_Type;
-      Degree_Log_2 : Tree_Degree_Log_2_Type;
-      Degree_Mask  : Tree_Degree_Mask_Type;
+      Degree_Log_2 : Degree_Log_2_Type;
+      Degree_Mask  : Degree_Mask_Type;
    end record;
 
 end CBE.Tree_Helper;

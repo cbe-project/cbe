@@ -156,7 +156,7 @@ is
 
 private
 
-   type Data_Available_Type is mod 2**32;
+   type Data_Available_Type is array (Tree_Level_Index_Type) of Boolean;
 
    type Data_Type is record
       Avail : Data_Available_Type;
@@ -180,21 +180,6 @@ private
    --
    function Data_Initialized_Object
    return Data_Type;
-
-   --
-   --  Data_Available
-   --
-   function Data_Available (
-      Data  : Data_Type;
-      Level : Tree_Level_Type)
-   return Boolean;
-
-   --
-   --  Data_Set_Available
-   --
-   procedure Data_Set_Available (
-      Data  : in out Data_Type;
-      Level :        Tree_Level_Type);
 
    --
    --  Get_Node

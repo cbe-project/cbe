@@ -103,10 +103,6 @@ is
          raise Program_Error;
       end if;
 
-      if Degree < Tree_Min_Degree then
-         raise Program_Error;
-      end if;
-
       Obj.Execute_Progress := False;
       Obj.Request_Pool_Obj        := Pool.Initialized_Object;
       Obj.Splitter_Obj            := Splitter.Initialized_Object;

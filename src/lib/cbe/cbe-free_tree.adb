@@ -959,39 +959,30 @@ is
       Prim : Primitive.Object_Type)
    return Index_Type
    is
-      Index : Index_Type := Index_Invalid;
    begin
-
       if Primitive.Has_Tag_IO (Prim) then
-         Index := 0;
-      elsif Primitive.Has_Tag_Write_Back (Prim) then
+         return 0;
+      end if;
+      if Primitive.Has_Tag_Write_Back (Prim) then
          For_WB_IOs :
          for WB_IO_Index in Tree_Level_Index_Type'Range loop
-            if
-               Physical_Block_Address_Type (Primitive.Block_Number (Prim)) =
+            if Physical_Block_Address_Type (Primitive.Block_Number (Prim)) =
                Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).PBA
             then
-
                if
                   Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).State /=
                     Pending
                then
-                  exit For_WB_IOs;
+                  raise Program_Error;
                end if;
-
-               Index := Index_Type (
-                  Obj.WB_IOs (WB_IO_Entries_Index_Type (WB_IO_Index)).Index);
-
-               exit For_WB_IOs;
+               return
+                  Index_Type (
+                     Obj.WB_IOs (
+                        WB_IO_Entries_Index_Type (WB_IO_Index)).Index);
             end if;
          end loop For_WB_IOs;
       end if;
-
-      if Index = Index_Invalid then
-         raise Program_Error;
-      end if;
-
-      return Index;
+      raise Program_Error;
    end Peek_Generated_Data_Index;
 
    procedure Drop_Generated_Primitive (

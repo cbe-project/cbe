@@ -15,40 +15,58 @@ with SPARK_Mode
 is
    pragma Pure;
 
-   type Byte_Type is range 0 .. 255 with Size => 8;
-
    Superblock_Nr_Of_Snapshots : constant := 48;
    Block_Size : constant := 4096;
+   Tree_Min_Degree_Log_2 : constant := 0;
+   Tree_Max_Degree_Log_2 : constant := 6;
+   Tree_Max_Height : constant := 6;
+   Tree_Min_Height : constant := 1;
+   Snapshot_Flags_Keep_Mask : constant := 1;
 
+   Tree_Min_Degree : constant := 2**Tree_Min_Degree_Log_2;
+   Tree_Max_Degree : constant := 2**Tree_Max_Degree_Log_2;
+
+   Tree_Max_Number_Of_Leafs : constant :=
+      Tree_Max_Degree**(Tree_Max_Height - 1);
+
+   type Byte_Type is range 0 .. 2**8 - 1 with Size => 8;
    type Block_Data_Index_Type is range 0 .. Block_Size - 1;
+
    type Block_Data_Type
    is array (Block_Data_Index_Type) of Byte_Type with Size => Block_Size * 8;
 
    type Translation_Data_Type
    is array (0 .. 0) of Block_Data_Type with Size => 1 * Block_Size * 8;
 
-   type Number_Of_Primitives_Type    is mod 2**64;
-   type Index_Type                   is mod 2**64;
-   type Generation_Type              is mod 2**64;
-   type Block_Number_Type            is mod 2**64;
-   type Physical_Block_Address_Type  is mod 2**64;
-   type Virtual_Block_Address_Type   is mod 2**64;
-   type Timestamp_Type               is mod 2**64;
-   type Tree_Level_Index_Type        is range 0 .. 5;
-   type Tree_Number_Of_Leafs_Type    is mod 2**64;
-   type Tree_Degree_Type             is mod 2**32;
-   type Tree_Degree_Mask_Type        is mod 2**32;
-   type Tree_Degree_Log_2_Type       is mod 2**32;
-   type Tree_Level_Type              is mod 2**32;
-   type Tree_Child_Index_Type        is mod 2**32;
-   type Number_Of_Blocks_Type        is mod 2**32;
-   type Snapshot_ID_Type             is range 0 .. 2**32 - 1;
-   type Snapshot_ID_Storage_Type     is range 0 .. 2**32 - 1 with Size => 32;
-   type Snapshot_Valid_Storage_Type  is range 0 .. 2**8 - 1 with Size => 8;
-   type Snapshot_Flags_Type          is mod 2**32;
-   type Key_ID_Type                  is range 0 .. 2**32 - 1;
-   type Key_ID_Storage_Type          is range 0 .. 2**32 - 1 with Size => 32;
-   type Operation_Type               is (Read, Write, Sync);
+   type Number_Of_Primitives_Type is range 0 .. Tree_Max_Number_Of_Leafs;
+
+   type Index_Type is range 0 .. 2**32 - 1;
+   type Index_Slot_Type is private;
+
+   type Generation_Type is mod 2**64;
+   type Block_Number_Type is mod 2**64;
+   type Physical_Block_Address_Type is mod 2**64;
+
+   type Virtual_Block_Address_Type is range 0 .. Tree_Max_Number_Of_Leafs;
+   type Timestamp_Type is mod 2**64;
+
+   type Tree_Level_Index_Type is range 0 .. Tree_Max_Height - 1;
+
+   type Tree_Number_Of_Leafs_Type
+   is range 0 .. Tree_Max_Number_Of_Leafs;
+
+   type Tree_Degree_Type is range Tree_Min_Degree .. Tree_Max_Degree;
+
+   type Tree_Level_Type is range 0 .. 2**32 - 1 with Size => 32;
+   type Tree_Child_Index_Type is range 0 .. Tree_Max_Degree - 1;
+   type Number_Of_Blocks_Type is range 0 .. 2**32 - 1;
+   type Snapshot_ID_Type is range 0 .. 2**32 - 1;
+   type Snapshot_ID_Storage_Type is range 0 .. 2**32 - 1 with Size => 32;
+   type Snapshot_Valid_Storage_Type is range 0 .. 2**8 - 1 with Size => 8;
+   type Snapshot_Flags_Storage_Type is range 0 .. 2**32 - 1 with Size => 32;
+   type Key_ID_Type is range 0 .. 2**32 - 1;
+   type Key_ID_Storage_Type is range 0 .. 2**32 - 1 with Size => 32;
+   type Operation_Type is (Read, Write, Sync);
 
    type Hash_Index_Type is range 1 .. 32;
    type Hash_Type is array (Hash_Index_Type) of Byte_Type with Size => 32 * 8;
@@ -123,7 +141,7 @@ is
       Height      : Tree_Level_Type;
       Valid       : Snapshot_Valid_Storage_Type;
       ID          : Snapshot_ID_Storage_Type;
-      Flags       : Snapshot_Flags_Type;
+      Flags       : Snapshot_Flags_Storage_Type;
    end record;
 
    for Snapshot_Type use record
@@ -148,18 +166,6 @@ is
        4 * 8 + --  ID
        4 * 8;  --  Flags
 
-   function Tree_Min_Degree
-   return Tree_Degree_Type
-   is (1);
-
-   function Tree_Min_Height
-   return Tree_Level_Type
-   is (1);
-
-   function Tree_Max_Height
-   return Tree_Level_Type
-   is (Tree_Level_Type (Tree_Level_Index_Type'Last) + 1);
-
    function Snapshot_Valid (Snap : Snapshot_Type)
    return Boolean;
 
@@ -167,13 +173,8 @@ is
       Snap  : in out Snapshot_Type;
       Valid :        Boolean);
 
-   function Snapshot_Flags_Keep_Mask
-   return Snapshot_Flags_Type
-   is (1);
-
    function Snapshot_Keep (Snap : Snapshot_Type)
-   return Boolean
-   is ((Snap.Flags and Snapshot_Flags_Keep_Mask) /= 0);
+   return Boolean;
 
    type Snapshots_Index_Type is range 0 .. Superblock_Nr_Of_Snapshots - 1;
    type Snapshots_Index_Storage_Type is range 0 .. 2**32 - 1 with Size => 32;
@@ -192,7 +193,6 @@ is
       Gen  => 0,
       Hash => (others => 0));
 
-   function Index_Invalid return Index_Type is (Index_Type'Last);
    function VBA_Invalid return Virtual_Block_Address_Type
    is (Virtual_Block_Address_Type'Last);
 
@@ -329,6 +329,18 @@ is
    function To_String (Pool_Idx_Slot : Pool_Index_Slot_Type)
    return String;
 
+   function Idx_Slot_Valid (Slot : Index_Slot_Type)
+   return Boolean;
+
+   function Idx_Slot_Content (Slot : Index_Slot_Type)
+   return Index_Type;
+
+   function Idx_Slot_Valid (Cont : Index_Type)
+   return Index_Slot_Type;
+
+   function Idx_Slot_Invalid
+   return Index_Slot_Type;
+
 private
 
    procedure Block_Data_From_Unsigned_64 (
@@ -409,6 +421,11 @@ private
    type Pool_Index_Slot_Type is record
       Valid   : Boolean;
       Content : Pool_Index_Type;
+   end record;
+
+   type Index_Slot_Type is record
+      Valid   : Boolean;
+      Content : Index_Type;
    end record;
 
 end CBE;
