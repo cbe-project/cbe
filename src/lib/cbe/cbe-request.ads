@@ -15,7 +15,7 @@ is
 
    subtype Success_Type is Boolean;
    type    Offset_Type  is mod 2**64;
-   type    Count_Type   is mod 2**32;
+   type    Count_Type   is range 0 .. Tree_Max_Number_Of_Leafs;
    type    Object_Type  is private;
    type    Tag_Type     is range 0 .. 2**32 - 1;
 

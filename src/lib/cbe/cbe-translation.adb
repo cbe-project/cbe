@@ -10,8 +10,6 @@ pragma Ada_2012;
 
 with CBE.Debug;
 with SHA256_4K;
-with Interfaces;
-use  Interfaces;
 
 package body CBE.Translation
 with SPARK_Mode
@@ -169,7 +167,7 @@ is
          return;
       end if;
 
-      if not Data_Available (Obj.Data, Obj.Level) then
+      if not Obj.Data.Avail (Tree_Level_Index_Type (Obj.Level - 1)) then
 
          --  data request already pending
          if Obj.Next_PBA /= PBA_Invalid then
@@ -341,7 +339,7 @@ is
       Trans_Data : in out Translation_Data_Type)
    is
    begin
-      Data_Set_Available (Obj.Data, Obj.Level);
+      Obj.Data.Avail (Tree_Level_Index_Type (Obj.Level - 1)) := True;
       Trans_Data (0) := Data;
    end Mark_Generated_Primitive_Complete;
 
@@ -364,31 +362,8 @@ is
    --
    function Data_Initialized_Object
    return Data_Type
-   is (Avail => 0);
-
-   --
-   --  Data_Available
-   --
-   function Data_Available (
-      Data  : Data_Type;
-      Level : Tree_Level_Type)
-   return Boolean
    is (
-      (Unsigned_32 (Data.Avail) and
-       Shift_Left (Unsigned_32 (1), Natural (Level - 1))) /= 0);
-
-   --
-   --  Data_Set_Available
-   --
-   procedure Data_Set_Available (
-      Data  : in out Data_Type;
-      Level :        Tree_Level_Type)
-   is
-   begin
-      Data.Avail := Data_Available_Type (
-         Unsigned_32 (Data.Avail) or
-         Shift_Left (Unsigned_32 (1), Natural (Level - 1)));
-   end Data_Set_Available;
+      Avail => (others => False));
 
    -----------------
    --  Accessors  --

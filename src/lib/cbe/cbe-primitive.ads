@@ -48,7 +48,7 @@ is
       when Tag_Free_Tree_IO => "Free_Tree_IO",
       when Tag_Free_Tree_WB => "Free_Tree_WB");
 
-   type Index_Type  is mod 2**64;
+   type Index_Type  is range 0 .. 2**32 - 1;
    type Object_Type is private;
 
    function Invalid_Index return Index_Type is (Index_Type'Last);

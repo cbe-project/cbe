@@ -302,9 +302,9 @@ is
 
 private
 
-   type Free_Tree_Retry_Count_Type is mod 2**32;
-
    Free_Tree_Retry_Limit : constant := 3;
+
+   type Free_Tree_Retry_Count_Type is range 0 .. Free_Tree_Retry_Limit;
 
    --
    --  Defining the structure here is just an interims solution

@@ -478,4 +478,36 @@ is
       else
          "<Invalid>");
 
+   function Snapshot_Keep (Snap : Snapshot_Type)
+   return Boolean
+   is (
+      (Unsigned_32 (Snap.Flags) and
+       Unsigned_32 (Snapshot_Flags_Keep_Mask)) /= 0);
+
+   function Idx_Slot_Valid (Cont : Index_Type)
+   return Index_Slot_Type
+   is (
+      Valid   => True,
+      Content => Cont);
+
+   function Idx_Slot_Invalid
+   return Index_Slot_Type
+   is (
+      Valid   => False,
+      Content => Index_Type'Last);
+
+   function Idx_Slot_Valid (Slot : Index_Slot_Type)
+   return Boolean
+   is (Slot.Valid);
+
+   function Idx_Slot_Content (Slot : Index_Slot_Type)
+   return Index_Type
+   is
+   begin
+      if not Slot.Valid then
+         raise Program_Error;
+      end if;
+      return Slot.Content;
+   end Idx_Slot_Content;
+
 end CBE;
