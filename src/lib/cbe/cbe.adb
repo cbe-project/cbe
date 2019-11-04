@@ -15,28 +15,6 @@ use Interfaces;
 package body CBE
 with SPARK_Mode
 is
-   function Snapshot_Valid (Snap : Snapshot_Type)
-   return Boolean
-   is
-   begin
-      case Snap.Valid is
-      when 0      => return False;
-      when 1      => return True;
-      when others => raise Program_Error;
-      end case;
-   end Snapshot_Valid;
-
-   procedure Snapshot_Valid (
-      Snap  : in out Snapshot_Type;
-      Valid :        Boolean)
-   is
-   begin
-      case Valid is
-      when False => Snap.Valid := 0;
-      when True  => Snap.Valid := 1;
-      end case;
-   end Snapshot_Valid;
-
    procedure Block_Data_From_Unsigned_64 (
       Data : in out Block_Data_Type;
       Off  :        Block_Data_Index_Type;
@@ -98,10 +76,10 @@ is
       end loop;
    end Block_Data_From_Hash;
 
-   procedure Block_Data_From_Type_I_Node (
+   procedure Block_Data_From_Type_1_Node (
       Data   : in out Block_Data_Type;
       Off_In :        Block_Data_Index_Type;
-      Node   :        Type_I_Node_Type)
+      Node   :        Type_1_Node_Type)
    is
       Off : Block_Data_Index_Type := Off_In;
    begin
@@ -112,28 +90,25 @@ is
       Off := Off + 8;
 
       Block_Data_From_Hash (Data, Off, Node.Hash);
-      Off := Off + Hash_Size_Bytes;
+   end Block_Data_From_Type_1_Node;
 
-      Block_Data_Zero_Fill (Data, Off, Type_1_Node_Padding_Size_Bytes);
-   end Block_Data_From_Type_I_Node;
-
-   procedure Block_Data_From_Type_I_Node_Block (
+   procedure Block_Data_From_Type_1_Node_Block (
       Data  : out Block_Data_Type;
-      Nodes :     Type_I_Node_Block_Type)
+      Nodes :     Type_1_Node_Block_Type)
    is
       Off : Block_Data_Index_Type;
    begin
       Data := (others => 0);
       for Idx in Nodes'Range loop
          Off := Block_Data_Index_Type (Idx * Type_1_Node_Storage_Size_Bytes);
-         Block_Data_From_Type_I_Node (Data, Off, Nodes (Idx));
+         Block_Data_From_Type_1_Node (Data, Off, Nodes (Idx));
       end loop;
-   end Block_Data_From_Type_I_Node_Block;
+   end Block_Data_From_Type_1_Node_Block;
 
-   procedure Block_Data_From_Type_II_Node (
+   procedure Block_Data_From_Type_2_Node (
       Data   : in out Block_Data_Type;
       Off_In :        Block_Data_Index_Type;
-      Node   :        Type_II_Node_Type)
+      Node   :        Type_2_Node_Type)
    is
       Off : Block_Data_Index_Type := Off_In;
    begin
@@ -153,23 +128,20 @@ is
       Off := Off + 4;
 
       Block_Data_From_Boolean (Data, Off, Node.Reserved);
-      Off := Off + 1;
+   end Block_Data_From_Type_2_Node;
 
-      Block_Data_Zero_Fill (Data, Off, Type_2_Node_Padding_Size_Bytes);
-   end Block_Data_From_Type_II_Node;
-
-   procedure Block_Data_From_Type_II_Node_Block (
+   procedure Block_Data_From_Type_2_Node_Block (
       Data  : out Block_Data_Type;
-      Nodes :     Type_II_Node_Block_Type)
+      Nodes :     Type_2_Node_Block_Type)
    is
       Off : Block_Data_Index_Type;
    begin
       Data := (others => 0);
       for Idx in Nodes'Range loop
          Off := Block_Data_Index_Type (Idx * Type_2_Node_Storage_Size_Bytes);
-         Block_Data_From_Type_II_Node (Data, Off, Nodes (Idx));
+         Block_Data_From_Type_2_Node (Data, Off, Nodes (Idx));
       end loop;
-   end Block_Data_From_Type_II_Node_Block;
+   end Block_Data_From_Type_2_Node_Block;
 
    function Boolean_From_Block_Data (
       Data : Block_Data_Type;
@@ -217,17 +189,151 @@ is
       return Result;
    end Hash_From_Block_Data;
 
-   function Type_II_Node_From_Block_Data (
-      Data   : Block_Data_Type;
-      Off_In : Block_Data_Index_Type)
-   return Type_II_Node_Type;
-
-   function Type_II_Node_From_Block_Data (
-      Data   : Block_Data_Type;
-      Off_In : Block_Data_Index_Type)
-   return Type_II_Node_Type
+   procedure Key_From_Block_Data (
+      Key      : out Key_Type;
+      Data     :     Block_Data_Type;
+      Data_Off :     Block_Data_Index_Type)
    is
-      Node : Type_II_Node_Type;
+      Key_Off : Block_Data_Index_Type := Data_Off;
+   begin
+      Declare_Value_Off : declare
+         Value_Off : Block_Data_Index_Type;
+      begin
+         For_Value_Items : for Idx in Key.Value'Range loop
+            Value_Off := Key_Off + Block_Data_Index_Type (Idx);
+            Key.Value (Idx) := Data (Value_Off);
+         end loop For_Value_Items;
+      end Declare_Value_Off;
+      Key_Off := Key_Off + Key_Value_Size_Bytes;
+      Key.ID := Key_ID_Type (Unsigned_32_From_Block_Data (Data, Key_Off));
+   end Key_From_Block_Data;
+
+   procedure Keys_From_Block_Data (
+      Keys     : out Keys_Type;
+      Data     :     Block_Data_Type;
+      Data_Off :     Block_Data_Index_Type)
+   is
+      Keys_Off : Block_Data_Index_Type;
+   begin
+      For_Keys : for Idx in Keys'Range loop
+         Keys_Off :=
+           Data_Off + Block_Data_Index_Type (Idx * Key_Storage_Size_Bytes);
+
+         Key_From_Block_Data (Keys (Idx), Data, Keys_Off);
+      end loop For_Keys;
+   end Keys_From_Block_Data;
+
+   procedure Snapshot_From_Block_Data (
+      Snap     : out Snapshot_Type;
+      Data     :     Block_Data_Type;
+      Data_Off :     Block_Data_Index_Type)
+   is
+      Snap_Off : Block_Data_Index_Type := Data_Off;
+   begin
+      Snap.Hash := Hash_From_Block_Data (Data, Snap_Off);
+      Snap_Off := Snap_Off + Hash_Size_Bytes;
+
+      Snap.PBA := Physical_Block_Address_Type (
+         Unsigned_64_From_Block_Data (Data, Snap_Off));
+      Snap_Off := Snap_Off + 8;
+
+      Snap.Gen := Generation_Type (
+         Unsigned_64_From_Block_Data (Data, Snap_Off));
+      Snap_Off := Snap_Off + 8;
+
+      Snap.Nr_Of_Leafs := Tree_Number_Of_Leafs_Type (
+         Unsigned_64_From_Block_Data (Data, Snap_Off));
+      Snap_Off := Snap_Off + 8;
+
+      Snap.Max_Level := Tree_Level_Index_Type (
+         Unsigned_32_From_Block_Data (Data, Snap_Off));
+      Snap_Off := Snap_Off + 4;
+
+      Snap.Valid := Boolean_From_Block_Data (Data, Snap_Off);
+      Snap_Off := Snap_Off + 1;
+
+      Snap.ID := Snapshot_ID_Type (
+         Unsigned_32_From_Block_Data (Data, Snap_Off));
+      Snap_Off := Snap_Off + 4;
+
+      Snap.Keep := (
+         if (Unsigned_8 (Data (Snap_Off)) and 1) = 1 then True else False);
+   end Snapshot_From_Block_Data;
+
+   procedure Snapshots_From_Block_Data (
+      Snaps    : out Snapshots_Type;
+      Data     :     Block_Data_Type;
+      Data_Off :     Block_Data_Index_Type)
+   is
+      Snaps_Off : Block_Data_Index_Type;
+   begin
+      For_Snaps : for Idx in Snaps'Range loop
+         Snaps_Off :=
+           Data_Off +
+           Block_Data_Index_Type (Idx * Snapshot_Storage_Size_Bytes);
+
+         Snapshot_From_Block_Data (Snaps (Idx), Data, Snaps_Off);
+      end loop For_Snaps;
+   end Snapshots_From_Block_Data;
+
+   procedure Superblock_From_Block_Data (
+      SB   : out Superblock_Type;
+      Data :     Block_Data_Type)
+   is
+      Off : Block_Data_Index_Type := 0;
+   begin
+      Keys_From_Block_Data (SB.Keys, Data, Off);
+      Off := Off + Superblock_Keys_Storage_Size_Bytes;
+
+      Snapshots_From_Block_Data (SB.Snapshots, Data, Off);
+      Off := Off + Superblock_Snapshots_Storage_Size_Bytes;
+
+      SB.Last_Secured_Generation :=
+         Generation_Type (Unsigned_64_From_Block_Data (Data, Off));
+      Off := Off + 8;
+
+      SB.Curr_Snap :=
+         Snapshots_Index_Type (Unsigned_32_From_Block_Data (Data, Off));
+      Off := Off + 4;
+
+      SB.Degree :=
+         Tree_Degree_Type (Unsigned_32_From_Block_Data (Data, Off));
+      Off := Off + 4;
+
+      SB.Free_Gen :=
+         Generation_Type (Unsigned_64_From_Block_Data (Data, Off));
+      Off := Off + 8;
+
+      SB.Free_Number := Physical_Block_Address_Type (
+         Unsigned_64_From_Block_Data (Data, Off));
+      Off := Off + 8;
+
+      SB.Free_Hash := Hash_From_Block_Data (Data, Off);
+      Off := Off + Hash_Size_Bytes;
+
+      SB.Free_Max_Level :=
+         Tree_Level_Index_Type (Unsigned_32_From_Block_Data (Data, Off));
+      Off := Off + 4;
+
+      SB.Free_Degree :=
+         Tree_Degree_Type (Unsigned_32_From_Block_Data (Data, Off));
+      Off := Off + 4;
+
+      SB.Free_Leafs :=
+         Tree_Number_Of_Leafs_Type (Unsigned_64_From_Block_Data (Data, Off));
+   end Superblock_From_Block_Data;
+
+   function Type_2_Node_From_Block_Data (
+      Data   : Block_Data_Type;
+      Off_In : Block_Data_Index_Type)
+   return Type_2_Node_Type;
+
+   function Type_2_Node_From_Block_Data (
+      Data   : Block_Data_Type;
+      Off_In : Block_Data_Index_Type)
+   return Type_2_Node_Type
+   is
+      Node : Type_2_Node_Type;
       Off  : Block_Data_Index_Type := Off_In;
    begin
       Node.PBA := Physical_Block_Address_Type (
@@ -246,26 +352,25 @@ is
          Unsigned_64_From_Block_Data (Data, Off));
       Off := Off + 8;
 
-      Node.Last_Key_ID := Key_ID_Storage_Type (
+      Node.Last_Key_ID := Key_ID_Type (
          Unsigned_32_From_Block_Data (Data, Off));
       Off := Off + 4;
 
       Node.Reserved := Boolean_From_Block_Data (Data, Off);
-      Node.Padding := (others => 0);
       return Node;
-   end Type_II_Node_From_Block_Data;
+   end Type_2_Node_From_Block_Data;
 
-   function Type_I_Node_From_Block_Data (
+   function Type_1_Node_From_Block_Data (
       Data   : Block_Data_Type;
       Off_In : Block_Data_Index_Type)
-   return Type_I_Node_Type;
+   return Type_1_Node_Type;
 
-   function Type_I_Node_From_Block_Data (
+   function Type_1_Node_From_Block_Data (
       Data   : Block_Data_Type;
       Off_In : Block_Data_Index_Type)
-   return Type_I_Node_Type
+   return Type_1_Node_Type
    is
-      Node : Type_I_Node_Type;
+      Node : Type_1_Node_Type;
       Off  : Block_Data_Index_Type := Off_In;
    begin
       Node.PBA := Physical_Block_Address_Type (
@@ -277,12 +382,11 @@ is
       Off := Off + 8;
 
       Node.Hash := Hash_From_Block_Data (Data, Off);
-      Node.Padding := (others => 0);
       return Node;
-   end Type_I_Node_From_Block_Data;
+   end Type_1_Node_From_Block_Data;
 
-   procedure Type_II_Node_Block_From_Block_Data (
-      Nodes : out Type_II_Node_Block_Type;
+   procedure Type_2_Node_Block_From_Block_Data (
+      Nodes : out Type_2_Node_Block_Type;
       Data  :     Block_Data_Type)
    is
       Off : Block_Data_Index_Type;
@@ -290,12 +394,12 @@ is
       For_Nodes :
       for Idx in Nodes'Range loop
          Off := Block_Data_Index_Type (Idx * Type_2_Node_Storage_Size_Bytes);
-         Nodes (Idx) := Type_II_Node_From_Block_Data (Data, Off);
+         Nodes (Idx) := Type_2_Node_From_Block_Data (Data, Off);
       end loop For_Nodes;
-   end Type_II_Node_Block_From_Block_Data;
+   end Type_2_Node_Block_From_Block_Data;
 
-   procedure Type_I_Node_Block_From_Block_Data (
-      Nodes : out Type_I_Node_Block_Type;
+   procedure Type_1_Node_Block_From_Block_Data (
+      Nodes : out Type_1_Node_Block_Type;
       Data  :     Block_Data_Type)
    is
       Off : Block_Data_Index_Type;
@@ -303,9 +407,9 @@ is
       For_Nodes :
       for Idx in Nodes'Range loop
          Off := Block_Data_Index_Type (Idx * Type_1_Node_Storage_Size_Bytes);
-         Nodes (Idx) := Type_I_Node_From_Block_Data (Data, Off);
+         Nodes (Idx) := Type_1_Node_From_Block_Data (Data, Off);
       end loop For_Nodes;
-   end Type_I_Node_Block_From_Block_Data;
+   end Type_1_Node_Block_From_Block_Data;
 
    procedure Block_Data_From_Key (
       Data     : in out Block_Data_Type;
@@ -327,7 +431,7 @@ is
       Block_Data_From_Unsigned_32 (Data, Key_Off, Unsigned_32 (Key.ID));
    end Block_Data_From_Key;
 
-   procedure Block_Data_From_Snap (
+   procedure Block_Data_From_Snapshot (
       Data     : in out Block_Data_Type;
       Data_Off :        Block_Data_Index_Type;
       Snap     :        Snapshot_Type)
@@ -347,17 +451,19 @@ is
          Data, Snap_Off, Unsigned_64 (Snap.Nr_Of_Leafs));
       Snap_Off := Snap_Off + 8;
 
-      Block_Data_From_Unsigned_32 (Data, Snap_Off, Unsigned_32 (Snap.Height));
+      Block_Data_From_Unsigned_32 (
+         Data, Snap_Off, Unsigned_32 (Snap.Max_Level));
       Snap_Off := Snap_Off + 4;
 
-      Data (Snap_Off) := Byte_Type (Snap.Valid);
+      Block_Data_From_Boolean (Data, Snap_Off, Snap.Valid);
       Snap_Off := Snap_Off + 1;
 
       Block_Data_From_Unsigned_32 (Data, Snap_Off, Unsigned_32 (Snap.ID));
       Snap_Off := Snap_Off + 4;
 
-      Block_Data_From_Unsigned_32 (Data, Snap_Off, Unsigned_32 (Snap.Flags));
-   end Block_Data_From_Snap;
+      Block_Data_From_Unsigned_32 (
+         Data, Snap_Off, Unsigned_32 (if Snap.Keep then 1 else 0));
+   end Block_Data_From_Snapshot;
 
    procedure Block_Data_From_Keys (
       Data     : in out Block_Data_Type;
@@ -386,7 +492,7 @@ is
            Data_Off +
            Block_Data_Index_Type (Idx * Snapshot_Storage_Size_Bytes);
 
-         Block_Data_From_Snap (Data, Snaps_Off, Snaps (Idx));
+         Block_Data_From_Snapshot (Data, Snaps_Off, Snaps (Idx));
       end loop For_Snaps;
    end Block_Data_From_Snapshots;
 
@@ -422,16 +528,13 @@ is
       Block_Data_From_Hash (Data, Off, SB.Free_Hash);
       Off := Off + Hash_Size_Bytes;
 
-      Block_Data_From_Unsigned_32 (Data, Off, Unsigned_32 (SB.Free_Height));
+      Block_Data_From_Unsigned_32 (Data, Off, Unsigned_32 (SB.Free_Max_Level));
       Off := Off + 4;
 
       Block_Data_From_Unsigned_32 (Data, Off, Unsigned_32 (SB.Free_Degree));
       Off := Off + 4;
 
       Block_Data_From_Unsigned_64 (Data, Off, Unsigned_64 (SB.Free_Leafs));
-      Off := Off + 8;
-
-      Block_Data_Zero_Fill (Data, Off, Superblock_Padding_Size_Bytes);
    end Block_Data_From_Superblock;
 
    function Pool_Idx_Slot_Valid (Cont : Pool_Index_Type)
@@ -468,12 +571,6 @@ is
             Debug.Uint64_Type (Pool_Idx_Slot_Content (Pool_Idx_Slot)))
       else
          "<Invalid>");
-
-   function Snapshot_Keep (Snap : Snapshot_Type)
-   return Boolean
-   is (
-      (Unsigned_32 (Snap.Flags) and
-       Unsigned_32 (Snapshot_Flags_Keep_Mask)) /= 0);
 
    function Idx_Slot_Valid (Cont : Index_Type)
    return Index_Slot_Type

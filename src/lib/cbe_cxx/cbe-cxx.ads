@@ -30,6 +30,9 @@ is
    type CXX_Primitive_Index_Type is new CXX_UInt64_Type;
    type CXX_Snapshot_ID_Type     is new CXX_UInt64_Type;
 
+   type CXX_Superblocks_Type
+   is array (Superblocks_Index_Type) of Block_Data_Type;
+
    type CXX_Superblocks_Index_Type is record
       Value : CXX_UInt64_Type;
    end record;

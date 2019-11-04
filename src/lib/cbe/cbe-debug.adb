@@ -91,8 +91,7 @@ is
          Debug.To_String (Debug.Uint64_Type (SB.Last_Secured_Generation)));
 
       for I in Snapshots_Index_Type loop
-         if Snapshot_Valid (SB.Snapshots (I))
-         then
+         if SB.Snapshots (I).Valid then
             Debug.Print_String ("SB: "
                & Debug.To_String (Debug.Uint64_Type (SB_Index))
                & " SN: "
@@ -104,7 +103,7 @@ is
                & " ID: "
                & Debug.To_String (Debug.Uint64_Type (SB.Snapshots (I).ID))
                & " KEEP: "
-               & Debug.To_String (Debug.Uint64_Type (SB.Snapshots (I).Flags))
+               & Debug.To_String (SB.Snapshots (I).Keep)
                & " "
                & Debug.To_String (SB.Snapshots (I).Hash));
          end if;
