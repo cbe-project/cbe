@@ -388,6 +388,7 @@ private
       Creating_Quarantine_Snapshot : Boolean;
       Stall_Snapshot_Creation      : Boolean;
       Superblock                   : Superblock_Type;
+      Sync_Primitive               : Primitive.Object_Type;
    end record;
 
    procedure Try_Discard_Snapshot (

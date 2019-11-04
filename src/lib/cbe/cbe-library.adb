@@ -285,6 +285,8 @@ is
          Obj.Superblock.Curr_Snap)).Hash;
       Obj.Cur_SB := Curr_SB;
 
+      Obj.Sync_Primitive := Primitive.Invalid_Object;
+
       declare
          Next_Snap : constant Snapshots_Index_Type :=
             Next_Snap_Slot (Obj);
@@ -394,6 +396,46 @@ is
          not Obj.Stall_Snapshot_Creation
       then
          Create_Snapshot_Internal (Obj, Progress);
+      end if;
+
+      --------------------
+      --  Sync handling --
+      --------------------
+
+      if Primitive.Valid (Obj.Sync_Primitive) and then
+         not Obj.Secure_Superblock
+      then
+         Delcare_Sync_Cache_Flusher_Active :
+         declare
+            Cache_Flusher_Active : constant Boolean :=
+               Cache_Flusher.Active (Obj.Cache_Flusher_Obj);
+         begin
+            if not Cache_Flusher_Active then
+               Declare_Sync_Cache_Dirty :
+               declare
+                  Cache_Dirty : Boolean := False;
+               begin
+
+                  Loop_Sync_Cache_Dirty :
+                  for Cache_Index in Cache.Cache_Index_Type loop
+                     if Cache.Dirty (Obj.Cache_Obj, Cache_Index) then
+
+                        Cache_Dirty := True;
+
+                        Cache_Flusher.Submit_Request (
+                           Obj.Cache_Flusher_Obj,
+                           Cache.Flush (Obj.Cache_Obj, Cache_Index),
+                           Cache_Index);
+                     end if;
+                  end loop Loop_Sync_Cache_Dirty;
+
+                  if not Cache_Dirty then
+                     Obj.Secure_Superblock := True;
+                  end if;
+                  Progress := True;
+               end Declare_Sync_Cache_Dirty;
+            end if;
+         end Delcare_Sync_Cache_Flusher_Active;
       end if;
 
       --------------------------
@@ -636,7 +678,26 @@ is
                exit Loop_Splitter_Generated_Prims;
             end if;
 
+            --
+            --  exit loop when sync is already in progress
+            --  XXX this check and the one above should be moved outside
+            --      the loop
+            --
+            if Primitive.Valid (Obj.Sync_Primitive) then
+               pragma Debug (Debug.Print_String ("Execute: "
+                  & "Sync operation pending"));
+               exit Loop_Splitter_Generated_Prims;
+            end if;
+
             Splitter.Drop_Generated_Primitive (Obj.Splitter_Obj);
+
+            if Primitive.Operation (Prim) = Sync then
+               pragma Debug (Debug.Print_String ("Execute: "
+                  & "Sync operation requested"));
+               Obj.Sync_Primitive := Prim;
+               Progress := True;
+               exit Loop_Splitter_Generated_Prims;
+            end if;
 
             if Snap_ID /= 0 then
                Snap_Slot_Index := Snap_Slot_For_ID (Obj,
@@ -1055,13 +1116,18 @@ is
             Obj.Superblock.Last_Secured_Generation := Obj.Cur_Gen;
 
             pragma Debug (Debug.Print_String ("Sync_Superblock "
-               & " Obj.Last_Secured_Generation: "
+               & " new Obj.Last_Secured_Generation: "
                & Debug.To_String (Debug.Uint64_Type (
                   Obj.Superblock.Last_Secured_Generation))));
 
             Sync_Superblock.Submit_Request (
                Obj.Sync_SB_Obj, Obj.Cur_SB, Obj.Cur_Gen);
          else
+            pragma Debug (Debug.Print_String ("Sync_Superblock "
+               & " Obj.Last_Secured_Generation: "
+               & Debug.To_String (Debug.Uint64_Type (
+                  Obj.Superblock.Last_Secured_Generation))));
+
             Sync_Superblock.Submit_Request (
                Obj.Sync_SB_Obj, Obj.Cur_SB, Obj.Last_Secured_Generation);
          end if;
@@ -1154,6 +1220,13 @@ is
                   end Declare_Next_Snap_2;
 
                   Obj.Creating_Snapshot := False;
+               end if;
+
+               if Primitive.Valid (Obj.Sync_Primitive) then
+
+                  Pool.Mark_Completed_Primitive (Obj.Request_Pool_Obj,
+                     Obj.Sync_Primitive);
+                  Obj.Sync_Primitive := Primitive.Invalid_Object;
                end if;
 
                Obj.Secure_Superblock := False;
