@@ -17,26 +17,26 @@ is
    --  Initialize_Object
    --
    procedure Initialize_Object (
-      Obj    : out Object_Type;
-      Height :     Tree_Level_Type;
-      Degree :     Tree_Degree_Type;
-      Leafs  :     Tree_Number_Of_Leafs_Type)
+      Obj       : out Object_Type;
+      Max_Level :     Tree_Level_Index_Type;
+      Degree    :     Tree_Degree_Type;
+      Leafs     :     Tree_Number_Of_Leafs_Type)
    is
    begin
-      Obj := Initialized_Object (Height, Degree, Leafs);
+      Obj := Initialized_Object (Max_Level, Degree, Leafs);
    end Initialize_Object;
 
    --
    --  Initialized_Object
    --
    function Initialized_Object (
-      Height :     Tree_Level_Type;
-      Degree :     Tree_Degree_Type;
-      Leafs  :     Tree_Number_Of_Leafs_Type)
+      Max_Level : Tree_Level_Index_Type;
+      Degree    : Tree_Degree_Type;
+      Leafs     : Tree_Number_Of_Leafs_Type)
    return Object_Type
    is
       Trans_Helpr : constant Tree_Helper.Object_Type :=
-         Tree_Helper.Initialized_Object (Degree, Height, Leafs);
+         Tree_Helper.Initialized_Object (Degree, Max_Level, Leafs);
    begin
       return (
          Trans_Helper     => Trans_Helpr,
@@ -83,31 +83,31 @@ is
    end Trans_Get_Virtual_Block_Address;
 
    --
-   --  Trans_Can_Get_Type_1_Info
+   --  Trans_Can_Get_Type_1_Node_Walk
    --
-   function Trans_Can_Get_Type_1_Info (
+   function Trans_Can_Get_Type_1_Node_Walk (
       Obj   : Object_Type;
       Prim  : Primitive.Object_Type)
    return Boolean
-   is (Translation.Can_Get_Type_1_Info (Obj.Trans, Prim));
+   is (Translation.Can_Get_Type_1_Node_Walk (Obj.Trans, Prim));
 
    --
-   --  Trans_Get_Type_1_Info
+   --  Trans_Get_Type_1_Node_Walk
    --
-   procedure Trans_Get_Type_1_Info (
-      Obj   :        Object_Type;
-      Infos : in out Type_1_Node_Infos_Type)
+   procedure Trans_Get_Type_1_Node_Walk (
+      Obj  :        Object_Type;
+      Walk : in out Type_1_Node_Walk_Type)
    is
    begin
-      Translation.Get_Type_1_Info (Obj.Trans, Infos);
-   end Trans_Get_Type_1_Info;
+      Translation.Get_Type_1_Node_Walk (Obj.Trans, Walk);
+   end Trans_Get_Type_1_Node_Walk;
 
    --
-   --  Tree_Height
+   --  Tree_Max_Level
    --
-   function Tree_Height (Obj : Object_Type)
-   return Tree_Level_Type
-   is (Tree_Helper.Height (Obj.Trans_Helper));
+   function Tree_Max_Level (Obj : Object_Type)
+   return Tree_Level_Index_Type
+   is (Tree_Helper.Max_Level (Obj.Trans_Helper));
 
    --
    --  Index_For_Level
@@ -115,7 +115,7 @@ is
    function Index_For_Level (
       Obj   : Object_Type;
       VBA   : Virtual_Block_Address_Type;
-      Level : Tree_Level_Type)
+      Level : Tree_Level_Index_Type)
    return Tree_Child_Index_Type
    is (Tree_Helper.Index (Obj.Trans_Helper, VBA, Level));
 

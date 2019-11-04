@@ -27,7 +27,7 @@ is
 
    procedure Initialize_Object (
       Obj     : out Library.Object_Type;
-      SBs     :     Superblocks_Type;
+      SBs     :     CXX_Superblocks_Type;
       Curr_SB :     CXX_Superblocks_Index_Type)
    with
       Export,
