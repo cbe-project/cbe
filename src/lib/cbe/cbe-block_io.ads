@@ -22,8 +22,7 @@ is
    type Num_Entries_Type is range 0 .. Data_Index_Type'Last + 1;
 
    type Data_Type
-   is array (Data_Index_Type) of Block_Data_Type
-   with Size => Block_Size * 8 * 1;
+   is array (Data_Index_Type) of Block_Data_Type with Size => Block_Size;
 
    --
    --  Initialize_Object

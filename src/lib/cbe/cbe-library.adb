@@ -26,8 +26,8 @@ is
       for Idx in Snapshots_Index_Type loop
          if
             Idx /= Keep_Snap and then
-            Snapshot_Valid (Snaps (Idx)) and then
-            not Snapshot_Keep (Snaps (Idx)) and then (
+            Snaps (Idx).Valid and then
+            not Snaps (Idx).Keep and then (
                not Discard_Idx_Valid or else
                Snaps (Idx).ID < Snaps (Discard_Idx).ID)
          then
@@ -36,7 +36,7 @@ is
          end if;
       end loop For_Snapshots;
       if Discard_Idx_Valid then
-         Snapshot_Valid (Snaps (Discard_Idx), False);
+         Snaps (Discard_Idx) := Snapshot_Invalid;
       end if;
       Success := Discard_Idx_Valid;
    end Try_Discard_Snapshot;
@@ -51,11 +51,11 @@ is
 
       Loop_Discard_Snapshot :
       for I in Snapshots_Index_Type loop
-         if Snapshot_Valid (Obj.Superblock.Snapshots (I)) and then
-            Snapshot_Keep (Obj.Superblock.Snapshots (I)) and then
+         if Obj.Superblock.Snapshots (I).Valid and then
+            Obj.Superblock.Snapshots (I).Keep and then
             Obj.Superblock.Snapshots (I).Gen = Snap_ID
          then
-            Snapshot_Valid (Obj.Superblock.Snapshots (I), False);
+            Obj.Superblock.Snapshots (I).Valid := False;
             Success := True;
             Obj.Secure_Superblock := True;
             exit Loop_Discard_Snapshot;
@@ -198,8 +198,9 @@ is
                & "snapshot created: "
                & "gen: " & Debug.To_String (Debug.Uint64_Type (Obj.Cur_Gen))));
 
-            Obj.Superblock.Snapshots (Curr_Snap (Obj)).Flags := (
-                  if Obj.Creating_Quarantine_Snapshot then 1 else 0);
+            Obj.Superblock.Snapshots (Curr_Snap (Obj)).Keep :=
+               Obj.Creating_Quarantine_Snapshot;
+
             --  Obj.Cur_Gen := Obj.Cur_Gen  + 1;
             --  trigger securing of suerblock
             --  Obj.Creating_Snapshot := False;
@@ -233,8 +234,8 @@ is
       For_Snapshots :
       for Snap_ID in Snapshots_Index_Type loop
 
-         if Snapshot_Valid (Obj.Superblock.Snapshots (Snap_ID)) and then
-            Snapshot_Keep (Obj.Superblock.Snapshots (Snap_ID))
+         if Obj.Superblock.Snapshots (Snap_ID).Valid and then
+            Obj.Superblock.Snapshots (Snap_ID).Keep
          then
             List (Snap_ID) := Obj.Superblock.Snapshots (Snap_ID).Gen;
          else
@@ -248,25 +249,15 @@ is
       SBs     :     Superblocks_Type;
       Curr_SB :     Superblocks_Index_Type)
    is
-      Curr_Snap : constant Snapshots_Index_Type :=
-         Snapshots_Index_Type (SBs (Curr_SB).Curr_Snap);
-
+      Curr_Snap : constant Snapshots_Index_Type := SBs (Curr_SB).Curr_Snap;
       Degree : constant Tree_Degree_Type := SBs (Curr_SB).Degree;
-      Height : constant Tree_Level_Type  :=
-         SBs (Curr_SB).Snapshots (Curr_Snap).Height;
+      Max_Level : constant Tree_Level_Index_Type :=
+         SBs (Curr_SB).Snapshots (Curr_Snap).Max_Level;
 
       Leafs : constant Tree_Number_Of_Leafs_Type :=
          SBs (Curr_SB).Snapshots (Curr_Snap).Nr_Of_Leafs;
    begin
-      --
-      --  The Current implementation is limited with regard to the
-      --  tree topology. Make sure it fits.
-      --
-      if Height > Tree_Max_Height or else Height < Tree_Min_Height then
-         raise Program_Error;
-      end if;
-
-      Obj.Execute_Progress := False;
+      Obj.Execute_Progress        := False;
       Obj.Request_Pool_Obj        := Pool.Initialized_Object;
       Obj.Splitter_Obj            := Splitter.Initialized_Object;
       Obj.Crypto_Obj              := Crypto.Initialized_Object;
@@ -278,8 +269,7 @@ is
       Obj.Cache_Flusher_Obj       := Cache_Flusher.Initialized_Object;
       Obj.Trans_Data              := (others => (others => 0));
       Obj.VBD                     :=
-         Virtual_Block_Device.Initialized_Object (
-            Height, Degree, Leafs);
+         Virtual_Block_Device.Initialized_Object (Max_Level, Degree, Leafs);
 
       Obj.Write_Back_Obj          := Write_Back.Initialized_Object;
       Obj.Write_Back_Data         := (others => (others => 0));
@@ -288,7 +278,7 @@ is
          SBs (Curr_SB).Free_Number,
          SBs (Curr_SB).Free_Gen,
          SBs (Curr_SB).Free_Hash,
-         SBs (Curr_SB).Free_Height,
+         SBs (Curr_SB).Free_Max_Level,
          SBs (Curr_SB).Free_Degree,
          SBs (Curr_SB).Free_Leafs);
 
@@ -306,10 +296,10 @@ is
       Obj.Superblock := SBs (Curr_SB);
       Obj.Last_Secured_Generation := Obj.Superblock.Last_Secured_Generation;
       Obj.Cur_Gen := Obj.Last_Secured_Generation + 1;
-      Obj.Last_Root_PBA := Obj.Superblock.Snapshots (Snapshots_Index_Type (
-         Obj.Superblock.Curr_Snap)).PBA;
-      Obj.Last_Root_Hash := Obj.Superblock.Snapshots (Snapshots_Index_Type (
-         Obj.Superblock.Curr_Snap)).Hash;
+      Obj.Last_Root_PBA :=
+         Obj.Superblock.Snapshots (Obj.Superblock.Curr_Snap).PBA;
+      Obj.Last_Root_Hash :=
+         Obj.Superblock.Snapshots (Obj.Superblock.Curr_Snap).Hash;
       Obj.Cur_SB := Curr_SB;
 
       Obj.Sync_Primitive := Primitive.Invalid_Object;
@@ -319,17 +309,14 @@ is
             Next_Snap_Slot (Obj);
       begin
          Obj.Superblock.Snapshots (Next_Snap) :=
-            Obj.Superblock.Snapshots (Snapshots_Index_Type (
-               Obj.Superblock.Curr_Snap));
+            Obj.Superblock.Snapshots (Obj.Superblock.Curr_Snap);
          --
          --  Clear flags to prevent creating a quarantine snapshot
          --  unintentionally.
          --
-         Obj.Superblock.Snapshots (Next_Snap).Flags := 0;
+         Obj.Superblock.Snapshots (Next_Snap).Keep := False;
          Obj.Superblock.Snapshots (Next_Snap).Gen := Obj.Cur_Gen;
-
-         Obj.Superblock.Curr_Snap :=
-            Snapshots_Index_Storage_Type (Next_Snap);
+         Obj.Superblock.Curr_Snap := Next_Snap;
       end;
 
       pragma Debug (Debug.Print_String ("Initial SB state: "));
@@ -339,7 +326,7 @@ is
 
    function Curr_Snap (Obj : Object_Type)
    return Snapshots_Index_Type
-   is (Snapshots_Index_Type (Obj.Superblock.Curr_Snap));
+   is (Obj.Superblock.Curr_Snap);
 
    function Snap_Slot_For_ID (
       Obj : Object_Type;
@@ -348,7 +335,7 @@ is
    is
    begin
       for I in Snapshots_Index_Type loop
-         if Snapshot_Valid (Obj.Superblock.Snapshots (I)) and then
+         if Obj.Superblock.Snapshots (I).Valid and then
             Obj.Superblock.Snapshots (I).Gen = ID
          then
             return I;
@@ -373,8 +360,8 @@ is
                Snapshots_Index_Type'First);
 
          exit Loop_Snap_Slots when
-            not Snapshot_Valid (Obj.Superblock.Snapshots (Next_Snap)) or else
-            not Snapshot_Keep (Obj.Superblock.Snapshots (Next_Snap));
+            not Obj.Superblock.Snapshots (Next_Snap).Valid or else
+            not Obj.Superblock.Snapshots (Next_Snap).Keep;
       end loop Loop_Snap_Slots;
       return Next_Snap;
    end Next_Snap_Slot;
@@ -1219,20 +1206,19 @@ is
                         Tree : constant Tree_Helper.Object_Type :=
                            Virtual_Block_Device.Get_Tree_Helper (Obj.VBD);
                      begin
-                        Obj.Superblock.Snapshots (Next_Snap).Height :=
-                           Tree_Helper.Height (Tree);
+                        Obj.Superblock.Snapshots (Next_Snap).Max_Level :=
+                           Tree_Helper.Max_Level (Tree);
                         Obj.Superblock.Snapshots (Next_Snap).Nr_Of_Leafs :=
                            Tree_Helper.Leafs (Tree);
                      end Declare_Tree;
 
                      Obj.Superblock.Snapshots (Next_Snap) :=
                         Obj.Superblock.Snapshots (Curr_Snap (Obj));
-                     Obj.Superblock.Snapshots (Next_Snap).Flags := 0;
+                     Obj.Superblock.Snapshots (Next_Snap).Keep := False;
 
-                     Obj.Superblock.Snapshots (Next_Snap).Valid := 1;
+                     Obj.Superblock.Snapshots (Next_Snap).Valid := True;
                      Obj.Superblock.Snapshots (Next_Snap).Gen := Obj.Cur_Gen;
-                     Obj.Superblock.Curr_Snap :=
-                        Snapshots_Index_Storage_Type (Next_Snap);
+                     Obj.Superblock.Curr_Snap := Next_Snap;
                   end Declare_Next_Snap_2;
 
                   Obj.Creating_Snapshot := False;
@@ -1824,10 +1810,8 @@ is
          begin
 
             Write_Back.Submit_Primitive (
-               Obj.Write_Back_Obj,
-               WB.Prim, WB.Gen, WB.VBA, WB.New_PBAs, WB.Old_PBAs,
-               Tree_Level_Index_Type (WB.Tree_Height),
-               Data, Obj.Write_Back_Data);
+               Obj.Write_Back_Obj, WB.Prim, WB.Gen, WB.VBA, WB.New_PBAs,
+               WB.Old_PBAs, WB.Tree_Max_Level, Data, Obj.Write_Back_Data);
          end;
 
          Free_Tree.Drop_Completed_Primitive (Obj.Free_Tree_Obj, Prim);
@@ -1859,7 +1843,8 @@ is
          --  As usual check first we can submit new requests.
          --
          if not Free_Tree.Request_Acceptable (Obj.Free_Tree_Obj) or else
-            not Virtual_Block_Device.Trans_Can_Get_Type_1_Info (Obj.VBD, Prim)
+            not Virtual_Block_Device.Trans_Can_Get_Type_1_Node_Walk (
+               Obj.VBD, Prim)
          then
             return;
          end if;
@@ -1872,11 +1857,11 @@ is
          --
          Declare_Old_PBAs : declare
 
-            Old_PBAs : Type_1_Node_Infos_Type := (
-               others => Type_1_Node_Info_Invalid);
+            Old_PBAs : Type_1_Node_Walk_Type := (
+               others => Type_1_Node_Invalid);
 
-            Trans_Height : constant Tree_Level_Type :=
-               Virtual_Block_Device.Tree_Height (Obj.VBD) + 1;
+            Trans_Max_Level : constant Tree_Level_Index_Type :=
+               Virtual_Block_Device.Tree_Max_Level (Obj.VBD) + 1;
 
             Snap : constant Snapshot_Type :=
                Obj.Superblock.Snapshots (Curr_Snap (Obj));
@@ -1908,14 +1893,15 @@ is
                      Obj.VBD, Prim));
          begin
 
-            Virtual_Block_Device.Trans_Get_Type_1_Info (Obj.VBD, Old_PBAs);
+            Virtual_Block_Device.Trans_Get_Type_1_Node_Walk (
+               Obj.VBD, Old_PBAs);
 
             --
             --  Make sure we work with the proper snapshot.
             --
             --  (This check may be removed at some point.)
             --
-            if Old_PBAs (Natural (Trans_Height - 1)).PBA /= Snap.PBA then
+            if Old_PBAs (Trans_Max_Level - 1).PBA /= Snap.PBA then
                raise Program_Error;
             end if;
 
@@ -1924,7 +1910,7 @@ is
             --  leaf, are considered. The root node is checked afterwards as
             --  we need the information of theCurr snapshot for that.
             --
-            for I in 1 .. Trans_Height - 1 loop
+            for Level in 1 .. Trans_Max_Level - 1 loop
 
                --
                --  Use the old PBA to get the node's data from the cache and
@@ -1933,19 +1919,20 @@ is
                Declare_Nodes :
                declare
                   PBA : constant Physical_Block_Address_Type :=
-                     Old_PBAs (Natural (I)).PBA;
+                     Old_PBAs (Tree_Level_Index_Type (Level)).PBA;
 
                   Cache_Idx : Cache.Cache_Index_Type;
-                  Nodes : Type_I_Node_Block_Type;
+                  Nodes : Type_1_Node_Block_Type;
                begin
                   Cache.Data_Index (Obj.Cache_Obj, PBA, Now, Cache_Idx);
-                  Type_I_Node_Block_From_Block_Data (
+                  Type_1_Node_Block_From_Block_Data (
                      Nodes, Obj.Cache_Data (Cache_Idx));
 
                   Declare_Generation :
                   declare
                      Child_Idx : constant Tree_Child_Index_Type :=
-                        Virtual_Block_Device.Index_For_Level (Obj.VBD, VBA, I);
+                        Virtual_Block_Device.Index_For_Level (
+                           Obj.VBD, VBA, Tree_Level_Index_Type (Level));
 
                      Gen : constant Generation_Type :=
                         Nodes (Natural (Child_Idx)).Gen;
@@ -1968,8 +1955,8 @@ is
                            Nodes (Natural (Child_Idx)).PBA))));
                      if Gen = Obj.Cur_Gen or else Gen = 0 then
 
-                        New_PBAs (Tree_Level_Index_Type (I - 1)) :=
-                           Old_PBAs (Natural (I - 1)).PBA;
+                        New_PBAs (Tree_Level_Index_Type (Level - 1)) :=
+                           Old_PBAs (Tree_Level_Index_Type (Level - 1)).PBA;
 
                      --
                      --  Otherwise add the block to the free_PBA array so that
@@ -1978,7 +1965,7 @@ is
                      --
                      else
                         Free_PBAs (Free_Blocks) :=
-                           Old_PBAs (Natural (I - 1)).PBA;
+                           Old_PBAs (Tree_Level_Index_Type (Level - 1)).PBA;
 
                         Free_Blocks := Free_Blocks + 1;
                         New_Blocks  := New_Blocks  + 1;
@@ -1989,7 +1976,8 @@ is
                            & Debug.To_String (Debug.Uint64_Type (
                               Free_PBAs (Free_Blocks))) & " "
                            & Debug.To_String (Debug.Uint64_Type (
-                              Old_PBAs (Natural (I - 1)).PBA))));
+                              Old_PBAs (
+                                 Tree_Level_Index_Type (Level - 1)).PBA))));
                      end if;
                   end Declare_Generation;
                end Declare_Nodes;
@@ -2001,22 +1989,21 @@ is
                & Debug.To_String (Debug.Uint64_Type (Obj.Cur_Gen))
                & " root PBA: "
                & Debug.To_String (Debug.Uint64_Type (
-                  Old_PBAs (Natural (Trans_Height - 1)).PBA))
+                  Old_PBAs (Trans_Max_Level - 1).PBA))
                & " Gen: "
                & Debug.To_String (Debug.Uint64_Type (
-                  Old_PBAs (Natural (Trans_Height - 1)).Gen))));
+                  Old_PBAs (Trans_Max_Level - 1).Gen))));
 
             --  check root node
-            if Old_PBAs (Natural (Trans_Height - 1)).Gen = Obj.Cur_Gen and then
-               Old_PBAs (Natural (Trans_Height - 1)).PBA /= Obj.Last_Root_PBA
+            if Old_PBAs (Trans_Max_Level - 1).Gen = Obj.Cur_Gen and then
+               Old_PBAs (Trans_Max_Level - 1).PBA /= Obj.Last_Root_PBA
             then
                pragma Debug (Debug.Print_String ("Change root PBA in place"));
-               New_PBAs (Tree_Level_Index_Type (Trans_Height - 1)) :=
-                  Old_PBAs (Natural (Trans_Height - 1)).PBA;
+               New_PBAs (Trans_Max_Level - 1) :=
+                  Old_PBAs (Trans_Max_Level - 1).PBA;
             else
                pragma Debug (Debug.Print_String ("New root PBA"));
-               Free_PBAs (Free_Blocks) :=
-                  Old_PBAs (Natural (Trans_Height - 1)).PBA;
+               Free_PBAs (Free_Blocks) := Old_PBAs (Trans_Max_Level - 1).PBA;
                New_Blocks := New_Blocks  + 1;
             end if;
 
@@ -2028,15 +2015,15 @@ is
             --
             if New_Blocks > 0 then
                Free_Tree.Submit_Request (
-                  Obj         => Obj.Free_Tree_Obj,
-                  Curr_Gen    => Obj.Cur_Gen,
-                  Nr_Of_Blks  => New_Blocks,
-                  New_PBAs    => New_PBAs,
-                  Old_PBAs    => Old_PBAs,
-                  Tree_Height => Trans_Height,
-                  Fr_PBAs     => Free_PBAs,
-                  Req_Prim    => Prim,
-                  VBA         => VBA);
+                  Obj            => Obj.Free_Tree_Obj,
+                  Curr_Gen       => Obj.Cur_Gen,
+                  Nr_Of_Blks     => New_Blocks,
+                  New_PBAs       => New_PBAs,
+                  Old_PBAs       => Old_PBAs,
+                  Tree_Max_Level => Trans_Max_Level,
+                  Fr_PBAs        => Free_PBAs,
+                  Req_Prim       => Prim,
+                  VBA            => VBA);
             else
                --
                --  The complete branch is still part of theCurr generation,
@@ -2052,7 +2039,7 @@ is
                   VBA      => VBA,
                   New_PBAs => New_PBAs,
                   Old_PBAs => Old_PBAs,
-                  N        => Tree_Level_Index_Type (Trans_Height),
+                  N        => Trans_Max_Level,
                   Data     => Data,
                   WB_Data  => Obj.Write_Back_Data);
             end if;

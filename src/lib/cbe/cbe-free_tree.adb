@@ -55,26 +55,26 @@ is
       Rt_PBA  :     Physical_Block_Address_Type;
       Rt_Gen  :     Generation_Type;
       Rt_Hash :     Hash_Type;
-      Hght    :     Tree_Level_Type;
+      Max_Lvl :     Tree_Level_Index_Type;
       Degr    :     Tree_Degree_Type;
       Lfs     :     Tree_Number_Of_Leafs_Type)
    is
    begin
       Obj := Initialized_Object (
-         Rt_PBA, Rt_Gen, Rt_Hash, Hght, Degr, Lfs);
+         Rt_PBA, Rt_Gen, Rt_Hash, Max_Lvl, Degr, Lfs);
    end Initialize_Object;
 
    function Initialized_Object (
       Rt_PBA  :     Physical_Block_Address_Type;
       Rt_Gen  :     Generation_Type;
       Rt_Hash :     Hash_Type;
-      Hght    :     Tree_Level_Type;
+      Max_Lvl :     Tree_Level_Index_Type;
       Degr    :     Tree_Degree_Type;
       Lfs     :     Tree_Number_Of_Leafs_Type)
    return Object_Type
    is
       Tr_Helper : constant Tree_Helper.Object_Type :=
-         Tree_Helper.Initialized_Object (Degr, Hght, Lfs);
+         Tree_Helper.Initialized_Object (Degr, Max_Lvl, Lfs);
    begin
       return (
          Trans_Helper       => Tr_Helper,
@@ -152,15 +152,15 @@ is
    is (Obj.Nr_Of_Blocks = 0);
 
    procedure Submit_Request (
-      Obj         : in out Object_Type;
-      Curr_Gen    :        Generation_Type;
-      Nr_Of_Blks  :        Number_Of_Blocks_Type;
-      New_PBAs    :        Write_Back.New_PBAs_Type;
-      Old_PBAs    :        Type_1_Node_Infos_Type;
-      Tree_Height :        Tree_Level_Type;
-      Fr_PBAs     :        Free_PBAs_Type;
-      Req_Prim    :        Primitive.Object_Type;
-      VBA         :        Virtual_Block_Address_Type)
+      Obj            : in out Object_Type;
+      Curr_Gen       :        Generation_Type;
+      Nr_Of_Blks     :        Number_Of_Blocks_Type;
+      New_PBAs       :        Write_Back.New_PBAs_Type;
+      Old_PBAs       :        Type_1_Node_Walk_Type;
+      Tree_Max_Level :        Tree_Level_Index_Type;
+      Fr_PBAs        :        Free_PBAs_Type;
+      Req_Prim       :        Primitive.Object_Type;
+      VBA            :        Virtual_Block_Address_Type)
    is
    begin
       if Obj.Nr_Of_Blocks /= 0 then
@@ -187,10 +187,10 @@ is
       --  Prepare the write-back data that is used later on by
       --  the Write_back module.
       --
-      Obj.WB_Data.Prim        := Req_Prim;
-      Obj.WB_Data.Gen         := Curr_Gen;
-      Obj.WB_Data.VBA         := VBA;
-      Obj.WB_Data.Tree_Height := Tree_Height;
+      Obj.WB_Data.Prim           := Req_Prim;
+      Obj.WB_Data.Gen            := Curr_Gen;
+      Obj.WB_Data.VBA            := VBA;
+      Obj.WB_Data.Tree_Max_Level := Tree_Max_Level;
 
       --
       --  Store given lists in the module.
@@ -211,7 +211,7 @@ is
    function Leaf_Usable (
       Active_Snaps     : Snapshots_Type;
       Last_Secured_Gen : Generation_Type;
-      Node             : Type_II_Node_Type)
+      Node             : Type_2_Node_Type)
    return Boolean
    is
       Free   : Boolean := False;
@@ -237,7 +237,7 @@ is
          if F_Gen <= S_Gen then
             For_Active_Snaps :
             for Snap of Active_Snaps loop
-               if Snapshot_Valid (Snap) then
+               if Snap.Valid then
                   Declare_B_Generation :
                   declare
                      B_Gen   : constant Generation_Type := Snap.Gen;
@@ -367,12 +367,12 @@ is
             --
             --  (Currently not implemented.)
             --
-            if not Translation.Can_Get_Type_1_Info (Obj.Trans, Prim) then
+            if not Translation.Can_Get_Type_1_Node_Walk (Obj.Trans, Prim) then
                raise Program_Error;
             end if;
-            Translation.Get_Type_1_Info (
+            Translation.Get_Type_1_Node_Walk (
                Obj.Trans,
-               Obj.Query_Branches (Obj.Curr_Query_Branch).Trans_Infos);
+               Obj.Query_Branches (Obj.Curr_Query_Branch).Trans_Walk);
 
             Translation.Drop_Completed_Primitive (Obj.Trans);
             Obj.Execute_Progress := True;
@@ -400,10 +400,10 @@ is
       --
       Declare_Nodes_1 :
       declare
-         Nodes : Type_II_Node_Block_Type;
+         Nodes : Type_2_Node_Block_Type;
          Found_New_Free_Blocks : Boolean := False;
       begin
-         Type_II_Node_Block_From_Block_Data (Nodes, Query_Data (0));
+         Type_2_Node_Block_From_Block_Data (Nodes, Query_Data (0));
 
          For_Type_2_Nodes :
          for Node_Index in Nodes'Range loop
@@ -484,7 +484,7 @@ is
             Obj.Curr_Query_Branch := Obj.Curr_Query_Branch + 1;
          end if;
 
-         Block_Data_From_Type_II_Node_Block (Query_Data (0), Nodes);
+         Block_Data_From_Type_2_Node_Block (Query_Data (0), Nodes);
       end Declare_Nodes_1;
 
       --
@@ -585,21 +585,21 @@ is
       Cach_Data    : in out Cache.Cache_Data_Type;
       Timestamp    :        Timestamp_Type;
       Branch_Index :        Query_Branches_Index_Type;
-      Tree_Level   :        Tree_Level_Type;
+      Tree_Level   :        Tree_Level_Index_Type;
       Data_Index   :        Cache.Cache_Index_Type)
    is
-      Pre_Level : constant Tree_Level_Type := Tree_Level - 1;
+      Pre_Level : constant Tree_Level_Index_Type :=
+         Tree_Level_Index_Type (Tree_Level - 1);
 
       Pre_PBA : constant Physical_Block_Address_Type :=
-         Obj.Query_Branches (Branch_Index).
-            Trans_Infos (Natural (Pre_Level)).PBA;
+         Obj.Query_Branches (Branch_Index).Trans_Walk (Pre_Level).PBA;
 
       Pre_Data_Index : Cache.Cache_Index_Type;
       SHA_Hash       : SHA256_4K.Hash_Type;
 
-      Nodes : Type_I_Node_Block_Type;
+      Nodes : Type_1_Node_Block_Type;
    begin
-      Type_I_Node_Block_From_Block_Data (Nodes, Cach_Data (Data_Index));
+      Type_1_Node_Block_From_Block_Data (Nodes, Cach_Data (Data_Index));
       Cache.Data_Index (Cach, Pre_PBA, Timestamp, Pre_Data_Index);
       Declare_Pre_Hash_Data :
       declare
@@ -622,10 +622,10 @@ is
             end Declare_CBE_Hash_1;
          end if;
       end loop For_Nodes;
-      Block_Data_From_Type_I_Node_Block (Cach_Data (Data_Index), Nodes);
+      Block_Data_From_Type_1_Node_Block (Cach_Data (Data_Index), Nodes);
 
       --  for now the root node is a special case
-      if Tree_Level = Tree_Helper.Height (Obj.Trans_Helper) then
+      if Tree_Level = Tree_Helper.Max_Level (Obj.Trans_Helper) then
 
          Declare_Hash_Data :
          declare
@@ -645,9 +645,9 @@ is
       Cach_Data  : in out Cache.Cache_Data_Type;
       Data_Index :        Cache.Cache_Index_Type)
    is
-      Nodes : Type_II_Node_Block_Type;
+      Nodes : Type_2_Node_Block_Type;
    begin
-      Type_II_Node_Block_From_Block_Data (Nodes, Cach_Data (Data_Index));
+      Type_2_Node_Block_From_Block_Data (Nodes, Cach_Data (Data_Index));
 
       For_Nodes :
       for Node_Index in 0 .. Tree_Helper.Degree (Obj.Trans_Helper) - 1 loop
@@ -656,23 +656,23 @@ is
          --  therefor we have to check tree height + 1.
          --
          For_Tree_Levels :
-         for Tree_Level in 0 .. Tree_Helper.Height (Obj.Trans_Helper) loop
+         for Tree_Lvl in 0 .. Tree_Helper.Max_Level (Obj.Trans_Helper) loop
             if
                Nodes (Natural (Node_Index)).PBA =
-               Obj.WB_Data.New_PBAs (Tree_Level_Index_Type (Tree_Level))
+               Obj.WB_Data.New_PBAs (Tree_Level_Index_Type (Tree_Lvl))
             then
                Nodes (Natural (Node_Index)).PBA :=
-                  Obj.WB_Data.Old_PBAs (Natural (Tree_Level)).PBA;
+                  Obj.WB_Data.Old_PBAs (Tree_Level_Index_Type (Tree_Lvl)).PBA;
 
                Nodes (Natural (Node_Index)).Alloc_Gen :=
-                  Obj.WB_Data.Old_PBAs (Natural (Tree_Level)).Gen;
+                  Obj.WB_Data.Old_PBAs (Tree_Level_Index_Type (Tree_Lvl)).Gen;
 
                Nodes (Natural (Node_Index)).Free_Gen := Obj.WB_Data.Gen;
                Nodes (Natural (Node_Index)).Reserved := True;
             end if;
          end loop For_Tree_Levels;
       end loop For_Nodes;
-      Block_Data_From_Type_II_Node_Block (Cach_Data (Data_Index), Nodes);
+      Block_Data_From_Type_2_Node_Block (Cach_Data (Data_Index), Nodes);
    end Exchange_PBA_In_T2_Node_Entries;
 
    procedure Execute_Update (
@@ -703,13 +703,14 @@ is
             --  nodes.
             --
             For_Tree_Levels_Greater_Zero_1 :
-            for Tree_Level in 1 .. Tree_Helper.Height (Obj.Trans_Helper) loop
+            for Tree_Level in 1 .. Tree_Helper.Max_Level (Obj.Trans_Helper)
+            loop
 
                Declare_PBA_2 :
                declare
                   PBA : constant Physical_Block_Address_Type :=
                      Obj.Query_Branches (Branch_Index).
-                        Trans_Infos (Natural (Tree_Level)).PBA;
+                        Trans_Walk (Tree_Level_Index_Type (Tree_Level)).PBA;
                begin
 
                   if not Cache.Data_Available (Cach, PBA) then
@@ -750,14 +751,14 @@ is
                for Branch_Index in 0 .. Obj.Curr_Query_Branch - 1 loop
 
                   For_Tree_Levels_Greater_Zero_2 :
-                  for Tree_Level in 1 .. Tree_Helper.Height (
-                                              Obj.Trans_Helper)
+                  for Tree_Level
+                  in 1 .. Tree_Helper.Max_Level (Obj.Trans_Helper)
                   loop
                      Declare_Data_Index_2 :
                      declare
                         PBA : constant Physical_Block_Address_Type :=
-                           Obj.Query_Branches (Branch_Index).Trans_Infos (
-                              Natural (Tree_Level)).PBA;
+                           Obj.Query_Branches (Branch_Index).Trans_Walk (
+                              Tree_Level_Index_Type (Tree_Level)).PBA;
 
                         Data_Index  : Cache.Cache_Index_Type;
                         Type_2_Node : constant Boolean := (Tree_Level = 1);

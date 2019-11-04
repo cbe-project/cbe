@@ -191,35 +191,36 @@ is
       --  (And if that's not the case, updating will corrupt the tree
       --  for obvious reasons.)
       --
-      For_Each_Entry : for I in 1 .. Obj.Levels - 1 loop
+      For_Each_Inner_Lvl :
+      for Lvl in 1 .. Obj.Levels - 1 loop
 
-         if Primitive."=" (Obj.Entries (I).Tag, Primitive.Tag_Cache) and then
-            Obj.Entries (I).PBA = PBA
+         if Primitive."=" (Obj.Entries (Lvl).Tag, Primitive.Tag_Cache) and then
+            Obj.Entries (Lvl).PBA = PBA
          then
 
             --  CoW action incoming
-            if Obj.Entries (I).PBA /= Obj.Entries (I).Update_PBA then
+            if Obj.Entries (Lvl).PBA /= Obj.Entries (Lvl).Update_PBA then
                Update_Data := Data;
             end if;
 
             declare
                --  save as long as only inner nodes in cache
                Child_Update_PBA : constant Physical_Block_Address_Type :=
-                  Obj.Entries (I - 1).Update_PBA;
+                  Obj.Entries (Lvl - 1).Update_PBA;
 
-               Child_Hash : constant Hash_Type := Obj.Hashes (I - 1);
+               Child_Hash : constant Hash_Type := Obj.Hashes (Lvl - 1);
 
                --  get index from VBA in inner node
                Index : constant Tree_Child_Index_Type :=
-                  Tree_Helper.Index (Tree, Obj.VBA, Tree_Level_Type (I));
+                  Tree_Helper.Index (Tree, Obj.VBA, Lvl);
 
-               Nodes : Type_I_Node_Block_Type;
+               Nodes : Type_1_Node_Block_Type;
             begin
-               Type_I_Node_Block_From_Block_Data (Nodes, Update_Data);
+               Type_1_Node_Block_From_Block_Data (Nodes, Update_Data);
                Nodes (Natural (Index)).PBA  := Child_Update_PBA;
                Nodes (Natural (Index)).Gen  := Obj.New_Generation;
                Nodes (Natural (Index)).Hash := Child_Hash;
-               Block_Data_From_Type_I_Node_Block (Update_Data, Nodes);
+               Block_Data_From_Type_1_Node_Block (Update_Data, Nodes);
             end;
 
             --  calculate hash
@@ -230,14 +231,14 @@ is
             begin
                SHA256_4K_Data_From_CBE_Data (SHA_Data, Update_Data);
                SHA256_4K.Hash (SHA_Data, SHA_Hash);
-               CBE_Hash_From_SHA256_4K_Hash (Obj.Hashes (I), SHA_Hash);
+               CBE_Hash_From_SHA256_4K_Hash (Obj.Hashes (Lvl), SHA_Hash);
             end Declare_SHA_Args;
 
-            Obj.Entries (I).State := Complete;
+            Obj.Entries (Lvl).State := Complete;
 
-            exit For_Each_Entry;
+            exit For_Each_Inner_Lvl;
          end if;
-      end loop For_Each_Entry;
+      end loop For_Each_Inner_Lvl;
 
       --  for now always check all entries after update
       declare
@@ -265,7 +266,7 @@ is
       Gen      :        Generation_Type;
       VBA      :        Virtual_Block_Address_Type;
       New_PBAs :        New_PBAs_Type;
-      Old_PBAs :        Type_1_Node_Infos_Type;
+      Old_PBAs :        Type_1_Node_Walk_Type;
       N        :        Tree_Level_Index_Type;
       Data     :        Block_Data_Type;
       WB_Data  : in out Data_Type)
@@ -293,7 +294,9 @@ is
       --  XXX iterate from 0?
       --
       for I in 0 .. Obj.Levels - 1 loop
-         Obj.Entries (I).PBA        := Old_PBAs (Natural (I)).PBA;
+         Obj.Entries (I).PBA        :=
+            Old_PBAs (Tree_Level_Index_Type (I)).PBA;
+
          Obj.Entries (I).Update_PBA := New_PBAs (I);
          Obj.Entries (I).State      := Pending;
          Obj.Entries (I).Tag        := Primitive.Tag_Cache;

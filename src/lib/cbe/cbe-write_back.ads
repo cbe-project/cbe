@@ -37,8 +37,7 @@ is
    type Data_Index_Type is range 0 .. 0;
 
    type Data_Type
-   is array (Data_Index_Type) of Block_Data_Type
-   with Size => Block_Size * 8 * 1;
+   is array (Data_Index_Type) of Block_Data_Type with Size => Block_Size;
 
    --
    --  Initialize_Object
@@ -105,7 +104,7 @@ is
       Gen      :        Generation_Type;
       VBA      :        Virtual_Block_Address_Type;
       New_PBAs :        New_PBAs_Type;
-      Old_PBAs :        Type_1_Node_Infos_Type;
+      Old_PBAs :        Type_1_Node_Walk_Type;
       N        :        Tree_Level_Index_Type;
       Data     :        Block_Data_Type;
       WB_Data  : in out Data_Type);

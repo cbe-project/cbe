@@ -26,18 +26,18 @@ is
    --  FIXME will not be used anymore when the library module is in spark
    --
    procedure Initialize_Object (
-      Obj    : out Object_Type;
-      Height :     Tree_Level_Type;
-      Degree :     Tree_Degree_Type;
-      Leafs  :     Tree_Number_Of_Leafs_Type);
+      Obj       : out Object_Type;
+      Max_Level :     Tree_Level_Index_Type;
+      Degree    :     Tree_Degree_Type;
+      Leafs     :     Tree_Number_Of_Leafs_Type);
 
    --
    --  Initialized_Object
    --
    function Initialized_Object (
-      Height :     Tree_Level_Type;
-      Degree :     Tree_Degree_Type;
-      Leafs  :     Tree_Number_Of_Leafs_Type)
+      Max_Level : Tree_Level_Index_Type;
+      Degree    : Tree_Degree_Type;
+      Leafs     : Tree_Number_Of_Leafs_Type)
    return Object_Type;
 
    --
@@ -59,25 +59,25 @@ is
    return Block_Number_Type;
 
    --
-   --  Trans_Can_Get_Type_1_Info
+   --  Trans_Can_Get_Type_1_Node_Walk
    --
-   function Trans_Can_Get_Type_1_Info (
+   function Trans_Can_Get_Type_1_Node_Walk (
       Obj   : Object_Type;
       Prim  : Primitive.Object_Type)
    return Boolean;
 
    --
-   --  Trans_Get_Type_1_Info
+   --  Trans_Get_Type_1_Node_Walk
    --
-   procedure Trans_Get_Type_1_Info (
-      Obj   :        Object_Type;
-      Infos : in out Type_1_Node_Infos_Type);
+   procedure Trans_Get_Type_1_Node_Walk (
+      Obj  :        Object_Type;
+      Walk : in out Type_1_Node_Walk_Type);
 
    --
-   --  Tree_Height
+   --  Tree_Max_Level
    --
-   function Tree_Height (Obj : Object_Type)
-   return Tree_Level_Type;
+   function Tree_Max_Level (Obj : Object_Type)
+   return Tree_Level_Index_Type;
 
    --
    --  Index_For_Level
@@ -85,7 +85,7 @@ is
    function Index_For_Level (
       Obj   : Object_Type;
       VBA   : Virtual_Block_Address_Type;
-      Level : Tree_Level_Type)
+      Level : Tree_Level_Index_Type)
    return Tree_Child_Index_Type;
 
    --
