@@ -161,13 +161,52 @@ private
 
    end Item;
 
+   package Index_Queue
+   with SPARK_Mode
+   is
+      type Queue_Index_Type is new Pool_Index_Type;
+      type Used_Type is range 0 .. Max_Number_Of_Requests_In_Pool;
+      type Item_Indices_Type
+      is array (Queue_Index_Type) of Pool_Index_Type;
+
+      type Index_Queue_Type is private;
+
+      function Empty_Index_Queue
+      return Index_Queue_Type;
+
+      procedure Enqueue (
+         Obj : in out Index_Queue_Type;
+         Idx   :      Pool_Index_Type);
+
+      function Head (Obj : Index_Queue_Type)
+      return Pool_Index_Type;
+
+      procedure Dequeue_Head (Obj : in out Index_Queue_Type);
+
+      function Empty (Obj : Index_Queue_Type)
+      return Boolean;
+
+      function Full (Obj : Index_Queue_Type)
+      return Boolean;
+
+   private
+
+         type Index_Queue_Type is record
+            Head    : Queue_Index_Type;
+            Tail    : Queue_Index_Type;
+            Used    : Used_Type;
+            Indices : Item_Indices_Type;
+         end record;
+   end Index_Queue;
+
    type Items_Type is array (Pool_Index_Type) of Item.Item_Type;
 
    --
    --  Object_Type
    --
    type Object_Type is record
-      Items : Items_Type;
+      Items   : Items_Type;
+      Indices : Index_Queue.Index_Queue_Type;
    end record;
 
 end CBE.Pool;
