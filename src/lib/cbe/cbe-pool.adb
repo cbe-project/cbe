@@ -118,7 +118,9 @@ is
    --
    function Initialized_Object
    return Object_Type
-   is (Items => (others => Item.Invalid_Object));
+   is (
+      Items => (others => Item.Invalid_Object),
+      Indices => Index_Queue.Empty_Index_Queue);
 
    --
    --  Request_Acceptable
@@ -127,6 +129,10 @@ is
    return Boolean
    is
    begin
+      if Index_Queue.Full (Obj.Indices) then
+         return False;
+      end if;
+
       for Itm of Obj.Items loop
          if Item.Invalid (Itm) then
             return True;
@@ -160,6 +166,8 @@ is
                   Nr_Of_Prims      => Nr_Of_Prims,
                   Nr_Of_Done_Prims => 0);
 
+            Index_Queue.Enqueue (Obj.Indices, Item_Id);
+
             exit Items_Loop;
 
          end if;
@@ -175,12 +183,10 @@ is
    return Pool_Index_Slot_Type
    is
    begin
-      For_Each_Item : for Idx in Obj.Items'Range loop
-         if Item.Pending (Obj.Items (Idx)) then
-            return Pool_Idx_Slot_Valid (Idx);
-         end if;
-      end loop For_Each_Item;
-      return Pool_Idx_Slot_Invalid;
+      if Index_Queue.Empty (Obj.Indices) then
+         return Pool_Idx_Slot_Invalid;
+      end if;
+      return Pool_Idx_Slot_Valid (Index_Queue.Head (Obj.Indices));
    end Peek_Pending_Request;
 
    --
@@ -189,12 +195,11 @@ is
    procedure Drop_Pending_Request (Obj : in out Object_Type)
    is
    begin
-      for Item_Id in Obj.Items'Range loop
-         if Item.Pending (Obj.Items (Item_Id)) then
-            Item.State (Obj.Items (Item_Id), Item.In_Progress);
-            return;
-         end if;
-      end loop;
+      if Index_Queue.Empty (Obj.Indices) then
+         raise Program_Error;
+      end if;
+
+      Index_Queue.Dequeue_Head (Obj.Indices);
    end Drop_Pending_Request;
 
    --
@@ -278,5 +283,55 @@ is
       end if;
       return Item.Req (Obj.Items (Idx));
    end Request_For_Index;
+
+   package body Index_Queue
+   with SPARK_Mode
+   is
+      function Empty_Index_Queue
+      return Index_Queue_Type
+      is (
+         Head   => Queue_Index_Type'First,
+         Tail   => Queue_Index_Type'First,
+         Used   => Used_Type'First,
+         Indices => (others => Pool_Index_Type'First));
+
+      procedure Enqueue (
+         Obj : in out Index_Queue_Type;
+         Idx :        Pool_Index_Type)
+      is
+      begin
+         Obj.Indices (Obj.Tail) := Idx;
+
+         if Obj.Tail < Queue_Index_Type'Last then
+            Obj.Tail := Queue_Index_Type'Succ (Obj.Tail);
+         else
+            Obj.Tail := Queue_Index_Type'First;
+         end if;
+         Obj.Used := Used_Type'Succ (Obj.Used);
+      end Enqueue;
+
+      function Head (Obj : Index_Queue_Type)
+      return Pool_Index_Type
+      is (Obj.Indices (Obj.Head));
+
+      procedure Dequeue_Head (Obj : in out Index_Queue_Type)
+      is
+      begin
+         if Obj.Head < Queue_Index_Type'Last then
+            Obj.Head := Queue_Index_Type'Succ (Obj.Head);
+         else
+            Obj.Head := Queue_Index_Type'First;
+         end if;
+         Obj.Used := Used_Type'Pred (Obj.Used);
+      end Dequeue_Head;
+
+      function Empty (Obj : Index_Queue_Type)
+      return Boolean
+      is (Obj.Used = Used_Type'First);
+
+      function Full (Obj : Index_Queue_Type)
+      return Boolean
+      is (Obj.Used = Used_Type'Last);
+   end Index_Queue;
 
 end CBE.Pool;

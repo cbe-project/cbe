@@ -15,6 +15,7 @@ with SPARK_Mode
 is
    pragma Pure;
 
+   Max_Number_Of_Requests_In_Pool : constant := 16;
    Superblock_Nr_Of_Snapshots : constant := 48;
    Block_Size : constant := 4096;
    Tree_Min_Degree_Log_2 : constant := 0;
@@ -326,7 +327,7 @@ is
       Data  : out Block_Data_Type;
       SB    :     Superblock_Type);
 
-   type Pool_Index_Type is range 1 .. 1;
+   type Pool_Index_Type is range 1 .. Max_Number_Of_Requests_In_Pool;
    type Pool_Index_Slot_Type is private;
 
    function Pool_Idx_Slot_Valid (Slot : Pool_Index_Slot_Type)
