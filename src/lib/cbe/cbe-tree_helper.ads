@@ -22,9 +22,9 @@ is
    --  Initialized_Object
    --
    function Initialized_Object (
-      Degr : Tree_Degree_Type;
-      Hght : Tree_Level_Type;
-      Lfs  : Tree_Number_Of_Leafs_Type)
+      Degr    : Tree_Degree_Type;
+      Max_Lvl : Tree_Level_Index_Type;
+      Lfs     : Tree_Number_Of_Leafs_Type)
    return Object_Type;
 
    --
@@ -33,14 +33,14 @@ is
    function Index (
       Obj   : Object_Type;
       VBA   : Virtual_Block_Address_Type;
-      Level : Tree_Level_Type)
+      Level : Tree_Level_Index_Type)
    return Tree_Child_Index_Type;
 
    -----------------
    --  Accessors  --
    -----------------
 
-   function Height (Obj : Object_Type) return Tree_Level_Type;
+   function Max_Level (Obj : Object_Type) return Tree_Level_Index_Type;
    function Degree (Obj : Object_Type) return Tree_Degree_Type;
    function Leafs (Obj : Object_Type) return Tree_Number_Of_Leafs_Type;
 
@@ -62,7 +62,7 @@ private
    --
    type Object_Type is record
       Degree       : Tree_Degree_Type;
-      Height       : Tree_Level_Type;
+      Max_Level    : Tree_Level_Index_Type;
       Leafs        : Tree_Number_Of_Leafs_Type;
       Degree_Log_2 : Degree_Log_2_Type;
       Degree_Mask  : Degree_Mask_Type;

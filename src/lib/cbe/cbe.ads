@@ -18,24 +18,29 @@ is
    Max_Number_Of_Requests_In_Pool : constant := 16;
    Superblock_Nr_Of_Keys : constant := 2;
    Superblock_Nr_Of_Snapshots : constant := 48;
-   Superblock_Padding_Size_Bytes : constant := 424;
+   Block_Size_Bytes : constant := 4096;
    Type_1_Node_Storage_Size_Bytes : constant := 64;
-   Type_1_Node_Padding_Size_Bytes : constant := 16;
    Type_2_Node_Storage_Size_Bytes : constant := 64;
-   Type_2_Node_Padding_Size_Bytes : constant := 27;
    Hash_Size_Bytes : constant := 32;
    Key_Storage_Size_Bytes : constant := 68;
    Key_Value_Size_Bytes : constant := 64;
    Snapshot_Storage_Size_Bytes : constant := 72;
-   Block_Size : constant := 4096;
    Tree_Min_Degree_Log_2 : constant := 0;
    Tree_Max_Degree_Log_2 : constant := 6;
-   Tree_Max_Height : constant := 6;
-   Tree_Min_Height : constant := 1;
-   Snapshot_Flags_Keep_Mask : constant := 1;
+   Tree_Max_Max_Level : constant := 6;
+   Tree_Min_Max_Level : constant := 1;
 
+   Block_Size : constant := Block_Size_Bytes * 8;
    Tree_Min_Degree : constant := 2**Tree_Min_Degree_Log_2;
    Tree_Max_Degree : constant := 2**Tree_Max_Degree_Log_2;
+
+   Type_1_Node_Storage_Size : constant := Type_1_Node_Storage_Size_Bytes * 8;
+   Type_1_Nodes_Per_Block : constant :=
+      Block_Size_Bytes / Type_1_Node_Storage_Size_Bytes;
+
+   Type_2_Node_Storage_Size : constant := Type_2_Node_Storage_Size_Bytes * 8;
+   Type_2_Nodes_Per_Block : constant :=
+      Block_Size_Bytes / Type_2_Node_Storage_Size_Bytes;
 
    Superblock_Keys_Storage_Size_Bytes : constant :=
       Superblock_Nr_Of_Keys * Key_Storage_Size_Bytes;
@@ -44,17 +49,15 @@ is
       Superblock_Nr_Of_Snapshots * Snapshot_Storage_Size_Bytes;
 
    Tree_Max_Number_Of_Leafs : constant :=
-      Tree_Max_Degree**(Tree_Max_Height - 1);
+      Tree_Max_Degree**(Tree_Max_Max_Level - 1);
 
    type Byte_Type is range 0 .. 2**8 - 1 with Size => 8;
-   type Block_Data_Index_Type is range 0 .. Block_Size - 1;
+   type Block_Data_Index_Type is range 0 .. Block_Size_Bytes - 1;
 
    type Block_Data_Type
-   is array (Block_Data_Index_Type) of Byte_Type with Size => Block_Size * 8;
+   is array (Block_Data_Index_Type) of Byte_Type with Size => Block_Size;
 
-   type Translation_Data_Type
-   is array (0 .. 0) of Block_Data_Type with Size => 1 * Block_Size * 8;
-
+   type Translation_Data_Type is array (0 .. 0) of Block_Data_Type;
    type Number_Of_Primitives_Type is range 0 .. Tree_Max_Number_Of_Leafs;
 
    type Index_Type is range 0 .. 2**32 - 1;
@@ -67,86 +70,48 @@ is
    type Virtual_Block_Address_Type is range 0 .. Tree_Max_Number_Of_Leafs;
    type Timestamp_Type is mod 2**64;
 
-   type Tree_Level_Index_Type is range 0 .. Tree_Max_Height - 1;
+   type Tree_Level_Index_Type is range 0 .. Tree_Max_Max_Level;
 
    type Tree_Number_Of_Leafs_Type
    is range 0 .. Tree_Max_Number_Of_Leafs;
 
    type Tree_Degree_Type is range Tree_Min_Degree .. Tree_Max_Degree;
-
-   type Tree_Level_Type is range 0 .. 2**32 - 1 with Size => 32;
    type Tree_Child_Index_Type is range 0 .. Tree_Max_Degree - 1;
    type Number_Of_Blocks_Type is range 0 .. 2**32 - 1;
    type Snapshot_ID_Type is range 0 .. 2**32 - 1;
-   type Snapshot_ID_Storage_Type is range 0 .. 2**32 - 1 with Size => 32;
-   type Snapshot_Valid_Storage_Type is range 0 .. 2**8 - 1 with Size => 8;
-   type Snapshot_Flags_Storage_Type is range 0 .. 2**32 - 1 with Size => 32;
    type Key_ID_Type is range 0 .. 2**32 - 1;
-   type Key_ID_Storage_Type is range 0 .. 2**32 - 1 with Size => 32;
    type Operation_Type is (Read, Write, Sync);
 
-   type Hash_Index_Type is range 1 .. 32;
-   type Hash_Type is array (Hash_Index_Type) of Byte_Type with Size => 32 * 8;
+   type Hash_Index_Type is range 0 .. Hash_Size_Bytes - 1;
+   type Hash_Type is array (Hash_Index_Type) of Byte_Type;
 
-   type Type_I_Node_Padding_Type
-   is array (0 .. Type_1_Node_Padding_Size_Bytes - 1) of Byte_Type;
-
-   type Type_I_Node_Type is record
+   type Type_1_Node_Type is record
       PBA      : Physical_Block_Address_Type;
       Gen      : Generation_Type;
       Hash     : Hash_Type;
-      Padding  : Type_I_Node_Padding_Type;
-   end record with Size =>
-       8 * 8 + --  PBA
-       8 * 8 + --  Gen
-      32 * 8 + --  Hash
-      16 * 8;  --  Padding
-
-   type Type_I_Node_Block_Type is
-      array (0 .. (Block_Data_Type'Size / Type_I_Node_Type'Size) - 1)
-      of Type_I_Node_Type;
-
-   pragma Pack (Type_I_Node_Block_Type);
-
-   type Type_1_Node_Info_Type is record
-      PBA  : Physical_Block_Address_Type;
-      Gen  : Generation_Type;
-      Hash : Hash_Type;
    end record;
 
-   type Type_II_Node_Padding_Type
-   is array (0 .. Type_2_Node_Padding_Size_Bytes - 1) of Byte_Type;
+   type Type_1_Node_Block_Type
+   is array (0 .. Type_1_Nodes_Per_Block - 1) of Type_1_Node_Type;
 
    --
    --  The CBE::Type_i_node contains the on-disk type 2 inner node
    --  information. This node is only used in the free-tree at the
    --  level directly above the leaf nodes.
    --
-   type Type_II_Node_Type is record
+   type Type_2_Node_Type is record
       PBA         : Physical_Block_Address_Type;
       Last_VBA    : Virtual_Block_Address_Type;
       Alloc_Gen   : Generation_Type;
       Free_Gen    : Generation_Type;
-      Last_Key_ID : Key_ID_Storage_Type;
+      Last_Key_ID : Key_ID_Type;
       Reserved    : Boolean;
-      Padding     : Type_II_Node_Padding_Type;
-   end record with Size =>
-       8 * 8 + --  PBA
-       8 * 8 + --  Last_VBA
-       8 * 8 + --  Alloc_Gen
-       8 * 8 + --  Free_Gen
-       4 * 8 + --  Last_Key_Id
-       1 * 8 + --  Reserved
-      27 * 8;  --  Padding
+   end record;
 
-   type Type_II_Node_Block_Type is
-      array (0 .. (Block_Data_Type'Size / Type_II_Node_Type'Size) - 1)
-      of Type_II_Node_Type;
+   type Type_2_Node_Block_Type
+   is array (0 .. Type_2_Nodes_Per_Block - 1) of Type_2_Node_Type;
 
-   pragma Pack (Type_II_Node_Block_Type);
-
-   type Query_Data_Type
-   is array (0 .. 0) of Block_Data_Type with Size => 1 * Block_Size * 8;
+   type Query_Data_Type is array (0 .. 0) of Block_Data_Type;
 
    --
    --  The CBE::Snapshot stores the information about a given tree within
@@ -157,59 +122,23 @@ is
       PBA         : Physical_Block_Address_Type;
       Gen         : Generation_Type;
       Nr_Of_Leafs : Tree_Number_Of_Leafs_Type;
-      Height      : Tree_Level_Type;
-      Valid       : Snapshot_Valid_Storage_Type;
-      ID          : Snapshot_ID_Storage_Type;
-      Flags       : Snapshot_Flags_Storage_Type;
+      Max_Level   : Tree_Level_Index_Type;
+      Valid       : Boolean;
+      ID          : Snapshot_ID_Type;
+      Keep        : Boolean;
    end record;
-
-   for Snapshot_Type use record
-      Hash        at 0  range 0 .. 32 * 8 - 1;
-      PBA         at 32 range 0 ..  8 * 8 - 1;
-      Gen         at 40 range 0 ..  8 * 8 - 1;
-      Nr_Of_Leafs at 48 range 0 ..  8 * 8 - 1;
-      Height      at 56 range 0 ..  4 * 8 - 1;
-      Valid       at 60 range 0 ..  1 * 8 - 1;
-      ID          at 64 range 0 ..  4 * 8 - 1;
-      Flags       at 68 range 0 ..  4 * 8 - 1;
-   end record;
-
-   for Snapshot_Type'Size use
-      32 * 8 + --  Hash
-       8 * 8 + --  PBA
-       8 * 8 + --  Gen
-       8 * 8 + --  Nr_Of_Leafs
-       4 * 8 + --  Height
-       1 * 8 + --  Valid
-       3 * 8 + --  <Padding>
-       4 * 8 + --  ID
-       4 * 8;  --  Flags
-
-   function Snapshot_Valid (Snap : Snapshot_Type)
-   return Boolean;
-
-   procedure Snapshot_Valid (
-      Snap  : in out Snapshot_Type;
-      Valid :        Boolean);
-
-   function Snapshot_Keep (Snap : Snapshot_Type)
-   return Boolean;
 
    type Snapshots_Index_Type is range 0 .. Superblock_Nr_Of_Snapshots - 1;
-   type Snapshots_Index_Storage_Type is range 0 .. 2**32 - 1 with Size => 32;
-   type Snapshots_Type
-   is array (Snapshots_Index_Type) of Snapshot_Type
-   with Size => Superblock_Nr_Of_Snapshots * 72 * 8;
+   type Snapshots_Type is array (Snapshots_Index_Type) of Snapshot_Type;
 
    type Active_Snapshot_IDs_Type
    is array (Snapshots_Index_Type) of Generation_Type;
 
-   type Type_1_Node_Infos_Type
-   is array (0 .. Natural (Tree_Level_Index_Type'Last))
-      of Type_1_Node_Info_Type;
+   type Type_1_Node_Walk_Type
+   is array (Tree_Level_Index_Type) of Type_1_Node_Type;
 
-   function Type_1_Node_Info_Invalid
-   return Type_1_Node_Info_Type
+   function Type_1_Node_Invalid
+   return Type_1_Node_Type
    is (
       PBA  => 0,
       Gen  => 0,
@@ -221,9 +150,6 @@ is
    function PBA_Invalid return Physical_Block_Address_Type
    is (Physical_Block_Address_Type'Last);
 
-   function Tree_Level_Invalid return Tree_Level_Type
-   is (Tree_Level_Type'Last);
-
    function Snapshot_Invalid
    return Snapshot_Type
    is (
@@ -231,14 +157,13 @@ is
       PBA         => PBA_Invalid,
       Gen         => Generation_Type'Last,
       Nr_Of_Leafs => Tree_Number_Of_Leafs_Type'Last,
-      Height      => Tree_Level_Invalid,
-      Valid       => 0,
-      ID          => Snapshot_ID_Storage_Type'Last,
-      Flags       => Snapshot_Flags_Storage_Type'Last);
+      Max_Level   => Tree_Level_Index_Type'Last,
+      Valid       => False,
+      ID          => Snapshot_ID_Type'Last,
+      Keep        => False);
 
    type Key_Value_Index_Type is range 0 .. Key_Value_Size_Bytes - 1;
-   type Key_Value_Type
-   is array (Key_Value_Index_Type) of Byte_Type with Size => 64 * 8;
+   type Key_Value_Type is array (Key_Value_Index_Type) of Byte_Type;
 
    --
    --  The CBE::Key contains the key-material that is used to
@@ -249,15 +174,11 @@ is
    --
    type Key_Type is record
       Value : Key_Value_Type;
-      ID    : Key_ID_Storage_Type;
-   end record with Size =>
-      64 * 8 + --  Value
-       4 * 8;  --  ID
+      ID    : Key_ID_Type;
+   end record;
 
    type Keys_Index_Type is range 0 .. Superblock_Nr_Of_Keys - 1;
    type Keys_Type is array (Keys_Index_Type) of Key_Type;
-   type Superblock_Padding_Type
-   is array (0 .. Superblock_Padding_Size_Bytes - 1) of Byte_Type;
 
    --
    --  The CBE::Superblock contains all information of a CBE
@@ -291,55 +212,38 @@ is
       Keys                    : Keys_Type;
       Snapshots               : Snapshots_Type;
       Last_Secured_Generation : Generation_Type;
-      Curr_Snap               : Snapshots_Index_Storage_Type;
+      Curr_Snap               : Snapshots_Index_Type;
       Degree                  : Tree_Degree_Type;
       Free_Gen                : Generation_Type;
       Free_Number             : Physical_Block_Address_Type;
       Free_Hash               : Hash_Type;
-      Free_Height             : Tree_Level_Type;
+      Free_Max_Level          : Tree_Level_Index_Type;
       Free_Degree             : Tree_Degree_Type;
       Free_Leafs              : Tree_Number_Of_Leafs_Type;
-      Padding                 : Superblock_Padding_Type;
-   end record with Size =>
-                               2 * 68 * 8 + --  Keys
-      Superblock_Nr_Of_Snapshots * 72 * 8 + --  Snapshots
-                                    8 * 8 + --  Last_Secured_Generation
-                                    4 * 8 + --  Curr_Snap
-                                    4 * 8 + --  Degree
-                                    8 * 8 + --  Free_Gen
-                                    8 * 8 + --  Free_Number
-                                   32 * 8 + --  Free_Hash
-                                    4 * 8 + --  Free_Height
-                                    4 * 8 + --  Free_Degree
-                                    8 * 8 + --  Free_Leafs
-                                  424 * 8;  --  Padding
-
-   pragma Assert (Superblock_Type'Size = Block_Data_Type'Size);
+   end record;
 
    type Superblocks_Index_Type is range 0 .. 7;
-   type Superblocks_Type
-   is array (Superblocks_Index_Type) of Superblock_Type
-   with Size => 8 * Block_Size * 8;
+   type Superblocks_Type is array (Superblocks_Index_Type) of Superblock_Type;
 
    type Timeout_Request_Type is record
       Valid   : Boolean;
       Timeout : Timestamp_Type;
    end record;
 
-   procedure Block_Data_From_Type_II_Node_Block (
+   procedure Block_Data_From_Type_2_Node_Block (
       Data  : out Block_Data_Type;
-      Nodes :     Type_II_Node_Block_Type);
+      Nodes :     Type_2_Node_Block_Type);
 
-   procedure Type_II_Node_Block_From_Block_Data (
-      Nodes : out Type_II_Node_Block_Type;
+   procedure Type_2_Node_Block_From_Block_Data (
+      Nodes : out Type_2_Node_Block_Type;
       Data  :     Block_Data_Type);
 
-   procedure Block_Data_From_Type_I_Node_Block (
+   procedure Block_Data_From_Type_1_Node_Block (
       Data  : out Block_Data_Type;
-      Nodes :     Type_I_Node_Block_Type);
+      Nodes :     Type_1_Node_Block_Type);
 
-   procedure Type_I_Node_Block_From_Block_Data (
-      Nodes : out Type_I_Node_Block_Type;
+   procedure Type_1_Node_Block_From_Block_Data (
+      Nodes : out Type_1_Node_Block_Type;
       Data  :     Block_Data_Type);
 
    procedure Block_Data_From_Superblock (
@@ -376,7 +280,31 @@ is
    function Idx_Slot_Invalid
    return Index_Slot_Type;
 
+   procedure Superblock_From_Block_Data (
+      SB   : out Superblock_Type;
+      Data :     Block_Data_Type);
+
 private
+
+   procedure Snapshot_From_Block_Data (
+      Snap     : out Snapshot_Type;
+      Data     :     Block_Data_Type;
+      Data_Off :     Block_Data_Index_Type);
+
+   procedure Snapshots_From_Block_Data (
+      Snaps    : out Snapshots_Type;
+      Data     :     Block_Data_Type;
+      Data_Off :     Block_Data_Index_Type);
+
+   procedure Key_From_Block_Data (
+      Key      : out Key_Type;
+      Data     :     Block_Data_Type;
+      Data_Off :     Block_Data_Index_Type);
+
+   procedure Keys_From_Block_Data (
+      Keys     : out Keys_Type;
+      Data     :     Block_Data_Type;
+      Data_Off :     Block_Data_Index_Type);
 
    procedure Block_Data_From_Unsigned_64 (
       Data : in out Block_Data_Type;
@@ -403,15 +331,15 @@ private
       Off_In :        Block_Data_Index_Type;
       Hash   :        Hash_Type);
 
-   procedure Block_Data_From_Type_I_Node (
+   procedure Block_Data_From_Type_1_Node (
       Data   : in out Block_Data_Type;
       Off_In :        Block_Data_Index_Type;
-      Node   :        Type_I_Node_Type);
+      Node   :        Type_1_Node_Type);
 
-   procedure Block_Data_From_Type_II_Node (
+   procedure Block_Data_From_Type_2_Node (
       Data   : in out Block_Data_Type;
       Off_In :        Block_Data_Index_Type;
-      Node   :        Type_II_Node_Type);
+      Node   :        Type_2_Node_Type);
 
    function Boolean_From_Block_Data (
       Data : Block_Data_Type;
@@ -438,7 +366,7 @@ private
       Data_Off :        Block_Data_Index_Type;
       Key      :        Key_Type);
 
-   procedure Block_Data_From_Snap (
+   procedure Block_Data_From_Snapshot (
       Data     : in out Block_Data_Type;
       Data_Off :        Block_Data_Index_Type;
       Snap     :        Snapshot_Type);

@@ -43,8 +43,8 @@ is
    --
    --  \param Obj  translation-module object
    --
-   function Height (Obj : Object_Type)
-   return Tree_Level_Type;
+   function Max_Level (Obj : Object_Type)
+   return Tree_Level_Index_Type;
 
    --
    --  Return child index of given level for a virtual address
@@ -52,7 +52,7 @@ is
    function Index (
       Obj   : Object_Type;
       VBA   : Virtual_Block_Address_Type;
-      Level : Tree_Level_Type)
+      Level : Tree_Level_Index_Type)
    return Tree_Child_Index_Type;
 
    --
@@ -109,19 +109,19 @@ is
    return Block_Number_Type;
 
    --
-   --  Can_Get_Type_1_Info
+   --  Can_Get_Type_1_Node_Walk
    --
-   function Can_Get_Type_1_Info (
+   function Can_Get_Type_1_Node_Walk (
       Obj   : Object_Type;
       Prim  : Primitive.Object_Type)
    return Boolean;
 
    --
-   --  Get_Type_1_Info
+   --  Get_Type_1_Node_Walk
    --
-   procedure Get_Type_1_Info (
-      Obj   :        Object_Type;
-      Infos : in out Type_1_Node_Infos_Type);
+   procedure Get_Type_1_Node_Walk (
+      Obj  :        Object_Type;
+      Walk : in out Type_1_Node_Walk_Type);
 
    --
    --  Return the generated primitive
@@ -150,7 +150,6 @@ is
    function Data_PBA (Obj : Object_Type) return Physical_Block_Address_Type;
    function Next_PBA (Obj : Object_Type) return Physical_Block_Address_Type;
    function Current (Obj : Object_Type) return Primitive.Object_Type;
-   function Max_Levels return Tree_Level_Type;
 
    function To_String (Obj : Object_Type) return String;
 
@@ -163,10 +162,10 @@ private
    end record;
 
    type Object_Type is record
-      Walk             : Type_1_Node_Infos_Type;
+      Walk             : Type_1_Node_Walk_Type;
       Data             : Data_Type;
       Current          : Primitive.Object_Type;
-      Level            : Tree_Level_Type;
+      Level            : Tree_Level_Index_Type;
       Next_PBA         : Physical_Block_Address_Type;
       Data_PBA         : Physical_Block_Address_Type;
       Suspended        : Boolean;
@@ -187,6 +186,6 @@ private
    function Get_Node (
       Data  : Block_Data_Type;
       Index : Tree_Child_Index_Type)
-   return Type_I_Node_Type;
+   return Type_1_Node_Type;
 
 end CBE.Translation;

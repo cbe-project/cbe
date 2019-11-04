@@ -70,10 +70,10 @@ is
       Free_Tr : Boolean)
    return Object_Type
    is (
-      Walk             => (others => Type_1_Node_Info_Invalid),
+      Walk             => (others => Type_1_Node_Invalid),
       Data             => Data_Initialized_Object,
       Current          => Primitive.Invalid_Object,
-      Level            => Tree_Level_Invalid,
+      Level            => Tree_Level_Index_Type'Last,
       Next_PBA         => PBA_Invalid,
       Data_PBA         => PBA_Invalid,
       Suspended        => False,
@@ -82,11 +82,11 @@ is
       Helper           => Helpr);
 
    --
-   --  Height
+   --  Max_Level
    --
-   function Height (Obj : Object_Type)
-   return Tree_Level_Type
-   is (Tree_Helper.Height (Obj.Helper));
+   function Max_Level (Obj : Object_Type)
+   return Tree_Level_Index_Type
+   is (Tree_Helper.Max_Level (Obj.Helper));
 
    --
    --  Index
@@ -94,7 +94,7 @@ is
    function Index (
       Obj   : Object_Type;
       VBA   : Virtual_Block_Address_Type;
-      Level : Tree_Level_Type)
+      Level : Tree_Level_Index_Type)
    return Tree_Child_Index_Type
    is (Tree_Helper.Index (Obj.Helper, VBA, Level));
 
@@ -135,17 +135,16 @@ is
    is
    begin
       Obj.Data  := Data_Initialized_Object;
-      Obj.Level := Tree_Helper.Height (Obj.Helper);
+      Obj.Level := Tree_Helper.Max_Level (Obj.Helper);
 
-      for Index in 0 .. Obj.Level loop
-         Obj.Walk (Natural (Index)) := Type_1_Node_Info_Invalid;
+      for Index in Obj.Walk'Range loop
+         Obj.Walk (Index) := Type_1_Node_Invalid;
       end loop;
 
-      Obj.Walk (Natural (Obj.Level)) := (Root_PBA, Root_Gen, Root_Hash);
-
+      Obj.Walk (Obj.Level) := (Root_PBA, Root_Gen, Root_Hash);
       Obj.Current := Prim;
       Obj.Data_PBA := PBA_Invalid;
-      Obj.Next_PBA := Obj.Walk (Natural (Obj.Level)).PBA;
+      Obj.Next_PBA := Obj.Walk (Obj.Level).PBA;
 
    end Submit_Primitive;
 
@@ -167,7 +166,7 @@ is
          return;
       end if;
 
-      if not Obj.Data.Avail (Tree_Level_Index_Type (Obj.Level - 1)) then
+      if not Obj.Data.Avail (Obj.Level - 1) then
 
          --  data request already pending
          if Obj.Next_PBA /= PBA_Invalid then
@@ -176,7 +175,7 @@ is
 
          --  or use previous level data to get next level
          declare
-            Node : constant Type_I_Node_Type :=
+            Node : constant Type_1_Node_Type :=
                Get_Node (
                   Trans_Data (0),
                   Tree_Helper.Index (
@@ -185,10 +184,10 @@ is
                         Primitive.Block_Number (Obj.Current)),
                      Obj.Level + 1));
          begin
-            Obj.Walk (Natural (Obj.Level)) := (
+            Obj.Walk (Obj.Level) := (
                Node.PBA, Node.Gen, Node.Hash);
 
-            Obj.Next_PBA := Obj.Walk (Natural (Obj.Level)).PBA;
+            Obj.Next_PBA := Obj.Walk (Obj.Level).PBA;
             Obj.Execute_Progress := True;
             return;
          end;
@@ -204,15 +203,15 @@ is
          SHA256_4K_Data_From_CBE_Data (SHA_Data, Trans_Data (0));
          SHA256_4K.Hash (SHA_Data, SHA_Hash);
          CBE_Hash_From_SHA256_4K_Hash (CBE_Hash, SHA_Hash);
-         if CBE_Hash /= Obj.Walk (Natural (Obj.Level)).Hash then
+         if CBE_Hash /= Obj.Walk (Obj.Level).Hash then
             pragma Debug (Debug.Print_String ("Translation: " & "Level: "
                & Debug.To_String (Debug.Uint64_Type (Obj.Level)) & " "
                & "PBA: "
                & Debug.To_String (Debug.Uint64_Type (
-                  Obj.Walk (Natural (Obj.Level)).PBA)) & " "
+                  Obj.Walk (Tree_Level_Index_TYpe (Obj.Level)).PBA)) & " "
                & "GOT: " & Debug.To_String (CBE_Hash) & " "
                & "EXP: " & Debug.To_String (
-                  Obj.Walk (Natural (Obj.Level)).Hash)));
+                  Obj.Walk (Obj.Level).Hash)));
             raise Program_Error;
          end if;
       end Declare_SHA_Args;
@@ -229,14 +228,14 @@ is
       --     type 2 node itself.
       --
       declare
-         Data_Level : constant Tree_Level_Type :=
+         Data_Level : constant Tree_Level_Index_Type :=
             (if Obj.Free_Tree then 1 else 0);
       begin
          Obj.Level := Obj.Level - 1;
          if Obj.Level = Data_Level then
             declare
-               Parent_Level : constant Tree_Level_Type := Data_Level + 1;
-               Node : constant Type_I_Node_Type :=
+               Parent_Level : constant Tree_Level_Index_Type := Data_Level + 1;
+               Node : constant Type_1_Node_Type :=
                   Get_Node (
                      Trans_Data (0),
                      Tree_Helper.Index (
@@ -245,10 +244,8 @@ is
                            Primitive.Block_Number (Obj.Current)),
                         Parent_Level));
             begin
-               Obj.Walk (Natural (Obj.Level)) := (
-                  Node.PBA, Node.Gen, Node.Hash);
-
-               Obj.Data_PBA := Obj.Walk (Natural (Obj.Level)).PBA;
+               Obj.Walk (Obj.Level) := (Node.PBA, Node.Gen, Node.Hash);
+               Obj.Data_PBA := Obj.Walk (Obj.Level).PBA;
             end;
          end if;
          Obj.Execute_Progress := True;
@@ -289,9 +286,9 @@ is
    is (Primitive.Block_Number (Obj.Current));
 
    --
-   --  Can_Get_Type_1_Info
+   --  Can_Get_Type_1_Node_Walk
    --
-   function Can_Get_Type_1_Info (
+   function Can_Get_Type_1_Node_Walk (
       Obj   : Object_Type;
       Prim  : Primitive.Object_Type)
    return Boolean
@@ -301,17 +298,17 @@ is
          Obj.Data_PBA);
 
    --
-   --  Get_Type_1_Info
+   --  Get_Type_1_Node_Walk
    --
-   procedure Get_Type_1_Info (
-      Obj   :        Object_Type;
-      Infos : in out Type_1_Node_Infos_Type)
+   procedure Get_Type_1_Node_Walk (
+      Obj  :        Object_Type;
+      Walk : in out Type_1_Node_Walk_Type)
    is
    begin
-      for Level in 0 .. Tree_Helper.Height (Obj.Helper) loop
-         Infos (Natural (Level)) := Obj.Walk (Natural (Level));
+      for Level in 0 .. Tree_Helper.Max_Level (Obj.Helper) loop
+         Walk (Level) := Obj.Walk (Level);
       end loop;
-   end Get_Type_1_Info;
+   end Get_Type_1_Node_Walk;
 
    --
    --  Peek_Generated_Primitive
@@ -347,7 +344,7 @@ is
       Trans_Data : in out Translation_Data_Type)
    is
    begin
-      Obj.Data.Avail (Tree_Level_Index_Type (Obj.Level - 1)) := True;
+      Obj.Data.Avail (Obj.Level - 1) := True;
       Trans_Data (0) := Data;
    end Mark_Generated_Primitive_Complete;
 
@@ -357,11 +354,11 @@ is
    function Get_Node (
       Data  : Block_Data_Type;
       Index : Tree_Child_Index_Type)
-   return Type_I_Node_Type
+   return Type_1_Node_Type
    is
-      Nodes : Type_I_Node_Block_Type;
+      Nodes : Type_1_Node_Block_Type;
    begin
-      Type_I_Node_Block_From_Block_Data (Nodes, Data);
+      Type_1_Node_Block_From_Block_Data (Nodes, Data);
       return Nodes (Natural (Index));
    end Get_Node;
 
@@ -388,9 +385,6 @@ is
 
    function Current (Obj : Object_Type) return Primitive.Object_Type
    is (Obj.Current);
-
-   function Max_Levels return Tree_Level_Type
-   is (6);
 
    function To_String (Obj : Object_Type) return String
    is (

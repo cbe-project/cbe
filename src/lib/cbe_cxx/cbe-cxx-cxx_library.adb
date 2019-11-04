@@ -19,12 +19,16 @@ is
 
    procedure Initialize_Object (
       Obj     : out Library.Object_Type;
-      SBs     :     Superblocks_Type;
+      SBs     :     CXX_Superblocks_Type;
       Curr_SB :     CXX_Superblocks_Index_Type)
    is
+      SBs_SPARK : Superblocks_Type;
    begin
+      for Idx in SBs_SPARK'Range loop
+         Superblock_From_Block_Data (SBs_SPARK (Idx), SBs (Idx));
+      end loop;
       Library.Initialize_Object (
-         Obj, SBs, Superblocks_Index_Type (Curr_SB.Value));
+         Obj, SBs_SPARK, Superblocks_Index_Type (Curr_SB.Value));
    end Initialize_Object;
 
    procedure Create_Snapshot (

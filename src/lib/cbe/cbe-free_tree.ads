@@ -52,13 +52,13 @@ is
    is array (WB_IO_Entries_Index_Type) of IO_Entry_Type;
 
    type Write_Back_Data_Type is record
-      Prim        : Primitive.Object_Type;
-      Gen         : Generation_Type;
-      VBA         : Virtual_Block_Address_Type;
-      Tree_Height : Tree_Level_Type;
-      New_PBAs    : Write_Back.New_PBAs_Type;
-      Old_PBAs    : Type_1_Node_Infos_Type;
-      Finished    : Boolean;
+      Prim           : Primitive.Object_Type;
+      Gen            : Generation_Type;
+      VBA            : Virtual_Block_Address_Type;
+      Tree_Max_Level : Tree_Level_Index_Type;
+      New_PBAs       : Write_Back.New_PBAs_Type;
+      Old_PBAs       : Type_1_Node_Walk_Type;
+      Finished       : Boolean;
    end record;
 
    --
@@ -78,7 +78,7 @@ is
       Rt_PBA  :     Physical_Block_Address_Type;
       Rt_Gen  :     Generation_Type;
       Rt_Hash :     Hash_Type;
-      Hght    :     Tree_Level_Type;
+      Max_Lvl :     Tree_Level_Index_Type;
       Degr    :     Tree_Degree_Type;
       Lfs     :     Tree_Number_Of_Leafs_Type);
 
@@ -86,7 +86,7 @@ is
       Rt_PBA  :     Physical_Block_Address_Type;
       Rt_Gen  :     Generation_Type;
       Rt_Hash :     Hash_Type;
-      Hght    :     Tree_Level_Type;
+      Max_Lvl :     Tree_Level_Index_Type;
       Degr    :     Tree_Degree_Type;
       Lfs     :     Tree_Number_Of_Leafs_Type)
    return Object_Type;
@@ -112,15 +112,15 @@ is
    --  FIXME refer to tree_height for number of valid elements
    --
    procedure Submit_Request (
-      Obj         : in out Object_Type;
-      Curr_Gen    :        Generation_Type;
-      Nr_Of_Blks  :        Number_Of_Blocks_Type;
-      New_PBAs    :        Write_Back.New_PBAs_Type;
-      Old_PBAs    :        Type_1_Node_Infos_Type;
-      Tree_Height :        Tree_Level_Type;
-      Fr_PBAs     :        Free_PBAs_Type;
-      Req_Prim    :        Primitive.Object_Type;
-      VBA         :        Virtual_Block_Address_Type);
+      Obj            : in out Object_Type;
+      Curr_Gen       :        Generation_Type;
+      Nr_Of_Blks     :        Number_Of_Blocks_Type;
+      New_PBAs       :        Write_Back.New_PBAs_Type;
+      Old_PBAs       :        Type_1_Node_Walk_Type;
+      Tree_Max_Level :        Tree_Level_Index_Type;
+      Fr_PBAs        :        Free_PBAs_Type;
+      Req_Prim       :        Primitive.Object_Type;
+      VBA            :        Virtual_Block_Address_Type);
 
    --
    --  Execute module
@@ -260,7 +260,7 @@ private
    is array (0 .. Max_levels * 2 - 1) of Physical_Block_Address_Type;
 
    type Query_Branch_Type is record
-      Trans_Infos       : Type_1_Node_Infos_Type;
+      Trans_Walk        : Type_1_Node_Walk_Type;
       PBAs              : Query_Branch_PBAs_Type;
       Nr_Of_Free_Blocks : Number_Of_Blocks_Type;
       VBA               : Virtual_Block_Address_Type;
@@ -335,7 +335,7 @@ private
 
    function Query_Branch_Invalid return Query_Branch_Type
    is (
-      Trans_Infos       => (others => Type_1_Node_Info_Invalid),
+      Trans_Walk        => (others => Type_1_Node_Invalid),
       PBAs              => (others => PBA_Invalid),
       Nr_Of_Free_Blocks => 0,
       VBA               => VBA_Invalid);
@@ -348,13 +348,13 @@ private
 
    function Write_Back_Data_Invalid return Write_Back_Data_Type
    is (
-      Prim        => Primitive.Invalid_Object,
-      Gen         => 0,
-      VBA         => VBA_Invalid,
-      Tree_Height => 0,
-      New_PBAs    => (others => PBA_Invalid),
-      Old_PBAs    => (others => Type_1_Node_Info_Invalid),
-      Finished    => False);
+      Prim           => Primitive.Invalid_Object,
+      Gen            => 0,
+      VBA            => VBA_Invalid,
+      Tree_Max_Level => 0,
+      New_PBAs       => (others => PBA_Invalid),
+      Old_PBAs       => (others => Type_1_Node_Invalid),
+      Finished       => False);
 
    --
    --  Check if the entry is usable for allocation
@@ -374,7 +374,7 @@ private
    function Leaf_Usable (
       Active_Snaps     : Snapshots_Type;
       Last_Secured_Gen : Generation_Type;
-      Node             : Type_II_Node_Type)
+      Node             : Type_2_Node_Type)
    return Boolean;
 
    procedure Execute_Translation (
@@ -405,7 +405,7 @@ private
       Cach_Data    : in out Cache.Cache_Data_Type;
       Timestamp    :        Timestamp_Type;
       Branch_Index :        Query_Branches_Index_Type;
-      Tree_Level   :        Tree_Level_Type;
+      Tree_Level   :        Tree_Level_Index_Type;
       Data_Index   :        Cache.Cache_Index_Type);
 
    procedure Exchange_PBA_In_T2_Node_Entries (
