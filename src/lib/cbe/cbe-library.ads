@@ -56,7 +56,8 @@ is
    procedure Create_Snapshot (
       Obj     : in out Object_Type;
       Quara   :        Boolean;
-      Snap_ID :    out Snapshot_ID_Type);
+      Snap_ID :    out Generation_Type;
+      Result  :    out Boolean);
 
    --
    --  Check if snapshot creation is complete
@@ -65,7 +66,7 @@ is
    --
    function Snapshot_Creation_Complete (
       Obj     : Object_Type;
-      Snap_ID : Snapshot_ID_Type)
+      Snap_ID : Generation_Type)
    return Boolean;
 
    --
