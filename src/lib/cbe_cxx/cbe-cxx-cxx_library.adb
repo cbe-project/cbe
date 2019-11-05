@@ -30,15 +30,16 @@ is
    procedure Create_Snapshot (
       Obj     : in out Library.Object_Type;
       Quara   :        CXX_Bool_Type;
-      Snap_id :    out CXX_Snapshot_ID_Type)
+      Snap_id :    out CXX_Snapshot_ID_Type;
+      Result  :    out CXX_Bool_Type)
    is
-      Snap_id_SPARK : Snapshot_ID_Type;
+      Snap_id_SPARK : Generation_Type;
+      Result_SPARK  : Boolean;
    begin
       Library.Create_Snapshot (
-         Obj,
-         CXX_Bool_To_SPARK (Quara),
-         Snap_id_SPARK);
+         Obj, CXX_Bool_To_SPARK (Quara), Snap_id_SPARK, Result_SPARK);
       Snap_id := CXX_Snapshot_ID_Type (Snap_id_SPARK);
+      Result  := CXX_Bool_From_SPARK (Result_SPARK);
    end Create_Snapshot;
 
    function Snapshot_Creation_Complete (
@@ -48,7 +49,7 @@ is
    is
    begin
       return (CXX_Bool_From_SPARK (Library.Snapshot_Creation_Complete (Obj,
-         Snapshot_ID_Type (Snap_id))));
+         Generation_Type (Snap_id))));
    end Snapshot_Creation_Complete;
 
    procedure Discard_Snapshot (

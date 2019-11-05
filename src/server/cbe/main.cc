@@ -210,7 +210,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		Time::Timestamp _sync_interval;
 		Time::Timestamp _last_sync_time;
 
-		uint32_t _creating_snapshot_id { 0 };
+		Cbe::Snapshot_ID _creating_snapshot_id { 0, false };
 
 		void _handle_requests()
 		{
@@ -296,18 +296,19 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				 * Query current time and check if a timeout has triggered
 				 */
 				Time::Timestamp const now = _time.timestamp();
-				if (now - _last_sync_time >= _sync_interval && !_creating_snapshot_id)
+				if (now - _last_sync_time >= _sync_interval
+				    && !_creating_snapshot_id.valid)
 				{
 					_creating_snapshot_id = _cbe->create_snapshot(false);
 					LOGIF("\033[36;1m INF ", "CREATING SNAPSHOT: ",
 					    _creating_snapshot_id);
 				}
 
-				if (_creating_snapshot_id) {
+				if (_creating_snapshot_id.valid) {
 					if (_cbe->snapshot_creation_complete(_creating_snapshot_id)) {
 						LOGIF("\033[36;1m INF ", "CREATING SNAPSHOT: ",
 						    _creating_snapshot_id, " FINISHED");
-						_creating_snapshot_id = 0;
+						_creating_snapshot_id = Snapshot_ID { 0, false };
 						_last_sync_time = now;
 						_time.schedule_sync_timeout(_sync_interval);
 					} else {

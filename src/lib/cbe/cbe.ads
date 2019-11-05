@@ -184,7 +184,7 @@ is
    with Size => Superblock_Nr_Of_Snapshots * 72 * 8;
 
    type Active_Snapshot_IDs_Type
-   is array (Snapshots_Index_Type) of Snapshot_ID_Storage_Type;
+   is array (Snapshots_Index_Type) of Generation_Type;
 
    type Type_1_Node_Infos_Type
    is array (0 .. Natural (Tree_Level_Index_Type'Last))

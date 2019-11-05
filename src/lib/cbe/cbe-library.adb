@@ -81,9 +81,16 @@ is
    procedure Create_Snapshot (
       Obj     : in out Object_Type;
       Quara   :        Boolean;
-      Snap_ID :    out Snapshot_ID_Type)
+      Snap_ID :    out Generation_Type;
+      Result  :    out Boolean)
    is
    begin
+
+      --
+      --  Initially assume creation will be unsuccessfull and will
+      --  only be changed when a snapshot creation was started.
+      --
+      Result := False;
 
       --
       --  As long as we are creating a snapshot or
@@ -103,7 +110,7 @@ is
             if Snap.PBA = Obj.Last_Root_PBA and then
                Snap.Hash = Obj.Last_Root_Hash
             then
-               Snap_ID := Snapshot_ID_Type (Obj.Last_Secured_Generation);
+               Snap_ID := Obj.Last_Secured_Generation;
 
                pragma Debug (Debug.Print_String ("Creating_Snapshot: "
                   & "generation already secured - no new snapshot: "
@@ -113,9 +120,11 @@ is
 
             Obj.Creating_Snapshot := True;
             Obj.Creating_Quarantine_Snapshot := Quara;
+
+            Result := True;
          end Declare_Current_Snapshot;
       end if;
-      Snap_ID := Snapshot_ID_Type (Obj.Cur_Gen);
+      Snap_ID := Obj.Cur_Gen;
 
       pragma Debug (Debug.Print_String ("Creating_Snapshot: id: "
          & Debug.To_String (Debug.Uint64_Type (Snap_ID))));
@@ -182,11 +191,10 @@ is
 
    function Snapshot_Creation_Complete (
       Obj     : Object_Type;
-      Snap_ID : Snapshot_ID_Type)
+      Snap_ID : Generation_Type)
    return Boolean
    is
-      Result : constant Boolean := (Obj.Last_Secured_Generation =
-         Generation_Type (Snap_ID));
+      Result : constant Boolean := (Obj.Last_Secured_Generation = Snap_ID);
    begin
       pragma Debug (Debug.Print_String ("Snapshot_Creation_Complete: " &
          Debug.To_String (Debug.Uint64_Type (Obj.Last_Secured_Generation))
@@ -208,10 +216,9 @@ is
          if Snapshot_Valid (Obj.Superblock.Snapshots (Snap_ID)) and then
             Snapshot_Keep (Obj.Superblock.Snapshots (Snap_ID))
          then
-            List (Snap_ID) := Snapshot_ID_Storage_Type (
-               Obj.Superblock.Snapshots (Snap_ID).Gen);
+            List (Snap_ID) := Obj.Superblock.Snapshots (Snap_ID).Gen;
          else
-            List (Snap_ID) := Snapshot_ID_Storage_Type (0);
+            List (Snap_ID) := Generation_Type (0);
          end if;
       end loop For_Snapshots;
    end Active_Snapshot_IDs;

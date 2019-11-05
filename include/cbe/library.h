@@ -51,9 +51,9 @@ class Cbe::Library : public Cbe::Spark_object<199448>
 		void _crypto_cipher_data_required(Request &, Crypto_plain_buffer::Index &) const;
 		void _crypto_plain_data_required(Request &, Crypto_cipher_buffer::Index &) const;
 
-		void _create_snapshot(bool, uint32_t &id);
-
-		void _discard_snapshot(uint32_t id, bool &);
+		void _create_snapshot(bool, uint64_t &id, bool &);
+		bool _snapshot_creation_complete(uint64_t id) const;
+		void _discard_snapshot(uint64_t id, bool &);
 
 	public:
 
@@ -257,13 +257,14 @@ class Cbe::Library : public Cbe::Spark_object<199448>
 	 * \param quaratine  if set to true a quaratine snapshot will be
 	 *                   created, otherwise a disposable one
 	 *
-	 * \return snapshot id of the resulting snapshot
+	 * \return generation of the resulting snapshot
 	 */
-	uint32_t create_snapshot(bool quaratine)
+	Snapshot_ID create_snapshot(bool quaratine)
 	{
-		uint32_t id { 0 };
-		_create_snapshot(quaratine, id);
-		return id;
+		uint64_t value = 0;
+		bool result = false;
+		_create_snapshot(quaratine, value, result);
+		return Snapshot_ID { .value = value, .valid = result };
 	}
 
 	/**
@@ -271,7 +272,10 @@ class Cbe::Library : public Cbe::Spark_object<199448>
 	 *
 	 * \return snapshot id of the resulting snapshot
 	 */
-	bool snapshot_creation_complete(uint32_t id) const;
+	bool snapshot_creation_complete(Snapshot_ID id) const
+	{
+		return _snapshot_creation_complete(id.value);
+	}
 
 	/**
 	 * Discard given snapshot
@@ -280,10 +284,10 @@ class Cbe::Library : public Cbe::Spark_object<199448>
 	 *
 	 * \return true if discard attempt was successful, false otherwise
 	 */
-	bool discard_snapshot(uint32_t id)
+	bool discard_snapshot(Snapshot_ID id)
 	{
-		bool result { false };
-		_discard_snapshot(id, result);
+		bool result = false;
+		_discard_snapshot(id.value, result);
 		return result;
 	}
 

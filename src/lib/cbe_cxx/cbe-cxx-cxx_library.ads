@@ -38,11 +38,12 @@ is
    procedure Create_Snapshot (
       Obj     : in out Library.Object_Type;
       Quara   :        CXX_Bool_Type;
-      Snap_id :    out CXX_Snapshot_ID_Type)
+      Snap_id :    out CXX_Snapshot_ID_Type;
+      Result  :    out CXX_Bool_Type)
    with
       Export,
       Convention    => C,
-      External_Name => "_ZN3Cbe7Library16_create_snapshotEbRj";
+      External_Name => "_ZN3Cbe7Library16_create_snapshotEbRyRb";
 
    function Snapshot_Creation_Complete (
       Obj     : Library.Object_Type;
@@ -51,7 +52,8 @@ is
    with
       Export,
       Convention    => C,
-      External_Name => "_ZNK3Cbe7Library26snapshot_creation_completeEj";
+      External_Name =>
+         "_ZNK3Cbe7Library27_snapshot_creation_completeEy";
 
    procedure Discard_Snapshot (
       Obj     : in out Library.Object_Type;
@@ -60,7 +62,7 @@ is
    with
       Export,
       Convention    => C,
-      External_Name => "_ZN3Cbe7Library17_discard_snapshotEjRb";
+      External_Name => "_ZN3Cbe7Library17_discard_snapshotEyRb";
 
    procedure Active_Snapshot_IDs (
       Obj :     Library.Object_Type;
