@@ -1542,12 +1542,18 @@ is
       Req :        Request.Object_Type;
       ID  :        Snapshot_ID_Type)
    is
+      Number_Of_Primitives : constant Number_Of_Primitives_Type :=
+         Splitter.Number_Of_Primitives (Req);
    begin
+      if Number_Of_Primitives = 0 then
+         raise Program_Error;
+      end if;
+
       Pool.Submit_Request (
          Obj.Request_Pool_Obj,
          Req,
          ID,
-         Splitter.Number_Of_Primitives (Req));
+         Number_Of_Primitives);
    end Submit_Client_Request;
 
    function Peek_Completed_Client_Request (Obj : Object_Type)
