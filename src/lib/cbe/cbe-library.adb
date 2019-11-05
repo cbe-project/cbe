@@ -1805,6 +1805,9 @@ is
                WB.Old_PBAs, WB.Tree_Max_Level, Data, Obj.Write_Back_Data);
          end;
 
+         Obj.Superblock.Free_Hash := Free_Tree.Peek_Completed_Root_Hash (
+            Obj.Free_Tree_Obj, Prim);
+
          Free_Tree.Drop_Completed_Primitive (Obj.Free_Tree_Obj, Prim);
 
          --  XXX check if default constructor produces invalid object
