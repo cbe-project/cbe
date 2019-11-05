@@ -386,7 +386,7 @@ is
       Progress : Boolean := False;
    begin
 
-      pragma Debug (Debug.Print_String (To_String (Obj)));
+      --  pragma Debug (Debug.Print_String (To_String (Obj)));
 
       -------------------------
       --  Snapshot handling  --
