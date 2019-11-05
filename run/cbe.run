@@ -79,9 +79,9 @@ append config {
 			report="no"
 			verbose="no"
 			backing_size="} [cbe_block_size_mb] {M"
-			vbd_size="2M"
+			vbd_size="32M"
 			vbd_outer_degree="64"
-			ft_size="1M"
+			ft_size="4M"
 			ft_outer_degree="64"
 			initialize="yes"
 			write_init_state_to_block="}
@@ -103,7 +103,7 @@ append config {"/>
 	<start name="cbe">
 		<resource name="RAM" quantum="4M"/>
 		<provides><service name="Block"/></provides>
-		<config show_progress="no" sync_interval="1"/>
+		<config show_progress="no" show_if_progress="no" sync_interval="1"/>
 		<route>
 			<service name="Block"> <child name="cbe_block"/> </service>
 			<service name="Terminal"> <child name="log_terminal"/> </service>
@@ -128,8 +128,8 @@ append config {
 		<resource name="RAM" quantum="80M"/>
 		<config verbose="yes" report="no" log="yes" stop_on_error="yes">
 			<tests>
-				<compare verbose="yes" length="128K" size="4K"/>
-				<compare verbose="yes" length="128K" size="4K"/>
+				<compare verbose="yes" length="4M" size="4K"/>
+				<compare verbose="yes" length="4M" size="4K"/>
 
 <!--
 				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="1"/> </replay>
