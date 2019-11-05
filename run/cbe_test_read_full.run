@@ -1,0 +1,10 @@
+set block_tester_config {
+<tests>
+	<sequential verbose="yes" size="64K" write="read"/>
+</tests>
+}
+
+
+set inc_file "run/cbe_test.inc"
+set repo "[repository_contains $inc_file]"
+source $repo/$inc_file

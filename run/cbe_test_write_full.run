@@ -1,0 +1,15 @@
+set block_tester_config {
+<tests>
+	<sequential verbose="yes" size="64K" write="yes"/>
+
+	<!-- make sure everything is in the image -->
+	<replay verbose="yes">
+		<request type="sync" count="1"/>
+	</replay>
+</tests>
+}
+
+
+set inc_file "run/cbe_test.inc"
+set repo "[repository_contains $inc_file]"
+source $repo/$inc_file
