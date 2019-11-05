@@ -1056,6 +1056,19 @@ is
       return Primitive.Invalid_Object;
    end Peek_Completed_Primitive;
 
+   function Peek_Completed_Root_Hash (
+      Obj  : Object_Type;
+      Prim : Primitive.Object_Type)
+   return CBE.Hash_Type
+   is
+   begin
+      if not Primitive.Equal (Prim, Obj.WB_Data.Prim) then
+         raise Program_Error;
+      end if;
+
+      return Obj.Root_Hash;
+   end Peek_Completed_Root_Hash;
+
    function Peek_Completed_WB_Data (
       Obj  : Object_Type;
       Prim : Primitive.Object_Type)
