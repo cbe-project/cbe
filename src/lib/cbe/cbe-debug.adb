@@ -9,10 +9,9 @@
 pragma Ada_2012;
 
 package body CBE.Debug
-with SPARK_Mode
+with SPARK_Mode => Off
 is
    procedure Print_String (Str : String)
-   with SPARK_Mode => Off
    is
    begin
       Print_Cstring (Str, Str'Length);
@@ -78,45 +77,36 @@ is
       To_String (Uint64_Type (H (8))) & "," &
       "...)");
 
-   procedure Dump_Current_Superblock (
-      SBs     : Superblocks_Type;
-      Curr_SB : Superblocks_Index_Type)
+   procedure Dump_Superblock (
+      SB_Index : Superblocks_Index_Type;
+      SB       : Superblock_Type)
    is
    begin
-      pragma Debug (Debug.Print_String ("Superblock secured: "));
+      Debug.Print_String (
+         "Dump SB: " &
+         Debug.To_String (Debug.Uint64_Type (SB_Index)) &
+         " " & " SN: " &
+         Debug.To_String (Debug.Uint64_Type (SB.Curr_Snap)));
 
-      for J in Superblocks_Index_Type loop
-         if J = Curr_SB then
-            pragma Debug (Debug.Print_String ("--- CURRENT ---"));
+      for I in Snapshots_Index_Type loop
+         if Snapshot_Valid (SB.Snapshots (I))
+         then
+            Debug.Print_String ("SB: "
+               & Debug.To_String (Debug.Uint64_Type (SB_Index))
+               & " SN: "
+               & Debug.To_String (Debug.Uint64_Type (I))
+               & " PBA: "
+               & Debug.To_String (Debug.Uint64_Type (SB.Snapshots (I).PBA))
+               & " GEN: "
+               & Debug.To_String (Debug.Uint64_Type (SB.Snapshots (I).Gen))
+               & " ID: "
+               & Debug.To_String (Debug.Uint64_Type (SB.Snapshots (I).ID))
+               & " KEEP: "
+               & Debug.To_String (Debug.Uint64_Type (SB.Snapshots (I).Flags))
+               & " "
+               & Debug.To_String (SB.Snapshots (I).Hash));
          end if;
-         pragma Debug (Debug.Print_String ("SB: " & Debug.To_String (
-            Debug.Uint64_Type (J)) & " "
-            & " Curr_Snap: " & Debug.To_String (Debug.Uint64_Type (
-               SBs (J).Curr_Snap))));
-         for I in Snapshots_Index_Type loop
-            if Snapshot_Valid (SBs (J).Snapshots (I))
-            then
-               pragma Debug (Debug.Print_String ("SB: "
-                  & Debug.To_String (Debug.Uint64_Type (J)) & " "
-                  & "SN: "
-                  & Debug.To_String (Debug.Uint64_Type (I)) & " "
-                  & "PBA: "
-                  & Debug.To_String (Debug.Uint64_Type (
-                     SBs (J).Snapshots (I).PBA)) & " "
-                  & "GEN: "
-                  & Debug.To_String (Debug.Uint64_Type (
-                     SBs (J).Snapshots (I).Gen)) & " "
-                  & "ID: "
-                  & Debug.To_String (Debug.Uint64_Type (
-                     SBs (J).Snapshots (I).ID)) & " "
-                  & "KEEP: "
-                  & Debug.To_String (Debug.Uint64_Type (
-                     SBs (J).Snapshots (I).Flags)) & " "
-                  & Debug.To_String (
-                     SBs (J).Snapshots (I).Hash)));
-            end if;
-         end loop;
       end loop;
-   end Dump_Current_Superblock;
+   end Dump_Superblock;
 
 end CBE.Debug;

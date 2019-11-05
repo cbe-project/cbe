@@ -376,7 +376,6 @@ private
       Free_Tree_Retry_Count        : Free_Tree_Retry_Count_Type;
       Free_Tree_Trans_Data         : Translation_Data_Type;
       Free_Tree_Query_Data         : Query_Data_Type;
-      Superblocks                  : Superblocks_Type;
       Cur_SB                       : Superblocks_Index_Type;
       Cur_Gen                      : Generation_Type;
       Last_Secured_Generation      : Generation_Type;
@@ -387,6 +386,8 @@ private
       Creating_Quarantine_Snapshot : Boolean;
       Next_Snapshot_ID             : Snapshot_ID_Type;
       Stall_Snapshot_Creation      : Boolean;
+      Superblock                   : Superblock_Type;
+      Snapshot                     : Snapshot_Type;
    end record;
 
    procedure Try_Discard_Snapshot (

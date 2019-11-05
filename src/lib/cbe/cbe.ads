@@ -205,6 +205,18 @@ is
    function Tree_Level_Invalid return Tree_Level_Type
    is (Tree_Level_Type'Last);
 
+   function Snapshot_Invalid
+   return Snapshot_Type
+   is (
+      Hash        => (others => 0),
+      PBA         => PBA_Invalid,
+      Gen         => Generation_Type'Last,
+      Nr_Of_Leafs => Tree_Number_Of_Leafs_Type'Last,
+      Height      => Tree_Level_Invalid,
+      Valid       => 0,
+      ID          => Snapshot_ID_Storage_Type'Last,
+      Flags       => Snapshot_Flags_Storage_Type'Last);
+
    type Key_Value_Index_Type is range 0 .. 63;
    type Key_Value_Type
    is array (Key_Value_Index_Type) of Byte_Type with Size => 64 * 8;
