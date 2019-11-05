@@ -213,6 +213,21 @@ is
    return Primitive.Object_Type;
 
    --
+   --  Get the hash of the root node
+   --
+   --  This method must only be called after 'peek_Completed_Primitive'
+   --  returned a valid primitive.
+   --
+   --  \param p   reference to the completed primitive
+   --
+   --  \return hash of the root node
+   --
+   function Peek_Completed_Root_Hash (
+      Obj  : Object_Type;
+      Prim : Primitive.Object_Type)
+   return CBE.Hash_Type;
+
+   --
    --  Get write-back Data belonging to a completed primitive
    --
    --  This method must only be called after 'peek_Completed_Primitive'
