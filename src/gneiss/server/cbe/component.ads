@@ -27,6 +27,7 @@ package Component is
        Integer, Request_Id);
 
    procedure Event;
+   procedure Snapshot_Event;
 
    procedure Write
       (C : in out Block.Client_Session;
@@ -40,7 +41,7 @@ package Component is
        D :        Buffer) with
       Pre => Block.Initialized (C);
 
-   package Timer_Client is new Gns.Timer.Client (Event);
+   package Timer_Client is new Gns.Timer.Client (Snapshot_Event);
    package Block_Client is new Block.Client (Event, Read, Write);
 
    procedure Dispatch
