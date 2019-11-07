@@ -1,11 +1,12 @@
 with Ada.Unchecked_Conversion;
 with Componolit.Gneiss.Log;
 with Componolit.Gneiss.Log.Client;
---  with Componolit.Gneiss.Strings;
+with Componolit.Gneiss.Strings;
 with Componolit.Gneiss.Strings_Generic;
 with CBE.Library;
 with CBE.Request;
 with CBE.Crypto;
+with CBE.Block_IO;
 with Conversion;
 
 package body Component is
@@ -43,6 +44,11 @@ package body Component is
    function Convert_Time
       (T : Gns.Timer.Time)
       return CBE.Timestamp_Type is (Time_To_Ns (T) / 1000);
+   pragma Compile_Time_Error (CBE.Byte_Type'Size /= 8, "byte");
+   pragma Compile_Time_Error (CBE.Superblock_Type'Size /= 8 * 4096,
+   "superblock");
+   pragma Compile_Time_Error (Block_Buffer'Size /= 8 * 4096,
+   "block_buffer");
    procedure Convert_Block is new Conversion.Convert (Block_Buffer,
        CBE.Superblock_Type);
 
@@ -86,6 +92,9 @@ package body Component is
       (others => False);
    Cache    : Request_Cache;
    Io_Cache : Backend_Cache;
+   Plain_Buffer : CBE.Crypto.Plain_Buffer_Type;
+   Cipher_Buffer : CBE.Crypto.Cipher_Buffer_Type;
+   Io_Buffer : CBE.Block_IO.Data_Type;
 
    procedure Read_Superblock is
       use type Block.Id;
@@ -160,10 +169,7 @@ package body Component is
          if Valid then
             CBE.Library.Initialize_Object (Cbe_Session, Superblocks, Current);
             Max_Vba := CBE.Library.Max_VBA (Cbe_Session);
-            if Max_Vba < CBE.Virtual_Block_Address_Type'Last
-               and then Max_Vba <
-                  CBE.Virtual_Block_Address_Type (Block.Count'Last)
-            then
+            if Max_Vba < CBE.Virtual_Block_Address_Type'Last then
                Virtual_Block_Count := Block.Count (Max_Vba + 1);
                Ready               := True;
                Gns.Log.Client.Info (Log, "CBE ready");
@@ -209,7 +215,7 @@ package body Component is
          end if;
          if Block_Server.Status (Cache (I).S) = Block.Pending then
             if Cache (I).V then
-               if CBE.Library.Request_Acceptable (Cbe_Session) then
+               if CBE.Library.Client_Request_Acceptable (Cbe_Session) then
                   case Block_Server.Kind (Cache (I).S) is
                      when Block.Read =>
                         Op := CBE.Read;
@@ -225,9 +231,10 @@ package body Component is
                   Request :=
                      CBE.Request.Valid_Object
                         (Op, True, CBE.Block_Number_Type (Start), 0,
-                         CBE.Request.Count_Type (Length), CBE.Tag_Type (I));
+                         CBE.Request.Count_Type (Length),
+                         CBE.Request.Tag_Type (I));
                   Cache (I).P := True;
-                  CBE.Library.Submit_Request (Cbe_Session, Request);
+                  CBE.Library.Submit_Client_Request (Cbe_Session, Request, 0);
                end if;
             else
                Block_Server.Acknowledge (Server, Cache (I).S, Block.Error);
@@ -247,6 +254,10 @@ package body Component is
       end if;
       if Gns.Log.Initialized (Log) then
          Gns.Log.Client.Info (Log, "CBE Server");
+         Gns.Log.Client.Info (Log, "Block buffer: " &
+            Gns.Strings.Image (Long_Integer (Block_Buffer'Size / 8)));
+         Gns.Log.Client.Info (Log, "Superblock: " &
+            Gns.Strings.Image (Long_Integer (CBE.Superblock_Type'Size / 8)));
          if not Block.Initialized (Dispatcher) then
             Block_Dispatcher.Initialize (Dispatcher, Cap, 42);
          end if;
@@ -335,7 +346,9 @@ package body Component is
             --  Gns.Log.Client.Info (Log, "Ev");
             Handle_Server_Requests (Progress);
             Now := Timer_Client.Clock (Timer);
-            CBE.Library.Execute (Cbe_Session, Convert_Time (Now));
+            CBE.Library.Execute (Cbe_Session, Io_Buffer,
+                                 Plain_Buffer, Cipher_Buffer,
+                                 Convert_Time (Now));
             Progress :=
                Progress or else CBE.Library.Execute_Progress (Cbe_Session);
             Cbe_Server_Read;
@@ -366,7 +379,8 @@ package body Component is
       Block_Dispatcher.Session_Cleanup (I, C, Server);
    end Dispatch;
 
-   Server_Plain_Buffer : CBE.Crypto.Plain_Data_Type;
+   Server_Plain_Buffer : constant CBE.Crypto.Plain_Data_Type := (others => 0);
+   Plain_Buffer_Index : CBE.Crypto.Plain_Buffer_Index_Type;
 
    procedure Cbe_Server_Read is
       --  use type CBE.Operation_Type;
@@ -393,7 +407,7 @@ package body Component is
                   (CBE.Crypto.Plain_Data_Type, Block_Buffer, Rd);
             begin
                CBE.Library.Obtain_Client_Data
-                  (Cbe_Session, Req, Server_Plain_Buffer, P);
+                  (Cbe_Session, Req, Plain_Buffer_Index, P);
                Crd (Server_Plain_Buffer);
             end;
          end if;
@@ -425,10 +439,9 @@ package body Component is
                    Block_Buffer, Wrt);
             begin
                Cwrt (Server_Block_Buffer);
-               P_Dummy :=
-                  CBE.Library.Supply_Client_Data
-                     (Cbe_Session, Convert_Time (Now), Req,
-                      Server_Block_Buffer);
+               CBE.Library.Supply_Client_Data
+                  (Cbe_Session, Convert_Time (Now), Req,
+                   Server_Block_Buffer, P_Dummy);
             end;
          end if;
       end if;
@@ -437,11 +450,12 @@ package body Component is
    procedure Cbe_Prepare_Io is
       use type Block.Request_Status;
       Req : CBE.Request.Object_Type;
+      Idx : CBE.Block_IO.Data_Index_Type;
    begin
       for I in Io_Cache'Range loop
-         CBE.Library.IO_Data_Required (Cbe_Session, Req);
+         CBE.Library.Has_IO_Request (Cbe_Session, Req, Idx);
          if not CBE.Request.Valid (Req) then
-            CBE.Library.Has_IO_Data_To_Write (Cbe_Session, Req);
+            CBE.Library.Has_IO_Request (Cbe_Session, Req, Idx);
          end if;
          if CBE.Request.Valid (Req) then
             if Block_Client.Status (Io_Cache (I).C) = Block.Raw
@@ -458,6 +472,7 @@ package body Component is
 
    Empty_Block : constant CBE.Block_Data_Type :=
       (others => CBE.Byte_Type'First);
+   pragma Unreferenced (Empty_Block);
 
    procedure Handle_Client_Requests is
       use type Block.Request_Status;
@@ -467,7 +482,6 @@ package body Component is
          (case K is when CBE.Read => Block.Read, when CBE.Write => Block.Write,
              when CBE.Sync        => Block.Sync);
       Result   : Block.Result;
-      Progress : Boolean;
    begin
       for I in Io_Cache'Range loop
          case Block_Client.Status (Io_Cache (I).C) is
@@ -494,13 +508,12 @@ package body Component is
                      if Block_Client.Status (Io_Cache (I).C) = Block.Ok then
                         Block_Client.Read (Client, Io_Cache (I).C);
                      else
-                        CBE.Library.Supply_IO_Data
-                           (Cbe_Session, Io_Cache (I).R, Empty_Block,
-                            Progress);
+                        CBE.Library.IO_Request_Completed
+                           (Cbe_Session, 0, True);
                      end if;
                   when Block.Write =>
-                     CBE.Library.Ack_IO_Data_To_Write
-                        (Cbe_Session, Io_Cache (I).R, Progress);
+                     CBE.Library.IO_Request_Completed
+                        (Cbe_Session, 0, True);
                   when others =>
                      null;
                end case;
