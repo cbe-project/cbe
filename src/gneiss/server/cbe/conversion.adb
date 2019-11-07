@@ -6,9 +6,9 @@ is
       (V1 :     T1;
        V2 : out T2)
    is
-      pragma Compile_Time_Error
-        (T1'Size /= T2'Size,
-         "Cannot convert between differently sized types");
+      --  pragma Compile_Time_Error
+      --    (T1'Size /= T2'Size,
+      --     "Cannot convert between differently sized types");
       V_Temp : T2 with
          Address => V1'Address;
    begin
@@ -16,9 +16,9 @@ is
    end Convert;
 
    procedure Pass_In (V1 : T1) is
-      pragma Compile_Time_Error
-        (T1'Size /= T2'Size,
-         "Cannot convert between differently sized types");
+      --  pragma Compile_Time_Error
+      --    (T1'Size /= T2'Size,
+      --     "Cannot convert between differently sized types");
       V_Temp : T2 with
          Address => V1'Address;
    begin
@@ -26,9 +26,9 @@ is
    end Pass_In;
 
    procedure Pass_Out (V1 : out T1) is
-      pragma Compile_Time_Error
-        (T1'Size /= T2'Size,
-         "Cannot convert between differently sized types");
+      --  pragma Compile_Time_Error
+      --    (T1'Size /= T2'Size,
+      --     "Cannot convert between differently sized types");
       V_Temp : T2 with
          Address => V1'Address;
    begin
