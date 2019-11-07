@@ -8,6 +8,7 @@ with CBE.Request;
 with CBE.Crypto;
 with CBE.Block_IO;
 with CBE.Primitive;
+with External.Crypto;
 with Conversion;
 
 package body Component is
@@ -25,6 +26,7 @@ package body Component is
    Virtual_Block_Count : Block.Count         := 0;
 
    type Request_Status is (Accepted, Pending, Finished);
+   type Crypto_Status is (Empty, Accepted, Submitted);
 
    type Server_Cache_Entry is record
       R : Block_Server.Request;
@@ -40,6 +42,24 @@ package body Component is
    end record;
 
    type Client_Cache is array (Request_Id range 1 .. 8) of Client_Cache_Entry;
+
+   type Crypto_Enc_Cache_Entry is record
+      R : CBE.Request.Object_Type;
+      I : CBE.Crypto.Plain_Buffer_Index_Type;
+      S : Crypto_Status := Empty;
+   end record;
+
+   type Crypto_Enc_Cache is array (Request_Id range 1 .. 8) of
+      Crypto_Enc_Cache_Entry;
+
+   type Crypto_Dec_Cache_Entry is record
+      R : CBE.Request.Object_Type;
+      I : CBE.Crypto.Cipher_Buffer_Index_Type;
+      S : Crypto_Status := Empty;
+   end record;
+
+   type Crypto_Dec_Cache is array (Request_Id range 1 .. 8) of
+      Crypto_Dec_Cache_Entry;
 
    function Time_To_Ns is new Ada.Unchecked_Conversion (Gns.Timer.Time,
        CBE.Timestamp_Type);
@@ -72,6 +92,10 @@ package body Component is
    Client_Act  : Boolean  := False;
    S_Cache     : Server_Cache;
    C_Cache     : Client_Cache;
+   Crypto      : External.Crypto.Object_Type :=
+      External.Crypto.Initialized_Object;
+   Ce_Cache    : Crypto_Enc_Cache;
+   Cd_Cache    : Crypto_Dec_Cache;
 
    function Create_Request (I : Request_Id)
       return CBE.Request.Object_Type with
@@ -86,6 +110,9 @@ package body Component is
    procedure Handle_Write_Progress (Progress  : in out Boolean;
                                     Timestamp :        CBE.Timestamp_Type);
    procedure Handle_Backend_Io (Progress : in out Boolean);
+   procedure Initialize_Crypto;
+   procedure Handle_Encryption (Progress : in out Boolean);
+   procedure Handle_Decryption (Progress : in out Boolean);
 
    Sbsr : Superblock_Request_Cache;
    --  This should be a variable inside Read_Superblock.
@@ -249,6 +276,7 @@ package body Component is
             return;
          end if;
          Read_Superblock;
+         Initialize_Crypto;
       else
          Main.Vacate (Cap, Main.Failure);
       end if;
@@ -268,6 +296,18 @@ package body Component is
          Block_Dispatcher.Finalize (Dispatcher);
       end if;
    end Destruct;
+
+   procedure Initialize_Crypto
+   is
+      Success : Boolean;
+   begin
+      External.Crypto.Set_Key
+         (Crypto, 0, 0, External.Crypto.Key_Data_Type'(others => 42), Success);
+      if not Success then
+         Gns.Log.Client.Error (Log, "Failed to set crypto key");
+         Main.Vacate (Capability, Main.Failure);
+      end if;
+   end Initialize_Crypto;
 
    procedure Write
       (C : in out Block.Client_Session;
@@ -319,6 +359,8 @@ package body Component is
             Handle_Read_Progress (Progress);
             Handle_Write_Progress (Progress, Convert_Time (Now));
             Handle_Backend_Io (Progress);
+            Handle_Encryption (Progress);
+            Handle_Decryption (Progress);
             --  Gns.Log.Client.Info (Log, "/Ev");
          end loop;
       else
@@ -469,6 +511,136 @@ package body Component is
          end case;
       end loop;
    end Handle_Backend_Io;
+
+   procedure Handle_Encryption (Progress : in out Boolean)
+   is
+      function Convert is new Ada.Unchecked_Conversion
+         (CBE.Block_Data_Type, External.Crypto.Plain_Data_Type);
+      Cbe_Request : CBE.Request.Object_Type;
+      Index       : Request_Id;
+      Success     : Boolean;
+   begin
+      for I in Ce_Cache'Range loop
+         case Ce_Cache (I).S is
+            when Empty =>
+               CBE.Library.Crypto_Cipher_Data_Required
+                  (Cbe_Session, Cbe_Request, Ce_Cache (I).I);
+               if
+                  CBE.Request.Valid (Cbe_Request)
+                  and then
+                  External.Crypto.Encryption_Request_Acceptable (Crypto)
+               then
+                  Progress := True;
+                  Ce_Cache (I).S := Accepted;
+                  Ce_Cache (I).R := CBE.Request.Valid_Object
+                     (CBE.Request.Operation (Cbe_Request),
+                      False,
+                      CBE.Request.Block_Number (Cbe_Request),
+                      CBE.Request.Offset (Cbe_Request),
+                      CBE.Request.Count (Cbe_Request),
+                      CBE.Request.Tag_Type (I));
+               end if;
+            when Accepted =>
+               External.Crypto.Submit_Encryption_Request
+                  (Crypto, Ce_Cache (I).R,
+                   Convert (Plain_Buffer
+                      (CBE.Crypto.Item_Index_Type (Ce_Cache (I).I))));
+               CBE.Library.Crypto_Cipher_Data_Requested
+                  (Cbe_Session, Ce_Cache (I).I);
+               Ce_Cache (I).S := Submitted;
+            when Submitted =>
+               null;
+         end case;
+      end loop;
+      Cbe_Request :=
+         External.Crypto.Peek_Completed_Encryption_Request (Crypto);
+      if CBE.Request.Valid (Cbe_Request) then
+         Index := Request_Id (CBE.Request.Tag (Cbe_Request));
+         declare
+            procedure Collect (B : out External.Crypto.Cipher_Data_Type);
+            procedure Collect (B : out External.Crypto.Cipher_Data_Type)
+            is
+            begin
+               External.Crypto.Supply_Cipher_Data
+                  (Crypto, Ce_Cache (Index).R, B, Success);
+            end Collect;
+            procedure Pass_Out is new Conversion.Pass_Out
+               (CBE.Block_Data_Type,
+                External.Crypto.Cipher_Data_Type,
+                Collect);
+         begin
+            Pass_Out (Cipher_Buffer (CBE.Crypto.Item_Index_Type
+                                       (Ce_Cache (Index).I)));
+            Progress := Progress or else Success;
+            Ce_Cache (Index).S := Empty;
+         end;
+      end if;
+   end Handle_Encryption;
+
+   procedure Handle_Decryption (Progress : in out Boolean)
+   is
+      function Convert is new Ada.Unchecked_Conversion
+         (CBE.Block_Data_Type, External.Crypto.Cipher_Data_Type);
+      Cbe_Request : CBE.Request.Object_Type;
+      Index       : Request_Id;
+      Success     : Boolean;
+   begin
+      for I in Cd_Cache'Range loop
+         case Cd_Cache (I).S is
+            when Empty =>
+               CBE.Library.Crypto_Plain_Data_Required
+                  (Cbe_Session, Cbe_Request, Cd_Cache (I).I);
+               if
+                  CBE.Request.Valid (Cbe_Request)
+                  and then
+                  External.Crypto.Decryption_Request_Acceptable (Crypto)
+               then
+                  Progress := True;
+                  Cd_Cache (I).S := Accepted;
+                  Cd_Cache (I).R := CBE.Request.Valid_Object
+                     (CBE.Request.Operation (Cbe_Request),
+                      False,
+                      CBE.Request.Block_Number (Cbe_Request),
+                      CBE.Request.Offset (Cbe_Request),
+                      CBE.Request.Count (Cbe_Request),
+                      CBE.Request.Tag_Type (I));
+               end if;
+            when Accepted =>
+               External.Crypto.Submit_Decryption_Request
+                  (Crypto, Cd_Cache (I).R,
+                   Convert (Cipher_Buffer
+                      (CBE.Crypto.Item_Index_Type (Cd_Cache (I).I))));
+               CBE.Library.Crypto_Plain_Data_Requested
+                  (Cbe_Session, Cd_Cache (I).I);
+               Cd_Cache (I).S := Submitted;
+            when Submitted =>
+               null;
+         end case;
+      end loop;
+      Cbe_Request :=
+         External.Crypto.Peek_Completed_Decryption_Request (Crypto);
+      if CBE.Request.Valid (Cbe_Request) then
+         Index := Request_Id (CBE.Request.Tag (Cbe_Request));
+         declare
+            procedure Collect (B : out External.Crypto.Plain_Data_Type);
+            procedure Collect (B : out External.Crypto.Plain_Data_Type)
+            is
+            begin
+               External.Crypto.Supply_Plain_Data
+                  (Crypto, Cd_Cache (Index).R, B, Success);
+            end Collect;
+            procedure Pass_Out is new Conversion.Pass_Out
+               (CBE.Block_Data_Type,
+                External.Crypto.Plain_Data_Type,
+                Collect);
+         begin
+            Pass_Out (Plain_Buffer (CBE.Crypto.Item_Index_Type
+                                       (Cd_Cache (Index).I)));
+            Progress := Progress or else Success;
+            Cd_Cache (Index).S := Empty;
+         end;
+      end if;
+   end Handle_Decryption;
 
    procedure Dispatch
       (I : in out Block.Dispatcher_Session;
