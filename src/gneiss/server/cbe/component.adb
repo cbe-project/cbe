@@ -7,6 +7,7 @@ with CBE.Library;
 with CBE.Request;
 with CBE.Crypto;
 with CBE.Block_IO;
+with CBE.Primitive;
 with Conversion;
 
 package body Component is
@@ -24,7 +25,6 @@ package body Component is
    Virtual_Block_Count : Block.Count         := 0;
 
    type Request_Status is (Accepted, Pending, Finished);
-   pragma Unreferenced (Pending);
    pragma Unreferenced (Finished);
 
    type Server_Cache_Entry is record
@@ -39,8 +39,12 @@ package body Component is
    function Convert_Time
       (T : Gns.Timer.Time)
       return CBE.Timestamp_Type is (Time_To_Ns (T) / 1000);
-   procedure Convert_Block is new Conversion.Convert (Block_Buffer,
-       CBE.Superblock_Type);
+   procedure Convert_Block is new Conversion.Convert
+      (Block_Buffer, CBE.Superblock_Type);
+   procedure Convert_Block is new Conversion.Convert
+      (CBE.Crypto.Plain_Data_Type, Block_Buffer);
+   procedure Convert_Block is new Conversion.Convert
+      (Block_Buffer, CBE.Crypto.Plain_Data_Type);
 
    function Image is new Gns.Strings_Generic.Image_Ranged (Block.Size);
    --  function Image is new Gns.Strings_Generic.Image_Modular
@@ -69,6 +73,9 @@ package body Component is
       Pre => Block.Initialized (Client) and then Gns.Log.Initialized (Log);
 
    procedure Handle_Incoming_Requests (Progress : in out Boolean);
+   procedure Handle_Read_Progress (Progress : in out Boolean);
+   procedure Handle_Write_Progress (Progress  : in out Boolean;
+                                    Timestamp :        CBE.Timestamp_Type);
 
    Sbsr : Superblock_Request_Cache;
    --  This should be a variable inside Read_Superblock.
@@ -80,6 +87,9 @@ package body Component is
    Plain_Buffer : CBE.Crypto.Plain_Buffer_Type;
    Cipher_Buffer : CBE.Crypto.Cipher_Buffer_Type;
    Io_Buffer : CBE.Block_IO.Data_Type;
+   Server_Buffer : Buffer (1 .. 1048576);
+   Client_Buffer : Buffer (1 .. 1048576);
+   pragma Unreferenced (Client_Buffer);
 
    function Create_Request (I : Request_Id)
       return CBE.Request.Object_Type
@@ -293,6 +303,8 @@ package body Component is
                                  Convert_Time (Now));
             Progress :=
                Progress or else CBE.Library.Execute_Progress (Cbe_Session);
+            Handle_Read_Progress (Progress);
+            Handle_Write_Progress (Progress, Convert_Time (Now));
             --  Gns.Log.Client.Info (Log, "/Ev");
          end loop;
       else
@@ -320,12 +332,59 @@ package body Component is
                   CBE.Library.Submit_Client_Request (Cbe_Session,
                                                      Cbe_Request, 0);
                   Progress := True;
+                  S_Cache (I).S := Pending;
                end if;
             when others =>
                null;
          end case;
       end loop;
    end Handle_Incoming_Requests;
+
+   procedure Handle_Read_Progress (Progress : in out Boolean)
+   is
+      Cbe_Request : CBE.Request.Object_Type;
+      Prim_Index  : CBE.Primitive.Index_Type;
+      First       : Unsigned_Long;
+      Data_Index  : CBE.Crypto.Plain_Buffer_Index_Type;
+      Valid       : Boolean;
+   begin
+      CBE.Library.Client_Data_Ready (Cbe_Session, Cbe_Request);
+      if CBE.Request.Valid (Cbe_Request) then
+         Prim_Index := CBE.Library.Client_Data_Index
+            (Cbe_Session, Cbe_Request);
+         First := Unsigned_Long (Prim_Index) * 4096;
+         CBE.Library.Obtain_Client_Data
+            (Cbe_Session, Cbe_Request, Data_Index, Valid);
+         if Valid then
+            Progress := True;
+            Convert_Block (Plain_Buffer (CBE.Crypto.Item_Index_Type
+                                          (Data_Index)),
+                           Server_Buffer (First .. First + 4095));
+         end if;
+      end if;
+   end Handle_Read_Progress;
+
+   Write_Buffer : CBE.Crypto.Plain_Data_Type;
+
+   procedure Handle_Write_Progress (Progress  : in out Boolean;
+                                    Timestamp :        CBE.Timestamp_Type)
+   is
+      Cbe_Request : CBE.Request.Object_Type;
+      Prim_Index  : CBE.Primitive.Index_Type;
+      First       : Unsigned_Long;
+   begin
+      --  FIXME: Check if current request is already accessing the server
+      --  buffer and fill server buffer if this is not the case
+      CBE.Library.Client_Data_Required (Cbe_Session, Cbe_Request);
+      if CBE.Request.Valid (Cbe_Request) then
+         Prim_Index := CBE.Library.Client_Data_Index
+            (Cbe_Session, Cbe_Request);
+         First := Unsigned_Long (Prim_Index) * 4095;
+         Convert_Block (Server_Buffer (First .. First + 4095), Write_Buffer);
+         CBE.Library.Supply_Client_Data
+            (Cbe_Session, Timestamp, Cbe_Request, Write_Buffer, Progress);
+      end if;
+   end Handle_Write_Progress;
 
    procedure Dispatch
       (I : in out Block.Dispatcher_Session;
