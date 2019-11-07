@@ -183,33 +183,44 @@ is
       end Set_Success;
    end Job_Item;
 
-   --
-   --  Get_Cache_Slot
-   --
-   function Get_Cache_Slot (Obj : Object_Type)
+   function Evictable_Item (Obj : Object_Type)
    return Cache_Index_Type
    is
-      Cache_Id : Cache_Index_Type := Cache_Index_Type'Last;
-      Min_Used : Timestamp_Type := Timestamp_Type'Last;
+      Result : Cache_Index_Type := Cache_Index_Type'Last;
+      Result_Valid : Boolean := False;
+      Min_Item_Ts : Timestamp_Type := Timestamp_Type'Last;
    begin
-      Unused_Slot : for Cache_Item_Id in Obj.Cache_Items'Range loop
-         if Cache_Item.Unused (Obj.Cache_Items (Cache_Item_Id)) then
-            return Cache_Item_Id;
+      For_Cache_Items :
+      for Idx in Obj.Cache_Items'Range loop
+         if not Cache_Item.Used (Obj.Cache_Items (Idx)) then
+            raise Program_Error;
          end if;
-      end loop Unused_Slot;
-
-      Evict_Slot : for Cache_Item_Id in Obj.Cache_Items'Range loop
-         if Cache_Item.Used (Obj.Cache_Items (Cache_Item_Id)) then
-            if Min_Used > Cache_Item.Ts (Obj.Cache_Items (Cache_Item_Id))
-            then
-               Cache_Id := Cache_Item_Id;
-               Min_Used := Cache_Item.Ts (Obj.Cache_Items (Cache_Item_Id));
-            end if;
+         if not Cache_Item.Dirty (Obj.Cache_Items (Idx)) and then
+            Cache_Item.Ts (Obj.Cache_Items (Idx)) < Min_Item_Ts
+         then
+            Result := Idx;
+            Result_Valid := True;
+            Min_Item_Ts := Cache_Item.Ts (Obj.Cache_Items (Idx));
          end if;
-      end loop Evict_Slot;
+      end loop For_Cache_Items;
+      if not Result_Valid then
+         raise Program_Error;
+      end if;
+      return Result;
+   end Evictable_Item;
 
-      return Cache_Id;
-   end Get_Cache_Slot;
+   function Unused_Or_Evictable_Item (Obj : Object_Type)
+   return Cache_Index_Type
+   is
+   begin
+      Search_For_Unused_Item :
+      for Idx in Obj.Cache_Items'Range loop
+         if Cache_Item.Unused (Obj.Cache_Items (Idx)) then
+            return Idx;
+         end if;
+      end loop Search_For_Unused_Item;
+      return Evictable_Item (Obj);
+   end Unused_Or_Evictable_Item;
 
    --
    --  Initialize_Object
@@ -455,7 +466,7 @@ is
          if Job_Item.Complete (Obj.Job_Items (Job_Item_Id)) and then
             Job_Item.Success (Obj.Job_Items (Job_Item_Id))
          then
-            Cache_Id := Get_Cache_Slot (Obj);
+            Cache_Id := Unused_Or_Evictable_Item (Obj);
             Cache_Item.Initialize_Object (
                Obj.Cache_Items (Cache_Id),
                Job_Item.PBA (Obj.Job_Items (Job_Item_Id)), Time);
