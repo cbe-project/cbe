@@ -277,6 +277,8 @@ package body Component is
          end if;
          Read_Superblock;
          Initialize_Crypto;
+         Timer_Client.Set_Timeout (Timer, 1.0);
+         --  snapshot every 1.0s
       else
          Main.Vacate (Cap, Main.Failure);
       end if;
@@ -340,6 +342,22 @@ package body Component is
          end if;
       end if;
    end Read;
+
+   procedure Snapshot_Event
+   is
+      function Image is new Gns.Strings_Generic.Image_Modular
+         (CBE.Generation_Type);
+      Snapshot : CBE.Generation_Type;
+      Success  : Boolean;
+   begin
+      CBE.Library.Create_Snapshot (Cbe_Session, False, Snapshot, Success);
+      if not Success then
+         Gns.Log.Client.Warning (Log, "Failed to create snapshot");
+      end if;
+      if CBE.Library.Snapshot_Creation_Complete (Cbe_Session, Snapshot) then
+         Gns.Log.Client.Info (Log, "Snapshot finished: " & Image (Snapshot));
+      end if;
+   end Snapshot_Event;
 
    procedure Event is
       Progress : Boolean := True;
