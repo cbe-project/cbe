@@ -4,7 +4,7 @@ with Componolit.Gneiss.Log.Client;
 with Componolit.Gneiss.Strings;
 with Componolit.Gneiss.Strings_Generic;
 with CBE.Library;
---  with CBE.Request;
+with CBE.Request;
 with CBE.Crypto;
 with CBE.Block_IO;
 with Conversion;
@@ -24,13 +24,15 @@ package body Component is
    Virtual_Block_Count : Block.Count         := 0;
 
    type Request_Status is (Accepted, Pending, Finished);
+   pragma Unreferenced (Pending);
+   pragma Unreferenced (Finished);
 
    type Server_Cache_Entry is record
       R : Block_Server.Request;
       S : Request_Status;
    end record;
 
-   type Server_Cache is array (Request_Id) of Server_Cache_Entry;
+   type Server_Cache is array (Request_Id range 1 .. 32) of Server_Cache_Entry;
 
    function Time_To_Ns is new Ada.Unchecked_Conversion (Gns.Timer.Time,
        CBE.Timestamp_Type);
@@ -92,19 +94,19 @@ package body Component is
                      when others => CBE.Read);
       Cbe_Request := CBE.Request.Valid_Object
          (Operation,
-          CBE.False,
+          False,
           CBE.Block_Number_Type (Block_Server.Start (S_Cache (I).R)),
           0,
-          CBE.Count_Type (Block_Server.Length (S_Cache (I).R)),
+          CBE.Request.Count_Type (Block_Server.Length (S_Cache (I).R)),
           CBE.Request.Tag_Type (I));
       return Cbe_Request;
    end Create_Request;
 
    procedure Read_Superblock is
       use type Block.Id;
+      use type Block.Count;
       use type Block.Request_Status;
       use type CBE.Generation_Type;
-      use type CBE.Virtual_Block_Address_Type;
       Result   : Block.Result;
       Max_Vba  : CBE.Virtual_Block_Address_Type;
       Progress : Boolean                     := True;
@@ -168,21 +170,16 @@ package body Component is
                Valid    := True;
                Current  := I;
                Last_Gen := Superblocks (I).Last_Secured_Generation;
+               exit;
             end if;
          end loop;
          if Valid then
             CBE.Library.Initialize_Object (Cbe_Session, Superblocks, Current);
             Max_Vba := CBE.Library.Max_VBA (Cbe_Session);
-            if Max_Vba < CBE.Virtual_Block_Address_Type'Last then
-               Virtual_Block_Count := Block.Count (Max_Vba + 1);
-               Ready               := True;
-               Gns.Log.Client.Info (Log, "CBE ready");
-               Block_Dispatcher.Register (Dispatcher);
-            else
-               Gns.Log.Client.Error
-                  (Log, "Virtual block address space is too large.");
-               Main.Vacate (Capability, Main.Failure);
-            end if;
+            Virtual_Block_Count := Block.Count (Max_Vba) + 1;
+            Ready               := True;
+            Gns.Log.Client.Info (Log, "CBE ready");
+            Block_Dispatcher.Register (Dispatcher);
          else
             Gns.Log.Client.Error (Log, "No valid superblock found");
             Main.Vacate (Capability, Main.Failure);
@@ -305,6 +302,7 @@ package body Component is
 
    procedure Handle_Incoming_Requests (Progress : in out Boolean)
    is
+      use type Block.Request_Status;
       Cbe_Request : CBE.Request.Object_Type;
    begin
       for I in S_Cache'Range loop
@@ -319,9 +317,12 @@ package body Component is
                   and then CBE.Library.Client_Request_Acceptable (Cbe_Session)
                then
                   Cbe_Request := Create_Request (I);
-                  CBE.Library.Submit_Client_Request (Cbe_Session, Cbe_Request, 0);
+                  CBE.Library.Submit_Client_Request (Cbe_Session,
+                                                     Cbe_Request, 0);
                   Progress := True;
                end if;
+            when others =>
+               null;
          end case;
       end loop;
    end Handle_Incoming_Requests;
