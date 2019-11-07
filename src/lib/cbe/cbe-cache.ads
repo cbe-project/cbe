@@ -170,7 +170,11 @@ is
 
 private
 
-   function Get_Cache_Slot (Obj  : Object_Type) return Cache_Index_Type;
+   function Evictable_Item (Obj : Object_Type)
+   return Cache_Index_Type;
+
+   function Unused_Or_Evictable_Item (Obj : Object_Type)
+   return Cache_Index_Type;
 
    --
    --  Cache_Item
