@@ -25,14 +25,21 @@ package body Component is
    Virtual_Block_Count : Block.Count         := 0;
 
    type Request_Status is (Accepted, Pending, Finished);
-   pragma Unreferenced (Finished);
 
    type Server_Cache_Entry is record
       R : Block_Server.Request;
-      S : Request_Status;
+      S : Request_Status := Finished;
    end record;
 
    type Server_Cache is array (Request_Id range 1 .. 32) of Server_Cache_Entry;
+
+   type Client_Cache_Entry is record
+      R : Block_Client.Request;
+      C : CBE.Request.Object_Type;
+      I : CBE.Block_IO.Data_Index_Type;
+   end record;
+
+   type Client_Cache is array (Request_Id range 1 .. 8) of Client_Cache_Entry;
 
    function Time_To_Ns is new Ada.Unchecked_Conversion (Gns.Timer.Time,
        CBE.Timestamp_Type);
@@ -42,11 +49,12 @@ package body Component is
    procedure Convert_Block is new Conversion.Convert
       (Block_Buffer, CBE.Superblock_Type);
    procedure Convert_Block is new Conversion.Convert
-      (CBE.Crypto.Plain_Data_Type, Block_Buffer);
+      (CBE.Block_Data_Type, Block_Buffer);
    procedure Convert_Block is new Conversion.Convert
-      (Block_Buffer, CBE.Crypto.Plain_Data_Type);
+      (Block_Buffer, CBE.Block_Data_Type);
 
    function Image is new Gns.Strings_Generic.Image_Ranged (Block.Size);
+   --  function Image is new Gns.Strings_Generic.Image_Ranged (Request_Id);
    --  function Image is new Gns.Strings_Generic.Image_Modular
    --    (Block.Id);
    --  function Image is new Gns.Strings_Generic.Image_Ranged
@@ -63,6 +71,7 @@ package body Component is
    Cbe_Session : CBE.Library.Object_Type;
    Client_Act  : Boolean  := False;
    S_Cache     : Server_Cache;
+   C_Cache     : Client_Cache;
 
    function Create_Request (I : Request_Id)
       return CBE.Request.Object_Type with
@@ -76,6 +85,7 @@ package body Component is
    procedure Handle_Read_Progress (Progress : in out Boolean);
    procedure Handle_Write_Progress (Progress  : in out Boolean;
                                     Timestamp :        CBE.Timestamp_Type);
+   procedure Handle_Backend_Io (Progress : in out Boolean);
 
    Sbsr : Superblock_Request_Cache;
    --  This should be a variable inside Read_Superblock.
@@ -88,8 +98,6 @@ package body Component is
    Cipher_Buffer : CBE.Crypto.Cipher_Buffer_Type;
    Io_Buffer : CBE.Block_IO.Data_Type;
    Server_Buffer : Buffer (1 .. 1048576);
-   Client_Buffer : Buffer (1 .. 1048576);
-   pragma Unreferenced (Client_Buffer);
 
    function Create_Request (I : Request_Id)
       return CBE.Request.Object_Type
@@ -111,6 +119,13 @@ package body Component is
           CBE.Request.Tag_Type (I));
       return Cbe_Request;
    end Create_Request;
+
+   function Kind (R : CBE.Request.Object_Type) return Block.Request_Kind
+   is
+      (case CBE.Request.Operation (R) is
+         when CBE.Read => Block.Read,
+         when CBE.Write => Block.Write,
+         when CBE.Sync => Block.Sync);
 
    procedure Read_Superblock is
       use type Block.Id;
@@ -260,10 +275,8 @@ package body Component is
        D :    out Buffer)
    is
       pragma Unreferenced (C);
-      pragma Unreferenced (I);
    begin
-      D :=
-         (others => 0);
+      Convert_Block (Io_Buffer (C_Cache (I).I), D);
    end Write;
 
    procedure Read
@@ -276,7 +289,7 @@ package body Component is
       S : CBE.Superblocks_Index_Type;
    begin
       if Ready then
-         null;
+         Convert_Block (D, Io_Buffer (C_Cache (I).I));
       else --  reading superblocks
          if D'Length = 4096 and then Block_Client.Status (Sbsr (I)) = Block.Ok
             and then Block_Client.Start (Sbsr (I)) in 0 .. 7
@@ -305,6 +318,7 @@ package body Component is
                Progress or else CBE.Library.Execute_Progress (Cbe_Session);
             Handle_Read_Progress (Progress);
             Handle_Write_Progress (Progress, Convert_Time (Now));
+            Handle_Backend_Io (Progress);
             --  Gns.Log.Client.Info (Log, "/Ev");
          end loop;
       else
@@ -385,6 +399,76 @@ package body Component is
             (Cbe_Session, Timestamp, Cbe_Request, Write_Buffer, Progress);
       end if;
    end Handle_Write_Progress;
+
+   procedure Handle_Backend_Io (Progress : in out Boolean)
+   is
+      use type Block.Request_Status;
+      use type Block.Request_Kind;
+      Cbe_Request : CBE.Request.Object_Type;
+      Data_Index  : CBE.Block_IO.Data_Index_Type;
+      Result      : Block.Result;
+   begin
+      for I in C_Cache'Range loop
+         case Block_Client.Status (C_Cache (I).R) is
+            when Block.Raw =>
+               CBE.Library.Has_IO_Request
+                  (Cbe_Session, Cbe_Request, Data_Index);
+               if
+                  CBE.Request.Valid (Cbe_Request)
+                  and then not CBE.Request.Valid (C_Cache (I).C)
+                  and then (for all E of C_Cache =>
+                            not CBE.Request.Equal (Cbe_Request, E.C))
+               then
+                  Block_Client.Allocate_Request
+                     (Client,
+                      C_Cache (I).R,
+                      Kind (Cbe_Request),
+                      Block.Id (CBE.Request.Block_Number (Cbe_Request)),
+                      Block.Count (CBE.Request.Count (Cbe_Request)),
+                      I, Result);
+                  case Result is
+                     when Block.Success =>
+                        C_Cache (I).C := Cbe_Request;
+                        C_Cache (I).I := Data_Index;
+                        Block_Client.Enqueue (Client, C_Cache (I).R);
+                        CBE.Library.IO_Request_In_Progress (Cbe_Session,
+                                                            C_Cache (I).I);
+                        Progress := True;
+                     when Block.Unsupported =>
+                        CBE.Library.IO_Request_In_Progress
+                           (Cbe_Session, Data_Index);
+                        CBE.Library.IO_Request_Completed
+                           (Cbe_Session, Data_Index, False);
+                     when others =>
+                        null;
+                  end case;
+               end if;
+            when Block.Allocated =>
+               Block_Client.Enqueue (Client, C_Cache (I).R);
+               if Block_Client.Status (C_Cache (I).R) = Block.Pending then
+                  CBE.Library.IO_Request_In_Progress (Cbe_Session,
+                                                      C_Cache (I).I);
+                  Progress := True;
+               end if;
+            when Block.Pending =>
+               Block_Client.Update_Request (Client, C_Cache (I).R);
+               Progress := Progress or else Block_Client.Status
+                  (C_Cache (I).R) in Block.Ok | Block.Error;
+            when Block.Ok | Block.Error =>
+               if
+                  Block_Client.Status (C_Cache (I).R) = Block.Ok
+                  and then Block_Client.Kind (C_Cache (I).R) = Block.Read
+               then
+                  Block_Client.Read (Client, C_Cache (I).R);
+               end if;
+               CBE.Library.IO_Request_Completed
+                  (Cbe_Session, C_Cache (I).I,
+                   Block_Client.Status (C_Cache (I).R) = Block.Ok);
+               Block_Client.Release (Client, C_Cache (I).R);
+               Progress := True;
+         end case;
+      end loop;
+   end Handle_Backend_Io;
 
    procedure Dispatch
       (I : in out Block.Dispatcher_Session;
