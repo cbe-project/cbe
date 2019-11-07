@@ -23,6 +23,15 @@ package body Component is
    Cbe_Block_Size      : constant Block.Size := 4096;
    Virtual_Block_Count : Block.Count         := 0;
 
+   type Request_Status is (Accepted, Pending, Finished);
+
+   type Server_Cache_Entry is record
+      R : Block_Server.Request;
+      S : Request_Status;
+   end record;
+
+   type Server_Cache is array (Request_Id) of Server_Cache_Entry;
+
    function Time_To_Ns is new Ada.Unchecked_Conversion (Gns.Timer.Time,
        CBE.Timestamp_Type);
    function Convert_Time
@@ -47,9 +56,17 @@ package body Component is
    Sb_Alloc    : Block.Id := 0;
    Cbe_Session : CBE.Library.Object_Type;
    Client_Act  : Boolean  := False;
+   S_Cache     : Server_Cache;
+
+   function Create_Request (I : Request_Id)
+      return CBE.Request.Object_Type with
+      Pre => Block_Server.Kind (S_Cache (I).R) in
+               Block.Read | Block.Write | Block.Sync;
 
    procedure Read_Superblock with
       Pre => Block.Initialized (Client) and then Gns.Log.Initialized (Log);
+
+   procedure Handle_Incoming_Requests (Progress : in out Boolean);
 
    Sbsr : Superblock_Request_Cache;
    --  This should be a variable inside Read_Superblock.
@@ -61,6 +78,27 @@ package body Component is
    Plain_Buffer : CBE.Crypto.Plain_Buffer_Type;
    Cipher_Buffer : CBE.Crypto.Cipher_Buffer_Type;
    Io_Buffer : CBE.Block_IO.Data_Type;
+
+   function Create_Request (I : Request_Id)
+      return CBE.Request.Object_Type
+   is
+      Cbe_Request : CBE.Request.Object_Type;
+      Operation   : CBE.Operation_Type;
+   begin
+      Operation := (case Block_Server.Kind (S_Cache (I).R) is
+                     when Block.Read => CBE.Read,
+                     when Block.Write => CBE.Write,
+                     when Block.Sync => CBE.Sync,
+                     when others => CBE.Read);
+      Cbe_Request := CBE.Request.Valid_Object
+         (Operation,
+          CBE.False,
+          CBE.Block_Number_Type (Block_Server.Start (S_Cache (I).R)),
+          0,
+          CBE.Count_Type (Block_Server.Length (S_Cache (I).R)),
+          CBE.Request.Tag_Type (I));
+      return Cbe_Request;
+   end Create_Request;
 
    procedure Read_Superblock is
       use type Block.Id;
@@ -251,6 +289,7 @@ package body Component is
          while Progress loop
             --  Gns.Log.Client.Info (Log, "Ev");
             Progress := False;
+            Handle_Incoming_Requests (Progress);
             Now := Timer_Client.Clock (Timer);
             CBE.Library.Execute (Cbe_Session, Io_Buffer,
                                  Plain_Buffer, Cipher_Buffer,
@@ -263,6 +302,29 @@ package body Component is
          Read_Superblock;
       end if;
    end Event;
+
+   procedure Handle_Incoming_Requests (Progress : in out Boolean)
+   is
+      Cbe_Request : CBE.Request.Object_Type;
+   begin
+      for I in S_Cache'Range loop
+         case Block_Server.Status (S_Cache (I).R) is
+            when Block.Raw =>
+               Block_Server.Process (Server, S_Cache (I).R);
+               Progress := Progress or else
+                           Block_Server.Status (S_Cache (I).R) = Block.Pending;
+               S_Cache (I).S := Accepted;
+            when Block.Pending =>
+               if S_Cache (I).S = Accepted
+                  and then CBE.Library.Client_Request_Acceptable (Cbe_Session)
+               then
+                  Cbe_Request := Create_Request (I);
+                  CBE.Library.Submit_Client_Request (Cbe_Session, Cbe_Request, 0);
+                  Progress := True;
+               end if;
+         end case;
+      end loop;
+   end Handle_Incoming_Requests;
 
    procedure Dispatch
       (I : in out Block.Dispatcher_Session;
