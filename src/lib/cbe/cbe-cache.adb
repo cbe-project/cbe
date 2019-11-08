@@ -9,6 +9,8 @@
 pragma Ada_2012;
 
 with CBE.Request;
+with CBE.Debug;
+pragma Unreferenced (CBE.Debug);
 
 package body CBE.Cache
 with SPARK_Mode
@@ -183,6 +185,24 @@ is
       end Set_Success;
    end Job_Item;
 
+   procedure Dump_Cache_State (Obj : Object_Type)
+   is
+   begin
+      for I in Obj.Cache_Items'Range loop
+         if Cache_Item.Used (Obj.Cache_Items (I)) then
+            pragma Debug (Debug.Print_String ("Cache ("
+               & Debug.To_String (Debug.Uint64_Type (I)) & "): "
+               & " PBA: "
+               & Debug.To_String (Debug.Uint64_Type (
+                  Cache_Item.PBA (Obj.Cache_Items (I))))
+               & " D: "
+               & Debug.To_String (
+                  Cache_Item.Dirty (Obj.Cache_Items (I)))
+               ));
+         end if;
+      end loop;
+   end Dump_Cache_State;
+
    function Evictable_Item (Obj : Object_Type)
    return Cache_Index_Type
    is
@@ -206,6 +226,15 @@ is
       if not Result_Valid then
          raise Program_Error;
       end if;
+      pragma Debug (Debug.Print_String ("Evictable_Item ("
+         & Debug.To_String (Debug.Uint64_Type (Result)) & "): "
+         & " PBA: "
+         & Debug.To_String (Debug.Uint64_Type (
+            Cache_Item.PBA (Obj.Cache_Items (Result))))
+         & " D: "
+         & Debug.To_String (
+            Cache_Item.Dirty (Obj.Cache_Items (Result)))
+         ));
       return Result;
    end Evictable_Item;
 
