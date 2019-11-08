@@ -168,6 +168,8 @@ is
       Obj  : in out Object_Type;
       Prim :        Primitive.Object_Type);
 
+   procedure Dump_Cache_State (Obj : Object_Type);
+
 private
 
    function Evictable_Item (Obj : Object_Type)
