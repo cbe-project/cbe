@@ -35,17 +35,17 @@ is
    end record;
 
    type CXX_IO_Buffer_Index_Type is record
-      Value : CXX_Uint32_Type;
+      Value : CXX_UInt32_Type;
    end record;
    pragma Pack (CXX_IO_Buffer_Index_Type);
 
    type CXX_Crypto_Plain_Buffer_Index_Type is record
-      Value : CXX_Uint32_Type;
+      Value : CXX_UInt32_Type;
    end record;
    pragma Pack (CXX_Crypto_Plain_Buffer_Index_Type);
 
    type CXX_Crypto_Cipher_Buffer_Index_Type is record
-      Value : CXX_Uint32_Type;
+      Value : CXX_UInt32_Type;
    end record;
    pragma Pack (CXX_Crypto_Cipher_Buffer_Index_Type);
 
@@ -122,12 +122,12 @@ is
    is (
       case Request.Valid (Obj) is
       when True => (
-         Operation    => CXX_Operation_From_SPARK (Request.Operation    (Obj)),
-         Success      => CXX_Success_From_SPARK   (Request.Success      (Obj)),
+         Operation    => CXX_Operation_From_SPARK (Request.Operation (Obj)),
+         Success      => CXX_Success_From_SPARK   (Request.Success (Obj)),
          Block_Number => CXX_Block_Number_Type    (Request.Block_Number (Obj)),
-         Offset       => CXX_Block_Offset_Type    (Request.Offset       (Obj)),
-         Count        => CXX_Block_Count_Type     (Request.Count        (Obj)),
-         Tag          => CXX_Tag_Type             (Request.Tag          (Obj))),
+         Offset       => CXX_Block_Offset_Type    (Request.Offset (Obj)),
+         Count        => CXX_Block_Count_Type     (Request.Count (Obj)),
+         Tag          => CXX_Tag_Type             (Request.Tag (Obj))),
       when False => (
          Operation    => 0,
          Success      => 0,
