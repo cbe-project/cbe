@@ -1038,6 +1038,19 @@ class Cbe::Mmu
 					throw -1;
 				}
 
+#if 0
+				if (vba < Cbe::NUM_SUPER_BLOCKS
+				    && _current_request.operation.type == Block::Operation::Type::WRITE) {
+					Cbe::Superblock const &sb = *reinterpret_cast<Cbe::Superblock const*>(src);
+					Genode::log(sb);
+					for (Snapshot const &snap : sb.snapshots) {
+						if (snap.valid()) {
+							Genode::log(snap);
+						}
+					}
+				}
+#endif
+
 				Genode::memcpy(dst, src, _vbd.block_size());
 			} catch (Cbe::Tree::Invalid_virtual_block_address) {
 				result = false;
@@ -1047,7 +1060,8 @@ class Cbe::Mmu
 				result = false;
 			}
 
-			if (vba < 8 && _current_request.operation.type == Block::Operation::Type::WRITE) {
+			if (vba < Cbe::NUM_SUPER_BLOCKS
+			    && _current_request.operation.type == Block::Operation::Type::WRITE) {
 				if (_verbose) {
 					Genode::log("Super block changed, dump tree");
 					_vbd.dump(_dump_all);
@@ -1442,6 +1456,13 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					sbX.free_height = sb.free_height;
 					sbX.free_degree = sb.free_degree;
 					sbX.free_leaves = sb.free_leaves;
+				}
+
+				Genode::log(sb);
+				for (Snapshot const &snap : sb.snapshots) {
+					if (snap.valid()) {
+						Genode::log(snap);
+					}
 				}
 			}
 			_mmu.construct(*_vbd, _report, _verbose, _dump_all);
