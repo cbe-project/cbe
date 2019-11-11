@@ -295,7 +295,7 @@ is
          --  unintentionally.
          --
          Obj.Superblock.Snapshots (Next_Snap).Keep := False;
-         Obj.Superblock.Snapshots (Next_Snap).Gen := Obj.Cur_Gen;
+         Obj.Superblock.Snapshots (Next_Snap).Gen := Obj.Cur_Gen - 1;
          Obj.Superblock.Curr_Snap := Next_Snap;
       end;
 
@@ -1167,7 +1167,6 @@ is
 
                if Obj.Creating_Snapshot then
                   --  next snapshot slot will contain new generation
-                  Obj.Cur_Gen := Obj.Cur_Gen  + 1;
                   Obj.Last_Root_PBA := Obj.Superblock.Snapshots (
                      Curr_Snap (Obj)).PBA;
                   Obj.Last_Root_Hash := Obj.Superblock.Snapshots (
@@ -1212,6 +1211,7 @@ is
                      Obj.Superblock.Curr_Snap := Next_Snap;
                   end Declare_Next_Snap_2;
 
+                  Obj.Cur_Gen := Obj.Cur_Gen  + 1;
                   Obj.Creating_Snapshot := False;
                end if;
 
