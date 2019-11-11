@@ -299,7 +299,7 @@ is
          Obj.Superblock.Snapshots (Obj.Superblock.Curr_Snap).PBA;
       Obj.Last_Root_Hash :=
          Obj.Superblock.Snapshots (Obj.Superblock.Curr_Snap).Hash;
-      Obj.Cur_SB := Curr_SB;
+      Obj.Cur_SB := Curr_SB + 1;
 
       Obj.Sync_Primitive := Primitive.Invalid_Object;
 
@@ -1973,8 +1973,8 @@ is
                   Old_PBAs (Trans_Max_Level - 1).Gen))));
 
             --  check root node
-            if Old_PBAs (Trans_Max_Level - 1).Gen = Obj.Cur_Gen and then
-               Old_PBAs (Trans_Max_Level - 1).PBA /= Obj.Last_Root_PBA
+            if Old_PBAs (Trans_Max_Level - 1).Gen = 0
+               or else Old_PBAs (Trans_Max_Level - 1).Gen = Obj.Cur_Gen
             then
                pragma Debug (Debug.Print_String ("Change root PBA in place"));
                New_PBAs (Trans_Max_Level - 1) :=
