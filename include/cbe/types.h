@@ -607,6 +607,18 @@ namespace Cbe {
 		Number_of_leaves       free_leaves;
 		char                   padding[424];
 
+		void print(Genode::Output &out) const
+		{
+			Genode::print(out, "Superblock: ",
+			              "last_secured_generation: ", last_secured_generation, " "
+			              "snapshot_id: ", snapshot_id, " "
+			              "dregree: ", degree, " "
+			              "free_gen: ", free_gen, " "
+			              "free_number: ", Genode::Hex(free_number), " "
+			              "free_degree: ", free_degree, " "
+			              "free_leaves: ", free_leaves);
+		}
+
 		/**
 		 * Get index into snapshot array for the last snapshot
 		 *
