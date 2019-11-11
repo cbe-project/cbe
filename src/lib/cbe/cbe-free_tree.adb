@@ -10,6 +10,8 @@ pragma Ada_2012;
 
 with SHA256_4K;
 with CBE.Request;
+with CBE.Debug;
+pragma Unreferenced (CBE.Debug);
 
 package body CBE.Free_Tree
 with SPARK_Mode
@@ -351,6 +353,13 @@ is
             exit Loop_Handle_Trans_Completed_Prim when
                not Primitive.Valid (Prim);
 
+            pragma Debug (Debug.Print_String (
+               "Loop_Handle_Trans_Completed_Prim: "
+               & "PBA: "
+               & Debug.To_String (Debug.Uint64_Type (
+                  Primitive.Block_Number (Prim)))
+               ));
+
             --
             --  Translation has finished, we have the PBA of the type 2
             --  node, request nodes data.
@@ -361,21 +370,84 @@ is
                State => Pending,
                Index => 0);
 
+            Declare_Probe_Type_2_PBA :
+            declare
+               PBA : constant Physical_Block_Address_Type :=
+                  Physical_Block_Address_Type (
+                     Primitive.Block_Number (Prim));
+            begin
+               if not Cache.Data_Available (Cach, PBA) then
+                  Cache.Dump_Cache_State (Cach);
+                  pragma Debug (Debug.Print_String ("Cache not avail"));
+                  Cache.Dump_Cache_State (Cach);
+                  if Cache.Request_Acceptable_Logged (Cach, PBA) then
+                     pragma Debug (Debug.Print_String (
+                        "Request: PBA: "
+                        & Debug.To_String (Debug.Uint64_Type (PBA))));
+
+                     Cache.Submit_Request_Logged (Cach, PBA);
+
+                     --  FIXME it stands to reason if we have to set
+                     --        progress |= true;
+                     --        in this case to prevent the CBE from
+                     --        stalling
+                  end if;
+                  exit Loop_Handle_Trans_Completed_Prim;
+               else
+                  pragma Debug (Debug.Print_String ("Cache avail"));
+                  Declare_Data_Index_Type_2 :
+                  declare
+                     Data_Index : Cache.Cache_Index_Type;
+                  begin
+                     Cache.Dump_Cache_State (Cach);
+
+                     Cache.Data_Index (Cach, PBA, Timestamp, Data_Index);
+                     pragma Debug (Debug.Print_String (
+                        "FT Get Completed Cache Data: PBA: "
+                        & Debug.To_String (Debug.Uint64_Type (PBA))
+                        & " Data_Index: " & Debug.To_String (
+                        Debug.Uint64_Type (Data_Index))));
+
+                     Obj.Curr_Type_2.State := Complete;
+                     --
+                     --  To later update the free-tree, store the inner type
+                     --  1 nodes
+                     --  of the branch.
+                     --
+                     --  (Currently not implemented.)
+                     --
+                     if not Translation.Can_Get_Type_1_Node_Walk (
+                        Obj.Trans, Prim)
+                     then
+                        raise Program_Error;
+                     end if;
+                     Translation.Get_Type_1_Node_Walk (
+                        Obj.Trans,
+                        Obj.Query_Branches (
+                           Obj.Curr_Query_Branch).Trans_Walk);
+
+                     Translation.Drop_Completed_Primitive (Obj.Trans);
+                     Obj.Execute_Progress := True;
+
+                  end Declare_Data_Index_Type_2;
+               end if;
+            end Declare_Probe_Type_2_PBA;
+
             --
             --  To later update the free-tree, store the inner type 1 nodes
             --  of the branch.
             --
             --  (Currently not implemented.)
             --
-            if not Translation.Can_Get_Type_1_Node_Walk (Obj.Trans, Prim) then
-               raise Program_Error;
-            end if;
-            Translation.Get_Type_1_Node_Walk (
-               Obj.Trans,
-               Obj.Query_Branches (Obj.Curr_Query_Branch).Trans_Walk);
+            --  if not Translation.Can_Get_Type_1_Info (Obj.Trans, Prim) then
+            --     raise Program_Error;
+            --  end if;
+            --  Translation.Get_Type_1_Info (
+            --     Obj.Trans,
+            --     Obj.Query_Branches (Obj.Curr_Query_Branch).Trans_Infos);
 
-            Translation.Drop_Completed_Primitive (Obj.Trans);
-            Obj.Execute_Progress := True;
+            --  Translation.Drop_Completed_Primitive (Obj.Trans);
+            --  Obj.Execute_Progress := True;
 
          end Declare_Completed_Prim;
       end loop Loop_Handle_Trans_Completed_Prim;
@@ -385,8 +457,13 @@ is
       Obj              : in out Object_Type;
       Active_Snaps     :        Snapshots_Type;
       Last_Secured_Gen :        Generation_Type;
-      Query_Data       : in out Query_Data_Type)
+      Data_Index       :        Cache.Cache_Index_Type;
+      Cach             : in out Cache.Object_Type;
+      Cach_Data        : in out Cache.Cache_Data_Type;
+      Timestamp        :        Timestamp_Type)
    is
+      pragma Unreferenced (Cach);
+      pragma Unreferenced (Timestamp);
    begin
       --
       --  (Invalidating the primitive here should not be necessary b/c it
@@ -403,7 +480,7 @@ is
          Nodes : Type_2_Node_Block_Type;
          Found_New_Free_Blocks : Boolean := False;
       begin
-         Type_2_Node_Block_From_Block_Data (Nodes, Query_Data (0));
+         Type_2_Node_Block_From_Block_Data (Nodes, Cach_Data (Data_Index));
 
          For_Type_2_Nodes :
          for Node_Index in Nodes'Range loop
@@ -484,7 +561,7 @@ is
             Obj.Curr_Query_Branch := Obj.Curr_Query_Branch + 1;
          end if;
 
-         Block_Data_From_Type_2_Node_Block (Query_Data (0), Nodes);
+         Block_Data_From_Type_2_Node_Block (Cach_Data (Data_Index), Nodes);
       end Declare_Nodes_1;
 
       --
@@ -763,6 +840,11 @@ is
                         Data_Index  : Cache.Cache_Index_Type;
                         Type_2_Node : constant Boolean := (Tree_Level = 1);
                      begin
+
+                        pragma Debug (Debug.Print_String ("Declare_WB_Count: "
+                           & "PBA: "
+                           & Debug.To_String (Debug.Uint64_Type (PBA))
+                           ));
                         Cache.Data_Index (Cach, PBA, Timestamp, Data_Index);
 
                         if Type_2_Node then
@@ -779,6 +861,8 @@ is
                               Obj, Cach, Cach_Data, Timestamp, Branch_Index,
                               Tree_Level, Data_Index);
                         end if;
+
+                        Cache.Mark_Dirty (Cach, PBA);
 
                         --
                         --  Only add blocks once, which is a crude way to merge
@@ -860,6 +944,7 @@ is
       Query_Data       : in out Query_Data_Type;
       Timestamp        :        Timestamp_Type)
    is
+      pragma Unreferenced (Query_Data);
    begin
       Obj.Execute_Progress := False;
 
@@ -884,7 +969,39 @@ is
       --
       if Obj.Curr_Type_2.State = Complete then
 
-         Execute_Query (Obj, Active_Snaps, Last_Secured_Gen, Query_Data);
+            declare
+               Nodes : Type_2_Node_Block_Type;
+               Data_Index  : Cache.Cache_Index_Type;
+            begin
+               Cache.Data_Index (Cach, Obj.Curr_Type_2.PBA, Timestamp,
+                  Data_Index);
+
+               if Obj.Curr_Type_2.PBA = 650 then
+                  Type_2_Node_Block_From_Block_Data (Nodes,
+                     Cach_Data (Data_Index));
+                  pragma Debug (Debug.Print_String ("Dump 650: "));
+                  Dump_For_Nodes :
+                  for Node_Index in 0 .. Tree_Helper.Degree (
+                     Obj.Trans_Helper) - 1 loop
+                     pragma Debug (Debug.Print_String ("PBA: "
+                        & Debug.To_String (Debug.Uint64_Type (
+                           Nodes (Natural (Node_Index)).PBA))
+                        & " A_Gen: "
+                        & Debug.To_String (Debug.Uint64_Type (
+                           Nodes (Natural (Node_Index)).Alloc_Gen))
+                        & " F_Gen: "
+                        & Debug.To_String (Debug.Uint64_Type (
+                           Nodes (Natural (Node_Index)).Free_Gen))
+                        & " Reserved: "
+                        & Debug.To_String (
+                           Nodes (Natural (Node_Index)).Reserved))
+                        );
+                  end loop Dump_For_Nodes;
+               end if;
+
+               Execute_Query (Obj, Active_Snaps, Last_Secured_Gen, Data_Index,
+                  Cach, Cach_Data, Timestamp);
+            end;
 
          Obj.Execute_Progress := True;
       end if;
@@ -920,14 +1037,14 @@ is
    is
    begin
       --  current type 2 node
-      if Obj.Curr_Type_2.State = Pending then
-         return Primitive.Valid_Object_No_Pool_Idx (
-            Tg     => Primitive.Tag_IO,
-            Op     => Read,
-            Succ   => False,
-            Blk_Nr => Block_Number_Type (Obj.Curr_Type_2.PBA),
-            Idx    => 0);
-      end if;
+      --  if Obj.Curr_Type_2.State = Pending then
+      --     return Primitive.Valid_Object_No_Pool_Idx (
+      --        Tg     => Primitive.Tag_IO,
+      --        Op     => Read,
+      --        Succ   => False,
+      --        Blk_Nr => Block_Number_Type (Obj.Curr_Type_2.PBA),
+      --        Idx    => 0);
+      --  end if;
 
       --  write-back I/O
       if Obj.Do_WB then
@@ -992,7 +1109,8 @@ is
    is
    begin
       if Primitive.Has_Tag_IO (Prim) then
-         Obj.Curr_Type_2.State := In_Progress;
+         --  Obj.Curr_Type_2.State := In_Progress;
+         null;
       elsif Primitive.Has_Tag_Write_Back (Prim) then
          For_WB_IOs :
          for WB_IO_Index in Tree_Level_Index_Type'Range loop
@@ -1018,11 +1136,12 @@ is
    is
    begin
       if Primitive.Has_Tag_IO (Prim) then
-         if Obj.Curr_Type_2.State = In_Progress then
-            Obj.Curr_Type_2.State := Complete;
-         else
-            raise Program_Error;
-         end if;
+         null;
+         --  If Obj.Curr_Type_2.State = In_Progress then
+         --     Obj.Curr_Type_2.State := Complete;
+         --  Else
+         --     raise Program_Error;
+         --  End if;
       elsif Primitive.Has_Tag_Write_Back (Prim) then
          For_WB_IOs :
          for WB_IO_Index in Tree_Level_Index_Type'Range loop
