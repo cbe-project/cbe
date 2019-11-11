@@ -71,8 +71,7 @@ is
       Export,
       Convention    => C,
       External_Name =>
-         "_ZN3Cbe7Library19active_snapshot_idsERNS_" &
-         "19Active_snapshot_idsE";
+         "_ZNK3Cbe7Library19active_snapshot_idsERNS_19Active_snapshot_idsE";
 
    function Max_VBA (Obj : Library.Object_Type)
    return Virtual_Block_Address_Type
