@@ -397,7 +397,7 @@ class Cbe::Vbd
 				for (uint32_t id = 0; id < degree && !finished; id++) {
 
 					xml.node("node", [&] () {
-						xml.attribute("type", 1u);
+						xml.attribute("type", free_tree ? 2u : 1u);
 						xml.attribute("id",   id);
 						xml.attribute("pba",  node[id].pba);
 						xml.attribute("gen",  node[id].gen);
