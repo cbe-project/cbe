@@ -106,15 +106,15 @@ is
       Off : Block_Data_Index_Type := Off_In;
    begin
       Block_Data_From_Unsigned_64 (Data, Off, Unsigned_64 (Node.PBA));
-      Off := Off + Unsigned_64'Size / Data (0)'Size;
+      Off := Off + 8;
 
       Block_Data_From_Unsigned_64 (Data, Off, Unsigned_64 (Node.Gen));
-      Off := Off + Unsigned_64'Size / Data (0)'Size;
+      Off := Off + 8;
 
       Block_Data_From_Hash (Data, Off, Node.Hash);
-      Off := Off + Hash_Type'Size / Data (0)'Size;
+      Off := Off + Hash_Size_Bytes;
 
-      Block_Data_Zero_Fill (Data, Off, Node.Padding'Size / Data (0)'Size);
+      Block_Data_Zero_Fill (Data, Off, Type_1_Node_Padding_Size_Bytes);
    end Block_Data_From_Type_I_Node;
 
    procedure Block_Data_From_Type_I_Node_Block (
@@ -125,9 +125,7 @@ is
    begin
       Data := (others => 0);
       for Idx in Nodes'Range loop
-         Off := Block_Data_Index_Type (
-            (Idx * Type_I_Node_Type'Size) / Data (0)'Size);
-
+         Off := Block_Data_Index_Type (Idx * Type_1_Node_Storage_Size_Bytes);
          Block_Data_From_Type_I_Node (Data, Off, Nodes (Idx));
       end loop;
    end Block_Data_From_Type_I_Node_Block;
@@ -140,24 +138,24 @@ is
       Off : Block_Data_Index_Type := Off_In;
    begin
       Block_Data_From_Unsigned_64 (Data, Off, Unsigned_64 (Node.PBA));
-      Off := Off + Unsigned_64'Size / Data (0)'Size;
+      Off := Off + 8;
 
       Block_Data_From_Unsigned_64 (Data, Off, Unsigned_64 (Node.Last_VBA));
-      Off := Off + Unsigned_64'Size / Data (0)'Size;
+      Off := Off + 8;
 
       Block_Data_From_Unsigned_64 (Data, Off, Unsigned_64 (Node.Alloc_Gen));
-      Off := Off + Unsigned_64'Size / Data (0)'Size;
+      Off := Off + 8;
 
       Block_Data_From_Unsigned_64 (Data, Off, Unsigned_64 (Node.Free_Gen));
-      Off := Off + Unsigned_64'Size / Data (0)'Size;
+      Off := Off + 8;
 
       Block_Data_From_Unsigned_32 (Data, Off, Unsigned_32 (Node.Last_Key_ID));
-      Off := Off + Unsigned_32'Size / Data (0)'Size;
+      Off := Off + 4;
 
       Block_Data_From_Boolean (Data, Off, Node.Reserved);
-      Off := Off + Boolean'Size / Data (0)'Size;
+      Off := Off + 1;
 
-      Block_Data_Zero_Fill (Data, Off, Node.Padding'Size / Data (0)'Size);
+      Block_Data_Zero_Fill (Data, Off, Type_2_Node_Padding_Size_Bytes);
    end Block_Data_From_Type_II_Node;
 
    procedure Block_Data_From_Type_II_Node_Block (
@@ -168,9 +166,7 @@ is
    begin
       Data := (others => 0);
       for Idx in Nodes'Range loop
-         Off := Block_Data_Index_Type (
-            (Idx * Type_II_Node_Type'Size) / Data (0)'Size);
-
+         Off := Block_Data_Index_Type (Idx * Type_2_Node_Storage_Size_Bytes);
          Block_Data_From_Type_II_Node (Data, Off, Nodes (Idx));
       end loop;
    end Block_Data_From_Type_II_Node_Block;
@@ -293,8 +289,7 @@ is
    begin
       For_Nodes :
       for Idx in Nodes'Range loop
-         Off := Block_Data_Index_Type (
-            (Idx * Type_II_Node_Type'Size) / Data (0)'Size);
+         Off := Block_Data_Index_Type (Idx * Type_2_Node_Storage_Size_Bytes);
          Nodes (Idx) := Type_II_Node_From_Block_Data (Data, Off);
       end loop For_Nodes;
    end Type_II_Node_Block_From_Block_Data;
@@ -307,8 +302,7 @@ is
    begin
       For_Nodes :
       for Idx in Nodes'Range loop
-         Off := Block_Data_Index_Type (
-            (Idx * Type_I_Node_Type'Size) / Data (0)'Size);
+         Off := Block_Data_Index_Type (Idx * Type_1_Node_Storage_Size_Bytes);
          Nodes (Idx) := Type_I_Node_From_Block_Data (Data, Off);
       end loop For_Nodes;
    end Type_I_Node_Block_From_Block_Data;
@@ -324,13 +318,11 @@ is
          Value_Off : Block_Data_Index_Type;
       begin
          For_Value_Items : for Idx in Key.Value'Range loop
-            Value_Off := Key_Off + Block_Data_Index_Type (
-               Idx * (Key.Value (0)'Size / 8));
-
+            Value_Off := Key_Off + Block_Data_Index_Type (Idx);
             Data (Value_Off) := Key.Value (Idx);
          end loop For_Value_Items;
       end Declare_Value_Off;
-      Key_Off := Key_Off + Key.Value'Size / 8;
+      Key_Off := Key_Off + Key_Value_Size_Bytes;
 
       Block_Data_From_Unsigned_32 (Data, Key_Off, Unsigned_32 (Key.ID));
    end Block_Data_From_Key;
@@ -343,26 +335,26 @@ is
       Snap_Off : Block_Data_Index_Type := Data_Off;
    begin
       Block_Data_From_Hash (Data, Snap_Off, Snap.Hash);
-      Snap_Off := Snap_Off + Snap.Hash'Size / 8;
+      Snap_Off := Snap_Off + Hash_Size_Bytes;
 
       Block_Data_From_Unsigned_64 (Data, Snap_Off, Unsigned_64 (Snap.PBA));
-      Snap_Off := Snap_Off + Snap.PBA'Size / 8;
+      Snap_Off := Snap_Off + 8;
 
       Block_Data_From_Unsigned_64 (Data, Snap_Off, Unsigned_64 (Snap.Gen));
-      Snap_Off := Snap_Off + Snap.Gen'Size / 8;
+      Snap_Off := Snap_Off + 8;
 
       Block_Data_From_Unsigned_64 (
          Data, Snap_Off, Unsigned_64 (Snap.Nr_Of_Leafs));
-      Snap_Off := Snap_Off + Snap.Nr_Of_Leafs'Size / 8;
+      Snap_Off := Snap_Off + 8;
 
       Block_Data_From_Unsigned_32 (Data, Snap_Off, Unsigned_32 (Snap.Height));
-      Snap_Off := Snap_Off + Snap.Height'Size / 8;
+      Snap_Off := Snap_Off + 4;
 
       Data (Snap_Off) := Byte_Type (Snap.Valid);
-      Snap_Off := Snap_Off + Snap.Valid'Size / 8;
+      Snap_Off := Snap_Off + 1;
 
       Block_Data_From_Unsigned_32 (Data, Snap_Off, Unsigned_32 (Snap.ID));
-      Snap_Off := Snap_Off + Snap.ID'Size / 8;
+      Snap_Off := Snap_Off + 4;
 
       Block_Data_From_Unsigned_32 (Data, Snap_Off, Unsigned_32 (Snap.Flags));
    end Block_Data_From_Snap;
@@ -373,11 +365,10 @@ is
       Keys     :        Keys_Type)
    is
       Keys_Off : Block_Data_Index_Type;
-      Key_Bytes : constant Natural := Keys (0)'Size / 8;
    begin
       For_Keys : for Idx in Keys'Range loop
          Keys_Off :=
-           Data_Off + Block_Data_Index_Type (Natural (Idx) * Key_Bytes);
+           Data_Off + Block_Data_Index_Type (Idx * Key_Storage_Size_Bytes);
 
          Block_Data_From_Key (Data, Keys_Off, Keys (Idx));
       end loop For_Keys;
@@ -389,11 +380,11 @@ is
       Snaps    :        Snapshots_Type)
    is
       Snaps_Off : Block_Data_Index_Type;
-      Snap_Bytes : constant Natural := Snaps (0)'Size / 8;
    begin
       For_Snaps : for Idx in Snaps'Range loop
          Snaps_Off :=
-           Data_Off + Block_Data_Index_Type (Natural (Idx) * Snap_Bytes);
+           Data_Off +
+           Block_Data_Index_Type (Idx * Snapshot_Storage_Size_Bytes);
 
          Block_Data_From_Snap (Data, Snaps_Off, Snaps (Idx));
       end loop For_Snaps;
@@ -407,40 +398,40 @@ is
    begin
       Data := (others => 0);
       Block_Data_From_Keys (Data, Off, SB.Keys);
-      Off := Off + SB.Keys'Size / 8;
+      Off := Off + Superblock_Keys_Storage_Size_Bytes;
 
       Block_Data_From_Snapshots (Data, Off, SB.Snapshots);
-      Off := Off + SB.Snapshots'Size / 8;
+      Off := Off + Superblock_Snapshots_Storage_Size_Bytes;
 
       Block_Data_From_Unsigned_64 (
          Data, Off, Unsigned_64 (SB.Last_Secured_Generation));
-      Off := Off + SB.Last_Secured_Generation'Size / 8;
+      Off := Off + 8;
 
       Block_Data_From_Unsigned_32 (Data, Off, Unsigned_32 (SB.Curr_Snap));
-      Off := Off + SB.Curr_Snap'Size / 8;
+      Off := Off + 4;
 
       Block_Data_From_Unsigned_32 (Data, Off, Unsigned_32 (SB.Degree));
-      Off := Off + SB.Degree'Size / 8;
+      Off := Off + 4;
 
       Block_Data_From_Unsigned_64 (Data, Off, Unsigned_64 (SB.Free_Gen));
-      Off := Off + SB.Free_Gen'Size / 8;
+      Off := Off + 8;
 
       Block_Data_From_Unsigned_64 (Data, Off, Unsigned_64 (SB.Free_Number));
-      Off := Off + SB.Free_Number'Size / 8;
+      Off := Off + 8;
 
       Block_Data_From_Hash (Data, Off, SB.Free_Hash);
-      Off := Off + SB.Free_Hash'Size / 8;
+      Off := Off + Hash_Size_Bytes;
 
       Block_Data_From_Unsigned_32 (Data, Off, Unsigned_32 (SB.Free_Height));
-      Off := Off + SB.Free_Height'Size / 8;
+      Off := Off + 4;
 
       Block_Data_From_Unsigned_32 (Data, Off, Unsigned_32 (SB.Free_Degree));
-      Off := Off + SB.Free_Degree'Size / 8;
+      Off := Off + 4;
 
       Block_Data_From_Unsigned_64 (Data, Off, Unsigned_64 (SB.Free_Leafs));
-      Off := Off + SB.Free_Leafs'Size / 8;
+      Off := Off + 8;
 
-      Block_Data_Zero_Fill (Data, Off, SB.Padding'Size / 8);
+      Block_Data_Zero_Fill (Data, Off, Superblock_Padding_Size_Bytes);
    end Block_Data_From_Superblock;
 
    function Pool_Idx_Slot_Valid (Cont : Pool_Index_Type)
