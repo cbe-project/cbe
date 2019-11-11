@@ -124,7 +124,6 @@ package body Component is
    Plain_Buffer : CBE.Crypto.Plain_Buffer_Type;
    Cipher_Buffer : CBE.Crypto.Cipher_Buffer_Type;
    Io_Buffer : CBE.Block_IO.Data_Type;
-   Server_Buffer : Buffer (1 .. 1048576);
 
    function Create_Request (I : Request_Id)
       return CBE.Request.Object_Type
@@ -414,49 +413,56 @@ package body Component is
       end loop;
    end Handle_Incoming_Requests;
 
+   Read_Offset : Unsigned_Long := 0;
+   Read_Index  : CBE.Crypto.Item_Index_Type := 0;
+
    procedure Handle_Read_Progress (Progress : in out Boolean)
    is
       Cbe_Request : CBE.Request.Object_Type;
       Prim_Index  : CBE.Primitive.Index_Type;
-      First       : Unsigned_Long;
       Data_Index  : CBE.Crypto.Plain_Buffer_Index_Type;
+      Req_Index   : Request_Id;
       Valid       : Boolean;
    begin
       CBE.Library.Client_Data_Ready (Cbe_Session, Cbe_Request);
       if CBE.Request.Valid (Cbe_Request) then
          Prim_Index := CBE.Library.Client_Data_Index
             (Cbe_Session, Cbe_Request);
-         First := Unsigned_Long (Prim_Index) * 4096;
          CBE.Library.Obtain_Client_Data
             (Cbe_Session, Cbe_Request, Data_Index, Valid);
          if Valid then
             Progress := True;
-            Convert_Block (Plain_Buffer (CBE.Crypto.Item_Index_Type
-                                          (Data_Index)),
-                           Server_Buffer (First .. First + 4095));
+            Req_Index := Request_Id (CBE.Request.Tag (Cbe_Request));
+            Read_Offset := Unsigned_Long (Prim_Index) * 4096;
+            Read_Index := CBE.Crypto.Item_Index_Type (Data_Index);
+            Block_Server.Read (Server, S_Cache (Req_Index).R, Req_Index);
          end if;
       end if;
    end Handle_Read_Progress;
 
-   Write_Buffer : CBE.Crypto.Plain_Data_Type;
+   Write_Offset : Unsigned_Long := 0;
+   Write_Timestamp : CBE.Timestamp_Type := 0;
+   Write_Request : CBE.Request.Object_Type;
+   Write_Progress : Boolean;
 
    procedure Handle_Write_Progress (Progress  : in out Boolean;
                                     Timestamp :        CBE.Timestamp_Type)
    is
       Cbe_Request : CBE.Request.Object_Type;
       Prim_Index  : CBE.Primitive.Index_Type;
-      First       : Unsigned_Long;
+      Req_Index   : Request_Id;
    begin
-      --  FIXME: Check if current request is already accessing the server
-      --  buffer and fill server buffer if this is not the case
       CBE.Library.Client_Data_Required (Cbe_Session, Cbe_Request);
       if CBE.Request.Valid (Cbe_Request) then
          Prim_Index := CBE.Library.Client_Data_Index
             (Cbe_Session, Cbe_Request);
-         First := Unsigned_Long (Prim_Index) * 4095;
-         Convert_Block (Server_Buffer (First .. First + 4095), Write_Buffer);
-         CBE.Library.Supply_Client_Data
-            (Cbe_Session, Timestamp, Cbe_Request, Write_Buffer, Progress);
+         Req_Index := Request_Id (CBE.Request.Tag (Cbe_Request));
+         Write_Offset := Unsigned_Long (Prim_Index) * 4096;
+         Write_Timestamp := Timestamp;
+         Write_Request := Cbe_Request;
+         Write_Progress := False;
+         Block_Server.Write (Server, S_Cache (Req_Index).R, Req_Index);
+         Progress := Write_Progress;
       end if;
    end Handle_Write_Progress;
 
@@ -464,6 +470,7 @@ package body Component is
    is
       use type Block.Request_Status;
       use type Block.Request_Kind;
+      use type Block.Result;
       Cbe_Request : CBE.Request.Object_Type;
       Data_Index  : CBE.Block_IO.Data_Index_Type;
       Result      : Block.Result;
@@ -490,7 +497,9 @@ package body Component is
                      when Block.Success =>
                         C_Cache (I).C := Cbe_Request;
                         C_Cache (I).I := Data_Index;
-                        Block_Client.Enqueue (Client, C_Cache (I).R);
+                        if Block_Client.Kind (C_Cache (I).R) = Block.Write then
+                           Block_Client.Write (Client, C_Cache (I).R);
+                        end if;
                         CBE.Library.IO_Request_In_Progress (Cbe_Session,
                                                             C_Cache (I).I);
                         Progress := True;
@@ -505,11 +514,13 @@ package body Component is
                end if;
             when Block.Allocated =>
                Block_Client.Enqueue (Client, C_Cache (I).R);
-               if Block_Client.Status (C_Cache (I).R) = Block.Pending then
-                  CBE.Library.IO_Request_In_Progress (Cbe_Session,
-                                                      C_Cache (I).I);
-                  Progress := True;
-               end if;
+               Progress := Progress or else
+                           Block_Client.Status (C_Cache (I).R) = Block.Pending;
+               --  if Block_Client.Status (C_Cache (I).R) = Block.Pending then
+               --     CBE.Library.IO_Request_In_Progress (Cbe_Session,
+               --                                         C_Cache (I).I);
+               --     Progress := True;
+               --  end if;
             when Block.Pending =>
                Block_Client.Update_Request (Client, C_Cache (I).R);
                Progress := Progress or else Block_Client.Status
@@ -725,5 +736,39 @@ package body Component is
    function Initialized
       (S : Block.Server_Session)
       return Boolean is (Client_Act);
+
+   procedure Read (S : in out Block.Server_Session;
+                   I :        Request_Id;
+                   B :    out Buffer)
+   is
+      pragma Unreferenced (S);
+      pragma Unreferenced (I);
+   begin
+      Convert_Block
+         (Plain_Buffer (Read_Index),
+          B (B'First + Read_Offset .. B'First + Read_Offset + 4095));
+   end Read;
+
+   procedure Write (S : in out Block.Server_Session;
+                    I :        Request_Id;
+                    B :        Buffer)
+   is
+      pragma Unreferenced (S);
+      pragma Unreferenced (I);
+      procedure Cbe_Write (Buf : CBE.Block_Data_Type);
+      procedure Cbe_Write (Buf : CBE.Block_Data_Type)
+      is
+      begin
+         CBE.Library.Supply_Client_Data (Cbe_Session,
+                                         Write_Timestamp,
+                                         Write_Request,
+                                         Buf,
+                                         Write_Progress);
+      end Cbe_Write;
+      procedure Pass is new Conversion.Pass_In
+         (Block_Buffer, CBE.Block_Data_Type, Cbe_Write);
+   begin
+      Pass (B (B'First + Write_Offset .. B'First + Write_Offset + 4095));
+   end Write;
 
 end Component;
