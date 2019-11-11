@@ -16,7 +16,17 @@ is
    pragma Pure;
 
    Max_Number_Of_Requests_In_Pool : constant := 16;
+   Superblock_Nr_Of_Keys : constant := 2;
    Superblock_Nr_Of_Snapshots : constant := 48;
+   Superblock_Padding_Size_Bytes : constant := 424;
+   Type_1_Node_Storage_Size_Bytes : constant := 64;
+   Type_1_Node_Padding_Size_Bytes : constant := 16;
+   Type_2_Node_Storage_Size_Bytes : constant := 64;
+   Type_2_Node_Padding_Size_Bytes : constant := 27;
+   Hash_Size_Bytes : constant := 32;
+   Key_Storage_Size_Bytes : constant := 68;
+   Key_Value_Size_Bytes : constant := 64;
+   Snapshot_Storage_Size_Bytes : constant := 72;
    Block_Size : constant := 4096;
    Tree_Min_Degree_Log_2 : constant := 0;
    Tree_Max_Degree_Log_2 : constant := 6;
@@ -26,6 +36,12 @@ is
 
    Tree_Min_Degree : constant := 2**Tree_Min_Degree_Log_2;
    Tree_Max_Degree : constant := 2**Tree_Max_Degree_Log_2;
+
+   Superblock_Keys_Storage_Size_Bytes : constant :=
+      Superblock_Nr_Of_Keys * Key_Storage_Size_Bytes;
+
+   Superblock_Snapshots_Storage_Size_Bytes : constant :=
+      Superblock_Nr_Of_Snapshots * Snapshot_Storage_Size_Bytes;
 
    Tree_Max_Number_Of_Leafs : constant :=
       Tree_Max_Degree**(Tree_Max_Height - 1);
@@ -72,7 +88,8 @@ is
    type Hash_Index_Type is range 1 .. 32;
    type Hash_Type is array (Hash_Index_Type) of Byte_Type with Size => 32 * 8;
 
-   type Type_I_Node_Padding_Type is array (0 .. 15) of Byte_Type;
+   type Type_I_Node_Padding_Type
+   is array (0 .. Type_1_Node_Padding_Size_Bytes - 1) of Byte_Type;
 
    type Type_I_Node_Type is record
       PBA      : Physical_Block_Address_Type;
@@ -97,7 +114,8 @@ is
       Hash : Hash_Type;
    end record;
 
-   type Type_II_Node_Padding_Type is array (0 .. 26) of Byte_Type;
+   type Type_II_Node_Padding_Type
+   is array (0 .. Type_2_Node_Padding_Size_Bytes - 1) of Byte_Type;
 
    --
    --  The CBE::Type_i_node contains the on-disk type 2 inner node
@@ -218,7 +236,7 @@ is
       ID          => Snapshot_ID_Storage_Type'Last,
       Flags       => Snapshot_Flags_Storage_Type'Last);
 
-   type Key_Value_Index_Type is range 0 .. 63;
+   type Key_Value_Index_Type is range 0 .. Key_Value_Size_Bytes - 1;
    type Key_Value_Type
    is array (Key_Value_Index_Type) of Byte_Type with Size => 64 * 8;
 
@@ -236,9 +254,10 @@ is
       64 * 8 + --  Value
        4 * 8;  --  ID
 
-   type Keys_Index_Type is range 0 .. 1;
+   type Keys_Index_Type is range 0 .. Superblock_Nr_Of_Keys - 1;
    type Keys_Type is array (Keys_Index_Type) of Key_Type;
-   type Superblock_Padding_Type is array (0 .. 423) of Byte_Type;
+   type Superblock_Padding_Type
+   is array (0 .. Superblock_Padding_Size_Bytes - 1) of Byte_Type;
 
    --
    --  The CBE::Superblock contains all information of a CBE
