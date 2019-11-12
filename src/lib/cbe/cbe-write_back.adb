@@ -192,7 +192,7 @@ is
       --  for obvious reasons.)
       --
       For_Each_Inner_Lvl :
-      for Lvl in 1 .. Obj.Levels - 1 loop
+      for Lvl in 1 .. Obj.Levels loop
 
          if Primitive."=" (Obj.Entries (Lvl).Tag, Primitive.Tag_Cache) and then
             Obj.Entries (Lvl).PBA = PBA
@@ -244,7 +244,7 @@ is
       declare
          All_Entries_Complete : Boolean := True;
       begin
-         for I in 1 .. Obj.Levels - 1 loop
+         for I in 1 .. Obj.Levels loop
             if Obj.Entries (I).State /= Complete then
                All_Entries_Complete := False;
                exit;
@@ -293,7 +293,7 @@ is
       --
       --  XXX iterate from 0?
       --
-      for I in 0 .. Obj.Levels - 1 loop
+      for I in 0 .. Obj.Levels loop
          Obj.Entries (I).PBA        :=
             Old_PBAs (Tree_Level_Index_Type (I)).PBA;
 
@@ -332,7 +332,7 @@ is
    is
    begin
       Fail_If_Pending_Primitive_Not_Complete (Obj, Prim);
-      return Obj.Entries (Obj.Levels - 1).Update_PBA;
+      return Obj.Entries (Obj.Levels).Update_PBA;
    end Peek_Completed_Root;
 
    procedure Peek_Completed_Root_Hash (
@@ -342,7 +342,7 @@ is
    is
    begin
       Fail_If_Pending_Primitive_Not_Complete (Obj, Prim);
-      Hash := Obj.Hashes (Obj.Levels - 1);
+      Hash := Obj.Hashes (Obj.Levels);
    end Peek_Completed_Root_Hash;
 
    procedure Drop_Completed_Primitive (
@@ -497,7 +497,7 @@ is
          return Primitive.Invalid_Object;
       end if;
 
-      For_Each_Entry : for I in 1 .. Obj.Levels - 1 loop
+      For_Each_Entry : for I in 1 .. Obj.Levels loop
          if Obj.Entries (I).State = Pending then
             return Primitive.Valid_Object (
                Op     => Write,
@@ -525,7 +525,7 @@ is
          raise Program_Error;
       end if;
 
-      For_Each_Entry : for I in 1 .. Obj.Levels - 1 loop
+      For_Each_Entry : for I in 1 .. Obj.Levels loop
          if Obj.Entries (I).PBA = PBA then
             return Obj.Entries (I).Update_PBA;
          end if;
@@ -545,7 +545,7 @@ is
          raise Program_Error;
       end if;
 
-      For_Each_Entry : for I in 1 .. Obj.Levels - 1 loop
+      For_Each_Entry : for I in 1 .. Obj.Levels loop
          if Obj.Entries (I).PBA = PBA then
             Obj.Entries (I).State := In_Progress;
             return;

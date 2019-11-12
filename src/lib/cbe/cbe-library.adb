@@ -1838,7 +1838,7 @@ is
                others => Type_1_Node_Invalid);
 
             Trans_Max_Level : constant Tree_Level_Index_Type :=
-               Virtual_Block_Device.Tree_Max_Level (Obj.VBD) + 1;
+               Virtual_Block_Device.Tree_Max_Level (Obj.VBD);
 
             Snap : constant Snapshot_Type :=
                Obj.Superblock.Snapshots (Curr_Snap (Obj));
@@ -1878,7 +1878,7 @@ is
             --
             --  (This check may be removed at some point.)
             --
-            if Old_PBAs (Trans_Max_Level - 1).PBA /= Snap.PBA then
+            if Old_PBAs (Trans_Max_Level).PBA /= Snap.PBA then
                raise Program_Error;
             end if;
 
@@ -1887,7 +1887,7 @@ is
             --  leaf, are considered. The root node is checked afterwards as
             --  we need the information of theCurr snapshot for that.
             --
-            for Level in 1 .. Trans_Max_Level - 1 loop
+            for Level in 1 .. Trans_Max_Level loop
 
                --
                --  Use the old PBA to get the node's data from the cache and
@@ -1972,15 +1972,15 @@ is
                   Old_PBAs (Trans_Max_Level - 1).Gen))));
 
             --  check root node
-            if Old_PBAs (Trans_Max_Level - 1).Gen = 0
-               or else Old_PBAs (Trans_Max_Level - 1).Gen = Obj.Cur_Gen
+            if Old_PBAs (Trans_Max_Level).Gen = 0
+               or else Old_PBAs (Trans_Max_Level).Gen = Obj.Cur_Gen
             then
                pragma Debug (Debug.Print_String ("Change root PBA in place"));
-               New_PBAs (Trans_Max_Level - 1) :=
-                  Old_PBAs (Trans_Max_Level - 1).PBA;
+               New_PBAs (Trans_Max_Level) :=
+                  Old_PBAs (Trans_Max_Level).PBA;
             else
                pragma Debug (Debug.Print_String ("New root PBA"));
-               Free_PBAs (Free_Blocks) := Old_PBAs (Trans_Max_Level - 1).PBA;
+               Free_PBAs (Free_Blocks) := Old_PBAs (Trans_Max_Level).PBA;
                New_Blocks := New_Blocks  + 1;
             end if;
 
