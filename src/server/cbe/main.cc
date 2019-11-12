@@ -833,3 +833,8 @@ void Cbe::Time::schedule_secure_timeout(uint64_t msec)
 	}
 	_secure_timeout.schedule(Genode::Microseconds { msec * 1000 });
 }
+
+extern "C" int memcmp(const void *p0, const void *p1, Genode::size_t size)
+{
+	return Genode::memcmp(p0, p1, size);
+}
