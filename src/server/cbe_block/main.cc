@@ -1042,6 +1042,10 @@ class Cbe::Mmu
 			} catch (Cbe::Tree::Invalid_virtual_block_address) {
 				result = false;
 			}
+			catch (Block_allocator::Invalid_physical_block_address) {
+				error("current request: ", _current_request.operation, " invalid block address");
+				result = false;
+			}
 
 			if (vba < 8 && _current_request.operation.type == Block::Operation::Type::WRITE) {
 				if (_verbose) {
