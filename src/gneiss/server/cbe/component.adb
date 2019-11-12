@@ -25,12 +25,12 @@ package body Component is
    Cbe_Block_Size      : constant Block.Size := 4096;
    Virtual_Block_Count : Block.Count         := 0;
 
-   type Request_Status is (Accepted, Pending, Finished);
+   type Request_Status is (Empty, Accepted, Pending, Ok, Error);
    type Crypto_Status is (Empty, Accepted, Submitted);
 
    type Server_Cache_Entry is record
       R : Block_Server.Request;
-      S : Request_Status := Finished;
+      S : Request_Status := Empty;
    end record;
 
    type Server_Cache is array (Request_Id range 1 .. 32) of Server_Cache_Entry;
@@ -75,8 +75,7 @@ package body Component is
 
    function Image is new Gns.Strings_Generic.Image_Ranged (Block.Size);
    --  function Image is new Gns.Strings_Generic.Image_Ranged (Request_Id);
-   --  function Image is new Gns.Strings_Generic.Image_Modular
-   --    (Block.Id);
+   function Image is new Gns.Strings_Generic.Image_Modular (Block.Id);
    --  function Image is new Gns.Strings_Generic.Image_Ranged
    --    (CBE.Superblocks_Index_Type);
 
@@ -113,6 +112,7 @@ package body Component is
    procedure Initialize_Crypto;
    procedure Handle_Encryption (Progress : in out Boolean);
    procedure Handle_Decryption (Progress : in out Boolean);
+   procedure Handle_Completed_Requests (Progress : in out Boolean);
 
    Sbsr : Superblock_Request_Cache;
    --  This should be a variable inside Read_Superblock.
@@ -303,7 +303,12 @@ package body Component is
       Success : Boolean;
    begin
       External.Crypto.Set_Key
-         (Crypto, 0, 0, External.Crypto.Key_Data_Type'(others => 42), Success);
+         (Crypto, 1, 0, External.Crypto.Key_Data_Type'(others => 42), Success);
+      if Success then
+         External.Crypto.Set_Key
+            (Crypto, 2, 0, External.Crypto.Key_Data_Type'(others => 42),
+             Success);
+      end if;
       if not Success then
          Gns.Log.Client.Error (Log, "Failed to set crypto key");
          Main.Vacate (Capability, Main.Failure);
@@ -378,6 +383,7 @@ package body Component is
             Handle_Backend_Io (Progress);
             Handle_Encryption (Progress);
             Handle_Decryption (Progress);
+            Handle_Completed_Requests (Progress);
             --  Gns.Log.Client.Info (Log, "/Ev");
          end loop;
       else
@@ -670,6 +676,40 @@ package body Component is
          end;
       end if;
    end Handle_Decryption;
+
+   procedure Handle_Completed_Requests (Progress : in out Boolean)
+   is
+      use type Block.Request_Status;
+      Cbe_Request : constant CBE.Request.Object_Type :=
+         CBE.Library.Peek_Completed_Client_Request (Cbe_Session);
+      Index       : Request_Id;
+   begin
+      if CBE.Request.Valid (Cbe_Request) then
+         Progress := True;
+         Index := Request_Id (CBE.Request.Tag (Cbe_Request));
+         S_Cache (Index).S :=
+            (if CBE.Request.Success (Cbe_Request) then Ok else Error);
+         CBE.Library.Drop_Completed_Client_Request (Cbe_Session, Cbe_Request);
+      end if;
+      for I in S_Cache'Range loop
+         if
+            Block_Server.Status (S_Cache (I).R) = Block.Pending
+            and then S_Cache (I).S in Ok | Error
+         then
+            Block_Server.Acknowledge
+               (Server,
+                S_Cache (I).R,
+                (if S_Cache (I).S = Ok then Block.Ok else Block.Error));
+            if Block_Server.Status (S_Cache (I).R) = Block.Raw then
+               Gns.Log.Client.Info
+                  (Log, "Acknowledged request at "
+                        & Image (Block_Server.Start (S_Cache (I).R)));
+               Progress := True;
+               S_Cache (I).S := Empty;
+            end if;
+         end if;
+      end loop;
+   end Handle_Completed_Requests;
 
    procedure Dispatch
       (I : in out Block.Dispatcher_Session;
