@@ -238,6 +238,7 @@ package body Component is
             Gns.Log.Client.Error (Log, "No valid superblock found");
             Main.Vacate (Capability, Main.Failure);
          end if;
+         Progress := False;
       end if;
    end Read_Superblock;
 
@@ -625,7 +626,7 @@ package body Component is
                       CBE.Request.Count (Cbe_Request),
                       CBE.Request.Tag_Type (I));
                   Gns.Log.Client.Info
-                     (Log, "Decrypt req: " & Image (C_Cache (I).I)
+                     (Log, "Encrypt req: " & Image (C_Cache (I).I)
                            & " at " & Image (I));
                   External.Crypto.Submit_Encryption_Request
                      (Crypto, Ce_Cache (I).R,
@@ -644,6 +645,8 @@ package body Component is
       Cbe_Request :=
          External.Crypto.Peek_Completed_Encryption_Request (Crypto);
       if CBE.Request.Valid (Cbe_Request) then
+         Gns.Log.Client.Info (Log, "Enc completed");
+         Progress := True;
          Index := Request_Id (CBE.Request.Tag (Cbe_Request));
          declare
             procedure Collect (B : out External.Crypto.Cipher_Data_Type);
@@ -652,6 +655,10 @@ package body Component is
             begin
                External.Crypto.Supply_Cipher_Data
                   (Crypto, Ce_Cache (Index).R, B, Success);
+               CBE.Library.Supply_Crypto_Cipher_Data
+                  (Cbe_Session,
+                   CBE.Crypto.Cipher_Buffer_Index_Type (Ce_Cache (Index).I),
+                   Success);
             end Collect;
             procedure Pass_Out is new Conversion.Pass_Out
                (CBE.Block_Data_Type,
@@ -713,7 +720,6 @@ package body Component is
       end loop;
       Cbe_Request :=
          External.Crypto.Peek_Completed_Decryption_Request (Crypto);
-      Gns.Log.Client.Info (Log, "Dec check");
       if CBE.Request.Valid (Cbe_Request) then
          Gns.Log.Client.Info (Log, "Dec completed");
          Progress := True;
