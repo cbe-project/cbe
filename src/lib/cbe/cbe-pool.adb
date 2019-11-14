@@ -196,6 +196,13 @@ is
          raise Program_Error;
       end if;
 
+      declare
+         Index : constant Pool_Index_Type :=
+            Index_Queue.Head (Obj.Indices);
+      begin
+         Item.State (Obj.Items (Index), Item.In_Progress);
+      end;
+
       Index_Queue.Dequeue_Head (Obj.Indices);
    end Drop_Pending_Request;
 
@@ -284,6 +291,45 @@ is
          end if;
       end loop;
    end Dump_Pool_State;
+
+   --
+   --  Check if a overlapping request is already in progress
+   --
+   function Overlapping_Request_In_Progress (
+      Obj : Object_Type;
+      BN  : Block_Number_Type)
+   return Boolean
+   is
+      Result : Boolean := False;
+   begin
+      Loop_In_Progress_Items :
+      for O of Obj.Items loop
+         if Item.In_Progress (O) then
+
+            --  The overlap range is [lower, upper).
+            declare
+               Lower : constant Block_Number_Type :=
+                  Request.Block_Number (Item.Req (O));
+               Upper : constant Block_Number_Type :=
+                  Lower + Block_Number_Type (
+                     Request.Count (Item.Req (O)));
+            begin
+               if BN >= Lower and then BN < Upper then
+                  pragma Debug (Debug.Print_String ("Overlap: BN: "
+                     & Debug.To_String (Debug.Uint64_Type (BN))
+                     & " Lower: "
+                     & Debug.To_String (Debug.Uint64_Type (Lower))
+                     & " Upper: "
+                     & Debug.To_String (Debug.Uint64_Type (Upper))));
+                  Result := True;
+                  exit Loop_In_Progress_Items;
+               end if;
+            end;
+         end if;
+      end loop Loop_In_Progress_Items;
+
+      return Result;
+   end Overlapping_Request_In_Progress;
 
    --
    --  Request_For_Index
