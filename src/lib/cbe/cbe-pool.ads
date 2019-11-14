@@ -98,6 +98,14 @@ is
    --
    procedure Dump_Pool_State (Obj : Object_Type);
 
+   --
+   --  Check if a overlapping request is already in progress
+   --
+   function Overlapping_Request_In_Progress (
+      Obj : Object_Type;
+      BN  : Block_Number_Type)
+   return Boolean;
+
 private
 
    --
