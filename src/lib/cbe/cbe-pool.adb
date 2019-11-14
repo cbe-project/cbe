@@ -8,6 +8,9 @@
 
 pragma Ada_2012;
 
+with CBE.Debug;
+pragma Unreferenced (CBE.Debug);
+
 package body CBE.Pool
 with SPARK_Mode
 is
@@ -102,6 +105,12 @@ is
          Obj.State := Sta;
       end State;
 
+      function To_String (Obj : Item_Type) return String
+      is (case Obj.State is
+         when Item.Invalid     => "invalid",
+         when Item.Pending     => "pending",
+         when Item.In_Progress => "in_progress",
+         when Item.Complete    => "complete");
    end Item;
 
    --
@@ -256,6 +265,25 @@ is
       end loop;
       raise Program_Error;
    end Snap_ID_For_Request;
+
+   --
+   --  Dump pool state
+   --
+   procedure Dump_Pool_State (Obj : Object_Type)
+   is
+   begin
+      for I in Obj.Items'Range loop
+         if not Item.Invalid (Obj.Items (I)) then
+            pragma Debug (Debug.Print_String ("Request_Pool: "
+               & Debug.To_String (Debug.Uint64_Type (I))
+               & ": "
+               & "Req: " & Request.To_String (Item.Req (Obj.Items (I)))
+               & " State: "
+               & Item.To_String (Obj.Items (I))));
+            null;
+         end if;
+      end loop;
+   end Dump_Pool_State;
 
    --
    --  Request_For_Index
