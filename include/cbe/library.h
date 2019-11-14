@@ -41,7 +41,7 @@ class Cbe::Library : public Cbe::Spark_object<199448>
 		 * procedures that return the 'progress' result as last out parameter.
 		 */
 
-		void _has_io_request(Request &, Io_buffer::Index &);
+		void _has_io_request(Request &, Io_buffer::Index &) const;
 
 		void _client_data_ready(Request &);
 		void _obtain_client_data(Request const &, Crypto_plain_buffer::Index &, bool &);
@@ -159,7 +159,7 @@ class Cbe::Library : public Cbe::Spark_object<199448>
 	 * \param result  valid request in case the is one pending that
 	 *                needs data, otherwise an invalid one is returned
 	 */
-	Request has_io_request(Io_buffer::Index &data_index)
+	Request has_io_request(Io_buffer::Index &data_index) const
 	{
 		Request result { };
 		_has_io_request(result, data_index);
