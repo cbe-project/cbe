@@ -288,7 +288,6 @@ is
 
       Obj.Secure_Superblock            := False;
       Obj.Wait_For_Front_End           := Wait_For_Event_Invalid;
-      Obj.Wait_For_Back_End            := Wait_For_Event_Invalid;
       Obj.Creating_Snapshot            := False;
       Obj.Creating_Quarantine_Snapshot := False;
       Obj.Stall_Snapshot_Creation      := False;
@@ -1573,37 +1572,26 @@ is
    is (not Request.Equal (Obj.Wait_For_Front_End.Req, Req));
 
    procedure Has_IO_Request (
-      Obj      : in out Object_Type;
-      Req      :    out Request.Object_Type;
-      Data_Idx :    out Block_IO.Data_Index_Type)
+      Obj      :     Object_Type;
+      Req      : out Request.Object_Type;
+      Data_Idx : out Block_IO.Data_Index_Type)
    is
    begin
       Req      := Request.Invalid_Object;
       Data_Idx := 0;
-
-      if Primitive.Valid (Obj.Wait_For_Back_End.Prim) then
-         return;
-      end if;
-
       declare
          Prim : constant Primitive.Object_Type :=
             Block_IO.Peek_Generated_Primitive (Obj.IO_Obj);
       begin
          if Primitive.Valid (Prim) then
-            Obj.Wait_For_Back_End := (
-               Req => Request.Valid_Object (
-                  Op     => Primitive.Operation (Prim),
-                  Succ   => False,
-                  Blk_Nr => Primitive.Block_Number (Prim),
-                  Off    => 0,
-                  Cnt    => 1,
-                  Tg     => 0),
-               Prim        => Prim,
-               Event       => Event_IO_Request_Completed,
-               In_Progress => False);
-
             Data_Idx := Block_IO.Peek_Generated_Data_Index (Obj.IO_Obj, Prim);
-            Req      := Obj.Wait_For_Back_End.Req;
+            Req      := Request.Valid_Object (
+               Op     => Primitive.Operation (Prim),
+               Succ   => False,
+               Blk_Nr => Primitive.Block_Number (Prim),
+               Off    => 0,
+               Cnt    => 1,
+               Tg     => 0);
          end if;
       end;
    end Has_IO_Request;
@@ -1613,13 +1601,7 @@ is
       Data_Idx :        Block_IO.Data_Index_Type)
    is
    begin
-      if Obj.Wait_For_Back_End.In_Progress or else
-         Obj.Wait_For_Back_End.Event /= Event_IO_Request_Completed
-      then
-         raise Program_Error;
-      end if;
       Block_IO.Drop_Generated_Primitive_2 (Obj.IO_Obj, Data_Idx);
-      Obj.Wait_For_Back_End.In_Progress := True;
    end IO_Request_In_Progress;
 
    procedure IO_Request_Completed (
@@ -1628,15 +1610,8 @@ is
       Success    :        Boolean)
    is
    begin
-      if not Obj.Wait_For_Back_End.In_Progress or else
-         Obj.Wait_For_Back_End.Event /= Event_IO_Request_Completed
-      then
-         raise Program_Error;
-      end if;
       Block_IO.Mark_Generated_Primitive_Complete (
          Obj.IO_Obj, Data_Index, Success);
-
-      Obj.Wait_For_Back_End := Wait_For_Event_Invalid;
    end IO_Request_Completed;
 
    procedure Client_Data_Ready (
@@ -2170,7 +2145,6 @@ is
    return String
    is (
       "CBE=(" &
-      ", Wait_For_Back_End="  & To_String (Obj.Wait_For_Back_End) &
       ", Wait_For_Front_End=" & To_String (Obj.Wait_For_Front_End) &
       ", VBD="                & Virtual_Block_Device.To_String (Obj.VBD) &
       ", Secure_Superblock="  & Debug.To_String (Obj.Secure_Superblock) &

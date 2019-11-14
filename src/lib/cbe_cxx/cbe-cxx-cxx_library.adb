@@ -135,9 +135,9 @@ is
    end IO_Request_Completed;
 
    procedure Has_IO_Request (
-      Obj        : in out Library.Object_Type;
-      Req        :    out CXX_Request_Type;
-      Data_Index :    out CXX_IO_Buffer_Index_Type)
+      Obj        :     Library.Object_Type;
+      Req        : out CXX_Request_Type;
+      Data_Index : out CXX_IO_Buffer_Index_Type)
    is
       SPARK_Req        : Request.Object_Type;
       SPARK_Data_Index : Block_IO.Data_Index_Type;
