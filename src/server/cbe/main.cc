@@ -490,6 +490,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				while (true) {
 					Crypto_plain_buffer::Index data_index(0);
 					Cbe::Request request = _cbe->crypto_cipher_data_required(data_index);
+					LOGIF("\033[36m INF ", "crypto_cipher_data_required: ", request);
 					if (!request.valid()) {
 						break;
 					}
@@ -498,11 +499,13 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					}
 					request.tag = data_index.value;
 					_crypto.submit_encryption_request(request, _crypto_plain_buf.item(data_index), 0);
+					LOGIF("\033[36m INF ", "crypto_cipher_data_requested: ", request);
 					_cbe->crypto_cipher_data_requested(data_index);
 					progress |= true;
 				}
 				while (true) {
 					Cbe::Request const request = _crypto.peek_completed_encryption_request();
+					LOGIF("\033[36m INF ", "peek_completed_encryption_request: ", request);
 					if (!request.valid()) {
 						break;
 					}
@@ -510,6 +513,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					if (!_crypto.supply_cipher_data(request, _crypto_cipher_buf.item(data_index))) {
 						break;
 					}
+					LOGIF("\033[36m INF ", "supply_crypto_cipher_data: ", request);
 					_cbe->supply_crypto_cipher_data(data_index, request.success == Request::Success::TRUE);
 					progress |= true;
 				}
@@ -518,6 +522,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				while (true) {
 					Crypto_cipher_buffer::Index data_index(0);
 					Cbe::Request request = _cbe->crypto_plain_data_required(data_index);
+					LOGIF("\033[36m INF ", "crypto_plain_data_required: ", request);
 					if (!request.valid()) {
 						break;
 					}
@@ -526,11 +531,13 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					}
 					request.tag = data_index.value;
 					_crypto.submit_decryption_request(request, _crypto_cipher_buf.item(data_index), 0);
+					LOGIF("\033[36m INF ", "crypto_plain_data_requested: ", request);
 					_cbe->crypto_plain_data_requested(data_index);
 					progress |= true;
 				}
 				while (true) {
 					Cbe::Request const request = _crypto.peek_completed_decryption_request();
+					LOGIF("\033[36m INF ", "peek_completed_decryption_request: ", request);
 					if (!request.valid()) {
 						break;
 					}
@@ -538,6 +545,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 					if (!_crypto.supply_plain_data(request, _crypto_plain_buf.item(data_index))) {
 						break;
 					}
+					LOGIF("\033[36m INF ", "supply_crypto_plain_data: ", request);
 					_cbe->supply_crypto_plain_data(data_index, request.success == Request::Success::TRUE);
 					progress |= true;
 				}
