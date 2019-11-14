@@ -646,6 +646,17 @@ is
                Snap_ID : constant Snapshot_ID_Type :=
                   Pool.Snap_ID_For_Request (Obj.Request_Pool_Obj, Req);
             begin
+
+               if Pool.Overlapping_Request_In_Progress (
+                  Obj.Request_Pool_Obj,
+                  Request.Block_Number (Req))
+               then
+                  pragma Debug (Pool.Dump_Pool_State (Obj.Request_Pool_Obj));
+                  pragma Debug (Debug.Print_String ("Execute: "
+                     & "overlapping request in progress"));
+                  exit Loop_Pool_Pending_Requests;
+               end if;
+
                Pool.Drop_Pending_Request (Obj.Request_Pool_Obj);
                Splitter.Submit_Request (
                   Obj.Splitter_Obj, Pool_Idx, Req, Snap_ID);
