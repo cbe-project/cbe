@@ -138,14 +138,15 @@ is
          "_ZN3Cbe7Library20io_request_completedERKNS_9Io_buffer5IndexEb";
 
    procedure Has_IO_Request (
-      Obj        : in out Library.Object_Type;
-      Req        :    out CXX_Request_Type;
-      Data_Index :    out CXX_IO_Buffer_Index_Type)
+      Obj        :     Library.Object_Type;
+      Req        : out CXX_Request_Type;
+      Data_Index : out CXX_IO_Buffer_Index_Type)
    with
       Export,
       Convention    => C,
       External_Name =>
-         "_ZN3Cbe7Library15_has_io_requestERNS_7RequestERNS_9Io_buffer5IndexE";
+         "_ZNK3Cbe7Library15_has_io_requestERNS_7RequestERNS_9Io_buffer" &
+         "5IndexE";
 
    procedure IO_Request_In_Progress (
       Obj        : in out Library.Object_Type;

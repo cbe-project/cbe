@@ -149,9 +149,9 @@ is
    --             needs data, otherwise an invalid one is returned
    --
    procedure Has_IO_Request (
-      Obj      : in out Object_Type;
-      Req      :    out Request.Object_Type;
-      Data_Idx :    out Block_IO.Data_Index_Type);
+      Obj      :     Object_Type;
+      Req      : out Request.Object_Type;
+      Data_Idx : out Block_IO.Data_Index_Type);
 
    --
    --  Obtain data for write request for the backend block session
@@ -384,7 +384,6 @@ private
       Last_Root_Hash               : Hash_Type;
       Secure_Superblock            : Boolean;
       Wait_For_Front_End           : Wait_For_Event_Type;
-      Wait_For_Back_End            : Wait_For_Event_Type;
       Creating_Snapshot            : Boolean;
       Creating_Quarantine_Snapshot : Boolean;
       Stall_Snapshot_Creation      : Boolean;
