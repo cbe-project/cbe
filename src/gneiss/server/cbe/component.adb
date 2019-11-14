@@ -101,7 +101,7 @@ package body Component is
       Pre => Block_Server.Kind (S_Cache (I).R) in
                Block.Read | Block.Write | Block.Sync;
 
-   procedure Read_Superblock with
+   procedure Read_Superblock (Progress : out Boolean) with
       Pre => Block.Initialized (Client) and then Gns.Log.Initialized (Log);
 
    procedure Handle_Incoming_Requests (Progress : in out Boolean);
@@ -153,18 +153,18 @@ package body Component is
          when CBE.Write => Block.Write,
          when CBE.Sync => Block.Sync);
 
-   procedure Read_Superblock is
+   procedure Read_Superblock (Progress : out Boolean) is
       use type Block.Id;
       use type Block.Count;
       use type Block.Request_Status;
       use type CBE.Generation_Type;
       Result   : Block.Result;
       Max_Vba  : CBE.Virtual_Block_Address_Type;
-      Progress : Boolean                     := True;
       Current  : CBE.Superblocks_Index_Type := 0;
       Last_Gen : CBE.Generation_Type         := 0;
       Valid    : Boolean                     := False;
    begin
+      Progress := True;
       if Block.Block_Size (Client) = Cbe_Block_Size then
          loop
             for I in Sbsr'Range loop
@@ -238,7 +238,9 @@ package body Component is
       end if;
    end Read_Superblock;
 
-   procedure Construct (Cap : Gns.Types.Capability) is
+   procedure Construct (Cap : Gns.Types.Capability)
+   is
+      Progress : Boolean;
    begin
       Capability := Cap;
       if not Gns.Log.Initialized (Log) then
@@ -274,7 +276,7 @@ package body Component is
             Main.Vacate (Cap, Main.Failure);
             return;
          end if;
-         Read_Superblock;
+         Read_Superblock (Progress);
          Initialize_Crypto;
          Timer_Client.Set_Timeout (Timer, 1.0);
          --  snapshot every 1.0s
@@ -365,9 +367,14 @@ package body Component is
 
    procedure Event is
       Progress : Boolean := True;
+      C_Prog   : Boolean;
       Now      : Gns.Timer.Time;
    begin
       if Ready then
+         if not Initialized (Server) then
+            Gns.Log.Client.Warning (Log, "Block server not initialized");
+            return;
+         end if;
          while Progress loop
             --  Gns.Log.Client.Info (Log, "Ev");
             Progress := False;
@@ -383,11 +390,16 @@ package body Component is
             Handle_Backend_Io (Progress);
             Handle_Encryption (Progress);
             Handle_Decryption (Progress);
+            External.Crypto.Execute (Crypto, C_Prog);
+            Progress := Progress or else C_Prog;
             Handle_Completed_Requests (Progress);
             --  Gns.Log.Client.Info (Log, "/Ev");
          end loop;
+         Block_Server.Unblock_Client (Server);
       else
-         Read_Superblock;
+         while Progress loop
+            Read_Superblock (Progress);
+         end loop;
       end if;
    end Event;
 
