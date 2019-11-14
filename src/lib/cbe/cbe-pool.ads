@@ -93,6 +93,11 @@ is
       Req : Request.Object_Type)
    return Snapshot_ID_Type;
 
+   --
+   --  Dump pool state
+   --
+   procedure Dump_Pool_State (Obj : Object_Type);
+
 private
 
    --
@@ -145,6 +150,8 @@ private
       procedure Req (
          Obj : in out Item_Type;
          Rq  :        Request.Object_Type);
+
+      function To_String (Obj : Item_Type) return String;
 
    private
 
