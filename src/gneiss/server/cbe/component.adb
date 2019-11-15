@@ -410,6 +410,7 @@ package body Component is
 
    procedure Handle_Incoming_Requests (Progress : in out Boolean)
    is
+      use type Block.Id;
       use type Block.Request_Status;
       Cbe_Request : CBE.Request.Object_Type;
    begin
@@ -422,6 +423,13 @@ package body Component is
                            Block_Server.Status (S_Cache (I).R) = Block.Pending;
                S_Cache (I).S := Accepted;
             when Block.Pending =>
+               if
+                  Block_Server.Start (S_Cache (I).R) >=
+                  Block.Id (Block_Count (Server))
+               then
+                  Block_Server.Acknowledge
+                     (Server, S_Cache (I).R, Block.Error);
+               end if;
                if S_Cache (I).S = Accepted
                   and then CBE.Library.Client_Request_Acceptable (Cbe_Session)
                then
