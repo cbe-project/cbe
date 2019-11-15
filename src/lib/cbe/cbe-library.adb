@@ -78,6 +78,37 @@ is
       return Result;
    end Cache_Dirty;
 
+   procedure Try_Flush_Cache_If_Dirty (
+      Obj   : in out Object_Type;
+      Dirty :    out Boolean)
+   is
+   begin
+      Dirty := False;
+
+      Loop_Check_Cache_Dirty :
+      for I in Cache.Cache_Index_Type loop
+         if Cache.Dirty (Obj.Cache_Obj, I) then
+
+            --
+            --  Set variable first before consulting the flusher as
+            --  code at the outside depends on knowing if the cache
+            --  is still dirty or not.
+            --
+            Dirty := True;
+
+            if Cache_Flusher.Request_Acceptable (Obj.Cache_Flusher_Obj) then
+               Cache_Flusher.Submit_Request (
+                  Obj.Cache_Flusher_Obj,
+                  Cache.Flush (Obj.Cache_Obj, I),
+                  I);
+            else
+               --  Leave loop and come back later
+               exit Loop_Check_Cache_Dirty;
+            end if;
+         end if;
+      end loop Loop_Check_Cache_Dirty;
+   end Try_Flush_Cache_If_Dirty;
+
    procedure Create_Snapshot (
       Obj     : in out Object_Type;
       Quara   :        Boolean;
@@ -156,18 +187,7 @@ is
          Cache_Dirty : Boolean := False;
       begin
 
-         Check_Cache_Dirty :
-         for Cache_Index in Cache.Cache_Index_Type loop
-            if Cache.Dirty (Obj.Cache_Obj, Cache_Index) then
-
-               Cache_Dirty := True;
-
-               Cache_Flusher.Submit_Request (
-                  Obj.Cache_Flusher_Obj,
-                  Cache.Flush (Obj.Cache_Obj, Cache_Index),
-                  Cache_Index);
-            end if;
-         end loop Check_Cache_Dirty;
+         Try_Flush_Cache_If_Dirty (Obj, Cache_Dirty);
 
          --
          --  In case we have to flush the Cache, wait until we have
@@ -423,18 +443,7 @@ is
                   Cache_Dirty : Boolean := False;
                begin
 
-                  Loop_Sync_Cache_Dirty :
-                  for Cache_Index in Cache.Cache_Index_Type loop
-                     if Cache.Dirty (Obj.Cache_Obj, Cache_Index) then
-
-                        Cache_Dirty := True;
-
-                        Cache_Flusher.Submit_Request (
-                           Obj.Cache_Flusher_Obj,
-                           Cache.Flush (Obj.Cache_Obj, Cache_Index),
-                           Cache_Index);
-                     end if;
-                  end loop Loop_Sync_Cache_Dirty;
+                  Try_Flush_Cache_If_Dirty (Obj, Cache_Dirty);
 
                   if not Cache_Dirty then
                      Obj.Secure_Superblock := True;
