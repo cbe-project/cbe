@@ -33,7 +33,7 @@ package body Component is
       S : Request_Status := Empty;
    end record;
 
-   type Server_Cache is array (Request_Id range 1 .. 32) of Server_Cache_Entry;
+   type Server_Cache is array (Request_Id range 1 .. 96) of Server_Cache_Entry;
 
    type Client_Cache_Entry is record
       R : Block_Client.Request;
@@ -429,8 +429,7 @@ package body Component is
                then
                   Block_Server.Acknowledge
                      (Server, S_Cache (I).R, Block.Error);
-               end if;
-               if S_Cache (I).S = Accepted
+               elsif S_Cache (I).S = Accepted
                   and then CBE.Library.Client_Request_Acceptable (Cbe_Session)
                then
                   --  Gns.Log.Client.Info
