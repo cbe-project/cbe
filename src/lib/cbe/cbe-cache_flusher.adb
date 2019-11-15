@@ -106,18 +106,8 @@ is
    --
    --  Active
    --
-   function Active (Obj : Object_Type)
-   return Boolean
-   is
-   begin
-      for Item_Id in Obj.Items'Range loop
-         if not Item.Invalid (Obj.Items (Item_Id)) then
-            return True;
-         end if;
-      end loop;
-
-      return False;
-   end Active;
+   function Active (Obj : Object_Type) return Boolean is
+   (for some I of Obj.Items => not Item.Invalid (I));
 
    --
    --  Request_Acceptable
