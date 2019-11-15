@@ -135,7 +135,7 @@ is
       Progress :    out Boolean)
    is
    begin
-      Delcare_Cache_Flusher_Active :
+      Declare_Cache_Flusher_Active :
       declare
          Cache_Flusher_Active : constant Boolean :=
             Cache_Flusher.Active (Obj.Cache_Flusher_Obj);
@@ -149,7 +149,7 @@ is
             Progress := False;
             return;
          end if;
-      end Delcare_Cache_Flusher_Active;
+      end Declare_Cache_Flusher_Active;
 
       Declare_Cache_Dirty :
       declare
