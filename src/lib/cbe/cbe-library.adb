@@ -412,7 +412,7 @@ is
       if Primitive.Valid (Obj.Sync_Primitive) and then
          not Obj.Secure_Superblock
       then
-         Delcare_Sync_Cache_Flusher_Active :
+         Declare_Sync_Cache_Flusher_Active :
          declare
             Cache_Flusher_Active : constant Boolean :=
                Cache_Flusher.Active (Obj.Cache_Flusher_Obj);
@@ -442,7 +442,7 @@ is
                   Progress := True;
                end Declare_Sync_Cache_Dirty;
             end if;
-         end Delcare_Sync_Cache_Flusher_Active;
+         end Declare_Sync_Cache_Flusher_Active;
       end if;
 
       --------------------------
