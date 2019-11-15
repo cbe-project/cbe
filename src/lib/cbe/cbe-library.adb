@@ -1522,7 +1522,7 @@ is
                Primitive.Operation (Prim) /= Read or else
                not Block_IO.Primitive_Acceptable (Obj.IO_Obj);
 
-            Block_IO.Submit_Primitive_Dont_Return_Index (
+            Block_IO.Submit_Primitive (
                Obj.IO_Obj, Primitive.Tag_Decrypt, Prim);
 
             Virtual_Block_Device.Drop_Completed_Primitive (Obj.VBD);

@@ -56,7 +56,7 @@ is
    --  \param Prim  reference to the Primitive
    --  \param Data  reference to a Block_data object
    --
-   procedure Submit_Primitive_Dont_Return_Index (
+   procedure Submit_Primitive (
       Obj  : in out Object_Type;
       Tag  :        Primitive.Tag_Type;
       Prim :        Primitive.Object_Type);
