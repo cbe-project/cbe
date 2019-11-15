@@ -125,21 +125,9 @@ is
    --
    --  Request_Acceptable
    --
-   function Request_Acceptable (Obj : Object_Type)
-   return Boolean
-   is
-   begin
-      if Index_Queue.Full (Obj.Indices) then
-         return False;
-      end if;
-
-      for Itm of Obj.Items loop
-         if Item.Invalid (Itm) then
-            return True;
-         end if;
-      end loop;
-      return False;
-   end Request_Acceptable;
+   function Request_Acceptable (Obj : Object_Type) return Boolean is
+   (not Index_Queue.Full (Obj.Indices) and then (
+      for some I of Obj.Items => Item.Invalid (I)));
 
    --
    --  Submit_Request
