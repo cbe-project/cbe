@@ -284,6 +284,10 @@ is
       SB   : out Superblock_Type;
       Data :     Block_Data_Type);
 
+   generic
+      type T is (<>);
+   function Advance_Index (I : T) return T;
+
 private
 
    procedure Snapshot_From_Block_Data (
