@@ -29,6 +29,7 @@ is
    Tree_Max_Degree_Log_2 : constant := 6;
    Tree_Max_Max_Level : constant := 6;
    Tree_Min_Max_Level : constant := 1;
+   Free_Tree_Min_Max_Level : constant := 2;
 
    Block_Size : constant := Block_Size_Bytes * 8;
    Tree_Min_Degree : constant := 2**Tree_Min_Degree_Log_2;

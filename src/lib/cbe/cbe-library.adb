@@ -274,6 +274,11 @@ is
       Obj.Write_Back_Obj          := Write_Back.Initialized_Object;
       Obj.Write_Back_Data         := (others => (others => 0));
       Obj.Sync_SB_Obj             := Sync_Superblock.Initialized_Object;
+
+      if SBs (Curr_SB).Free_Max_Level < Free_Tree_Min_Max_Level then
+         raise Program_Error;
+      end if;
+
       Obj.Free_Tree_Obj           := Free_Tree.Initialized_Object (
          SBs (Curr_SB).Free_Number,
          SBs (Curr_SB).Free_Gen,
