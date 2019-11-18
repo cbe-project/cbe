@@ -240,34 +240,26 @@ package body Component is
       Progress : Boolean;
    begin
       Capability := Cap;
-      if not Gns.Log.Initialized (Log) then
-         Gns.Log.Client.Initialize (Log, Capability, "CBE");
-      end if;
+      Gns.Log.Client.Initialize (Log, Capability, "CBE");
       if Gns.Log.Initialized (Log) then
          Gns.Log.Client.Info (Log, "CBE Server");
          Gns.Log.Client.Info (Log, "Block buffer: " &
             Gns.Strings.Image (Long_Integer (Block_Buffer'Size / 8)));
          Gns.Log.Client.Info (Log, "Superblock: " &
             Gns.Strings.Image (Long_Integer (CBE.Superblock_Type'Size / 8)));
-         if not Block.Initialized (Dispatcher) then
-            Block_Dispatcher.Initialize (Dispatcher, Cap, 42);
-         end if;
+         Block_Dispatcher.Initialize (Dispatcher, Cap, 42);
          if not Block.Initialized (Dispatcher) then
             Gns.Log.Client.Error (Log, "Dispatcher initialization failed.");
             Main.Vacate (Cap, Main.Failure);
             return;
          end if;
-         if not Block.Initialized (Client) then
-            Block_Client.Initialize (Client, Cap, "CBE", 42);
-         end if;
+         Block_Client.Initialize (Client, Cap, "CBE", 42);
          if not Block.Initialized (Client) then
             Gns.Log.Client.Error (Log, "Client initialization failed.");
             Main.Vacate (Cap, Main.Failure);
             return;
          end if;
-         if not Gns.Timer.Initialized (Timer) then
-            Timer_Client.Initialize (Timer, Cap);
-         end if;
+         Timer_Client.Initialize (Timer, Cap);
          if not Gns.Timer.Initialized (Timer) then
             Gns.Log.Client.Error (Log, "Timer initialization failed");
             Main.Vacate (Cap, Main.Failure);
@@ -286,14 +278,11 @@ package body Component is
    begin
       if Gns.Log.Initialized (Log) then
          Gns.Log.Client.Warning (Log, "Stopping CBE");
-         Gns.Log.Client.Finalize (Log);
       end if;
-      if Block.Initialized (Client) then
-         Block_Client.Finalize (Client);
-      end if;
-      if Block.Initialized (Dispatcher) then
-         Block_Dispatcher.Finalize (Dispatcher);
-      end if;
+      Gns.Log.Client.Finalize (Log);
+      Block_Client.Finalize (Client);
+      Block_Dispatcher.Finalize (Dispatcher);
+      Timer_Client.Finalize (Timer);
    end Destruct;
 
    procedure Initialize_Crypto
