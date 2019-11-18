@@ -184,7 +184,7 @@ is
 
       Declare_Cache_Dirty :
       declare
-         Cache_Dirty : Boolean := False;
+         Cache_Dirty : Boolean;
       begin
 
          Try_Flush_Cache_If_Dirty (Obj, Cache_Dirty);
@@ -440,7 +440,7 @@ is
             if not Cache_Flusher_Active then
                Declare_Sync_Cache_Dirty :
                declare
-                  Cache_Dirty : Boolean := False;
+                  Cache_Dirty : Boolean;
                begin
 
                   Try_Flush_Cache_If_Dirty (Obj, Cache_Dirty);
