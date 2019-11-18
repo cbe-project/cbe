@@ -223,10 +223,6 @@ is
       --  For the VBD we are interested in the pba of the leaf
       --  but for the FT we look for the pba of the type 2 node.
       --
-      --  XXX currently the free-tree MUST HAVE a height at least of 2,
-      --     otherwise the entry in the type 2 node is treated as the
-      --     type 2 node itself.
-      --
       declare
          Data_Level : constant Tree_Level_Index_Type :=
             (if Obj.Free_Tree then 1 else 0);
