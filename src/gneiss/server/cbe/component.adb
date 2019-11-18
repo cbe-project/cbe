@@ -74,13 +74,6 @@ package body Component is
       (Block_Buffer, CBE.Block_Data_Type);
 
    function Image is new Gns.Strings_Generic.Image_Ranged (Block.Size);
-   --  function Image is new Gns.Strings_Generic.Image_Ranged (Request_Id);
-   --  function Image is new Gns.Strings_Generic.Image_Modular (Block.Id);
-   --  function Image is new Gns.Strings_Generic.Image_Ranged
-   --   (CBE.Block_IO.Data_Index_Type);
-   --  function Image is new Gns.Strings_Generic.Image_Ranged (Request_Id);
-   --  function Image is new Gns.Strings_Generic.Image_Ranged
-   --    (CBE.Superblocks_Index_Type);
 
    Dispatcher  : Block.Dispatcher_Session;
    Client      : Block.Client_Session;
@@ -287,7 +280,6 @@ package body Component is
       else
          Main.Vacate (Cap, Main.Failure);
       end if;
-      --  Gns.Log.Client.Info (Log, "/Construct");
    end Construct;
 
    procedure Destruct is
@@ -374,14 +366,12 @@ package body Component is
       C_Prog   : Boolean;
       Now      : Gns.Timer.Time;
    begin
-      --  Gns.Log.Client.Info (Log, "Event");
       if Ready then
          if not Initialized (Server) then
             Gns.Log.Client.Warning (Log, "Block server not initialized");
             return;
          end if;
          while Progress loop
-            --  Gns.Log.Client.Info (Log, "Ev");
             Progress := False;
             Handle_Incoming_Requests (Progress);
             Now := Timer_Client.Clock (Timer);
@@ -398,7 +388,6 @@ package body Component is
             External.Crypto.Execute (Crypto, C_Prog);
             Progress := Progress or else C_Prog;
             Handle_Completed_Requests (Progress);
-            --  Gns.Log.Client.Info (Log, "/Ev");
          end loop;
          Block_Server.Unblock_Client (Server);
       else
@@ -414,7 +403,6 @@ package body Component is
       use type Block.Request_Status;
       Cbe_Request : CBE.Request.Object_Type;
    begin
-      --  Gns.Log.Client.Info (Log, "Handle_Incoming_Requests");
       for I in S_Cache'Range loop
          case Block_Server.Status (S_Cache (I).R) is
             when Block.Raw =>
@@ -432,9 +420,6 @@ package body Component is
                elsif S_Cache (I).S = Accepted
                   and then CBE.Library.Client_Request_Acceptable (Cbe_Session)
                then
-                  --  Gns.Log.Client.Info
-                  --     (Log, "Accept request at "
-                  --           & Image (Block_Server.Start (S_Cache (I).R)));
                   Cbe_Request := Create_Request (I);
                   CBE.Library.Submit_Client_Request (Cbe_Session,
                                                      Cbe_Request, 0);
@@ -458,7 +443,6 @@ package body Component is
       Req_Index   : Request_Id;
       Valid       : Boolean;
    begin
-      --  Gns.Log.Client.Info (Log, "Handle_Read_Progress");
       CBE.Library.Client_Data_Ready (Cbe_Session, Cbe_Request);
       if CBE.Request.Valid (Cbe_Request) then
          Prim_Index := CBE.Library.Client_Data_Index
@@ -471,9 +455,6 @@ package body Component is
             Read_Offset := Unsigned_Long (Prim_Index) * 4096;
             Read_Index := CBE.Crypto.Item_Index_Type (Data_Index);
             Block_Server.Read (Server, S_Cache (Req_Index).R, Req_Index);
-            --  Gns.Log.Client.Info
-            --     (Log, "Read at "
-            --           & Image (Block_Server.Start (S_Cache (Req_Index).R)));
          end if;
       end if;
    end Handle_Read_Progress;
@@ -490,7 +471,6 @@ package body Component is
       Prim_Index  : CBE.Primitive.Index_Type;
       Req_Index   : Request_Id;
    begin
-      --  Gns.Log.Client.Info (Log, "Handle_Write_Progress");
       CBE.Library.Client_Data_Required (Cbe_Session, Cbe_Request);
       if CBE.Request.Valid (Cbe_Request) then
          Prim_Index := CBE.Library.Client_Data_Index
@@ -502,9 +482,6 @@ package body Component is
          Write_Progress := False;
          Block_Server.Write (Server, S_Cache (Req_Index).R, Req_Index);
          Progress := Write_Progress;
-         --  Gns.Log.Client.Info
-         --     (Log, "Write at "
-         --           & Image (Block_Server.Start (S_Cache (Req_Index).R)));
       end if;
    end Handle_Write_Progress;
 
@@ -517,25 +494,11 @@ package body Component is
       Data_Index  : CBE.Block_IO.Data_Index_Type;
       Result      : Block.Result;
    begin
-      --  Gns.Log.Client.Info (Log, "Handle_Backend_Io");
       for I in C_Cache'Range loop
          case Block_Client.Status (C_Cache (I).R) is
             when Block.Raw =>
                CBE.Library.Has_IO_Request
                   (Cbe_Session, Cbe_Request, Data_Index);
---  Gns.Log.Client.Info
---     (Log, "CBE Req: "
---           & Gns.Strings.Image (CBE.Request.Valid (Cbe_Request))
---           & " at "
---           & Image (Block.Id (CBE.Request.Block_Number
---              (Cbe_Request)))
---           & " cache: "
---           & Gns.Strings.Image
---              (not CBE.Request.Valid (C_Cache (I).C))
---           & " "
---           & Gns.Strings.Image
---              (for all E of C_Cache =>
---               not CBE.Request.Equal (Cbe_Request, E.C)));
                if
                   CBE.Request.Valid (Cbe_Request)
                   and then not CBE.Request.Valid (C_Cache (I).C)
@@ -556,9 +519,6 @@ package body Component is
                         if Block_Client.Kind (C_Cache (I).R) = Block.Write then
                            Block_Client.Write (Client, C_Cache (I).R);
                         end if;
-                        --  Gns.Log.Client.Info
-                        --     (Log, "Employ backend request at "
-                        --      & Image (Block_Client.Start (C_Cache (I).R)));
                         CBE.Library.IO_Request_In_Progress (Cbe_Session,
                                                             C_Cache (I).I);
                         Progress := True;
@@ -591,9 +551,6 @@ package body Component is
                then
                   Block_Client.Read (Client, C_Cache (I).R);
                end if;
-               --  Gns.Log.Client.Info
-               --     (Log, "Received backend request at "
-               --           & Image (Block_Client.Start (C_Cache (I).R)));
                CBE.Library.IO_Request_Completed
                   (Cbe_Session, C_Cache (I).I,
                    Block_Client.Status (C_Cache (I).R) = Block.Ok);
@@ -612,7 +569,6 @@ package body Component is
       Index       : Request_Id;
       Success     : Boolean;
    begin
-      --  Gns.Log.Client.Info (Log, "Handle_Encryption");
       for I in Ce_Cache'Range loop
          case Ce_Cache (I).S is
             when Empty =>
@@ -632,9 +588,6 @@ package body Component is
                       CBE.Request.Offset (Cbe_Request),
                       CBE.Request.Count (Cbe_Request),
                       CBE.Request.Tag_Type (I));
-                  --  Gns.Log.Client.Info
-                  --     (Log, "Encrypt req: " & Image (C_Cache (I).I)
-                  --           & " at " & Image (I));
                   External.Crypto.Submit_Encryption_Request
                      (Crypto, Ce_Cache (I).R,
                       Convert (Plain_Buffer
@@ -652,7 +605,6 @@ package body Component is
       Cbe_Request :=
          External.Crypto.Peek_Completed_Encryption_Request (Crypto);
       if CBE.Request.Valid (Cbe_Request) then
-         --  Gns.Log.Client.Info (Log, "Enc completed");
          Progress := True;
          Index := Request_Id (CBE.Request.Tag (Cbe_Request));
          declare
@@ -688,7 +640,6 @@ package body Component is
       Index       : Request_Id;
       Success     : Boolean;
    begin
-      --  Gns.Log.Client.Info (Log, "Handle_Decryption");
       for I in Cd_Cache'Range loop
          case Cd_Cache (I).S is
             when Empty =>
@@ -708,9 +659,6 @@ package body Component is
                       CBE.Request.Offset (Cbe_Request),
                       CBE.Request.Count (Cbe_Request),
                       CBE.Request.Tag_Type (I));
-                  --  Gns.Log.Client.Info
-                  --     (Log, "Decrypt req: " & Image (C_Cache (I).I)
-                  --           & " at " & Image (I));
                   External.Crypto.Submit_Decryption_Request
                      (Crypto, Cd_Cache (I).R,
                       Convert (Cipher_Buffer
@@ -728,7 +676,6 @@ package body Component is
       Cbe_Request :=
          External.Crypto.Peek_Completed_Decryption_Request (Crypto);
       if CBE.Request.Valid (Cbe_Request) then
-         --  Gns.Log.Client.Info (Log, "Dec completed");
          Progress := True;
          Index := Request_Id (CBE.Request.Tag (Cbe_Request));
          declare
@@ -736,8 +683,6 @@ package body Component is
             procedure Collect (B : out External.Crypto.Plain_Data_Type)
             is
             begin
-               --  Gns.Log.Client.Info
-               --     (Log, "Supply plain data");
                External.Crypto.Supply_Plain_Data
                   (Crypto, Cd_Cache (Index).R, B, Success);
                CBE.Library.Supply_Crypto_Plain_Data
@@ -771,7 +716,6 @@ package body Component is
          S_Cache (Index).S :=
             (if CBE.Request.Success (Cbe_Request) then Ok else Error);
          CBE.Library.Drop_Completed_Client_Request (Cbe_Session, Cbe_Request);
-         --  Gns.Log.Client.Info (Log, "Dropped completed request");
       end if;
       for I in S_Cache'Range loop
          if
@@ -783,9 +727,6 @@ package body Component is
                 S_Cache (I).R,
                 (if S_Cache (I).S = Ok then Block.Ok else Block.Error));
             if Block_Server.Status (S_Cache (I).R) = Block.Raw then
-               --  Gns.Log.Client.Info
-               --     (Log, "Acknowledged request at "
-               --           & Image (Block_Server.Start (S_Cache (I).R)));
                Progress := True;
                S_Cache (I).S := Empty;
             end if;
