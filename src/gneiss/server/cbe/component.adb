@@ -827,7 +827,7 @@ package body Component is
    procedure Finalize_Server (S : in out Block.Server_Session) is
       pragma Unreferenced (S);
    begin
-      null;
+      Client_Act := False;
    end Finalize_Server;
 
    function Block_Count
