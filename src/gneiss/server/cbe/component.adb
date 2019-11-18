@@ -359,6 +359,7 @@ package body Component is
       if CBE.Library.Snapshot_Creation_Complete (Cbe_Session, Snapshot) then
          Gns.Log.Client.Info (Log, "Snapshot finished: " & Image (Snapshot));
       end if;
+      Timer_Client.Set_Timeout (Timer, 1.0);
    end Snapshot_Event;
 
    procedure Event is
