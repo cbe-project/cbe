@@ -595,4 +595,15 @@ is
       return Slot.Content;
    end Idx_Slot_Content;
 
+   function Advance_Index (I : T)
+   return T
+   is
+   begin
+      if I < T'Last then
+         return T'Succ (I);
+      else
+         return T'First;
+      end if;
+   end Advance_Index;
+
 end CBE;
