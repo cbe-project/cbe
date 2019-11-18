@@ -391,6 +391,9 @@ private
       Sync_Primitive               : Primitive.Object_Type;
    end record;
 
+   function Advance_Superblocks_Index is new
+      Advance_Index (Superblocks_Index_Type);
+
    procedure Try_Discard_Snapshot (
       Snaps     : in out Snapshots_Type;
       Keep_Snap :        Snapshots_Index_Type;

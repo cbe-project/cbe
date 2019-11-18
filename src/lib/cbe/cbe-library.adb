@@ -299,7 +299,8 @@ is
          Obj.Superblock.Snapshots (Obj.Superblock.Curr_Snap).PBA;
       Obj.Last_Root_Hash :=
          Obj.Superblock.Snapshots (Obj.Superblock.Curr_Snap).Hash;
-      Obj.Cur_SB := Curr_SB + 1;
+      Obj.Cur_SB := Curr_SB;
+      Obj.Cur_SB := Advance_Superblocks_Index (Obj.Cur_SB);
 
       Obj.Sync_Primitive := Primitive.Invalid_Object;
 
@@ -1165,11 +1166,8 @@ is
 
             Declare_Next_SB :
             declare
-               Next_SB : constant Superblocks_Index_Type := (
-                  if Obj.Cur_SB < Superblocks_Index_Type'Last then
-                     Obj.Cur_SB + 1
-                  else
-                     Superblocks_Index_Type'First);
+               Next_SB : constant Superblocks_Index_Type :=
+                  Advance_Superblocks_Index (Obj.Cur_SB);
             begin
                --  handle state
                Obj.Cur_SB                  := Next_SB;
