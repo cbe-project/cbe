@@ -87,10 +87,10 @@ package body Component is
    Client_Act  : Boolean  := False;
    S_Cache     : Server_Cache;
    C_Cache     : Client_Cache;
-   Crypto      : External.Crypto.Object_Type :=
-      External.Crypto.Initialized_Object;
    Ce_Cache    : Crypto_Enc_Cache;
    Cd_Cache    : Crypto_Dec_Cache;
+   Crypto      : External.Crypto.Object_Type :=
+      External.Crypto.Initialized_Object;
 
    function Create_Request (I : Request_Id)
       return CBE.Request.Object_Type with
@@ -110,16 +110,16 @@ package body Component is
    procedure Handle_Decryption (Progress : in out Boolean);
    procedure Handle_Completed_Requests (Progress : in out Boolean);
 
-   Sbsr : Superblock_Request_Cache;
+   Sbsr          : Superblock_Request_Cache;
+   Superblocks   : CBE.Superblocks_Type;
+   Plain_Buffer  : CBE.Crypto.Plain_Buffer_Type;
+   Cipher_Buffer : CBE.Crypto.Cipher_Buffer_Type;
+   Io_Buffer     : CBE.Block_IO.Data_Type;
    --  This should be a variable inside Read_Superblock.
    --  But since the Request type on contains the block
    --  itself and we have limited stack space there it resides in the package.
-   Superblocks      : CBE.Superblocks_Type;
    Superblocks_Init : Superblocks_Initialized :=
       (others => False);
-   Plain_Buffer : CBE.Crypto.Plain_Buffer_Type;
-   Cipher_Buffer : CBE.Crypto.Cipher_Buffer_Type;
-   Io_Buffer : CBE.Block_IO.Data_Type;
 
    function Create_Request (I : Request_Id)
       return CBE.Request.Object_Type
@@ -128,10 +128,10 @@ package body Component is
       Operation   : CBE.Operation_Type;
    begin
       Operation := (case Block_Server.Kind (S_Cache (I).R) is
-                     when Block.Read => CBE.Read,
+                     when Block.Read  => CBE.Read,
                      when Block.Write => CBE.Write,
-                     when Block.Sync => CBE.Sync,
-                     when others => CBE.Read);
+                     when Block.Sync  => CBE.Sync,
+                     when others      => CBE.Read);
       Cbe_Request := CBE.Request.Valid_Object
          (Operation,
           False,
@@ -145,9 +145,9 @@ package body Component is
    function Kind (R : CBE.Request.Object_Type) return Block.Request_Kind
    is
       (case CBE.Request.Operation (R) is
-         when CBE.Read => Block.Read,
+         when CBE.Read  => Block.Read,
          when CBE.Write => Block.Write,
-         when CBE.Sync => Block.Sync);
+         when CBE.Sync  => Block.Sync);
 
    procedure Read_Superblock (Progress : out Boolean) is
       use type Block.Id;
@@ -157,8 +157,8 @@ package body Component is
       Result   : Block.Result;
       Max_Vba  : CBE.Virtual_Block_Address_Type;
       Current  : CBE.Superblocks_Index_Type := 0;
-      Last_Gen : CBE.Generation_Type         := 0;
-      Valid    : Boolean                     := False;
+      Last_Gen : CBE.Generation_Type        := 0;
+      Valid    : Boolean                    := False;
    begin
       Progress := True;
       if Block.Block_Size (Client) = Cbe_Block_Size then
@@ -222,7 +222,7 @@ package body Component is
          end loop;
          if Valid then
             CBE.Library.Initialize_Object (Cbe_Session, Superblocks, Current);
-            Max_Vba := CBE.Library.Max_VBA (Cbe_Session);
+            Max_Vba             := CBE.Library.Max_VBA (Cbe_Session);
             Virtual_Block_Count := Block.Count (Max_Vba) + 1;
             Ready               := True;
             Gns.Log.Client.Info (Log, "CBE ready");
@@ -413,7 +413,7 @@ package body Component is
                   Cbe_Request := Create_Request (I);
                   CBE.Library.Submit_Client_Request (Cbe_Session,
                                                      Cbe_Request, 0);
-                  Progress := True;
+                  Progress      := True;
                   S_Cache (I).S := Pending;
                end if;
             when others =>
@@ -422,7 +422,7 @@ package body Component is
       end loop;
    end Handle_Incoming_Requests;
 
-   Read_Offset : Unsigned_Long := 0;
+   Read_Offset : Unsigned_Long              := 0;
    Read_Index  : CBE.Crypto.Item_Index_Type := 0;
 
    procedure Handle_Read_Progress (Progress : in out Boolean)
@@ -440,19 +440,19 @@ package body Component is
          CBE.Library.Obtain_Client_Data
             (Cbe_Session, Cbe_Request, Data_Index, Valid);
          if Valid then
-            Progress := True;
-            Req_Index := Request_Id (CBE.Request.Tag (Cbe_Request));
+            Progress    := True;
+            Req_Index   := Request_Id (CBE.Request.Tag (Cbe_Request));
             Read_Offset := Unsigned_Long (Prim_Index) * 4096;
-            Read_Index := CBE.Crypto.Item_Index_Type (Data_Index);
+            Read_Index  := CBE.Crypto.Item_Index_Type (Data_Index);
             Block_Server.Read (Server, S_Cache (Req_Index).R, Req_Index);
          end if;
       end if;
    end Handle_Read_Progress;
 
-   Write_Offset : Unsigned_Long := 0;
+   Write_Offset    : Unsigned_Long      := 0;
    Write_Timestamp : CBE.Timestamp_Type := 0;
-   Write_Request : CBE.Request.Object_Type;
-   Write_Progress : Boolean;
+   Write_Request   : CBE.Request.Object_Type;
+   Write_Progress  : Boolean;
 
    procedure Handle_Write_Progress (Progress  : in out Boolean;
                                     Timestamp :        CBE.Timestamp_Type)
@@ -463,13 +463,13 @@ package body Component is
    begin
       CBE.Library.Client_Data_Required (Cbe_Session, Cbe_Request);
       if CBE.Request.Valid (Cbe_Request) then
-         Prim_Index := CBE.Library.Client_Data_Index
+         Prim_Index      := CBE.Library.Client_Data_Index
             (Cbe_Session, Cbe_Request);
-         Req_Index := Request_Id (CBE.Request.Tag (Cbe_Request));
-         Write_Offset := Unsigned_Long (Prim_Index) * 4096;
+         Req_Index       := Request_Id (CBE.Request.Tag (Cbe_Request));
+         Write_Offset    := Unsigned_Long (Prim_Index) * 4096;
          Write_Timestamp := Timestamp;
-         Write_Request := Cbe_Request;
-         Write_Progress := False;
+         Write_Request   := Cbe_Request;
+         Write_Progress  := False;
          Block_Server.Write (Server, S_Cache (Req_Index).R, Req_Index);
          Progress := Write_Progress;
       end if;
@@ -712,7 +712,7 @@ package body Component is
                 S_Cache (I).R,
                 (if S_Cache (I).S = Ok then Block.Ok else Block.Error));
             if Block_Server.Status (S_Cache (I).R) = Block.Raw then
-               Progress := True;
+               Progress      := True;
                S_Cache (I).S := Empty;
             end if;
          end if;
