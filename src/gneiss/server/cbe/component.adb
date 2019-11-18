@@ -535,11 +535,6 @@ package body Component is
                Block_Client.Enqueue (Client, C_Cache (I).R);
                Progress := Progress or else
                            Block_Client.Status (C_Cache (I).R) = Block.Pending;
-               --  if Block_Client.Status (C_Cache (I).R) = Block.Pending then
-               --     CBE.Library.IO_Request_In_Progress (Cbe_Session,
-               --                                         C_Cache (I).I);
-               --     Progress := True;
-               --  end if;
             when Block.Pending =>
                Block_Client.Update_Request (Client, C_Cache (I).R);
                Progress := Progress or else Block_Client.Status
