@@ -319,17 +319,14 @@ is
       Key      :        Key_Type)
    is
       Key_Off : Block_Data_Index_Type := Data_Off;
+      Value_Off : Block_Data_Index_Type;
    begin
-      Declare_Value_Off : declare
-         Value_Off : Block_Data_Index_Type;
-      begin
-         For_Value_Items : for Idx in Key.Value'Range loop
-            Value_Off := Key_Off + Block_Data_Index_Type (
-               Idx * (Key.Value (0)'Size / 8));
+      For_Value_Items : for Idx in Key.Value'Range loop
+         Value_Off := Key_Off + Block_Data_Index_Type (
+            Idx * (Key.Value (0)'Size / 8));
 
-            Data (Value_Off) := Key.Value (Idx);
-         end loop For_Value_Items;
-      end Declare_Value_Off;
+         Data (Value_Off) := Key.Value (Idx);
+      end loop For_Value_Items;
       Key_Off := Key_Off + Key.Value'Size / 8;
 
       Block_Data_From_Unsigned_32 (Data, Key_Off, Unsigned_32 (Key.ID));

@@ -78,6 +78,37 @@ is
       return Result;
    end Cache_Dirty;
 
+   procedure Try_Flush_Cache_If_Dirty (
+      Obj   : in out Object_Type;
+      Dirty :    out Boolean)
+   is
+   begin
+      Dirty := False;
+
+      Loop_Check_Cache_Dirty :
+      for I in Cache.Cache_Index_Type loop
+         if Cache.Dirty (Obj.Cache_Obj, I) then
+
+            --
+            --  Set variable first before consulting the flusher as
+            --  code at the outside depends on knowing if the cache
+            --  is still dirty or not.
+            --
+            Dirty := True;
+
+            if Cache_Flusher.Request_Acceptable (Obj.Cache_Flusher_Obj) then
+               Cache_Flusher.Submit_Request (
+                  Obj.Cache_Flusher_Obj,
+                  Cache.Flush (Obj.Cache_Obj, I),
+                  I);
+            else
+               --  Leave loop and come back later
+               exit Loop_Check_Cache_Dirty;
+            end if;
+         end if;
+      end loop Loop_Check_Cache_Dirty;
+   end Try_Flush_Cache_If_Dirty;
+
    procedure Create_Snapshot (
       Obj     : in out Object_Type;
       Quara   :        Boolean;
@@ -135,7 +166,7 @@ is
       Progress :    out Boolean)
    is
    begin
-      Delcare_Cache_Flusher_Active :
+      Declare_Cache_Flusher_Active :
       declare
          Cache_Flusher_Active : constant Boolean :=
             Cache_Flusher.Active (Obj.Cache_Flusher_Obj);
@@ -149,25 +180,14 @@ is
             Progress := False;
             return;
          end if;
-      end Delcare_Cache_Flusher_Active;
+      end Declare_Cache_Flusher_Active;
 
       Declare_Cache_Dirty :
       declare
-         Cache_Dirty : Boolean := False;
+         Cache_Dirty : Boolean;
       begin
 
-         Check_Cache_Dirty :
-         for Cache_Index in Cache.Cache_Index_Type loop
-            if Cache.Dirty (Obj.Cache_Obj, Cache_Index) then
-
-               Cache_Dirty := True;
-
-               Cache_Flusher.Submit_Request (
-                  Obj.Cache_Flusher_Obj,
-                  Cache.Flush (Obj.Cache_Obj, Cache_Index),
-                  Cache_Index);
-            end if;
-         end loop Check_Cache_Dirty;
+         Try_Flush_Cache_If_Dirty (Obj, Cache_Dirty);
 
          --
          --  In case we have to flush the Cache, wait until we have
@@ -412,7 +432,7 @@ is
       if Primitive.Valid (Obj.Sync_Primitive) and then
          not Obj.Secure_Superblock
       then
-         Delcare_Sync_Cache_Flusher_Active :
+         Declare_Sync_Cache_Flusher_Active :
          declare
             Cache_Flusher_Active : constant Boolean :=
                Cache_Flusher.Active (Obj.Cache_Flusher_Obj);
@@ -420,21 +440,10 @@ is
             if not Cache_Flusher_Active then
                Declare_Sync_Cache_Dirty :
                declare
-                  Cache_Dirty : Boolean := False;
+                  Cache_Dirty : Boolean;
                begin
 
-                  Loop_Sync_Cache_Dirty :
-                  for Cache_Index in Cache.Cache_Index_Type loop
-                     if Cache.Dirty (Obj.Cache_Obj, Cache_Index) then
-
-                        Cache_Dirty := True;
-
-                        Cache_Flusher.Submit_Request (
-                           Obj.Cache_Flusher_Obj,
-                           Cache.Flush (Obj.Cache_Obj, Cache_Index),
-                           Cache_Index);
-                     end if;
-                  end loop Loop_Sync_Cache_Dirty;
+                  Try_Flush_Cache_If_Dirty (Obj, Cache_Dirty);
 
                   if not Cache_Dirty then
                      Obj.Secure_Superblock := True;
@@ -442,7 +451,7 @@ is
                   Progress := True;
                end Declare_Sync_Cache_Dirty;
             end if;
-         end Delcare_Sync_Cache_Flusher_Active;
+         end Declare_Sync_Cache_Flusher_Active;
       end if;
 
       --------------------------
@@ -1522,7 +1531,7 @@ is
                Primitive.Operation (Prim) /= Read or else
                not Block_IO.Primitive_Acceptable (Obj.IO_Obj);
 
-            Block_IO.Submit_Primitive_Dont_Return_Index (
+            Block_IO.Submit_Primitive (
                Obj.IO_Obj, Primitive.Tag_Decrypt, Prim);
 
             Virtual_Block_Device.Drop_Completed_Primitive (Obj.VBD);

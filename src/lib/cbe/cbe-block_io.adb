@@ -34,7 +34,7 @@ is
    function Primitive_Acceptable (Obj : Object_Type) return Boolean
    is (Obj.Used_Entries < Num_Entries_Type'Last);
 
-   procedure Submit_Primitive_Dont_Return_Index (
+   procedure Submit_Primitive (
       Obj  : in out Object_Type;
       Tag  :        Primitive.Tag_Type;
       Prim :        Primitive.Object_Type)
@@ -52,7 +52,7 @@ is
          end if;
       end loop;
       raise Program_Error;
-   end Submit_Primitive_Dont_Return_Index;
+   end Submit_Primitive;
 
    procedure Submit_Primitive (
       Obj        : in out Object_Type;

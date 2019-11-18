@@ -400,6 +400,10 @@ private
    function Cache_Dirty (Obj : Object_Type)
    return Boolean;
 
+   procedure Try_Flush_Cache_If_Dirty (
+      Obj   : in out Object_Type;
+      Dirty :    out Boolean);
+
    function To_String (WFE : Wait_For_Event_Type) return String;
 
    function Curr_Snap (Obj : Object_Type)
