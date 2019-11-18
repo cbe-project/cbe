@@ -1164,86 +1164,80 @@ is
                raise Program_Error;
             end if;
 
-            Declare_Next_SB :
-            declare
-               Next_SB : constant Superblocks_Index_Type :=
-                  Advance_Superblocks_Index (Obj.Cur_SB);
-            begin
-               --  handle state
-               Obj.Cur_SB                  := Next_SB;
-               Obj.Last_Secured_Generation :=
-                  Sync_Superblock.Peek_Completed_Generation (
-                     Obj.Sync_SB_Obj, Prim);
+            --  handle state
+            Obj.Cur_SB := Advance_Superblocks_Index (Obj.Cur_SB);
+            Obj.Last_Secured_Generation :=
+               Sync_Superblock.Peek_Completed_Generation (
+                  Obj.Sync_SB_Obj, Prim);
 
-               pragma Debug (Debug.Print_String (
-                  "Loop_Sync_SB_Completed_Prims "
-                  & " Obj.Last_Secured_Generation: "
-                  & Debug.To_String (Debug.Uint64_Type (
-                     Obj.Last_Secured_Generation))));
+            pragma Debug (Debug.Print_String (
+               "Loop_Sync_SB_Completed_Prims "
+               & " Obj.Last_Secured_Generation: "
+               & Debug.To_String (Debug.Uint64_Type (
+                  Obj.Last_Secured_Generation))));
 
-               if Obj.Creating_Snapshot then
-                  --  next snapshot slot will contain new generation
-                  Obj.Last_Root_PBA := Obj.Superblock.Snapshots (
-                     Curr_Snap (Obj)).PBA;
-                  Obj.Last_Root_Hash := Obj.Superblock.Snapshots (
-                     Curr_Snap (Obj)).Hash;
+            if Obj.Creating_Snapshot then
+               --  next snapshot slot will contain new generation
+               Obj.Last_Root_PBA := Obj.Superblock.Snapshots (
+                  Curr_Snap (Obj)).PBA;
+               Obj.Last_Root_Hash := Obj.Superblock.Snapshots (
+                  Curr_Snap (Obj)).Hash;
+
+               --
+               --  Look for a new snapshot slot. If we cannot find one
+               --  we manual intervention b/c there are too many snapshots
+               --  flagged as keep
+               --
+               Declare_Next_Snap_2 :
+               declare
+                  Next_Snap : constant Snapshots_Index_Type :=
+                     Next_Snap_Slot (Obj);
+               begin
 
                   --
-                  --  Look for a new snapshot slot. If we cannot find one
-                  --  we manual intervention b/c there are too many snapshots
-                  --  flagged as keep
+                  --  Could not find free slots, we need to discard some
+                  --  quarantine snapshots, user intervention needed.
                   --
-                  Declare_Next_Snap_2 :
+                  if Next_Snap = Curr_Snap (Obj) then
+                     raise Program_Error;
+                  end if;
+
+                  Declare_Tree :
                   declare
-                     Next_Snap : constant Snapshots_Index_Type :=
-                        Next_Snap_Slot (Obj);
+                     Tree : constant Tree_Helper.Object_Type :=
+                        Virtual_Block_Device.Get_Tree_Helper (Obj.VBD);
                   begin
+                     Obj.Superblock.Snapshots (Next_Snap).Max_Level :=
+                        Tree_Helper.Max_Level (Tree);
+                     Obj.Superblock.Snapshots (Next_Snap).Nr_Of_Leafs :=
+                        Tree_Helper.Leafs (Tree);
+                  end Declare_Tree;
 
-                     --
-                     --  Could not find free slots, we need to discard some
-                     --  quarantine snapshots, user intervention needed.
-                     --
-                     if Next_Snap = Curr_Snap (Obj) then
-                        raise Program_Error;
-                     end if;
+                  Obj.Superblock.Snapshots (Next_Snap) :=
+                     Obj.Superblock.Snapshots (Curr_Snap (Obj));
+                  Obj.Superblock.Snapshots (Next_Snap).Keep := False;
 
-                     Declare_Tree :
-                     declare
-                        Tree : constant Tree_Helper.Object_Type :=
-                           Virtual_Block_Device.Get_Tree_Helper (Obj.VBD);
-                     begin
-                        Obj.Superblock.Snapshots (Next_Snap).Max_Level :=
-                           Tree_Helper.Max_Level (Tree);
-                        Obj.Superblock.Snapshots (Next_Snap).Nr_Of_Leafs :=
-                           Tree_Helper.Leafs (Tree);
-                     end Declare_Tree;
+                  Obj.Superblock.Snapshots (Next_Snap).Valid := True;
+                  Obj.Superblock.Snapshots (Next_Snap).Gen := Obj.Cur_Gen;
+                  Obj.Superblock.Curr_Snap := Next_Snap;
+               end Declare_Next_Snap_2;
 
-                     Obj.Superblock.Snapshots (Next_Snap) :=
-                        Obj.Superblock.Snapshots (Curr_Snap (Obj));
-                     Obj.Superblock.Snapshots (Next_Snap).Keep := False;
+               Obj.Cur_Gen := Obj.Cur_Gen  + 1;
+               Obj.Creating_Snapshot := False;
+            end if;
 
-                     Obj.Superblock.Snapshots (Next_Snap).Valid := True;
-                     Obj.Superblock.Snapshots (Next_Snap).Gen := Obj.Cur_Gen;
-                     Obj.Superblock.Curr_Snap := Next_Snap;
-                  end Declare_Next_Snap_2;
+            if Primitive.Valid (Obj.Sync_Primitive) then
 
-                  Obj.Cur_Gen := Obj.Cur_Gen  + 1;
-                  Obj.Creating_Snapshot := False;
-               end if;
+               Pool.Mark_Completed_Primitive (Obj.Request_Pool_Obj,
+                  Obj.Sync_Primitive);
+               Obj.Sync_Primitive := Primitive.Invalid_Object;
+            end if;
 
-               if Primitive.Valid (Obj.Sync_Primitive) then
+            Obj.Secure_Superblock := False;
 
-                  Pool.Mark_Completed_Primitive (Obj.Request_Pool_Obj,
-                     Obj.Sync_Primitive);
-                  Obj.Sync_Primitive := Primitive.Invalid_Object;
-               end if;
+            pragma Debug (Debug.Dump_Superblock (Obj.Cur_SB,
+               Obj.Superblock));
 
-               Obj.Secure_Superblock := False;
-
-               pragma Debug (Debug.Dump_Superblock (Obj.Cur_SB,
-                  Obj.Superblock));
-
-            end Declare_Next_SB;
             Sync_Superblock.Drop_Completed_Primitive (Obj.Sync_SB_Obj, Prim);
 
          end Declare_Prim_10;
