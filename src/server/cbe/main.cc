@@ -572,12 +572,12 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 		 *
 		 *  \param  sb  array where the super-blocks are stored
 		 *
-		 *  \return  index of the most recent super-block or an INVALID
+		 *  \return  index of the most recent super-block
 		 *           index in case the super-block could not be found
 		 */
 		Cbe::Superblocks_index _read_superblocks(Cbe::Superblocks &sbs)
 		{
-			Cbe::Generation        last_gen = 0;
+			Cbe::Generation        last_sb_id = 0;
 			Cbe::Superblocks_index most_recent_sb { 0 };
 			bool                   most_recent_sb_valid { false };
 
@@ -591,14 +591,19 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				Genode::memcpy(&dst, src, sizeof (Cbe::Superblock));
 
 				/*
-				 * For now this always selects the last SB if the generation
-				 * is the same and is mostly used for finding the initial SB
-				 * with generation == 0.
+				 * We use the superblock id, which must be unique, to pick
+				 * the most recent superblock.
 				 */
-				if (dst.valid() && dst.last_secured_generation >= last_gen) {
+				if (dst.valid() && dst.superblock_id >= last_sb_id) {
+					if (dst.superblock_id == last_sb_id) {
+						Genode::error("superblock id: ", last_sb_id,
+						              " not unique - cannot select proper superblock");
+						most_recent_sb_valid = false;
+						break;
+					}
 					most_recent_sb.value = i;
 					most_recent_sb_valid = true;
-					last_gen = dst.last_secured_generation;
+					last_sb_id = dst.superblock_id;
 				}
 
 				Sha256_4k::Hash hash { };
@@ -610,6 +615,8 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 			if (!most_recent_sb_valid) {
 				throw Failed();
 			}
+			Genode::log("Use superblock[", most_recent_sb, "]: ",
+			            sbs.block[most_recent_sb.value]);
 			return most_recent_sb;
 		}
 
