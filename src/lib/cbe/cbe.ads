@@ -210,6 +210,7 @@ is
       --  reused blocks reference by a snapshot in the older SB.)
       --
 
+      Superblock_ID           : Generation_Type;
       Keys                    : Keys_Type;
       Snapshots               : Snapshots_Type;
       Last_Secured_Generation : Generation_Type;

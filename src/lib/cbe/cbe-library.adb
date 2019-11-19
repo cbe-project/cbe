@@ -298,6 +298,7 @@ is
       Obj.Stall_Snapshot_Creation      := False;
 
       Obj.Superblock := SBs (Curr_SB);
+      Obj.Superblock.Superblock_ID := Obj.Superblock.Superblock_ID + 1;
       Obj.Last_Secured_Generation := Obj.Superblock.Last_Secured_Generation;
       Obj.Cur_Gen := Obj.Last_Secured_Generation + 1;
       Obj.Last_Root_PBA :=
@@ -1174,6 +1175,8 @@ is
             Obj.Last_Secured_Generation :=
                Sync_Superblock.Peek_Completed_Generation (
                   Obj.Sync_SB_Obj, Prim);
+
+            Obj.Superblock.Superblock_ID := Obj.Superblock.Superblock_ID + 1;
 
             pragma Debug (Debug.Print_String (
                "Loop_Sync_SB_Completed_Prims "
