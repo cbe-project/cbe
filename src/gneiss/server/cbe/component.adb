@@ -342,9 +342,6 @@ package body Component is
       Success  : Boolean;
    begin
       CBE.Library.Create_Snapshot (Cbe_Session, False, Snapshot, Success);
-      if not Success then
-         Gns.Log.Client.Warning (Log, "Failed to create snapshot");
-      end if;
       if CBE.Library.Snapshot_Creation_Complete (Cbe_Session, Snapshot) then
          Gns.Log.Client.Info (Log, "Snapshot finished: " & Image (Snapshot));
       end if;
