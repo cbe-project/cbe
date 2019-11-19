@@ -1405,6 +1405,7 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				sb.degree                  = info.outer_degree;
 				sb.last_secured_generation = 0;
 				sb.snapshot_id             = 0;
+				sb.superblock_id           = 1;
 
 				Snapshot &snap = sb.snapshots[sb.snapshot_id];
 				snap.pba       = root_pba;

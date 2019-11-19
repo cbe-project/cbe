@@ -282,6 +282,10 @@ is
    is
       Off : Block_Data_Index_Type := 0;
    begin
+      SB.Superblock_ID :=
+         Generation_Type (Unsigned_64_From_Block_Data (Data, Off));
+      Off := Off + 8;
+
       Keys_From_Block_Data (SB.Keys, Data, Off);
       Off := Off + Superblock_Keys_Storage_Size_Bytes;
 
@@ -500,6 +504,11 @@ is
       Off : Block_Data_Index_Type := 0;
    begin
       Data := (others => 0);
+
+      Block_Data_From_Unsigned_64 (
+         Data, Off, Unsigned_64 (SB.Superblock_ID));
+      Off := Off + 8;
+
       Block_Data_From_Keys (Data, Off, SB.Keys);
       Off := Off + Superblock_Keys_Storage_Size_Bytes;
 

@@ -83,8 +83,10 @@ is
    is
    begin
       Debug.Print_String (
-         "Dump SB: " &
+         "Dump SB: Slot: " &
          Debug.To_String (Debug.Uint64_Type (SB_Index)) &
+         " ID: " &
+         Debug.To_String (Debug.Uint64_Type (SB.Superblock_ID)) &
          " SN: " &
          Debug.To_String (Debug.Uint64_Type (SB.Curr_Snap)) &
          " LSGEN: " &

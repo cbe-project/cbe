@@ -582,6 +582,8 @@ namespace Cbe {
 		enum { NUM_KEYS = 2u };
 		enum { INVALID_SNAPSHOT_SLOT = NUM_SNAPSHOTS, };
 
+		Generation superblock_id;
+
 		// XXX w/o snapshots about 265 bytes,
 		//     snapshots about 68 bytes each, all in all 3529 bytes
 		Key key[NUM_KEYS];
@@ -605,7 +607,7 @@ namespace Cbe {
 		Height                 free_height;
 		Degree                 free_degree;
 		Number_of_leaves       free_leaves;
-		char                   padding[424];
+		char                   padding[416];
 
 		void print(Genode::Output &out) const
 		{
