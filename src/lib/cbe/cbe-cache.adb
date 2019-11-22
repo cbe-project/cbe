@@ -26,10 +26,12 @@ is
       function Unused_Object
       return Cache_Item_Type
       is (
-         PBA   => 0,
-         Ts    => 0,
-         State => Unused,
-         Dirty => False);
+         PBA        => 0,
+         Ts         => 0,
+         State      => Unused,
+         Dirty      => False,
+         Used_Count => 0,
+         Level      => 0);
 
       --
       --  Initialize_Object
@@ -40,10 +42,12 @@ is
          Ts  : Timestamp_Type)
       is
       begin
-         Obj.State := Used;
-         Obj.PBA   := PBA;
-         Obj.Ts    := Ts;
-         Obj.Dirty := False;
+         Obj.State      := Used;
+         Obj.PBA        := PBA;
+         Obj.Ts         := Ts;
+         Obj.Dirty      := False;
+         Obj.Used_Count := 1;
+         Obj.Level      := 0;
       end Initialize_Object;
 
       -----------------
@@ -65,6 +69,12 @@ is
       function Ts  (Obj : Cache_Item_Type) return Timestamp_Type
       is (Obj.Ts);
 
+      function Used_Count (Obj : Cache_Item_Type) return Used_Count_Type
+      is (Obj.Used_Count);
+
+      function Level (Obj : Cache_Item_Type) return Tree_Level_Index_Type
+      is (Obj.Level);
+
       procedure State (
          Obj : in out Cache_Item_Type;
          Sta :        State_Type)
@@ -75,16 +85,22 @@ is
 
       procedure Set_Ts (
          Obj : in out Cache_Item_Type;
-         Ts  :        Timestamp_Type)
+         Ts  :        Timestamp_Type;
+         Lvl :        Tree_Level_Index_Type)
       is
       begin
-         Obj.Ts := Ts;
+         Obj.Ts         := Ts;
+         Obj.Used_Count := Obj.Used_Count + 1;
+         if Obj.Level = 0 then
+            Obj.Level := Lvl;
+         end if;
       end Set_Ts;
 
       procedure Invalidate (Obj : in out Cache_Item_Type)
       is
       begin
          Obj.State := Unused;
+         Obj.Level := 0;
       end Invalidate;
 
       procedure Mark_Dirty (Obj : in out Cache_Item_Type)
@@ -198,6 +214,12 @@ is
                & " D: "
                & Debug.To_String (
                   Cache_Item.Dirty (Obj.Cache_Items (I)))
+               & " LFU: "
+               & Debug.To_String (Debug.Uint64_Type (
+                  Cache_Item.Used_Count (Obj.Cache_Items (I))))
+               & " Level: "
+               & Debug.To_String (Debug.Uint64_Type (
+                  Cache_Item.Level (Obj.Cache_Items (I))))
                ));
          end if;
       end loop;
@@ -234,6 +256,12 @@ is
          & " D: "
          & Debug.To_String (
             Cache_Item.Dirty (Obj.Cache_Items (Result)))
+         & " LFU: "
+         & Debug.To_String (Debug.Uint64_Type (
+            Cache_Item.Used_Count (Obj.Cache_Items (Result))))
+         & " Level: "
+         & Debug.To_String (Debug.Uint64_Type (
+            Cache_Item.Level (Obj.Cache_Items (Result))))
          ));
       return Result;
    end Evictable_Item;
@@ -297,6 +325,7 @@ is
       Obj    : in out Object_Type;
       PBA    :        Physical_Block_Address_Type;
       Ts     :        Timestamp_Type;
+      Lvl    :        Tree_Level_Index_Type;
       Result :    out Cache_Index_Type)
    is
    begin
@@ -304,7 +333,31 @@ is
          if Cache_Item.Used (Obj.Cache_Items (Cache_Item_Id)) and then
             Cache_Item.PBA (Obj.Cache_Items (Cache_Item_Id)) = PBA
          then
-            Cache_Item.Set_Ts (Obj.Cache_Items (Cache_Item_Id), Ts);
+            declare
+               Item_Level : constant Tree_Level_Index_Type :=
+                  Cache_Item.Level (Obj.Cache_Items (Cache_Item_Id));
+            begin
+               if Item_Level /= 0
+                  and then Item_Level /= Lvl
+               then
+                  pragma Debug (Debug.Print_String ("PBA: "
+                     & Debug.To_String (Debug.Uint64_Type (PBA))
+                     & " Level old: "
+                     & Debug.To_String (Debug.Uint64_Type (Item_Level))
+                     & " new: "
+                     & Debug.To_String (Debug.Uint64_Type (Lvl))));
+
+                  Dump_Cache_State (Obj);
+                  raise Program_Error;
+               else
+                  pragma Debug (Debug.Print_String ("PBA: "
+                     & Debug.To_String (Debug.Uint64_Type (PBA))
+                     & " Level new: "
+                     & Debug.To_String (Debug.Uint64_Type (Lvl))));
+                  null;
+               end if;
+            end;
+            Cache_Item.Set_Ts (Obj.Cache_Items (Cache_Item_Id), Ts, Lvl);
             Result := Cache_Item_Id;
             return;
          end if;

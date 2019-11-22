@@ -197,6 +197,8 @@ is
          declare
             Prim : constant Primitive.Object_Type :=
                Translation.Peek_Generated_Primitive (Obj.Trans);
+            LvL  : constant Tree_Level_Index_Type :=
+               Translation.Peek_Generated_Level (Obj.Trans);
          begin
             if not Primitive.Valid (Prim) then
                exit Endless_Loop;
@@ -226,7 +228,7 @@ is
                   declare
                      Data_Index : Cache.Cache_Index_Type;
                   begin
-                     Cache.Data_Index (Cach, PBA, Timestamp, Data_Index);
+                     Cache.Data_Index (Cach, PBA, Timestamp, LvL, Data_Index);
                      Declare_Data :
                      declare
                         Data : constant Block_Data_Type :=

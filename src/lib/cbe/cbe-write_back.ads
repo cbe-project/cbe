@@ -308,6 +308,14 @@ is
    return Physical_Block_Address_Type;
 
    --
+   --  Get tree level of the node referenced by the PBA
+   --
+   function Peek_Generated_Cache_Level (
+      Obj  : Object_Type;
+      Prim : Primitive.Object_Type)
+   return Tree_Level_Index_Type;
+
+   --
    --  Discard given generated cache primitive
    --
    --  This method must only be called after 'peek_generated_cache_primitive'
