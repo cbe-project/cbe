@@ -469,7 +469,6 @@ is
             Obj.Free_Tree_Trans_Data,
             Obj.Cache_Obj,
             Obj.Cache_Data,
-            Obj.Free_Tree_Query_Data,
             Now);
 
          if Free_Tree.Execute_Progress (Obj.Free_Tree_Obj) then
