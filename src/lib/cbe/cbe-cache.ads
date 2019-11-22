@@ -18,6 +18,8 @@ is
    type Cache_Index_Type is range 0 .. 31;
    type Cache_Job_Index_Type is range 0 .. 1;
 
+   type Used_Count_Type is range 0 .. 2**32 - 1;
+
    type Cache_Data_Type is array (Cache_Index_Type'Range) of Block_Data_Type;
    type Cache_Job_Data_Type
    is array (Cache_Job_Index_Type'Range) of Block_Data_Type;
@@ -52,6 +54,7 @@ is
       Obj    : in out Object_Type;
       PBA    :        Physical_Block_Address_Type;
       Ts     :        Timestamp_Type;
+      Lvl    :        Tree_Level_Index_Type;
       Result :    out Cache_Index_Type);
 
    --
@@ -212,13 +215,18 @@ private
       function PBA (Obj : Cache_Item_Type) return Physical_Block_Address_Type;
       function Ts  (Obj : Cache_Item_Type) return Timestamp_Type;
 
+      function Used_Count (Obj : Cache_Item_Type) return Used_Count_Type;
+
+      function Level (Obj : Cache_Item_Type) return Tree_Level_Index_Type;
+
       procedure State (
          Obj : in out Cache_Item_Type;
          Sta :        State_Type);
 
       procedure Set_Ts (
          Obj : in out Cache_Item_Type;
-         Ts  :        Timestamp_Type);
+         Ts  :        Timestamp_Type;
+         Lvl :        Tree_Level_Index_Type);
 
       procedure Invalidate (Obj : in out Cache_Item_Type);
 
@@ -231,10 +239,12 @@ private
       --  Cache_Item_Type
       --
       type Cache_Item_Type is record
-         PBA     : Physical_Block_Address_Type;
-         Ts      : Timestamp_Type;
-         State   : State_Type;
-         Dirty   : Boolean;
+         PBA        : Physical_Block_Address_Type;
+         Ts         : Timestamp_Type;
+         State      : State_Type;
+         Dirty      : Boolean;
+         Used_Count : Used_Count_Type;
+         Level      : Tree_Level_Index_Type;
       end record;
 
    end Cache_Item;

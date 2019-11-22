@@ -534,6 +534,27 @@ is
       raise Program_Error;
    end Peek_Generated_Cache_Update_PBA;
 
+   function Peek_Generated_Cache_Level (
+      Obj  : Object_Type;
+      Prim : Primitive.Object_Type)
+   return Tree_Level_Index_Type
+   is
+      PBA : constant Physical_Block_Address_Type :=
+         Physical_Block_Address_Type (Primitive.Block_Number (Prim));
+   begin
+      if Obj.State /= Cache then
+         raise Program_Error;
+      end if;
+
+      For_Each_Entry : for I in 1 .. Obj.Levels loop
+         if Obj.Entries (I).PBA = PBA then
+            return I;
+         end if;
+      end loop For_Each_Entry;
+
+      raise Program_Error;
+   end Peek_Generated_Cache_Level;
+
    procedure Drop_Generated_Cache_Primitive (
       Obj  : in out Object_Type;
       Prim :        Primitive.Object_Type)

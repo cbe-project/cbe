@@ -304,6 +304,8 @@ is
          declare
             Prim : constant Primitive.Object_Type :=
                Translation.Peek_Generated_Primitive (Obj.Trans);
+            Lvl  : constant Tree_Level_Index_Type :=
+               Translation.Peek_Generated_Level (Obj.Trans);
          begin
             exit Loop_Handle_Trans_Generated_Prim when
                not Primitive.Valid (Prim);
@@ -329,7 +331,7 @@ is
                   declare
                      Data_Index : Cache.Cache_Index_Type;
                   begin
-                     Cache.Data_Index (Cach, PBA, Timestamp, Data_Index);
+                     Cache.Data_Index (Cach, PBA, Timestamp, Lvl, Data_Index);
                      Translation.Mark_Generated_Primitive_Complete (
                         Obj.Trans, Cach_Data (Data_Index), Trans_Data);
 
@@ -632,7 +634,7 @@ is
       Nodes : Type_1_Node_Block_Type;
    begin
       Type_1_Node_Block_From_Block_Data (Nodes, Cach_Data (Data_Index));
-      Cache.Data_Index (Cach, Pre_PBA, Timestamp, Pre_Data_Index);
+      Cache.Data_Index (Cach, Pre_PBA, Timestamp, Pre_Level, Pre_Data_Index);
       Declare_Pre_Hash_Data :
       declare
          Pre_Hash_Data : SHA256_4K.Data_Type;
@@ -796,7 +798,8 @@ is
                         Type_2_Node : constant Boolean := (Tree_Level = 1);
                      begin
 
-                        Cache.Data_Index (Cach, PBA, Timestamp, Data_Index);
+                        Cache.Data_Index (Cach, PBA, Timestamp, Tree_Level,
+                           Data_Index);
 
                         if Type_2_Node then
                            --
@@ -921,7 +924,7 @@ is
             declare
                Data_Index  : Cache.Cache_Index_Type;
             begin
-               Cache.Data_Index (Cach, Obj.Curr_Type_2.PBA, Timestamp,
+               Cache.Data_Index (Cach, Obj.Curr_Type_2.PBA, Timestamp, 1,
                   Data_Index);
 
                Execute_Query (Obj, Active_Snaps, Last_Secured_Gen, Data_Index,

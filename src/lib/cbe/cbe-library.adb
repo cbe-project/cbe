@@ -1021,6 +1021,10 @@ is
                   Write_Back.Peek_Generated_Cache_Update_PBA (
                      Obj.Write_Back_Obj, Prim);
 
+               Lvl : constant Tree_Level_Index_Type :=
+                  Write_Back.Peek_Generated_Cache_Level (
+                     Obj.Write_Back_Obj, Prim);
+
                Cache_Miss : Boolean := False;
             begin
 
@@ -1065,9 +1069,9 @@ is
                   Index        : Cache.Cache_Index_Type;
                   Update_Index : Cache.Cache_Index_Type;
                begin
-                  Cache.Data_Index (Obj.Cache_Obj, PBA, Now, Index);
+                  Cache.Data_Index (Obj.Cache_Obj, PBA, Now, Lvl, Index);
                   Cache.Data_Index (
-                     Obj.Cache_Obj, Update_PBA, Now, Update_Index);
+                     Obj.Cache_Obj, Update_PBA, Now, Lvl, Update_Index);
 
                   --
                   --  FIXME We copy the data to the stack first and back to the
@@ -1912,7 +1916,7 @@ is
                   Cache_Idx : Cache.Cache_Index_Type;
                   Nodes : Type_1_Node_Block_Type;
                begin
-                  Cache.Data_Index (Obj.Cache_Obj, PBA, Now, Cache_Idx);
+                  Cache.Data_Index (Obj.Cache_Obj, PBA, Now, Level, Cache_Idx);
                   Type_1_Node_Block_From_Block_Data (
                      Nodes, Obj.Cache_Data (Cache_Idx));
 
