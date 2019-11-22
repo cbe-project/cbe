@@ -322,6 +322,9 @@ is
       else
          Primitive.Invalid_Object);
 
+   function Peek_Generated_Level (Obj : Object_Type)
+   return Tree_Level_Index_Type is (Obj.Level);
+
    --
    --  Discard_Generated_Primitive
    --

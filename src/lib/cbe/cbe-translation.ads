@@ -129,6 +129,9 @@ is
    function Peek_Generated_Primitive (Obj : Object_Type)
    return Primitive.Object_Type;
 
+   function Peek_Generated_Level (Obj : Object_Type)
+   return Tree_Level_Index_Type;
+
    --
    --  Discard the generated primitive
    --
