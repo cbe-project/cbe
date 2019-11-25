@@ -472,7 +472,8 @@ class Vfs_cbe::Block_file_system : public Single_file_system
 		};
 
 		Block_file_system(Vfs::Env &env, Xml_node config)
-		: Single_file_system(NODE_TYPE_BLOCK_DEVICE, type_name(), _config().string()),
+		: Single_file_system(Node_type::CONTINUOUS_FILE, type_name(),
+		                     Node_rwx::rw(), _config().string()),
 		  _env(env)
 		{
 			_read_config(config);
@@ -597,6 +598,11 @@ Cbe::Time::Time(Genode::Env &env) : _timer(env) { }
 Cbe::Time::Timestamp Cbe::Time::timestamp()
 {
 	return _timer.curr_time().trunc_to_plain_ms().value;
+}
+
+extern "C" int memcmp(void const *s1, void const *s2, Genode::size_t n)
+{
+	return Genode::memcmp(s1, s2, n);
 }
 
 
