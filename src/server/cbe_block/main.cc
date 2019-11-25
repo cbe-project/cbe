@@ -849,7 +849,8 @@ class Cbe::Vbd
 			_verbose { verbose }
 		{
 			try {
-				_reporter.construct(_env, "state", "state", 64u<<20);
+				_reporter.construct(_env, "state", "state",
+				                    Expanding_reporter::Initial_buffer_size { 64u<<20 });
 			} catch (...) {
 				warning("no state reporting, cannot construct reporter");
 			}
