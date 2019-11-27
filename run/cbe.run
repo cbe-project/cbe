@@ -97,6 +97,10 @@ append config {
 		<resource name="RAM" quantum="8M"/>
 		<config verbose="yes" report="no" log="yes" stop_on_error="yes">
 			<tests>
+				<replay verbose="yes" bulk="no"> <request type="read" lba="0" count="1"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="read" lba="30" count="11"/> </replay>
+				<replay verbose="yes" bulk="no"> <request type="read" lba="60" count="111"/> </replay>
+
 				<!-- write the first 4 MiB of the CBE twice -->
 				<compare verbose="yes" length="4M" size="4K"/>
 				<compare verbose="yes" length="4M" size="4K"/>
