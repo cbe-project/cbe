@@ -1,21 +1,12 @@
 
-exec rm -rf var/libcache/cbe
-exec rm -rf var/libcache/cbe_cxx
-exec rm -rf var/libcache/external_crypto
-exec rm -rf var/libcache/external_crypto_cxx
+#
+# use while developing
+#
 
-#
-# To enable writing the initial phys block-dev state to a linux file,
-# switch the first return value to 1 and build with 'KERNEL=linux BOARD=linux'.
-# The result can be found in <BUILD_DIR>/var/run/cbe/genode/lx_block.img .
-#
-proc write_init_state_to_lx_file { } {
-	if {[have_spec linux]} {
-		return 0;
-	} else {
-		return 0;
-	}
-}
+#exec rm -rf var/libcache/cbe
+#exec rm -rf var/libcache/cbe_cxx
+#exec rm -rf var/libcache/external_crypto
+#exec rm -rf var/libcache/external_crypto_cxx
 
 proc cbe_block_size_mb { } { return 512 }
 
@@ -27,10 +18,6 @@ append build_components {
 	app/block_tester
 	server/log_terminal
 	server/report_rom
-}
-
-if {[write_init_state_to_lx_file]} {
-	append build_components { server/lx_block }
 }
 
 build $build_components
@@ -84,15 +71,7 @@ append config {
 			ft_size="4M"
 			ft_outer_degree="64"
 			initialize="yes"
-			write_init_state_to_block="}
-
-if {[write_init_state_to_lx_file]} {
-	append config {yes}
-} else {
-	append config {no}
-}
-append config {"/>
-
+			write_init_state_to_block="no"/>
 		<route>
 			<service name="Block"> <child name="lx_block"/> </service>
 			<service name="Report"> <child name="report_rom"/> </service>
@@ -103,48 +82,29 @@ append config {"/>
 	<start name="cbe">
 		<resource name="RAM" quantum="4M"/>
 		<provides><service name="Block"/></provides>
-		<config show_progress="no" show_if_progress="no" sync_interval="1"/>
+		<config show_progress="no" show_if_progress="no" sync_interval="1"
+		        passphrase="All your base are belong to us"
+		/>
 		<route>
 			<service name="Block"> <child name="cbe_block"/> </service>
 			<service name="Terminal"> <child name="log_terminal"/> </service>
 			<service name="Timer"> <child name="timer"/> </service>
 			<any-service> <parent/> </any-service>
 		</route>
-	</start>}
-
-if {[write_init_state_to_lx_file]} {
-append config {
-
-	<start name="lx_block" ld="no">
-		<resource name="RAM" quantum="2M"/>
-		<provides> <service name="Block"/> </provides>
-		<config file="lx_block.img" block_size="4K" writeable="yes"/>
-	</start>}
-}
-
-append config {
+	</start>
 
 	<start name="block_tester" caps="200">
-		<resource name="RAM" quantum="80M"/>
+		<resource name="RAM" quantum="8M"/>
 		<config verbose="yes" report="no" log="yes" stop_on_error="yes">
 			<tests>
+				<!-- write the first 4 MiB of the CBE twice -->
 				<compare verbose="yes" length="4M" size="4K"/>
 				<compare verbose="yes" length="4M" size="4K"/>
 
-<!--
-				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="7" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="read"  lba="7" count="1"/> </replay>
+				<!-- read the first 2 MiB of the CBE -->
+				<replay verbose="yes" bulk="yes"> <request type="read"  lba="0" count="512"/> </replay>
 
-				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="512"/> </replay>
-
--->
-				<!-- mkfs.ext2 on 2M device -->
+				<!-- replay mkfs.ext2 on 2M device -->
 				<replay verbose="yes">
 					<request type="read" lba="0" count="1"/>
 					<request type="write" lba="0" count="1"/>
@@ -240,46 +200,11 @@ append config {
 					<request type="read" lba="0" count="1"/>
 					<request type="write" lba="0" count="1"/>
 				</replay>
-				<replay verbose="yes" bulk="no">
-					<request type="read"  lba="0" count="512"/>
-				</replay>
-<!--
-				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="7" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="read"  lba="7" count="1"/> </replay>
 
-				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="5" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="5" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="5" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="5" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="5" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="4"/> </replay>
+				<!-- read the first 2 MiB of the CBE -->
+				<replay verbose="yes" bulk="yes"> <request type="read" lba="0" count="512"/> </replay>
 
-				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="17"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="0" count="17"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="read"  lba="0" count="17"/> </replay>
-
-				<replay verbose="yes" bulk="no"> <request type="read" lba="12" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="write" lba="12" count="1"/> </replay>
-				<replay verbose="yes" bulk="no"> <request type="read" lba="12" count="1"/> </replay>
-
+				<!-- various sequential operations -->
 				<sequential length="1M" size="4K" synchronous="yes"/>
 				<sequential length="1M" size="8K" synchronous="yes"/>
 				<sequential length="1M" size="16K"/>
@@ -287,7 +212,6 @@ append config {
 				<sequential length="1M" size="128K"/>
 				<sequential length="1M" size="4K" synchronous="yes" write="yes"/>
 				<sequential length="1M" size="64K" write="yes" synchronous="yes"/>
--->
 			</tests>
 		</config>
 		<route>
@@ -295,50 +219,6 @@ append config {
 			<any-service> <parent/> <any-child/> </any-service>
 		</route>
 	</start>
-
-<!--
-	<start name="vfs_cbe">
-		<binary name="vfs"/>
-		<resource name="RAM" quantum="16M"/>
-		<provides><service name="File_system"/></provides>
-		<config>
-			<vfs>
-				<dir name="dev">
-					<block name="block" label="block_backend"/>
-					<cbe name="cbe" show_progress="no" sync_interval="3" secure_interval="10" block="/dev/block"/>
-						/
-						/block              r/w snapshot
-						/snapshot/0/block   r/o snapshot
-						/snapshot/0/md      meta-data snapshot used blocks ...
-				</dir>
-			</vfs>
-			<policy label="vfs_cbe_tester" root="/dev/cbe" writeable="yes"/>
-		</config>
-		<route>
-			<service name="Block" label="block_backend"> <child name="cbe_block"/> </service>
-			<service name="Timer"> <child name="timer"/> </service>
-			<any-service> <parent/> </any-service>
-		</route>
-	</start>
-
-	<start name="vfs_cbe_tester">
-		...
-		<config cbe_file="/dev/block">
-			<libc .../>
-			<vfs>
-				<dir name="dev">
-					<fs label="cbe"/>
-						block
-				</dir>
-			</vfs>
-		</config>
-		<route>
-			<service name="File_system" label="cbe"> <child name="vfs_cbe"/> </service>
-			<service name="Timer"> <child name="timer"/> </service>
-			<any-service> <parent/> </any-service>
-		</route>
-	</start>
--->
 
 </config>}
 
@@ -350,16 +230,7 @@ append boot_modules {
 	log_terminal report_rom
 }
 
-if {[write_init_state_to_lx_file]} {
-	append boot_modules { lx_block }
-}
-
 build_boot_image $boot_modules
-
-exec rm -rf [run_dir]/genode/lx_block.img
-if {[write_init_state_to_lx_file]} {
-	exec truncate -s [cbe_block_size_mb]M [run_dir]/genode/lx_block.img
-}
 
 append qemu_args " -nographic -m 1280 "
 
