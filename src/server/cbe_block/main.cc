@@ -695,22 +695,14 @@ class Cbe::Vbd
 			for (uint32_t i = 0; i < degree; i++) {
 
 				try {
-					Cbe::Physical_block_address const pba = block_allocator.alloc();
-					Cbe::Generation             const v   = 0;
-
-					parent_node[i].pba = pba;
-					parent_node[i].gen = v;
-
-					Sha256_4k::Data *data = reinterpret_cast<Sha256_4k::Data*>(block_allocator.data(pba));
-					Genode::memset(data, 0x42, sizeof (*data));
-					Sha256_4k::Hash hash { };
-					Sha256_4k::hash(*data, hash);
-
-					Genode::memcpy(parent_node[i].hash.values, hash.values, sizeof (hash));
+					parent_node[i].pba = block_allocator.alloc();
+					parent_node[i].gen = 0;
+					Genode::memset(&parent_node[i].hash, 0, sizeof(Hash));
 
 					if (_verbose) {
-						log("leave[", i, "]: vba: ", leafs, " pba: ", pba,
-							" ", Hex(v), " <", hash, ">");
+						log("leaf[", i, "]: vba: ", leafs,
+							" pba: ", (unsigned long)parent_node[i].pba,
+							" gen ", 0, " hash ", parent_node[i].hash);
 					}
 				} catch (...) {
 					error(": could not allocate leave ", i, " for ", parent);
@@ -843,11 +835,12 @@ class Cbe::Vbd
 		    bool         verbose,
 		    bool         initialize)
 		:
-			_env     { env },
-			_tree    { tree },
+			_env       { env },
+			_tree      { tree },
 			_free_tree { free_tree },
-			_verbose { verbose }
+			_verbose   { verbose }
 		{
+
 			try {
 				_reporter.construct(_env, "state", "state",
 				                    Expanding_reporter::Initial_buffer_size { 64u<<20 });
