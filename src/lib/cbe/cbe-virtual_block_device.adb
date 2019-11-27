@@ -162,6 +162,13 @@ is
    is (Translation.Peek_Completed_Hash (Obj.Trans));
 
    --
+   --  Peek_Completed_Generation
+   --
+   function Peek_Completed_Generation (Obj : Object_Type)
+   return Generation_Type
+   is (Translation.Peek_Completed_Generation (Obj.Trans));
+
+   --
    --  Drop_Completed_Primitive
    --
    procedure Drop_Completed_Primitive (Obj : in out Object_Type)

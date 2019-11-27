@@ -145,6 +145,9 @@ is
       Gen  => 0,
       Hash => (others => 0));
 
+   function Initial_Generation return Generation_Type
+   is (0);
+
    function VBA_Invalid return Virtual_Block_Address_Type
    is (Virtual_Block_Address_Type'Last);
 

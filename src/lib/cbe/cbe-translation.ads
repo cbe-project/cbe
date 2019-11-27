@@ -104,6 +104,12 @@ is
    return Hash_Type;
 
    --
+   --  Peek_Completed_Generation
+   --
+   function Peek_Completed_Generation (Obj : Object_Type)
+   return Generation_Type;
+
+   --
    --  Drop_Completed_Primitive
    --
    procedure Drop_Completed_Primitive (Obj : in out Object_Type);
