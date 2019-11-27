@@ -644,10 +644,19 @@ class Cbe::Main : Rpc_object<Typed_root<Block::Session>>
 				_config_rom.xml().attribute_value("show_if_progress", false);
 
 			/*
-			 * Set initial encryption key
+			 * Set de-/encryption key
 			 */
+			using Passphrase = Genode::String<32>;
+
+			Passphrase const passphrase =
+				_config_rom.xml().attribute_value("passphrase", Passphrase());
+			if (!passphrase.valid()) {
+				struct Passphrase_missing : Exception { };
+				throw Passphrase_missing();
+			}
 			External::Crypto::Key_data key { };
-			Genode::memcpy(key.value, "All your base are belong to us  ", 32);
+			Genode::memset(key.value, 0, sizeof (key.value));
+			Genode::memcpy(key.value, passphrase.string(), sizeof (key.value));
 			_crypto.set_key(0, 0, key);
 
 			/*
