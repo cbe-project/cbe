@@ -261,6 +261,20 @@ is
          Primitive.Invalid_Object);
 
    --
+   --  Peek_Completed_Hash
+   --
+   function Peek_Completed_Hash (Obj : Object_Type)
+   return Hash_Type
+   is
+   begin
+      if Obj.Data_PBA /= PBA_Invalid then
+         return Obj.Walk (Obj.Level).Hash;
+      else
+         raise Program_Error;
+      end if;
+   end Peek_Completed_Hash;
+
+   --
    --  Drop_Completed_Primitive
    --
    procedure Drop_Completed_Primitive (Obj : in out Object_Type)

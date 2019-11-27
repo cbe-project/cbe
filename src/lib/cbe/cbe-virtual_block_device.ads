@@ -116,6 +116,9 @@ is
    function Peek_Completed_Primitive (Obj : Object_Type)
    return Primitive.Object_Type;
 
+   function Peek_Completed_Hash (Obj : Object_Type)
+   return Hash_Type;
+
    --
    --  Drop_Completed_Primitive
    --

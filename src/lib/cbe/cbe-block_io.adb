@@ -12,9 +12,11 @@ package body CBE.Block_IO
 with SPARK_Mode
 is
    function Invalid_Entry return Entry_Type
-   is (Orig_Tag => Primitive.Tag_Invalid,
-       Prim     => Primitive.Invalid_Object,
-       State    => Unused);
+   is (Orig_Tag   => Primitive.Tag_Invalid,
+       Prim       => Primitive.Invalid_Object,
+       Hash_Valid => False,
+       Hash       => (others => 0),
+       State      => Unused);
 
    procedure Initialize_Object (Obj : out Object_Type)
    is
@@ -43,9 +45,11 @@ is
       for Idx in Obj.Entries'Range loop
          if Obj.Entries (Idx).State = Unused then
             Obj.Entries (Idx) := (
-               Orig_Tag => Primitive.Tag (Prim),
-               Prim     => Primitive.Copy_Valid_Object_New_Tag (Prim, Tag),
-               State    => Pending);
+               Orig_Tag   => Primitive.Tag (Prim),
+               Prim       => Primitive.Copy_Valid_Object_New_Tag (Prim, Tag),
+               Hash_Valid => False,
+               Hash       => (others => 0),
+               State      => Pending);
 
             Obj.Used_Entries := Obj.Used_Entries + 1;
             return;
@@ -53,6 +57,29 @@ is
       end loop;
       raise Program_Error;
    end Submit_Primitive;
+
+   procedure Submit_Primitive_Decrypt (
+      Obj  : in out Object_Type;
+      Prim :        Primitive.Object_Type;
+      Hash :        Hash_Type)
+   is
+   begin
+      for Idx in Obj.Entries'Range loop
+         if Obj.Entries (Idx).State = Unused then
+            Obj.Entries (Idx) := (
+               Orig_Tag   => Primitive.Tag (Prim),
+               Prim       => Primitive.Copy_Valid_Object_New_Tag (
+                  Prim, Primitive.Tag_Decrypt),
+               Hash_Valid => True,
+               Hash       => Hash,
+               State      => Pending);
+
+            Obj.Used_Entries := Obj.Used_Entries + 1;
+            return;
+         end if;
+      end loop;
+      raise Program_Error;
+   end Submit_Primitive_Decrypt;
 
    procedure Submit_Primitive (
       Obj        : in out Object_Type;
@@ -71,7 +98,9 @@ is
                   Tg     => Tag,
                   Blk_Nr => Primitive.Block_Number (Prim),
                   Idx    => Primitive.Index (Prim)),
-               State    => Pending);
+               State      => Pending,
+               Hash_Valid => False,
+               Hash       => (others => 0));
 
             Data_Index       := Idx;
             Obj.Used_Entries := Obj.Used_Entries + 1;
@@ -126,6 +155,26 @@ is
       --  XXX precondition
       raise Program_Error;
    end Peek_Completed_Tag;
+
+   function Peek_Completed_Hash (
+      Obj  : Object_Type;
+      Prim : Primitive.Object_Type)
+   return Hash_Type
+   is
+   begin
+      for I in Obj.Entries'Range loop
+         if
+            Obj.Entries (I).State = Complete and then
+            Primitive.Equal (Prim, Obj.Entries (I).Prim) and then
+            Obj.Entries (I).Hash_Valid
+         then
+            return Obj.Entries (I).Hash;
+         end if;
+      end loop;
+
+      --  XXX precondition
+      raise Program_Error;
+   end Peek_Completed_Hash;
 
    procedure Drop_Completed_Primitive (
       Obj  : in out Object_Type;

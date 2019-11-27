@@ -155,6 +155,13 @@ is
    is (Translation.Peek_Completed_Primitive (Obj.Trans));
 
    --
+   --  Peek_Completed_Hash
+   --
+   function Peek_Completed_Hash (Obj : Object_Type)
+   return Hash_Type
+   is (Translation.Peek_Completed_Hash (Obj.Trans));
+
+   --
    --  Drop_Completed_Primitive
    --
    procedure Drop_Completed_Primitive (Obj : in out Object_Type)
