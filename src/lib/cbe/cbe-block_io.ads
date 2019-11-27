@@ -67,6 +67,18 @@ is
       Data_Index :    out Data_Index_Type);
 
    --
+   --  FIXME This function is currently only needed for reading actual data
+   --        blocks (Tag_Decrypt). In this case we have to remember the
+   --        expected hash - that we received from the VBD - somewhere until
+   --        the data is available. The VBD forgets the hash once it has
+   --        delivered the completed primitive.
+   --
+   procedure Submit_Primitive_Decrypt (
+      Obj  : in out Object_Type;
+      Prim :        Primitive.Object_Type;
+      Hash :        Hash_Type);
+
+   --
    --  Peek_Completed_Primitive
    --
    function Peek_Completed_Primitive (Obj : Object_Type)
@@ -99,6 +111,11 @@ is
       Obj  : Object_Type;
       Prim : Primitive.Object_Type)
    return Primitive.Tag_Type;
+
+   function Peek_Completed_Hash (
+      Obj  : Object_Type;
+      Prim : Primitive.Object_Type)
+   return Hash_Type;
 
    --
    --  Take the next completed primitive
@@ -175,9 +192,11 @@ private
    type Entry_State_Type is (Unused, Pending, In_Progress, Complete);
 
    type Entry_Type is record
-      Orig_Tag : Primitive.Tag_Type;
-      Prim     : Primitive.Object_Type;
-      State    : Entry_State_Type;
+      Orig_Tag   : Primitive.Tag_Type;
+      Prim       : Primitive.Object_Type;
+      Hash       : Hash_Type;
+      Hash_Valid : Boolean;
+      State      : Entry_State_Type;
    end record;
 
    type Entries_Type is array (Data_Index_Type'Range) of Entry_Type;

@@ -10,10 +10,47 @@ pragma Ada_2012;
 
 with CBE.Tree_Helper;
 with CBE.Debug;
+with SHA256_4K;
 
 package body CBE.Library
 with SPARK_Mode
 is
+   procedure CBE_Hash_From_SHA256_4K_Hash (
+      CBE_Hash : out Hash_Type;
+      SHA_Hash :     SHA256_4K.Hash_Type);
+
+   procedure SHA256_4K_Data_From_CBE_Data (
+      SHA_Data : out SHA256_4K.Data_Type;
+      CBE_Data :     Block_Data_Type);
+
+   procedure CBE_Hash_From_SHA256_4K_Hash (
+      CBE_Hash : out Hash_Type;
+      SHA_Hash :     SHA256_4K.Hash_Type)
+   is
+      SHA_Idx : SHA256_4K.Hash_Index_Type := SHA256_4K.Hash_Index_Type'First;
+   begin
+      for CBE_Idx in CBE_Hash'Range loop
+         CBE_Hash (CBE_Idx) := Byte_Type (SHA_Hash (SHA_Idx));
+         if CBE_Idx < CBE_Hash'Last then
+            SHA_Idx := SHA_Idx + 1;
+         end if;
+      end loop;
+   end CBE_Hash_From_SHA256_4K_Hash;
+
+   procedure SHA256_4K_Data_From_CBE_Data (
+      SHA_Data : out SHA256_4K.Data_Type;
+      CBE_Data :     Block_Data_Type)
+   is
+      CBE_Idx : Block_Data_Index_Type := Block_Data_Index_Type'First;
+   begin
+      for SHA_Idx in SHA_Data'Range loop
+         SHA_Data (SHA_Idx) := SHA256_4K.Byte (CBE_Data (CBE_Idx));
+         if SHA_Idx < SHA_Data'Last then
+            CBE_Idx := CBE_Idx + 1;
+         end if;
+      end loop;
+   end SHA256_4K_Data_From_CBE_Data;
+
    procedure Try_Discard_Snapshot (
       Snaps     : in out Snapshots_Type;
       Keep_Snap :        Snapshots_Index_Type;
@@ -1445,7 +1482,20 @@ is
                      Declare_Data :
                      declare
                         Data_Idx : Crypto.Item_Index_Type;
+                        SHA_Data : SHA256_4K.Data_Type;
+                        SHA_Hash : SHA256_4K.Hash_Type;
+                        CBE_Hash : Hash_Type;
                      begin
+                        SHA256_4K_Data_From_CBE_Data (
+                           SHA_Data, IO_Buf (Index));
+                        SHA256_4K.Hash (SHA_Data, SHA_Hash);
+                        CBE_Hash_From_SHA256_4K_Hash (CBE_Hash, SHA_Hash);
+                        if CBE_Hash /=
+                           Block_IO.Peek_Completed_Hash (Obj.IO_Obj, Prim)
+                        then
+                           raise Program_Error;
+                        end if;
+
                         --
                         --  Having to override the Tag is needed because of
                         --  the way the Crypto module is hooked up in the
@@ -1530,8 +1580,9 @@ is
                Primitive.Operation (Prim) /= Read or else
                not Block_IO.Primitive_Acceptable (Obj.IO_Obj);
 
-            Block_IO.Submit_Primitive (
-               Obj.IO_Obj, Primitive.Tag_Decrypt, Prim);
+            Block_IO.Submit_Primitive_Decrypt (
+               Obj.IO_Obj, Prim,
+               Virtual_Block_Device.Peek_Completed_Hash (Obj.VBD));
 
             Virtual_Block_Device.Drop_Completed_Primitive (Obj.VBD);
             Progress := True;
