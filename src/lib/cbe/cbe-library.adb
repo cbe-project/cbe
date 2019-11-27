@@ -1572,20 +1572,49 @@ is
       Loop_VBD_Completed_Prims :
       loop
          declare
-            Prim : constant Primitive.Object_Type :=
+            Prim : Primitive.Object_Type :=
                Virtual_Block_Device.Peek_Completed_Primitive (Obj.VBD);
          begin
             exit Loop_VBD_Completed_Prims when
                not Primitive.Valid (Prim) or else
-               Primitive.Operation (Prim) /= Read or else
-               not Block_IO.Primitive_Acceptable (Obj.IO_Obj);
+               Primitive.Operation (Prim) /= Read;
 
-            Block_IO.Submit_Primitive_Decrypt (
-               Obj.IO_Obj, Prim,
-               Virtual_Block_Device.Peek_Completed_Hash (Obj.VBD));
+            if Virtual_Block_Device.Peek_Completed_Generation (Obj.VBD) =
+               Initial_Generation
+            then
+               --  write all 0 to cache entry
+               --  write all 0 to result buffer
+               --  mark primitive complete at request pool
 
-            Virtual_Block_Device.Drop_Completed_Primitive (Obj.VBD);
-            Progress := True;
+               exit Loop_VBD_Completed_Prims when
+                  not Crypto.Primitive_Acceptable (Obj.Crypto_Obj);
+
+               Declare_Data_Idx :
+               declare
+                  Data_Idx : Crypto.Item_Index_Type;
+               begin
+                  Primitive.Success (Prim, True);
+                  Crypto.Submit_Completed_Primitive (
+                     Obj.Crypto_Obj, Prim, Data_Idx);
+                  Crypto_Plain_Buf (Data_Idx) := (others => 0);
+               end Declare_Data_Idx;
+
+               Virtual_Block_Device.Drop_Completed_Primitive (Obj.VBD);
+               Progress := True;
+
+            else
+
+               exit Loop_VBD_Completed_Prims when
+                  not Block_IO.Primitive_Acceptable (Obj.IO_Obj);
+
+               Block_IO.Submit_Primitive_Decrypt (
+                  Obj.IO_Obj, Prim,
+                  Virtual_Block_Device.Peek_Completed_Hash (Obj.VBD));
+
+               Virtual_Block_Device.Drop_Completed_Primitive (Obj.VBD);
+               Progress := True;
+
+            end if;
          end;
       end loop Loop_VBD_Completed_Prims;
       Obj.Execute_Progress := Progress;

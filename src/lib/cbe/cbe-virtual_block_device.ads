@@ -119,6 +119,9 @@ is
    function Peek_Completed_Hash (Obj : Object_Type)
    return Hash_Type;
 
+   function Peek_Completed_Generation (Obj : Object_Type)
+   return Generation_Type;
+
    --
    --  Drop_Completed_Primitive
    --

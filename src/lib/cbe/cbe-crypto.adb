@@ -45,21 +45,21 @@ is
          Prim  => Primitive.Invalid_Object);
 
       --
-      --  Submitted_Encryption_Object
+      --  Pending_Object
       --
-      function Submitted_Encryption_Object (Prm : Primitive.Object_Type)
+      function Pending_Object (Prm : Primitive.Object_Type)
       return Item_Type
       is (
          State => Pending,
          Prim  => Prm);
 
       --
-      --  Submitted_Decryption_Object
+      --  Completed_Object
       --
-      function Submitted_Decryption_Object (Prm : Primitive.Object_Type)
+      function Completed_Object (Prm : Primitive.Object_Type)
       return Item_Type
       is (
-         State => Pending,
+         State => Complete,
          Prim  => Prm);
 
       ----------------------
@@ -117,13 +117,32 @@ is
    begin
       For_Items : for Item_Idx in Obj.Items'Range loop
          if Item.Invalid (Obj.Items (Item_Idx)) then
-            Obj.Items (Item_Idx) := Item.Submitted_Encryption_Object (Prim);
+            Obj.Items (Item_Idx) := Item.Pending_Object (Prim);
             Data_Idx := Item_Idx;
             return;
          end if;
       end loop For_Items;
       raise Program_Error;
    end Submit_Primitive;
+
+   --
+   --  Submit_Completed_Primitive
+   --
+   procedure Submit_Completed_Primitive (
+      Obj      : in out Object_Type;
+      Prim     :        Primitive.Object_Type;
+      Data_Idx :    out Item_Index_Type)
+   is
+   begin
+      For_Items : for Item_Idx in Obj.Items'Range loop
+         if Item.Invalid (Obj.Items (Item_Idx)) then
+            Obj.Items (Item_Idx) := Item.Completed_Object (Prim);
+            Data_Idx := Item_Idx;
+            return;
+         end if;
+      end loop For_Items;
+      raise Program_Error;
+   end Submit_Completed_Primitive;
 
    --
    --  Peek_Generated_Primitive

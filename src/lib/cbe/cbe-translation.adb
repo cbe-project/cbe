@@ -275,6 +275,20 @@ is
    end Peek_Completed_Hash;
 
    --
+   --  Peek_Completed_Generation
+   --
+   function Peek_Completed_Generation (Obj : Object_Type)
+   return Generation_Type
+   is
+   begin
+      if Obj.Data_PBA /= PBA_Invalid then
+         return Obj.Walk (Obj.Level).Gen;
+      else
+         raise Program_Error;
+      end if;
+   end Peek_Completed_Generation;
+
+   --
    --  Drop_Completed_Primitive
    --
    procedure Drop_Completed_Primitive (Obj : in out Object_Type)

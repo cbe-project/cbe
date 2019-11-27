@@ -54,6 +54,14 @@ is
       Pre => (Primitive_Acceptable (Obj) and then Primitive.Valid (Prim));
 
    --
+   --  Submit_Completed_Primitive
+   --
+   procedure Submit_Completed_Primitive (
+      Obj      : in out Object_Type;
+      Prim     :        Primitive.Object_Type;
+      Data_Idx :    out Item_Index_Type);
+
+   --
    --  Peek_Generated_Primitive
    --
    procedure Peek_Generated_Primitive (
@@ -126,15 +134,15 @@ private
       return Item_Type;
 
       --
-      --  Submitted_Encryption_Object
+      --  Pending_Object
       --
-      function Submitted_Encryption_Object (Prm : Primitive.Object_Type)
+      function Pending_Object (Prm : Primitive.Object_Type)
       return Item_Type;
 
       --
-      --  Submitted_Decryption_Object
+      --  Completed_Object
       --
-      function Submitted_Decryption_Object (Prm : Primitive.Object_Type)
+      function Completed_Object (Prm : Primitive.Object_Type)
       return Item_Type;
 
       ----------------------
