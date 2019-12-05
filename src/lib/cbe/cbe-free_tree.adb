@@ -10,8 +10,6 @@ pragma Ada_2012;
 
 with SHA256_4K;
 with CBE.Request;
-with CBE.Debug;
-pragma Unreferenced (CBE.Debug);
 
 package body CBE.Free_Tree
 with SPARK_Mode
