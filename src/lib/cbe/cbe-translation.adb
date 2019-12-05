@@ -208,7 +208,7 @@ is
                & Debug.To_String (Debug.Uint64_Type (Obj.Level)) & " "
                & "PBA: "
                & Debug.To_String (Debug.Uint64_Type (
-                  Obj.Walk (Tree_Level_Index_TYpe (Obj.Level)).PBA)) & " "
+                  Obj.Walk (Obj.Level).PBA)) & " "
                & "GOT: " & Debug.To_String (CBE_Hash) & " "
                & "EXP: " & Debug.To_String (
                   Obj.Walk (Obj.Level).Hash)));
